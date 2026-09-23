@@ -1,0 +1,311 @@
+# Builds the desktop launcher, for Windows and for macOS.
+#
+# PyInstaller does not cross-compile: a Windows .exe has to be built on
+# Windows and a Mac .app on a Mac. Rather than ask anyone who wants one to
+# install a build environment, this runs on both runners and leaves each
+# build attached to the run for anyone to download.
+#
+# The cluster side needs none of this: `pip install -e .` gives `adcp-dock`,
+# and `pip install "adcp-dock[launcher]"` on a laptop gives
+# `adcp-dock-launcher`. This is for a launcher that can be double-clicked.
+name: desktop launcher
+
+# Not on a push to main (see CONTRIBUTING.md): the test suite needs ADFRsuite
+# and Amber, so it runs on a cluster. A version tag starts this build, since a
+# tag is pushed only when a release is wanted. It can also be run from the
+# Actions tab.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: stamp the build with its commit
+        # A bundled launcher has no git to ask, so the commit is written to a
+        # file the build carries, so the window can show which version it is.
+        shell: bash
+        run: |
+          echo "$(git rev-parse --short HEAD) $(git log -1 --format=%cd --date=format:%Y-%m-%d)" > BUILD_VERSION
+          cat BUILD_VERSION
+
+      - name: install
+        run: pip install paramiko pyinstaller pillow
+
+      - name: draw the icon
+        run: python brand/make_brand.py
+
+      - name: check the icon is one Explorer can read
+        # PIL's own ICO writer compresses every size as PNG, and Windows
+        # falls back to the generic executable icon rather than read a
+        # PNG-compressed 16x16. This makes that fail the build.
+        env: { PYTHONPATH: "${{ github.workspace }}" }
+        run: python tests/test_brand.py
+
+      - name: check the launcher against a fake SSH server
+        # These stand up an SSH server in-process, so they need no cluster
+        # and no credentials, which is why they can run here at all.
+        env: { PYTHONPATH: "${{ github.workspace }}" }
+        # Each exit status is checked: PowerShell does not stop when a program
+        # fails, and a step's status is only its last command's. The macOS job
+        # runs one step per test instead.
+        run: |
+          foreach ($t in "test_launcher", "test_connect", "test_window") {
+            python "tests/$t.py"
+            # 77 is a deliberate skip (a test naming what it could not run
+            # here), the same convention tests/run_all.sh follows.
+            if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 77) {
+              Write-Error "$t.py failed (exit $LASTEXITCODE)"
+              exit $LASTEXITCODE
+            }
+          }
+
+      - name: build a console copy and make it prove it starts
+        # The shipped executable is windowed, and a windowed executable has
+        # no stdout and no exit status worth trusting. A console copy from
+        # the same entry script can be run and checked, which catches an
+        # import failure that a windowed build shows only as a window that
+        # never appears.
+        run: |
+          pyinstaller --noconfirm --onefile --console `
+            --name ADCP-launcher-check --paths . `
+            --add-data "BUILD_VERSION;." `
+            --hidden-import paramiko packaging/launcher.py
+          $out = & dist\ADCP-launcher-check.exe --selftest 2>&1 | Out-String
+          Write-Host $out
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "the bundled launcher did not start (exit $LASTEXITCODE)"
+            exit 1
+          }
+          if ($out -notmatch "SELFTEST OK") {
+            Write-Error "it started but did not reach the end of --selftest"
+            exit 1
+          }
+          if ($out -match "paramiko NOT INSTALLED") {
+            Write-Error "paramiko did not come along in the bundle, so the
+              launcher cannot connect to anything"
+            exit 1
+          }
+
+      - name: build the launcher
+        # --onedir, not --onefile. A one-file build is a self-extracting stub
+        # that unpacks a Python runtime into a temporary folder and executes
+        # it, which antivirus heuristics often flag. A folder build has
+        # nothing to unpack at startup.
+        #
+        # The cost is a folder of libraries beside the .exe that has to
+        # travel with it, which is why the artifact is the whole folder.
+        run: >
+          pyinstaller --noconfirm --onedir --windowed
+          --name ADCP-Docking-launcher --paths .
+          --icon brand/adcp.ico
+          --version-file packaging/win_version.txt
+          --hidden-import paramiko
+          --add-data "BUILD_VERSION;."
+          packaging/launcher.py
+
+      - name: say whether it was signed
+        # SmartScreen warns about every unsigned executable it has not seen
+        # before, and nothing about how this is built changes that, only a
+        # signature from a known publisher does. There is no certificate
+        # today, so this reports rather than fails.
+        run: |
+          $sig = Get-AuthenticodeSignature dist\ADCP-Docking-launcher\ADCP-Docking-launcher.exe
+          Write-Host "signature: $($sig.Status)"
+          if ($sig.Status -ne "Valid") {
+            Write-Host "Unsigned. Windows will show 'Windows protected your PC'"
+            Write-Host "on first run: More info -> Run anyway."
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ADCP-Docking-launcher-windows
+          path: dist/ADCP-Docking-launcher/
+
+      - name: zip the folder for the release page
+        # A release asset is one file. The folder is zipped whole, because
+        # the .exe does not run without the libraries beside it.
+        run: Compress-Archive -Path dist/ADCP-Docking-launcher -DestinationPath ADCP-Docking-launcher-windows.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: ADCP-Docking-launcher-windows.zip
+
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: stamp the build with its commit
+        run: |
+          echo "$(git rev-parse --short HEAD) $(git log -1 --format=%cd --date=format:%Y-%m-%d)" > BUILD_VERSION
+          cat BUILD_VERSION
+
+      - name: install
+        run: pip install paramiko pyinstaller pillow
+
+      - name: check tkinter came with this python
+        # The launcher is a tkinter window. A python without it builds
+        # but produces an .app that fails on its first line.
+        run: python -c "import tkinter; print('tkinter', tkinter.TkVersion)"
+
+      # One step per test, so a failure names the test.
+      - name: draw the icon
+        run: python brand/make_brand.py
+      - name: "test: the icon"
+        env: { PYTHONPATH: "${{ github.workspace }}" }
+        run: python tests/test_brand.py
+      - name: "test: the window builds and the site table fills it"
+        env: { PYTHONPATH: "${{ github.workspace }}" }
+        run: python tests/test_window.py
+      - name: "test: the command, the URL and two-factor prompts"
+        env: { PYTHONPATH: "${{ github.workspace }}" }
+        run: python tests/test_launcher.py
+      - name: "test: signing in and carrying the page"
+        env: { PYTHONPATH: "${{ github.workspace }}" }
+        run: python tests/test_connect.py
+
+      - name: make an icns from the logo
+        # macOS wants .icns and will not read the .ico the Windows build
+        # uses. Built from the 512px PNG, so the mark has one source. Never
+        # fatal: a missing icon should not fail the build.
+        continue-on-error: true
+        run: |
+          set -x
+          mkdir -p adcp.iconset
+          for s in 16 32 128 256 512; do
+            sips -z $s $s brand/adcp_logo_512.png --out "adcp.iconset/icon_${s}x${s}.png"
+            sips -z $((s * 2)) $((s * 2)) brand/adcp_logo_512.png --out "adcp.iconset/icon_${s}x${s}@2x.png"
+          done
+          iconutil -c icns adcp.iconset -o adcp.icns
+          ls -l adcp.icns
+
+      - name: build a console copy and make it prove it starts
+        run: |
+          pyinstaller --noconfirm --onefile --console \
+            --name ADCP-launcher-check --paths . \
+            --add-data "BUILD_VERSION:." \
+            --hidden-import paramiko packaging/launcher.py
+          # Apple Silicon will not execute an unsigned binary at all: it is
+          # killed outright, with no output and an exit status that says
+          # nothing. PyInstaller normally ad-hoc signs its own output;
+          # doing it here as well costs nothing and removes the one failure
+          # that can only happen on arm64.
+          codesign --force --sign - dist/ADCP-launcher-check || \
+            echo "could not ad-hoc sign; continuing"
+          set +e
+          out=$(./dist/ADCP-launcher-check --selftest 2>&1); rc=$?
+          set -e
+          echo "$out"; echo "exit status: $rc"
+          [ $rc -eq 0 ] || { echo "the bundled launcher did not start"; exit 1; }
+          case "$out" in
+            *"SELFTEST OK"*) ;;
+            *) echo "it started but did not reach the end of --selftest"
+               exit 1 ;;
+          esac
+          case "$out" in
+            *"paramiko NOT INSTALLED"*)
+              echo "paramiko did not come along in the bundle"; exit 1 ;;
+          esac
+
+      - name: build the launcher
+        run: |
+          icon=""
+          if [ -f adcp.icns ]; then icon="--icon adcp.icns"; else
+            echo "no adcp.icns; building without one"; fi
+          pyinstaller --noconfirm --windowed \
+            --name ADCP-Docking-launcher --paths . \
+            $icon \
+            --osx-bundle-identifier edu.tamu.hope.adcpdocking \
+            --hidden-import paramiko \
+            --add-data "BUILD_VERSION:." \
+            packaging/launcher.py
+          ls -la dist/
+
+      - name: ad-hoc sign it
+        # Not a substitute for a Developer ID. Ad-hoc signing does not get
+        # past the unverified-developer prompt, only a Developer ID and
+        # notarisation do, but it is what lets the binary execute at all on
+        # Apple Silicon once the user has allowed it.
+        run: |
+          codesign --force --deep --sign - "dist/ADCP-Docking-launcher.app" || \
+            echo "could not ad-hoc sign the app; continuing"
+          echo "Not notarised. On first open macOS will refuse it:"
+          echo "  right-click the app and choose Open, then confirm."
+
+      - name: pack the .app so it survives the download
+        # ditto, not zip: a .app is a directory of symlinks and executable
+        # bits, and the artifact upload flattens both. An .app that arrives
+        # without its executable bit fails with a permission error that says
+        # nothing about what happened to it.
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent \
+            "dist/ADCP-Docking-launcher.app" \
+            "dist/ADCP-Docking-launcher-mac-apple-silicon.zip"
+          ls -lh dist/*.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ADCP-Docking-launcher-mac-apple-silicon
+          path: dist/ADCP-Docking-launcher-mac-apple-silicon.zip
+
+  # A release page for a tag. An Actions artifact requires a GitHub account to
+  # download and is removed after ninety days; a release asset is permanent
+  # and public, and is what an archive service reads to mint a DOI. Built only
+  # from a v* tag, and only after both platform builds have passed.
+  #
+  # ADFRsuite is not attached and must not be: Scripps asks that it be
+  # downloaded from them.
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+          pattern: "{release-windows,ADCP-Docking-launcher-mac-apple-silicon}"
+      - name: checksums
+        run: |
+          cd assets
+          ls -l
+          sha256sum *.zip > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - name: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > notes.md <<EOF
+          A graphical interface to [ADCP](https://ccsb.scripps.edu/adcp/), a product of the Scripps Research Institute. Powered by HOPE Lab.
+
+          **Desktop launcher**: signs in to a Slurm cluster, starts the interface there and opens it in your browser.
+
+          - **Windows**: unzip, keep the folder together, run \`ADCP-Docking-launcher.exe\`. On first run: *More info -> Run anyway* (the bundle is not yet code-signed).
+          - **macOS (Apple silicon)**: unzip, then right-click the app and choose *Open* the first time.
+
+          Verify a download against \`SHA256SUMS.txt\`. To run without a cluster, or in a browser with nothing installed, see [INSTALL.md](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/INSTALL.md).
+
+          ADFRsuite is not included: it is downloaded from the Scripps Research Institute on install, as they ask.
+          EOF
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" assets/*.zip assets/SHA256SUMS.txt --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" assets/*.zip assets/SHA256SUMS.txt \
+              --title "GUI to ADCP Docking ${GITHUB_REF_NAME}" --notes-file notes.md --verify-tag
+          fi

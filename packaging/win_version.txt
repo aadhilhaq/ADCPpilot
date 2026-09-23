@@ -1,0 +1,37 @@
+# Windows file properties for the built executable.
+#
+# Without this the Details tab of the .exe is empty, which reads as an
+# anonymous binary next to the icon: no product name, no description, no
+# company. It is the same information the icon carries, in the place Windows
+# shows when someone right-clicks something they did not expect to have.
+#
+# The version is fixed at 1.0.0 rather than generated: this numbering says
+# what the launcher is, not which commit built it, and the launcher already
+# reports its own commit in the window.
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers=(1, 0, 0, 0),
+    prodvers=(1, 0, 0, 0),
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo([
+      StringTable(
+        '040904B0',
+        [StringStruct('CompanyName', 'HOPE Lab'),
+         StringStruct('FileDescription',
+                      'GUI to ADCP Docking launcher'),
+         StringStruct('FileVersion', '1.0.0.0'),
+         StringStruct('InternalName', 'ADCP-Docking-launcher'),
+         StringStruct('OriginalFilename', 'ADCP-Docking-launcher.exe'),
+         StringStruct('ProductName', 'GUI to ADCP Docking'),
+         StringStruct('ProductVersion', '1.0.0.0')])
+    ]),
+    VarFileInfo([VarStruct('Translation', [1033, 1200])])
+  ]
+)

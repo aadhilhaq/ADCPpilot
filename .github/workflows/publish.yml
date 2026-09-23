@@ -1,0 +1,85 @@
+# Publish adcp-dock to PyPI, so that it installs with
+#
+#     pip install adcp-dock
+#
+# MANUAL ONLY, and deliberately so. A publish to PyPI cannot be undone: a
+# version number, once uploaded, can be yanked but never replaced. It is
+# therefore not attached to a tag, which would publish on every release
+# build; it is run from the Actions tab when a release is meant to go out.
+#
+# NO PASSWORD OR TOKEN IS STORED. This uses PyPI Trusted Publishing, where
+# PyPI verifies a short-lived OpenID Connect token issued by GitHub for this
+# repository and workflow. Nothing to leak and nothing to rotate.
+#
+# BEFORE THE FIRST RUN, on https://pypi.org, under Publishing:
+#
+#   PyPI project name   adcp-dock
+#   Owner               aadhilhaq
+#   Repository          ADCP_docking
+#   Workflow name       publish.yml
+#   Environment         pypi
+#
+# Until that is configured the job fails at the upload step with an
+# authentication error and nothing is published.
+name: publish to PyPI
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: "Where to publish"
+        required: true
+        default: testpypi
+        type: choice
+        options: [testpypi, pypi]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: build the distributions
+        run: |
+          python -m pip install --upgrade build twine
+          python -m build
+
+      - name: check the metadata PyPI will read
+        run: python -m twine check dist/*
+
+      - name: the version being published
+        # Printed so that the version is visible in the log before anything
+        # is uploaded, since the same version cannot be uploaded twice.
+        run: ls -l dist/ && python -c "import tomllib;print('version:', tomllib.load(open('pyproject.toml','rb'))['project']['version'])"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distributions
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.repository }}
+    permissions:
+      # The OpenID Connect token Trusted Publishing verifies. This is the
+      # only permission the job needs; it writes nothing to the repository.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: distributions
+          path: dist/
+
+      - name: publish to TestPyPI
+        if: inputs.repository == 'testpypi'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+      - name: publish to PyPI
+        if: inputs.repository == 'pypi'
+        uses: pypa/gh-action-pypi-publish@release/v1

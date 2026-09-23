@@ -1,0 +1,72 @@
+cff-version: 1.2.0
+title: "GUI to ADCP Docking"
+message: >-
+  If you use this software, please cite it and the docking engine it runs.
+  ADCP (AutoDock CrankPep) and ADFRsuite were developed by the Scripps
+  Research Institute and are not part of this work; this package is a
+  browser and command-line workflow that runs them. The full citation list
+  for a run, including the preparation and rescoring tools it used, is
+  printed by `adcp-dock cite <run>`.
+type: software
+authors:
+  - given-names: Aadhil
+    family-names: Haq
+    affiliation: "HOPE Lab, Texas A&M University"
+    orcid: "https://orcid.org/0000-0001-8335-2121"
+  - given-names: Sandun
+    family-names: Fernando
+    affiliation: "HOPE Lab, Texas A&M University"
+    orcid: "https://orcid.org/0000-0002-7692-2170"
+    role: "Principal Investigator"
+version: "0.1.5"
+license: "MIT"
+abstract: >-
+  Browser and command-line workflow for ADCP peptide docking. It connects
+  receptor preparation, grid generation, docking, optional MM-GBSA
+  rescoring and reporting, and runs on a Slurm cluster, a local computer or
+  Google Colab.
+keywords:
+  - peptide docking
+  - ADCP
+  - molecular docking
+  - MM-GBSA
+  - high-performance computing
+references:
+  - type: article
+    title: >-
+      AutoDock CrankPep: combining folding and docking to predict
+      protein-peptide complexes
+    authors:
+      - family-names: Zhang
+        given-names: Yuqi
+      - family-names: Sanner
+        given-names: Michel F.
+    journal: "Bioinformatics"
+    volume: 35
+    issue: 24
+    start: 5121
+    end: 5127
+    year: 2019
+    doi: "10.1093/bioinformatics/btz459"
+    notes: "The docking engine. Scripps Research Institute."
+  - type: article
+    title: >-
+      AutoDockFR: Advances in Protein-Ligand Docking with Explicitly
+      Specified Binding Site Flexibility
+    authors:
+      - family-names: Ravindranath
+        given-names: Pradeep Anand
+      - family-names: Forli
+        given-names: Stefano
+      - family-names: Goodsell
+        given-names: David S.
+      - family-names: Olson
+        given-names: Arthur J.
+      - family-names: Sanner
+        given-names: Michel F.
+    journal: "PLOS Computational Biology"
+    volume: 11
+    issue: 12
+    year: 2015
+    doi: "10.1371/journal.pcbi.1004586"
+    notes: "ADFRsuite: grid maps and receptor preparation. Scripps."

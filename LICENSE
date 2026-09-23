@@ -1,0 +1,54 @@
+MIT License
+
+Copyright (c) 2026 Aadhil Haq and Sandun Fernando,
+HOPE Lab, Texas A&M University
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+This licence covers this package only: the interface, the Slurm workflow
+and the preparation code in adcp_dock/. It does not cover, and cannot relicense,
+the programs this package drives:
+
+  ADCP                 Scripps Research Institute. GNU Library General
+                       Public License (LGPL), version 2, June 1991. See
+                       COPYING.LESSER in github.com/ccsb-scripps/ADCP
+                       https://ccsb.scripps.edu/adcp/
+
+                       This package does not contain, modify or redistribute
+                       ADCP. It invokes the `adcp` executable as a separate
+                       process, which the LGPL puts outside its scope: "The
+                       act of running a program using the Library is not
+                       restricted." No LGPL obligation therefore passes to
+                       this package or to its MIT licence.
+
+  ADFRsuite            Scripps Research Institute, on its own terms. This is
+                       the bundle install.sh downloads (agfr,
+                       prepare_receptor and the adcp binary together); its
+                       terms are stated at the download page and are not
+                       necessarily identical to ADCP's own LGPL. Read them
+                       before commercial use.
+                       https://ccsb.scripps.edu/adfr/downloads/
+  AmberTools           see https://ambermd.org/ for its licence
+  PDB2PQR / PROPKA     their own terms
+  3Dmol.js             BSD-3-Clause, vendored under adcp_dock/static/
+
+Each must be obtained and used under its own licence. Installing this package
+does not grant any right to them.

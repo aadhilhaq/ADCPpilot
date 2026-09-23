@@ -1,0 +1,65 @@
+# The tests that need nothing but Python.
+#
+# Not the whole suite as it is run in practice: the real checks happen on a
+# compute node with ADFRsuite and Amber present, and this is what a clone
+# can prove about itself. Its job is to stop an obviously broken commit, not
+# to stand in for a run.
+name: tests
+
+# MANUAL ONLY: see CONTRIBUTING.md. Every test below also runs from
+# `tests/run_all.sh` on a cluster, which is the gate a change goes through.
+# This copy exists so a clone with nothing installed can still be checked.
+on:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: install
+        # numpy and RDKit are not optional: the receptor, the box and every
+        # pose laid on a clean topology go through them. paramiko is the
+        # launcher's. Pillow draws the icon.
+        run: pip install "numpy<2" rdkit paramiko pillow
+
+      - name: the API the page depends on
+        env: { PYTHONPATH: "${{ github.workspace }}" }
+        run: python tests/test_api.py
+
+      - name: targets, chain masks, poses, and the vendored call sites
+        env: { PYTHONPATH: "${{ github.workspace }}" }
+        run: python tests/test_engine.py
+
+      - name: the launcher's command, URL and two-factor handling
+        env: { PYTHONPATH: "${{ github.workspace }}" }
+        run: python tests/test_launcher.py
+
+      - name: signing in, starting the server and forwarding a port
+        # Stands up an SSH server in-process, so it needs no cluster and no
+        # credentials. This is the one that would catch a launcher that
+        # connects but cannot carry the page.
+        env: { PYTHONPATH: "${{ github.workspace }}" }
+        run: python tests/test_connect.py
+
+      - name: the icon Explorer has to read
+        env: { PYTHONPATH: "${{ github.workspace }}" }
+        run: python tests/test_brand.py
+
+      - name: the launcher's mark, settings and port band are its own
+        # A display exists on the build runners, so this one BUILDS the real
+        # window there. On a headless machine it says which half it skipped.
+        env: { PYTHONPATH: "${{ github.workspace }}" }
+        run: python tests/test_window.py
+
+      - name: the vendored directory holds exactly what it says it does
+        # There is no upstream checkout here to diff against, so this checks
+        # the list instead: every module named is present, nothing unnamed
+        # is, and nothing in adcp_dock/ shadows one of them. A shadowing
+        # module silently replaces a vendored stage.
+        env: { PYTHONPATH: "${{ github.workspace }}" }
+        run: python scripts/refresh_vendor.py --audit
