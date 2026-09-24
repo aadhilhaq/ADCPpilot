@@ -137,6 +137,31 @@ _, size, _ = structure.box_for(big, [("A", 1), ("A", 5)], maximum=30.0)
 check(size[0] == 30.0, "residues 80 A apart gave a %s box, not the ceiling"
       % size[0])
 
+# --- the box drawn is the box docked into ---------------------------------
+# The page draws structure.box_for; the run docks into receptor.box. One
+# rule for both: along each axis, the span plus padding, clamped.
+import types                                                    # noqa: E402
+from adcp_dock._vendor import receptor as vrec                   # noqa: E402
+flat = [structure.Atom(name="CA", resname="ALA", chain="A", resnum=i,
+                       x=x, y=y, z=z, element="C")
+        for i, (x, y, z) in enumerate([(0.0, 0.0, 0.0), (10.0, 30.0, 2.0),
+                                       (4.0, 12.0, 1.0)], 1)]
+keys = [("A", 1), ("A", 2), ("A", 3)]
+c1, s1, _ = structure.box_for(flat, keys, padding=8.0, minimum=20.0,
+                              maximum=30.0)
+stub = types.SimpleNamespace(
+    hotspot_keys=keys, hotspots=[],
+    atoms_of=lambda k: [types.SimpleNamespace(xyz=(a.x, a.y, a.z))
+                        for a in flat])
+c2, s2 = vrec.box(stub, types.SimpleNamespace(box_padding=8.0, box_min=20.0,
+                                              box_max=30.0))
+check([round(v, 6) for v in s1] == [round(float(v), 6) for v in s2]
+      == [26.0, 30.0, 20.0],
+      "the page draws a %s box and the run docks into %s"
+      % (list(s1), [float(v) for v in s2]))
+check(all(abs(a - float(b)) < 1e-6 for a, b in zip(c1, c2)),
+      "the drawn and the docked box have different centres")
+
 # --- the report leads with the mean of the top few ------------------------
 row = report.summarise("AAAA", [{"score": -20.0}, {"score": -10.0},
                                 {"score": -9.0}], top_n=2)

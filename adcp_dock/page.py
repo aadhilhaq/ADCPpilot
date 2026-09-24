@@ -194,7 +194,7 @@ textarea{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;min-height:76
 .checks .chk input{width:auto;margin:0;flex:0 0 auto}
 /* The box switch sits on the viewer it draws into. The site row reports the
    box as a centre and edge lengths, which cannot be judged against a groove
-   by eye, so the cube is drawn in the picker over the structure, and the tick
+   by eye, so the box is drawn in the picker over the structure, and the tick
    that hides it goes on the viewer's caption line, beside what it controls.
    Not .checks: that is a block of settings with its own 14px top margin and
    22px column gap, and this is one tick at the end of a caption. */
@@ -494,8 +494,8 @@ __STALE__
 
 <div class=card>
   <h2>Site</h2>
-  <p class=hint>The residues the docking box should cover. The box is a cube
-    around them, padded and clamped.</p>
+  <p class=hint>The residues the docking box should cover. Along each axis the box
+    spans them plus the padding, clamped between the minimum and maximum.</p>
   <div class=row>
     <div class=fieldwrap style="flex:3 1 300px">
       <label for=hotspots>Residues (CHAIN:NUMBER, or bare numbers)</label>
@@ -599,7 +599,7 @@ __STALE__
        line up. The step guideline is its own line below the row. -->
   <div class=row>
     <div><label for=poses>Poses per peptide</label>
-      <input type=number id=poses value="10" min="1" max="100"></div>
+      <input type=number id=poses value="10" min="1" max="10"></div>
     <div><label for=replicas>Search replicas</label>
       __REPLICA_OPTIONS__</div>
     <div><label for=steps>Steps per replica</label>
@@ -623,7 +623,7 @@ __STALE__
     </div>
     <div id=mmopts class="row hide" style="flex:1 1 auto">
       <div><label for=mmposes>Poses to rescore</label>
-        <input type=number id=mmposes value="5" min="1" max="50"></div>
+        <input type=number id=mmposes value="5" min="1" max="10"></div>
       <div><label for=topn>Report the mean of the top</label>
         <input type=number id=topn value="5" min="1" max="50"></div>
     </div>
@@ -774,12 +774,36 @@ larger of the two and takes a moment the first time.">
   <div class=listing><pre id=citetext
     style="white-space:pre-wrap;margin:0;font-size:12px"></pre></div>
   <div class=dlg-f>
-    <span class=why>Download for your reference manager:</span>
+    <span class=why id=citenote>Download for your reference manager:</span>
     <span style="display:flex;gap:8px;align-items:center">
       <button class=ghost data-cite=txt>.txt</button>
       <button class=ghost data-cite=bib>BibTeX</button>
       <button class=ghost data-cite=ris>RIS / EndNote</button>
+      <button class=ghost id=citecopy>Copy</button>
       <button class=ghost id=citeclose>Close</button>
+    </span>
+  </div>
+</dialog>
+<!-- Feedback as a dialog rather than a jump to mailto: a mail link opened
+     from inside a notebook's frame is blocked without a word. The addresses
+     and the details to paste are always shown, so a report can be sent
+     whatever the browser allows. -->
+<dialog id=fbdlg>
+  <div class=dlg-h><b>Send feedback</b>
+    <span class=why>Write to aadhil.haq@tamu.edu, copying sfernando@tamu.edu,
+      or open an issue on GitHub. Paste the details below into the message:
+      they say which version and machine the report is about.</span></div>
+  <div class=listing><textarea id=fbtext readonly rows=7 aria-label="Details
+    to include in a report" style="width:100%;box-sizing:border-box;border:0;
+    background:transparent;resize:vertical;font:12px ui-monospace,Menlo,Consolas,monospace"></textarea></div>
+  <div class=dlg-f>
+    <span class=why id=fbnote></span>
+    <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class=ghost id=fbcopy>Copy details</button>
+      <a class=btnlink id=fbmail target=_blank rel=noopener>Open email</a>
+      <a class=btnlink id=fbissue target=_blank rel=noopener
+         href="https://github.com/aadhilhaq/ADCP_docking/issues/new">Open a GitHub issue</a>
+      <button class=ghost id=fbclose>Close</button>
     </span>
   </div>
 </dialog>

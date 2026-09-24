@@ -253,6 +253,13 @@ check("mailto:" in appjs,
       "a button that silently drops what a user typed is worse than none")
 check("aadhil.haq@tamu.edu" in appjs and "sfernando@tamu.edu" in appjs,
       "feedback would not reach both addresses")
+check("location.href = 'mailto:" not in appjs and "id=fbdlg" in html
+      and "$('fbdlg').showModal()" in appjs and "id=fbcopy" in html,
+      "Send feedback jumps the frame to a mail link, which a notebook frame "
+      "blocks without a word; it must open the dialog that shows the "
+      "addresses and the details to paste")
+check("id=citecopy" in html,
+      "the citation text cannot be copied where downloads are blocked")
 
 # --- the two alignment faults ---------------------------------------------
 check(".row input[type=text],.row input[type=number],.row select," in html
@@ -1523,7 +1530,7 @@ check(appjs.count('drawBox()') >= 3 or appjs.count('drawBox') >= 4,
       "the box is drawn once and then goes stale: it has to be redrawn when "
       "the site changes, when the model reloads, and when the tick moves")
 check('removeShape' in appjs,
-      "old boxes are never removed, so changing the padding stacks cubes")
+      "old boxes are never removed, so changing the padding stacks boxes")
 check('SITE.centre' in appjs and 'SITE.size' in appjs,
       "the drawn box is not built from the same centre and size the run "
       "uses, so it could show something the docking will not do")
@@ -1654,6 +1661,8 @@ check(_before("loadReceptor", "$(\'hotspots\').value"),
 _uionly = {"reccode", "pastetext", "issuenote", "issuemail", "showbox",
            "rccol", "rlcol", "rbcol", "rlabel", "rengine", "rposepick",
            "box_chains",
+           # the details shown in the feedback dialog, filled in when it opens
+           "fbtext",
            # A file input is not a setting and cannot be one: no browser
            # will let a page put a value back into it, for the obvious
            # reason. What the upload PRODUCES is a path in recpath, and
@@ -2039,6 +2048,82 @@ finally:
 _js = open(os.path.join(ROOT, "adcp_dock", "static", "app.js")).read()
 check("d.mmgbsa === false" in _js and "box.disabled = true" in _js,
       "the page does not disable MM-GBSA when AmberTools is absent")
+
+# --- a receptor docked without its full preparation says so ----------------
+#
+# Two fallbacks keep a run going and must not look like a clean run: pdb2pqr
+# succeeding only without PROPKA (standard states, the run's pH not
+# applied), and prepare_receptor writing the docking receptor from the chain
+# as read.
+import tempfile as _tf                                          # noqa: E402
+from adcp_dock import pipeline as _pl                           # noqa: E402
+import adcp_dock.job as _jobmod                                 # noqa: E402
+_rd = _tf.mkdtemp()
+os.makedirs(os.path.join(_rd, "receptor"))
+open(os.path.join(_rd, "receptor", "preparation.log"), "w").write(
+    "  protonation: skipped; pdb2pqr with PROPKA failed: propka crashed\n"
+    "  protonation retry: done; AMBER force field WITHOUT PROPKA; 1200 "
+    "hydrogens added\n"
+    "  minimisation: done; 500 steps\n")
+_w = server.prep_warnings(_rd, {"minimise": True})
+check(len(_w) == 1 and "without PROPKA" in _w[0],
+      "a receptor protonated without PROPKA is not flagged: %r" % _w)
+with open(os.path.join(_rd, "receptor", "preparation.log"), "a") as _fh:
+    _fh.write("  receptor pdbqt: skipped; prepare_receptor could not use the "
+              "prepared structure\n")
+_w = server.prep_warnings(_rd, {"minimise": True})
+check(any("written from the structure as read" in x for x in _w),
+      "a receptor docked from the unprepared chain is not flagged: %r" % _w)
+check(_pl.FALLBACK_SIGN in open(os.path.join(
+          ROOT, "adcp_dock", "_vendor", "receptor.py")).read(),
+      "prepare_pdbqt no longer logs the fallback message the pipeline looks "
+      "for, so the page cannot flag it")
+
+# --- ions are removed with the other heteroatoms unless those are kept -----
+if os.path.isfile(RECEPTOR):
+    _seen = {}
+
+    class _Stop(Exception):
+        pass
+
+    def _fake_run(*a, **kw):
+        _seen.update(kw)
+        raise _Stop()
+
+    _real = _pl.prep.run
+    _pl.prep.run = _fake_run
+    try:
+        for _keep in (False, True):
+            _seen.clear()
+            _rd2 = _tf.mkdtemp()
+            _j = _jobmod.default(receptor=RECEPTOR, chains=["A"],
+                                 hotspots=_POCKET, keep_hetatms=_keep)
+            try:
+                _pl.stage_prepare(_rd2, _j, log=lambda *a: None)
+            except _Stop:
+                pass
+            check(_seen.get("keep_ions") is _keep,
+                  "with keep_hetatms %s the preparation keeps ions: %r"
+                  % (_keep, _seen.get("keep_ions")))
+    finally:
+        _pl.prep.run = _real
+else:
+    print("skip  the ion rule needs a receptor (ADCP_TEST_RECEPTOR)")
+
+# --- the length limit a run is created with is the one the page checks ------
+check(_jobmod.default()["max_length"] == peptide.MAX_LENGTH,
+      "a new run's length limit is %s while the page checks %d"
+      % (_jobmod.default()["max_length"], peptide.MAX_LENGTH))
+_why = [x for x in _jobmod.validate(_jobmod.default(peptides=[
+    {"name": "p27", "sequence": "ETFSDLWKLLPENNVLSPLPSQAMDDL"}]))
+    if "limit" in x]
+check(not _why, "a 27 residue peptide the page accepts is refused when the "
+      "run is created: %s" % _why)
+_why = [x for x in _jobmod.validate(_jobmod.default(poses=11))
+        if "at most" in x]
+check(_why, "11 poses per peptide were accepted; ADCP writes at most 10")
+check('id=poses value="10" min="1" max="10"' in html,
+      "the page offers more poses than ADCP can write")
 
 if fails:
     print("test_api FAILED (%d)" % len(fails))

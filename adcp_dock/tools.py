@@ -22,11 +22,10 @@ NEEDED = {
     "sander": "the minimisation before MM-GBSA",
     "MMPBSA.py": "the MM-GBSA calculation itself",
     "ante-MMPBSA.py": "splitting the complex topology for MM-GBSA",
-    "obabel": "converting a peptide to PDB when no template is available",
 }
 
 # Docking cannot run without these. The rest are optional: the Amber tools
-# are needed only for MM-GBSA rescoring, and obabel only as a fallback.
+# are needed only for MM-GBSA rescoring.
 REQUIRED = ("adcp", "agfr", "prepare_receptor", "pdb2pqr")
 MMGBSA = ("tleap", "sander", "MMPBSA.py", "ante-MMPBSA.py")
 

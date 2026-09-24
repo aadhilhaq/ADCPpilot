@@ -69,11 +69,11 @@ HELP = {
     # --- docking -----------------------------------------------------------
     "poses": (
         "Poses kept per peptide",
-        "How many ranked poses ADCP writes out. They are what you look at "
+        "How many of ADCP's ranked poses to keep. They are what you look at "
         "afterwards and what MM-GBSA rescores, so this sets the size of the "
         "answer rather than the size of the search.\n\n"
-        "Ten is enough to see whether the peptide's poses agree on where it "
-        "binds. Keeping more costs disk space, not time."),
+        "ADCP writes at most ten, which is the default and enough to see "
+        "whether the peptide's poses agree on where it binds."),
     "replicas": (
         "Independent searches",
         "ADCP runs this many searches from different random starts and keeps "
@@ -136,8 +136,9 @@ HELP = {
         "Tick it when what is bound there is part of the site, such as a "
         "structural zinc or a haem your peptide must sit against. Leave it "
         "off for a crystallisation additive or a ligand you intend to "
-        "displace. An unusual cofactor may not have force-field parameters, "
-        "so keeping one can make the preparation fail."),
+        "displace. The minimisation's force field has no parameters for "
+        "most of what this keeps, metal ions included, so it is then "
+        "skipped, and the results page says so."),
     "fill_loops": (
         "Rebuild missing loops",
         "Missing side chains are always rebuilt; this setting is about whole "

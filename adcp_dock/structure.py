@@ -234,14 +234,13 @@ def centre_of(atoms, hotspots):
 
 
 def box_for(atoms, hotspots, padding=8.0, minimum=20.0, maximum=30.0):
-    """(centre, size, note). A cube, because ADCP's maps are cubic and a box
-    that hugs the residues leaves a long peptide no room to lie down.
-
-    The size is the span of the chosen residues plus padding on each side,
-    clamped: never smaller than `minimum`, because a handful of residues in a
-    line would otherwise give a box a peptide cannot fit in, and never larger
-    than `maximum`, because map building and the search both scale with the
-    volume and a box the size of the protein is a blind docking run.
+    """(centre, size, note), by the rule the run itself uses (receptor.box):
+    along each axis, the span of the chosen residues plus padding on each
+    side, clamped. Never smaller than `minimum`, because a handful of
+    residues in a line would otherwise give a box a peptide cannot fit in,
+    and never larger than `maximum`, because map building and the search
+    both scale with the volume and a box the size of the protein is a blind
+    docking run. The page draws this box, so it must be the one docked into.
     """
     ctr, found, missed = centre_of(atoms, hotspots)
     if ctr is None:
@@ -250,12 +249,13 @@ def box_for(atoms, hotspots, padding=8.0, minimum=20.0, maximum=30.0):
     pts = [(a.x, a.y, a.z) for a in atoms
            if not a.is_hydrogen()
            and ((a.chain, a.resnum) in want or (None, a.resnum) in want)]
-    span = max(max(p[i] for p in pts) - min(p[i] for p in pts) for i in range(3))
-    size = max(minimum, min(maximum, span + 2 * padding))
-    note = "%d residue(s) found, span %.1f A, box %.1f A" % (found, span, size)
+    spans = [max(p[i] for p in pts) - min(p[i] for p in pts) for i in range(3)]
+    size = tuple(max(minimum, min(maximum, s + 2 * padding)) for s in spans)
+    note = ("%d residue(s) found, span %.1f A, box %.1f x %.1f x %.1f A"
+            % ((found, max(spans)) + size))
     if missed:
         note += "; NOT in the structure: " + ", ".join(str(m) for m in missed)
-    return ctr, (size, size, size), note
+    return ctr, size, note
 
 
 def distance(a, b):

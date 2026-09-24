@@ -73,7 +73,8 @@ def prep_warnings(rundir, j):
     steps = {}
     for line in open(log, encoding="utf-8", errors="replace"):
         s = line.strip()
-        for name in ("protonation", "protonation retry", "minimisation"):
+        for name in ("protonation", "protonation retry", "minimisation",
+                     "receptor pdbqt"):
             if s.startswith(name + ":"):
                 steps[name] = s[len(name) + 1:].strip()
     out = []
@@ -84,6 +85,18 @@ def prep_warnings(rundir, j):
                    "were added geometrically, so the run's pH is not reflected "
                    "in the receptor. See receptor/preparation.log."
                    % _prep_detail(prot))
+    elif prot and not prot.startswith("done") and retry.startswith("done"):
+        out.append("The receptor was protonated without PROPKA (%s), so its "
+                   "titratable residues have the force field's standard states "
+                   "and the run's pH is not reflected in them. See "
+                   "receptor/preparation.log." % _prep_detail(prot))
+    pdbqt = steps.get("receptor pdbqt", "")
+    if pdbqt and not pdbqt.startswith("done"):
+        out.append("The docking receptor was written from the structure as "
+                   "read, not from the prepared one: prepare_receptor could "
+                   "not use the prepared structure. Rebuilt side chains, caps, "
+                   "protonation and minimisation are not in what was docked "
+                   "against. See the prepare log.")
     mini = steps.get("minimisation", "")
     if j.get("minimise", True) and mini and not mini.startswith("done"):
         out.append("The restrained minimisation did not run (%s)."

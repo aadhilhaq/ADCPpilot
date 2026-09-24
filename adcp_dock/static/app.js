@@ -362,14 +362,14 @@ function stylePicker(){
 }
 /* The box, drawn where it is decided.
 
-   ADCP docks into what is inside this cube and nothing else. Drawn over the
+   ADCP docks into what is inside this box and nothing else. Drawn over the
    structure, it shows at a glance whether it covers the groove, whether it
    reaches the chain behind it, and how much of it is solvent, so the padding
    and limits above can be aimed rather than guessed.
 
    Two shapes: a wireframe alone disappears against a cartoon, and a solid
    alone hides the residues the box is checked against. A face at 0.12 opacity
-   gives the cube depth and the edges show where it stops. Both are tracked,
+   gives the box depth and the edges show where it stops. Both are tracked,
    because removeAllShapes() would also remove anything else the viewer is
    given. */
 let BOXSHAPES = [];
@@ -491,7 +491,7 @@ async function refreshSite(){
       + 'Leave it unticked when they are the partner this peptide is meant '
       + 'to displace; the docking then sees only the chains chosen above.';
   }
-  // The numbers changed, so the cube is redrawn.
+  // The numbers changed, so the box is redrawn.
   drawBox();
 }
 $('sitecheck').onclick = refreshSite;
@@ -873,6 +873,7 @@ async function showCite(){
   $('citescope').textContent = RUN
     ? 'what this run actually used' : 'everything this tool can run';
   $('citetext').textContent = 'loading...';
+  $('citenote').textContent = 'Download for your reference manager:';
   $('citedlg').showModal();
   const d = await api('/cite' + scoped);
   $('citetext').textContent = d.text != null
@@ -881,6 +882,8 @@ async function showCite(){
 $('citebtn').onclick = showCite;
 if($('citefoot')) $('citefoot').onclick = e => { e.preventDefault(); showCite(); };
 $('citeclose').onclick = () => $('citedlg').close();
+$('citecopy').onclick = () => copyText($('citetext').textContent, $('citetext'),
+  $('citenote'));
 document.querySelectorAll('[data-cite]').forEach(b => {
   b.onclick = () => {
     /* A real navigation, not a blob: the server sets the filename and the
@@ -892,20 +895,47 @@ document.querySelectorAll('[data-cite]').forEach(b => {
 });
 
 /* ===================== feedback ====================================== */
-/* A mailto rather than a form. There is no central server to receive a report,
-   and a button that silently drops what a user wrote is worse than none. The
-   build and the cluster go into the body because every report needs them. */
+/* Email or a GitHub issue, from a dialog. There is no central server to
+   receive a report, and a button that silently drops what a user wrote is
+   worse than none. The dialog shows the addresses and the details every
+   report needs (build, runs folder, browser), so a report can be sent even
+   where the browser blocks mail links, as it does inside a notebook frame. */
+async function copyText(text, node, note){
+  try {
+    await navigator.clipboard.writeText(text);
+    note.textContent = 'Copied.';
+    return;
+  } catch(e){}
+  /* Where the clipboard API is refused, select the text and ask the browser
+     to copy the selection; failing that, the text is left selected. */
+  try {
+    if(node && node.select){ node.focus(); node.select(); }
+    else if(node){
+      const r = document.createRange(); r.selectNodeContents(node);
+      const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    }
+    if(node && document.execCommand('copy')){ note.textContent = 'Copied.'; return; }
+  } catch(e){}
+  note.textContent = 'Selected: press Ctrl+C (Cmd+C on a Mac).';
+}
 $('feedback').onclick = () => {
-  const lines = [
-    '', '', '--- please leave the lines below ---',
+  const details = [
     'page: ' + location.host,
     'build: ' + (($('toolnote') || {}).textContent || 'unknown'),
     'runs: ' + (RUNS_ROOT || 'not set'),
-    'browser: ' + navigator.userAgent];
-  location.href = 'mailto:aadhil.haq@tamu.edu?cc=sfernando@tamu.edu'
+    'browser: ' + navigator.userAgent].join('\n');
+  $('fbtext').value = details;
+  $('fbnote').textContent = '';
+  const body = '\n\n--- please leave the lines below ---\n' + details;
+  $('fbmail').href = 'mailto:aadhil.haq@tamu.edu?cc=sfernando@tamu.edu'
     + '&subject=' + encodeURIComponent('GUI to ADCP Docking: feedback')
-    + '&body=' + encodeURIComponent(lines.join('\n'));
+    + '&body=' + encodeURIComponent(body);
+  $('fbissue').href = 'https://github.com/aadhilhaq/ADCP_docking/issues/new?body='
+    + encodeURIComponent(body);
+  $('fbdlg').showModal();
 };
+$('fbcopy').onclick = () => copyText($('fbtext').value, $('fbtext'), $('fbnote'));
+$('fbclose').onclick = () => $('fbdlg').close();
 
 /* ===================== runs and the job monitor ====================== */
 /* A dot per run, and a dot per job under the open run. A running job's dot

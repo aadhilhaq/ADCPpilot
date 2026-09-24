@@ -68,6 +68,14 @@ for pkg in listed:
               "%s/%s is shipped with the code but no package-data pattern "
               "covers it, so `pip install` leaves it out" % (pkg, rel))
 
+# --- install.sh checks ADFRsuite against the same checksum as adfr.py ------
+import re as _re                                                # noqa: E402
+_sh = open(os.path.join(ROOT, "install.sh")).read()
+_pin = _re.search(r"^\s*SHA=([0-9a-f]{64})\s*$", _sh, _re.M)
+_py = open(os.path.join(ROOT, "adcp_dock", "adfr.py")).read()
+check(_pin and _pin.group(1) in _py,
+      "install.sh does not check ADFRsuite against the checksum adfr.py pins")
+
 # --- and a real wheel, where it can be built offline ------------------------
 built = None
 try:

@@ -20,10 +20,6 @@ REFERENCES = [
      "docking to predict protein-peptide complexes. Bioinformatics "
      "35(24):5121-5127, 2019.",
      "10.1093/bioinformatics/btz459"),
-    ("adcp2", "always", "the method paper for peptide docking with ADCP",
-     "Zhang Y, Sanner MF. Docking flexible cyclic peptides with AutoDock "
-     "CrankPep. J Chem Theory Comput 15(10):5161-5168, 2019.",
-     "10.1021/acs.jctc.9b00557"),
     ("adfr", "always", "grid maps (agfr) and receptor preparation "
      "(prepare_receptor)",
      "Ravindranath PA, Forli S, Goodsell DS, Olson AJ, Sanner MF. "
@@ -74,10 +70,6 @@ REFERENCES = [
      "large-scale conformational changes with a modified generalized born "
      "model. Proteins 55(2):383-394, 2004.",
      "10.1002/prot.20033"),
-    ("openbabel", "always", "format conversion",
-     "O'Boyle NM, Banck M, James CA, Morley C, Vandermeersch T, Hutchison "
-     "GR. Open Babel: an open chemical toolbox. J Cheminform 3:33, 2011.",
-     "10.1186/1758-2946-3-33"),
     ("3dmol", "if a figure from the viewer is used",
      "the interactive structure viewer",
      "Rego N, Koes D. 3Dmol.js: molecular visualization with WebGL. "
@@ -117,12 +109,6 @@ BIB = {
               "protein--peptide complexes",
         journal="Bioinformatics", year=2019, volume="35", number="24",
         pages="5121--5127"),
-    "adcp2": dict(
-        bibkey="Zhang2019b",
-        author="Zhang, Yuqi and Sanner, Michel F.",
-        title="Docking flexible cyclic peptides with AutoDock CrankPep",
-        journal="Journal of Chemical Theory and Computation",
-        year=2019, volume="15", number="10", pages="5161--5168"),
     "adfr": dict(
         bibkey="Ravindranath2015",
         author="Ravindranath, Pradeep Anand and Forli, Stefano and "
@@ -194,18 +180,6 @@ BIB = {
               "model",
         journal="Proteins: Structure, Function, and Bioinformatics",
         year=2004, volume="55", number="2", pages="383--394"),
-    "openbabel": dict(
-        bibkey="OBoyle2011",
-        author="O'Boyle, Noel M. and Banck, Michael and James, Craig A. "
-               "and Morley, Chris and Vandermeersch, Tim and "
-               "Hutchison, Geoffrey R.",
-        title="Open Babel: an open chemical toolbox",
-        journal="Journal of Cheminformatics", year=2011, volume="3",
-        number="1", pages="33",
-        # An article number, not a page range: J Cheminform has no
-        # page numbers, and putting the article number in `pages` is
-        # the usual convention.
-        note="Article 33."),
     # RDKit has no paper; its citable record is a Zenodo archive, so it
     # is emitted as @software with a publisher and URL.
     "rdkit": dict(
@@ -269,12 +243,12 @@ def text(job=None, out=print):
     out("This interface:")
     out("  " + self_citation())
     out("")
-    out("%s is a product of the %s and is NOT ours. It must be cited "
+    out("%s is a product of the %s and is not ours. It must be cited "
         "whatever else is:" % (ENGINE, ENGINE_OWNER))
     out("  %s" % ENGINE_URL)
     out("")
     if keys is not None:
-        out("For THIS run, from its job.json:")
+        out("For this run, from its job.json:")
     else:
         out("Everything this tool can run. Cite what your run used:")
     for key, when, did, ref, doi in REFERENCES:

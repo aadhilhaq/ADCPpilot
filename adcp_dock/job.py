@@ -10,6 +10,14 @@ import time
 
 VERSION = 1
 NAME = "job.json"
+# ADCP builds side chains, and so writes an all-atom ranked pose, for its
+# ten best clusters only (clusterADCP.py), so a run cannot keep more.
+MAX_POSES = 10
+
+
+def _max_length():
+    from . import peptide as pep
+    return pep.MAX_LENGTH
 
 
 def default(**kw):
@@ -49,7 +57,9 @@ def default(**kw):
         "box_chains_min_atoms": 20,
         # peptides
         "peptides": [],          # [{name, sequence}]
-        "max_length": 20,
+        # The same limit the page and the peptide checks use, so a peptide
+        # the page accepts is not refused at submission.
+        "max_length": _max_length(),
         # docking
         "replicas": 50,
         "steps": 2_500_000,
@@ -125,7 +135,7 @@ def validate(j):
         out.append("No peptides to dock.")
     for i, p in enumerate(j.get("peptides") or [], 1):
         seq, probs = pep.check(p.get("sequence", ""),
-                               max_length=j.get("max_length", 20))
+                               max_length=j.get("max_length", pep.MAX_LENGTH))
         for pr in probs:
             out.append("Peptide %d (%s): %s"
                        % (i, p.get("name") or seq[:10] or "?", pr.message))
@@ -159,6 +169,9 @@ def validate(j):
                 names[key] = i
     if int(j.get("poses", 0)) < 1:
         out.append("Ask for at least one pose per peptide.")
+    elif int(j.get("poses", 0)) > MAX_POSES:
+        out.append("ADCP writes at most %d ranked poses per peptide; ask for "
+                   "%d or fewer." % (MAX_POSES, MAX_POSES))
     if j.get("mmgbsa") and int(j.get("mmgbsa_poses", 0)) < 1:
         out.append("MM-GBSA is on but no poses were chosen to rescore.")
     if j.get("mmgbsa") and int(j.get("mmgbsa_poses", 0)) > int(j.get("poses", 0)):

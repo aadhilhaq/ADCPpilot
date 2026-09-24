@@ -22,20 +22,6 @@ N1  - used for: the docking search itself
 ER  - 
 
 TY  - JOUR
-TI  - Docking flexible cyclic peptides with AutoDock CrankPep
-AU  - Zhang, Yuqi
-AU  - Sanner, Michel F.
-JO  - Journal of Chemical Theory and Computation
-PY  - 2019
-VL  - 15
-IS  - 10
-SP  - 5161
-EP  - 5168
-DO  - 10.1021/acs.jctc.9b00557
-N1  - used for: the method paper for peptide docking with ADCP
-ER  - 
-
-TY  - JOUR
 TI  - AutoDockFR: advances in protein-ligand docking with explicitly specified binding site flexibility
 AU  - Ravindranath, Pradeep Anand
 AU  - Forli, Stefano
@@ -155,23 +141,6 @@ SP  - 383
 EP  - 394
 DO  - 10.1002/prot.20033
 N1  - used for: the generalised Born model itself (igb=5, GB-OBC II, 0.15 M salt)
-ER  - 
-
-TY  - JOUR
-TI  - Open Babel: an open chemical toolbox
-AU  - O'Boyle, Noel M.
-AU  - Banck, Michael
-AU  - James, Craig A.
-AU  - Morley, Chris
-AU  - Vandermeersch, Tim
-AU  - Hutchison, Geoffrey R.
-JO  - Journal of Cheminformatics
-PY  - 2011
-VL  - 3
-IS  - 1
-SP  - 33
-DO  - 10.1186/1758-2946-3-33
-N1  - used for: format conversion
 ER  - 
 
 TY  - JOUR

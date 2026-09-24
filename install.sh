@@ -219,6 +219,18 @@ MSG
     say "  $TAR is already here, using it"
   fi
 
+  # The same pinned checksum as adcp_dock/adfr.py: the archive is run as an
+  # installer, so a truncated or substituted download must stop here.
+  SHA=66539864ffb7ba87728d52ee50dde78586f551c7ca96aa455dae761875faf7e4
+  got=$(sha256sum "$TAR" 2>/dev/null | cut -d' ' -f1)
+  [ -n "$got" ] || got=$(shasum -a 256 "$TAR" | cut -d' ' -f1)
+  if [ "$got" != "$SHA" ]; then
+    echo "  $TAR does not match its published checksum (got $got)." >&2
+    echo "  Delete it and run this script again." >&2
+    exit 1
+  fi
+  say "  checksum verified"
+
   # What the archive unpacks into, read from the archive rather than assumed:
   # a wrong guess `cd`s into a directory that is not there and, under
   # `set -e`, ends the script with no message, immediately after a 100 MB

@@ -88,6 +88,10 @@ def stage_prepare(rundir, j=None, log=print):
         forcefield=j.get("forcefield", "AMBER"), log=log,
         chain=",".join(rec.chains),
         keep_hetatms=bool(j.get("keep_hetatms", False)),
+        # Ions go with the other heteroatoms unless those are kept, as the
+        # page says: a kept ion has no template in the minimisation's force
+        # field, and the minimisation is then skipped.
+        keep_ions=bool(j.get("keep_hetatms", False)),
         fill_loops=bool(j.get("fill_loops", False)),
         minimise_structure=bool(j.get("minimise", True)),
         restraint=float(j.get("restraint", 10.0)))
@@ -96,8 +100,26 @@ def stage_prepare(rundir, j=None, log=print):
     # The prepared file is passed in beside the loaded structure rather
     # than reloaded, so the chains and hotspots remain the validated
     # ones.
+    # prepare_receptor falls back to the chain as read when it cannot use
+    # the prepared structure, and says so only in this stage's log. The
+    # fallback is noted in preparation.log too, which the results page
+    # reads, so a receptor docked without its preparation is not presented
+    # as a prepared one.
+    fell_back = []
+
+    def _log(*a):
+        if FALLBACK_SIGN in " ".join(str(x) for x in a):
+            fell_back.append(True)
+        log(*a)
+
     recq = receptor.prepare_pdbqt(rec, recdir, T, prepared_pdb=prepared,
-                                  log=log)
+                                  log=_log)
+    if fell_back:
+        with open(os.path.join(recdir, "preparation.log"), "a") as fh:
+            fh.write("  receptor pdbqt: skipped; prepare_receptor could not "
+                     "use the prepared structure, so the docking receptor was "
+                     "written from the chain as read, with hydrogens added "
+                     "geometrically\n")
     # target.build is the vendored builder plus a check of what it
     # produced: a truncated or mismatched .trg still docks, into empty
     # maps.
@@ -132,6 +154,11 @@ def _rec_for_mmgbsa(j, log=print):
             log("  could not load the prepared receptor (%s); using the "
                 "input structure" % exc)
     return receptor.load(_reccfg(j))
+
+
+# What receptor.prepare_pdbqt logs when it falls back to the unprepared
+# chain (tests/test_api.py checks the vendored code still says it).
+FALLBACK_SIGN = "Falling back to the chain as it was read"
 
 
 def stage_dock(rundir, index, j=None, log=print):

@@ -1,18 +1,15 @@
 HOW TO CITE
 
 This interface:
-  Aadhil Haq, Sandun Fernando (2026). GUI to ADCP Docking v0.1.7: a browser and command-line workflow for peptide docking with ADCP. HOPE Lab, Texas A&M University.  [no DOI yet; see `adcp-dock cite --how`]
+  Aadhil Haq, Sandun Fernando (2026). GUI to ADCP Docking v0.1.8: a browser and command-line workflow for peptide docking with ADCP. HOPE Lab, Texas A&M University.  [no DOI yet; see `adcp-dock cite --how`]
 
-ADCP is a product of the Scripps Research Institute and is NOT ours. It must be cited whatever else is:
+ADCP is a product of the Scripps Research Institute and is not ours. It must be cited whatever else is:
   https://ccsb.scripps.edu/adcp/
 
-For THIS run, from its job.json:
+For this run, from its job.json:
   - the docking search itself
       Zhang Y, Sanner MF. AutoDock CrankPep: combining folding and docking to predict protein-peptide complexes. Bioinformatics 35(24):5121-5127, 2019.
       doi:10.1093/bioinformatics/btz459
-  - the method paper for peptide docking with ADCP
-      Zhang Y, Sanner MF. Docking flexible cyclic peptides with AutoDock CrankPep. J Chem Theory Comput 15(10):5161-5168, 2019.
-      doi:10.1021/acs.jctc.9b00557
   - grid maps (agfr) and receptor preparation (prepare_receptor)
       Ravindranath PA, Forli S, Goodsell DS, Olson AJ, Sanner MF. AutoDockFR: advances in protein-ligand docking with explicitly specified binding site flexibility. PLoS Comput Biol 11(12):e1004586, 2015.
       doi:10.1371/journal.pcbi.1004586
@@ -41,9 +38,6 @@ For THIS run, from its job.json:
       Onufriev A, Bashford D, Case DA. Exploring protein native states and large-scale conformational changes with a modified generalized born model. Proteins 55(2):383-394, 2004.
       doi:10.1002/prot.20033
       (only if: mmgbsa)
-  - format conversion
-      O'Boyle NM, Banck M, James CA, Morley C, Vandermeersch T, Hutchison GR. Open Babel: an open chemical toolbox. J Cheminform 3:33, 2011.
-      doi:10.1186/1758-2946-3-33
   - the array arithmetic under the box and the poses
       Harris CR, Millman KJ, van der Walt SJ, et al. Array programming with NumPy. Nature 585(7825):357-362, 2020.
       doi:10.1038/s41586-020-2649-2

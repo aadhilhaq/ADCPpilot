@@ -5,7 +5,7 @@ there, forwards a local port to it and opens a browser. Nothing about the
 tool has to be installed on the laptop except this launcher and paramiko.
 """
 
-__version__ = "0.1.7"
+__version__ = "0.1.8"
 # The same wording as the tool: ADCP and ADFRsuite belong to the Scripps
 # Research Institute, and this package launches a GUI that drives them. The
 # launcher is installed on computers that may not have adcp_dock, so it
