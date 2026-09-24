@@ -1,0 +1,54 @@
+performing MC searches with: /opt/adcpsuite/lib/python3.7/site-packages/ADCP/CrankiteAD_Linux-x86_64_1.1 
+target data from file: receptor.trg
+job name: t3, summary file t3_summary.dlg, docked poses: t3_out.pdb
+Detected 96 cores, request 8 cores, using 8 cores.
+Performing 8 MC searches using 100000 evals each using a random seed.
+Performing search (8 ADCP runs with 100000 steps each) ...
+0%   10   20   30   40   50   60   70   80   90   100%
+|----|----|----|----|----|----|----|----|----|----|
+Docking performed in 9.06 seconds, i.e. 0 hours 00 minutes 09.064992 seconds 
+bestEnergies [-16.8217, -12.6758, -15.6656, -17.7709, -15.0091, -15.9833, -11.199, -14.5912] 
+bestEnergy in run 4 -17.770900 (0)
+Analyzing results ....
+concatenating trajectories for run with best energy < 2.229100
+concatenated 8 trajectories
+Clustering MC trajectories based in contacts using cutoff: 0.800000
+finished calculating neighbors for 807 poses with 3.5 seconds
+mode |  affinity  | ref. | clust. | rmsd | energy | best |
+     | (kcal/mol) | fnc  |  size  | stdv |  stdv  | run  |
+-----+------------+------+--------+------+--------+------+
+   1        -10.5      0.0      10      NA      NA    384 
+   2        -10.0      0.0      20      NA      NA    082 
+   3         -9.9      0.0       2      NA      NA    378 
+   4         -9.5      0.0       8      NA      NA    375 
+   5         -9.5      0.0       1      NA      NA    390 
+Calculations completed 12.86 seconds, i.e. 0 hours 00 minutes 09.064992 seconds 
+MC search command: cd wd3/t3; /opt/adcpsuite/lib/python3.7/site-packages/ADCP/CrankiteAD_Linux-x86_64_1.1 -t 2 "npisdvd" -T /tmp/wd3/t3/receptor -r 1x100000 -p Bias=NULL,external=5,constrains,1.0,1.0,Opt=1,0.25,0.75,0.0 -s 760029 -o run_1.pdb  
+seed: []
+Minimizing docked poses ....
+Rescoring clustered poses using OpenMM ..
+OpenMM minimization settings: Environment="implicit"; Max_itr=5
+From total 5 models, minimizing top 3 ...
+
+OMM Energy: Working on #1 of 3 models
+OMM Energy: E_Complex =  -4358.71; E_Receptor =  -4119.25; E_Peptide  =   -250.59
+OMM Energy: dE_Interaction =     11.13; dE_Complex-Receptor =   -239.46
+
+OMM Energy: Working on #2 of 3 models
+OMM Energy: E_Complex =  -4424.24; E_Receptor =  -4257.98; E_Peptide  =   -203.01
+OMM Energy: dE_Interaction =     36.75; dE_Complex-Receptor =   -166.26
+
+OMM Energy: Working on #3 of 3 models
+OMM Energy: E_Complex =  -4733.60; E_Receptor =  -4471.23; E_Peptide  =   -257.43
+OMM Energy: dE_Interaction =     -4.94; dE_Complex-Receptor =   -262.37
+
+OMM Ranking:REARRANGING output poses using OpenMM (Ecomplex -Ereceptor) energy
+OMM Ranking:                     +<-------OMMscore-------->+<-----------AutoDock CrankPep Scores-------------->+
+OMM Ranking:-------+------+------+------------+------------+------------+------+--------+------+--------+------+
+OMM Ranking: Model | Rank | Rank | E_Complex  |  E_Complex |  affinity  | ref. | clust. | rmsd | energy | best |
+OMM Ranking: #     |OpenMM| ADCP |-E_Receptor |-E_rec-E_pep| (kcal/mol) | fnc  |  size  | stdv |  stdv  | run  |
+OMM Ranking:-------+------+------+------------+------------+------------+------+--------+------+--------+------+
+OMM Ranking:      1      1      3     -262.4         -4.9          -9.9      0.0       2      NA      NA    378
+OMM Ranking:      2      2      1     -239.5         11.1         -10.5      0.0      10      NA      NA    384
+OMM Ranking:      3      3      2     -166.3         36.7         -10.0      0.0      20      NA      NA    082
+OMM Ranking:-------+------+------+------------+------------+------------+------+--------+------+--------+------+

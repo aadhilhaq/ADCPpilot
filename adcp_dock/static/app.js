@@ -19,6 +19,7 @@ async function api(path, body){
   catch(e){ return {error:'the server did not answer with JSON (' + r.status + ')'}; }
 }
 
+let ADCP11 = false;
 api('/api/tools').then(d => {
   if(d.error) return;
   const miss = d.missing || [];
@@ -32,6 +33,17 @@ api('/api/tools').then(d => {
                  : '<span class=bad>sbatch not found</span>')
     + (d.mmgbsa === false ? ' &middot; MM-GBSA needs AmberTools, '
                             + 'which is not installed here' : '');
+  // ADCP 1.1, when it is installed; without it the 1.1 choices are off.
+  ADCP11 = !!d.adcp11;
+  $('enginenote').textContent = d.adcp11
+    ? 'ADCP ' + (d.adcp11_version || '1.1') + ' is installed: non-standard '
+      + 'residues (N<BHD>), D residues (&D) and OpenMM minimization work.'
+    : 'ADCP 1.1 is not installed here, so runs use ADCP 1.0. INSTALL.md says '
+      + 'how to add it.';
+  if(!d.adcp11){
+    $('adcp_engine').querySelector('option[value="1.1"]').disabled = true;
+    $('omm_minimize').disabled = true;
+  }
   // Without AmberTools the rescoring cannot run, so it cannot be chosen.
   if (d.mmgbsa === false) {
     const box = $('mmgbsa');
@@ -648,10 +660,13 @@ $('addpep').onclick = () => { PEPS.push({name:'', sequence:''}); drawPeps();
   const b = $('peps').querySelectorAll('.ps'); b[b.length - 1].focus(); };
 
 let VT = null;
+// A different engine accepts a different syntax, so the list is checked again.
+$('adcp_engine').onchange = () => validate();
 function validate(){
   clearTimeout(VT);
   VT = setTimeout(async () => {
-    const d = await api('/api/peptides', {peptides: PEPS, max_length: MAXLEN});
+    const d = await api('/api/peptides', {peptides: PEPS, max_length: MAXLEN,
+                                          adcp_engine: $('adcp_engine').value});
     if(d.error) return;
     d.peptides.forEach((p, i) => {
       const row = $('peps').querySelector('.ent[data-i="' + i + '"]');
@@ -659,7 +674,7 @@ function validate(){
       const box = row.querySelector('.ps'), msg = row.querySelector('.seqmsg'),
             len = row.querySelector('.seqlen');
       box.classList.toggle('err', !p.ok && p.sequence.length > 0);
-      len.textContent = p.sequence ? p.sequence.length + ' residues' : '';
+      len.textContent = p.sequence ? (p.length || p.sequence.length) + ' residues' : '';
       msg.textContent = (p.ok || !p.sequence) ? ''
         : p.problems.map(x => x.message).join(' ');
       /* Re-mark from the server's own verdict, which decides whether the run
@@ -677,7 +692,8 @@ function validate(){
 }
 $('pastepep').onclick = () => $('pastebox').classList.toggle('hide');
 $('pasteadd').onclick = async () => {
-  const d = await api('/api/paste', {text: $('pastetext').value, max_length: MAXLEN});
+  const d = await api('/api/paste', {text: $('pastetext').value, max_length: MAXLEN,
+                                     adcp_engine: $('adcp_engine').value});
   if(d.error || !d.peptides) return;
   if(PEPS.length === 1 && !PEPS[0].sequence) PEPS = [];
   d.peptides.forEach(p => PEPS.push({name: p.name, sequence: p.sequence}));
@@ -838,6 +854,8 @@ $('submit').onclick = async () => {
   }
   const d = await api('/api/create', {
     label: $('label').value || 'run', receptor: $('recpath').value.trim(),
+    target_file: $('targetfile').value.trim(),
+    adcp_engine: $('adcp_engine').value, omm_minimize: +$('omm_minimize').value,
     chains: chosenChains(), hotspots: $('hotspots').value, ph:+$('ph').value,
     minimise: $('minimise').checked, box_padding:+$('pad').value,
     keep_hetatms: $('keep_hetatms').checked,
@@ -1094,7 +1112,8 @@ const REUSE_FIELDS = {
   pad:'box_padding', bmin:'box_min', bmax:'box_max',
   ph:'ph', poses:'poses', replicas:'replicas', steps:'steps',
   cpus:'cpus', walltime:'time', throttle:'throttle',
-  mmposes:'mmgbsa_poses', topn:'top_n',
+  mmposes:'mmgbsa_poses', topn:'top_n', adcp_engine:'adcp_engine',
+  omm_minimize:'omm_minimize', targetfile:'target_file',
   account:'account', sbatch_extra:'sbatch_extra'
 };
 const REUSE_TICKS = {minimise:'minimise', keep_hetatms:'keep_hetatms',
@@ -1171,6 +1190,7 @@ async function openRun(dir){
     monitor();
     const rows = (d.results && d.results.rows) || [];
     const mm = rows.some(r => r.mmgbsa_n);
+    const omm = rows.some(r => r.omm_n);
     const tn = (d.results && d.results.top_n) || 5;
     el.innerHTML = '<div style="font-weight:600">' + esc(d.job.label || dir)
       + '</div><div class=why>' + esc(dir) + ' · ' + esc(d.job.state)
@@ -1203,7 +1223,11 @@ async function openRun(dir){
                   + 'negative score across the scored poses. It shows how '
                   + 'much the poses disagree; it is not a statistical test '
                   + 'of the ranking.">n / '
-                  + 'spread</th>' : '') + '<th class=c></th></tr>'
+                  + 'spread</th>' : '')
+          + (omm ? '<th class=c title="ADCP 1.1 OpenMM minimization: the lowest '
+                  + 'E(complex) minus E(receptor) among the minimized poses, '
+                  + 'and which pose it was.">OpenMM best</th>' : '')
+          + '<th class=c></th></tr>'
           // Centred, except the sequence. Numbers read as a column when their
           // digits line up under the heading. The peptide stays left-aligned
           // and monospaced, because it is read letter by letter.
@@ -1221,6 +1245,8 @@ async function openRun(dir){
                       + '<td class=c>' + fmt(r.mmgbsa_median, 2) + '</td>'
                       + '<td class=c>' + (r.mmgbsa_n || '-') + ' / '
                       + fmt(r.mmgbsa_spread, 1) + '</td>' : '')
+              + (omm ? '<td class=c>' + (r.omm_n ? fmt(r.omm_best, 1)
+                        + ' (pose ' + r.omm_best_pose + ')' : '-') + '</td>' : '')
               + '<td class=c><button class="ghost sm" data-view="'
               + esc(r.peptide) + '">view</button></td>'
               + '</tr>').join('') + '</table>'
@@ -2086,11 +2112,16 @@ document.addEventListener('click', e => {
    sequence entered, and the page says when the chosen number is below the
    published minimum. */
 window.stepsGuide = stepsGuide;
+/* Residues in a sequence: an ADCP 1.1 name in angle brackets and the & of a D
+   residue belong to the letter before or after them. */
+function residueCount(seq){
+  return (seq || '').replace(/<[^>]*>/g, '').replace(/[&\s]/g, '').length;
+}
 function stepsGuide(){
   const el = $('stepsguide');
   if(!el) return;
   const longest = (PEPS || []).reduce(
-    (n, p) => Math.max(n, (p.sequence || '').length), 0);
+    (n, p) => Math.max(n, residueCount(p.sequence)), 0);
   if(!longest){
     el.textContent = 'ADCP suggests 1-3 million steps per residue. '
                    + 'Add a peptide and this says what that comes to.';

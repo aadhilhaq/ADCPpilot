@@ -2116,6 +2116,11 @@ _readme = open(os.path.join(ROOT, "README.md"), encoding="utf-8").read()
 _gone = [doi for _k, _w, _d, _r, doi in _cite.REFERENCES
          if "https://doi.org/" + doi not in _readme]
 check(not _gone, "README does not link these references: %s" % _gone)
+_cff = open(os.path.join(ROOT, "CITATION.cff"), encoding="utf-8").read().lower()
+_gone = [doi for _k, _w, _d, _r, doi in _cite.REFERENCES
+         if '"%s"' % doi.lower() not in _cff]
+check(not _gone, "CITATION.cff does not list these references (run "
+      "scripts/cff_references.py): %s" % _gone)
 
 # --- deleting a run, and showing where it is ---------------------------------
 #

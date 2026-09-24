@@ -13,7 +13,8 @@ import statistics as st
 TOP_N = 5
 
 
-def summarise(peptide, modes, mm=None, top_n=TOP_N, name=""):
+def summarise(peptide, modes, mm=None, top_n=TOP_N, name="", openmm=None,
+              engine=""):
     """One row. `mm` is [dG] for the poses that were rescored, best-first.
 
     The name is carried from the result file rather than derived from the
@@ -25,7 +26,10 @@ def summarise(peptide, modes, mm=None, top_n=TOP_N, name=""):
     row = {
         "name": name or "",
         "peptide": peptide,
-        "length": len(peptide),
+        # Residues, not characters: an ADCP 1.1 sequence such as N<BHD>PIS&DVD
+        # is seven residues.
+        "length": len(_residues(peptide)),
+        "engine": engine or "",
         "poses": len(scores),
         "adcp_best": scores[0] if scores else None,
         "adcp_top%d" % top_n: round(st.mean(top), 2) if top else None,
@@ -46,7 +50,19 @@ def summarise(peptide, modes, mm=None, top_n=TOP_N, name=""):
             "mmgbsa_spread": (round(max(vals) - min(vals), 2)
                               if len(vals) > 1 else None),
         })
+    if openmm:
+        # ADCP 1.1's OpenMM minimization: E(complex) minus E(receptor) after
+        # minimizing, per pose. Reported beside the scores, not ranked by.
+        best = min(openmm, key=lambda o: o["e_complex_receptor"])
+        row.update({"omm_n": len(openmm),
+                    "omm_best": round(best["e_complex_receptor"], 1),
+                    "omm_best_pose": best["rank_adcp"]})
     return row
+
+
+def _residues(seq):
+    from . import peptide
+    return peptide.residues(seq)
 
 
 def rank(rows, by=None, top_n=TOP_N):
@@ -69,11 +85,14 @@ def table(rows, top_n=TOP_N):
     """Fixed-width, for a terminal or a log."""
     rows, key = rank(rows, top_n=top_n)
     mm = any(r.get("mmgbsa_n") for r in rows)
+    omm = any(r.get("omm_n") for r in rows)
     head = ["#", "name", "peptide", "len", "poses", "ADCP best",
             "ADCP top%d" % top_n, "sd"]
     if mm:
         head += ["MM n", "MM best", "MM top%d" % top_n, "MM med", "sd",
                  "spread"]
+    if omm:
+        head += ["OpenMM best"]
     # Column widths are set from the content: a fixed name column either
     # truncates long names or leaves a gap on runs where nothing was
     # named.
@@ -83,7 +102,8 @@ def table(rows, top_n=TOP_N):
          (max(len(str(r["peptide"])) for r in rows) + 1) if rows else 10]
     out = ["ranked by %s, most negative first" % key, ""]
     fmt = ("%-4s %-*s %-*s %4s %5s %10s %11s %6s"
-           + ("  %5s %8s %10s %8s %6s %7s" if mm else ""))
+           + ("  %5s %8s %10s %8s %6s %7s" if mm else "")
+           + ("  %11s" if omm else ""))
 
     def cell(v, nd=2):
         return "-" if v is None else ("%.*f" % (nd, v) if isinstance(v, float)
@@ -100,7 +120,16 @@ def table(rows, top_n=TOP_N):
                      cell(r.get("mmgbsa_top%d" % top_n), 2),
                      cell(r.get("mmgbsa_median"), 2), cell(r.get("mmgbsa_sd"), 2),
                      cell(r.get("mmgbsa_spread"), 2)]
+        if omm:
+            vals += [("%.1f (pose %s)" % (r["omm_best"], r["omm_best_pose"]))
+                     if r.get("omm_n") else "-"]
         out.append(fmt % tuple(vals))
+    unranked = [r for r in rows if r.get("rank") is None]
+    if unranked:
+        out.append("")
+        out.append("Unranked (no %s): %s. Peptides with non-standard or D "
+                   "residues have no MM-GBSA value." % (key, ", ".join(
+                       str(r.get("name") or r["peptide"]) for r in unranked)))
     if mm:
         widest = max((r.get("mmgbsa_spread") or 0) for r in rows)
         out.append("")
@@ -130,6 +159,10 @@ def write(rows, outdir, top_n=TOP_N):
     if any(r.get("mmgbsa_n") for r in rows):
         cols += ["mmgbsa_n", "mmgbsa_best", "mmgbsa_top%d" % top_n,
                  "mmgbsa_median", "mmgbsa_sd", "mmgbsa_spread"]
+    if any(r.get("omm_n") for r in rows):
+        cols += ["omm_n", "omm_best", "omm_best_pose"]
+    if any(r.get("engine") for r in rows):
+        cols += ["engine"]
     tsv = os.path.join(outdir, "results.tsv")
     with open(tsv, "w") as fh:
         fh.write("\t".join(cols) + "\n")

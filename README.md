@@ -83,6 +83,8 @@ adcp-dock report runs/trial
 
 Running `adcp-dock run` again submits peptides without completed results.
 
+ADCP 1.1 is supported alongside ADCP 1.0, with non-standard and D amino acids (`N<BHD>PIS&DVD`), OpenMM minimization of the top poses, and runs that start from a target file made in AGFRGUI. Install it with `adcp-dock install-adcp11`; see [INSTALL.md](INSTALL.md#3a-adcp-11-optional).
+
 `adcp-dock example` copies a finished example run into the runs folder: MDM2 with three peptides, docked and rescored with MM-GBSA. Open it in the interface to see what a finished run contains.
 
 ## Requirements

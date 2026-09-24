@@ -260,7 +260,7 @@ def used_by(job):
     keys = {k for k, when, *_ in REFERENCES if when == "always"}
     if job.get("mmgbsa"):
         keys |= {"amber", "ff14sb", "mmpbsa", "gbmodel"}
-    if job.get("minimise", True):
+    if job.get("minimise", True) or int(job.get("omm_minimize") or 0):
         keys.add("openmm")
     if job.get("fill_loops"):
         keys.add("pdbfixer")

@@ -11,7 +11,7 @@ import os
 import re
 import types
 
-from . import job as jobmod, report, slurm, target, verify
+from . import adcp11, job as jobmod, peptide, report, slurm, target, verify
 from . import tools as toolmod
 from ._vendor import adcp, mmgbsa, poseviewer, prep, receptor
 
@@ -45,6 +45,8 @@ def _reccfg(j, prepared=None):
 def stage_prepare(rundir, j=None, log=print):
     """Receptor preparation and the grid maps."""
     j = j or jobmod.load(rundir)
+    if str(j.get("target_file") or "").strip():
+        return _prepare_from_target(rundir, j, log)
     T = tools_for(j)
     recdir = os.path.join(rundir, "receptor")
     cfg = _reccfg(j)
@@ -62,7 +64,7 @@ def stage_prepare(rundir, j=None, log=print):
     # estimate: a command-line run, a resumed run and a reused job.json
     # all arrive here without passing through the page.
     from . import sizing as _sz
-    _longest = max((len(p.get("sequence") or "")
+    _longest = max((len(peptide.residues(peptide.clean(p.get("sequence") or "")))
                     for p in (j.get("peptides") or [])), default=0)
     _w = _sz.box_warning(_longest, size, j.get("box_max"))
     if _w:
@@ -138,6 +140,25 @@ def stage_prepare(rundir, j=None, log=print):
     return trg
 
 
+def _prepare_from_target(rundir, j, log=print):
+    """A run that starts from a target file (AGFRGUI): nothing to prepare or
+    build, only the file to take in."""
+    from . import agfr_target
+    log("using the target file %s instead of preparing the receptor"
+        % j["target_file"])
+    trg, prepared, pdbqt, centre, size = agfr_target.import_target(
+        j["target_file"], rundir, log=log)
+    j["site"] = {"centre": [float(v) for v in centre],
+                 "size": [float(v) for v in size], "hotspots": [],
+                 "chains": [], "outside_box": [],
+                 "from_target": os.path.basename(trg)}
+    j["receptor_info"] = {"prepared_pdb": prepared, "pdbqt": pdbqt}
+    j["target"] = trg
+    j["state"] = "prepared"
+    jobmod.save(rundir, j)
+    return trg
+
+
 def _rec_for_mmgbsa(j, log=print):
     """The receptor MM-GBSA scores against: the prepared one where there is one, the input structure otherwise.
 
@@ -180,20 +201,45 @@ def stage_dock(rundir, index, j=None, log=print):
 
     wd = os.path.join(rundir, "docking")
     cpus = int(os.environ.get("SLURM_CPUS_PER_TASK", j.get("cpus", 0)) or 0)
-    log("docking %s (%s), %d replicas x %d steps on %d core(s)"
-        % (name, seq, int(j.get("replicas", 50)), int(j.get("steps", 2500000)),
-           cpus or 1))
-    modes, pdir = adcp.dock(seq, trg, wd, T,
-                            replicas=int(j.get("replicas", 50)),
-                            steps=int(j.get("steps", 2_500_000)),
-                            cpus=cpus, log=log)
     keep = int(j.get("poses", 10))
-    out = {"name": name, "peptide": seq,
+    engine, exe = jobmod.resolve_engine(j)
+    if engine == "missing":
+        raise SystemExit("ADCP 1.1 was asked for but is not installed here")
+    label = "ADCP " + ((adcp11.version(exe) or "1.1") if engine == "1.1" else "1.0")
+    log("docking %s (%s) with %s, %d replicas x %d steps on %d core(s)"
+        % (name, seq, label, int(j.get("replicas", 50)),
+           int(j.get("steps", 2500000)), cpus or 1))
+    if engine == "1.1":
+        modes, pdir = adcp11.dock(seq, trg, wd, exe, key=jobmod.key(seq),
+                                  replicas=int(j.get("replicas", 50)),
+                                  steps=int(j.get("steps", 2_500_000)),
+                                  poses=keep, cpus=cpus,
+                                  minimize=int(j.get("omm_minimize") or 0),
+                                  omm_env=j.get("omm_env") or "implicit",
+                                  log=log)
+    else:
+        modes, pdir = adcp.dock(seq, trg, wd, T,
+                                replicas=int(j.get("replicas", 50)),
+                                steps=int(j.get("steps", 2_500_000)),
+                                cpus=cpus, log=log)
+    out = {"name": name, "peptide": seq, "engine": label,
            "modes": [dict(rank=m.get("rank"), score=m.get("affinity"))
                      for m in (modes or [])][:keep]}
     log("  %d ranked pose(s)" % len(out["modes"]))
+    if engine == "1.1":
+        omm = adcp11.read_openmm(pdir)
+        if omm:
+            out["openmm"] = omm
+            log("  OpenMM minimized %d pose(s)" % len(omm))
 
-    if j.get("mmgbsa") and out["modes"]:
+    if j.get("mmgbsa") and out["modes"] and peptide.is_extended(seq):
+        # The MM-GBSA topology is built from the sequence's standard
+        # residues, and has no parameters for non-standard side chains.
+        log("  no MM-GBSA for %s: it has non-standard or D residues; use "
+            "ADCP 1.1's OpenMM minimization for these" % seq)
+        out["mmgbsa"] = []
+        out["mmgbsa_skipped"] = "non-standard or D residues"
+    elif j.get("mmgbsa") and out["modes"]:
         rec = _rec_for_mmgbsa(j, log)
         n = min(int(j.get("mmgbsa_poses", 5)), keep)
         # Docked coordinates laid onto a clean topology, matched by
@@ -255,7 +301,7 @@ def stage_dock(rundir, index, j=None, log=print):
         else:
             log("  no pose could be laid on a clean topology; no MM-GBSA")
             out["mmgbsa"] = []
-    _save_result(rundir, seq, out)
+    _save_result(rundir, jobmod.key(seq), out)
     return out
 
 
@@ -284,6 +330,8 @@ def stage_report(rundir, j=None, log=print):
         rows.append(report.summarise(r["peptide"], r.get("modes"),
                                      r.get("mmgbsa"),
                                      top_n=int(j.get("top_n", 5)),
+                                     openmm=r.get("openmm"),
+                                     engine=r.get("engine", ""),
                                      name=(r.get("name")
                                            or by_seq.get(r["peptide"], ""))))
     if not rows:
@@ -318,7 +366,8 @@ def outstanding(rundir, j=None):
     j = j or jobmod.load(rundir)
     out = []
     for i, (name, seq) in enumerate(jobmod.peptide_list(j)):
-        if not os.path.isfile(os.path.join(rundir, "results", "%s.json" % seq)):
+        if not os.path.isfile(os.path.join(rundir, "results",
+                                           "%s.json" % jobmod.key(seq))):
             out.append((i, name, seq))
     return out
 

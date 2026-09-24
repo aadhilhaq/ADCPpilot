@@ -65,6 +65,17 @@ def default(**kw):
         "steps": 2_500_000,
         "poses": 10,             # how many ranked poses to keep per peptide
         "seed": None,
+        # Which ADCP: "auto" uses 1.1 where it is installed and 1.0
+        # (ADFRsuite) otherwise; "1.0" or "1.1" asks for one.
+        "adcp_engine": "auto",
+        # ADCP 1.1 only: minimize this many top poses with OpenMM after
+        # docking, in "implicit" solvent or "vacuum". 0 does not minimize.
+        "omm_minimize": 0,
+        "omm_env": "implicit",
+        # A target file (.trg) made elsewhere, for example in AGFRGUI. When
+        # set, the receptor, maps and box come from it and this package's
+        # receptor preparation is not run.
+        "target_file": "",
         # rescoring
         "mmgbsa": False,
         "mmgbsa_poses": 5,
@@ -116,6 +127,29 @@ def load(rundir):
         return json.load(fh)
 
 
+def resolve_engine(j):
+    """("1.0" | "1.1" | "missing", ADCP 1.1 executable or None) for a job."""
+    from . import adcp11
+    want = str(j.get("adcp_engine") or "auto")
+    if want == "1.0":
+        return "1.0", None
+    exe = adcp11.find(j.get("tools_roots") or [])
+    if exe:
+        return "1.1", exe
+    return ("missing" if want == "1.1" else "1.0"), None
+
+
+def key(sequence):
+    """The name a peptide's docking folder and result file get.
+
+    The sequence itself for ordinary peptides, so existing runs keep their
+    names; ADCP 1.1 sequences carry <, > and &, which are replaced.
+    """
+    import re
+    return sequence if sequence.isalpha() else re.sub(r"[^A-Za-z0-9]+", "_",
+                                                      sequence).strip("_")
+
+
 def validate(j):
     """[str] of things that would stop the run, in the order worth fixing."""
     from . import peptide as pep
@@ -125,16 +159,34 @@ def validate(j):
     # scheduler rejects fails the run at its first stage, far from the
     # field where the option was entered.
     out.extend(_sl.site_options(j.get("account"), j.get("sbatch_extra"))[1])
-    if not j.get("receptor"):
-        out.append("No receptor structure chosen.")
-    elif not os.path.isfile(j["receptor"]):
-        out.append("The receptor file does not exist: %s" % j["receptor"])
-    if not str(j.get("hotspots") or "").strip():
-        out.append("No site chosen. Pick the residues the box should cover.")
+    trg = str(j.get("target_file") or "").strip()
+    if trg:
+        from . import target as _t
+        why = _t.check(trg) if os.path.isfile(trg) else "does not exist"
+        if why:
+            out.append("The target file %s is unusable: %s" % (trg, why))
+    else:
+        if not j.get("receptor"):
+            out.append("No receptor structure chosen.")
+        elif not os.path.isfile(j["receptor"]):
+            out.append("The receptor file does not exist: %s" % j["receptor"])
+        if not str(j.get("hotspots") or "").strip():
+            out.append("No site chosen. Pick the residues the box should cover.")
+    engine, exe = resolve_engine(j)
+    if engine == "missing":
+        out.append("ADCP 1.1 was asked for but is not installed here. Install "
+                   "it (see INSTALL.md) or choose ADCP 1.0.")
+    lib = None
+    if engine == "1.1" and exe:
+        from . import adcp11 as _a
+        lib = _a.library(exe)
+    if int(j.get("omm_minimize") or 0) and engine != "1.1":
+        out.append("OpenMM minimization of poses needs ADCP 1.1.")
     if not j.get("peptides"):
         out.append("No peptides to dock.")
     for i, p in enumerate(j.get("peptides") or [], 1):
-        seq, probs = pep.check(p.get("sequence", ""),
+        seq, probs = pep.check(p.get("sequence", ""), extended=engine == "1.1",
+                               library=lib,
                                max_length=j.get("max_length", pep.MAX_LENGTH))
         for pr in probs:
             out.append("Peptide %d (%s): %s"

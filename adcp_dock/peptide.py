@@ -25,6 +25,28 @@ MAX_LENGTH = 30
 
 _WS = re.compile(r"\s+")
 
+# ADCP 1.1 also takes non-standard and D amino acids: an optional "&" for the
+# D form, the one-letter code of the standard residue whose coarse potential
+# is used, and the non-standard side chain's library name in angle brackets.
+# "N<BHD>PIS&DVD" is seven residues, the first an asparagine derivative and
+# the fifth a D-aspartate. ADCP 1.0 has no such syntax.
+EXTENDED = re.compile(r"&?[A-Z](?:<[A-Z0-9]{1,4}>)?")
+
+
+def is_extended(seq):
+    """Whether a sequence uses the ADCP 1.1 syntax."""
+    return "<" in seq or "&" in seq
+
+
+def residues(seq):
+    """The residues of a cleaned sequence, one string each ("N<BHD>", "&D")."""
+    return EXTENDED.findall(seq) if is_extended(seq) else list(seq)
+
+
+def nonstandard(seq):
+    """The side-chain library names used in a sequence."""
+    return re.findall(r"<([A-Z0-9]{1,4})>", seq)
+
 
 class Problem:
     """One thing wrong with a sequence.
@@ -61,12 +83,20 @@ def clean(text):
     return _WS.sub("", "".join(lines)).upper()
 
 
-def check(text, min_length=MIN_LENGTH, max_length=MAX_LENGTH):
-    """(cleaned, [Problem]). An empty problem list means ADCP will take it."""
+def check(text, min_length=MIN_LENGTH, max_length=MAX_LENGTH, extended=False,
+          library=None):
+    """(cleaned, [Problem]). An empty problem list means ADCP will take it.
+
+    With `extended` (ADCP 1.1), the non-standard syntax is accepted, and each
+    side-chain name is checked against `library` when one is given.
+    """
     seq = clean(text)
     out = []
     if not seq:
         return seq, [Problem("empty", "Enter a peptide sequence.")]
+    if is_extended(seq):
+        return seq, _check_extended(seq, min_length, max_length, extended,
+                                    library)
 
     bad_letters, not_letters = [], []
     for i, c in enumerate(seq):
@@ -101,6 +131,48 @@ def check(text, min_length=MIN_LENGTH, max_length=MAX_LENGTH):
             "with length." % (len(seq), max_length),
             list(range(max_length, len(seq)))))
     return seq, out
+
+
+def _check_extended(seq, min_length, max_length, extended, library):
+    if not extended:
+        return [Problem("needs_adcp11",
+                        "Non-standard (<XXX>) and D (&) amino acids need "
+                        "ADCP 1.1; this run uses ADCP 1.0.")]
+    out = []
+    # Whatever the pattern does not account for is a mistake in the syntax.
+    covered = set()
+    for m in EXTENDED.finditer(seq):
+        covered.update(range(m.start(), m.end()))
+    stray = [i for i in range(len(seq)) if i not in covered]
+    if stray:
+        out.append(Problem(
+            "syntax",
+            "Write a non-standard residue as a one-letter code followed by its "
+            "library name in angle brackets, such as N<BHD>, and a D residue "
+            "with & before its letter, such as &D. " + _names(seq, stray)
+            + " does not fit.", stray))
+    for m in EXTENDED.finditer(seq):
+        letter = m.group(0).lstrip("&")[0]
+        if letter not in STANDARD:
+            i = m.start() + (1 if m.group(0).startswith("&") else 0)
+            out.append(Problem("ambiguous", "%s is not one of the twenty "
+                               "standard residues ADCP uses for the coarse "
+                               "model." % letter, [i]))
+    if library is not None:
+        unknown = sorted({n for n in nonstandard(seq) if n not in library})
+        if unknown:
+            out.append(Problem(
+                "unknown_nst",
+                "%s %s not in ADCP's side-chain library."
+                % (", ".join(unknown), "is" if len(unknown) == 1 else "are")))
+    n = len(residues(seq))
+    if n < min_length:
+        out.append(Problem("too_short", "ADCP needs at least %d residues; "
+                           "this has %d." % (min_length, n)))
+    if n > max_length:
+        out.append(Problem("too_long", "This has %d residues and the limit "
+                           "is %d." % (n, max_length)))
+    return out
 
 
 def _names(seq, idx):

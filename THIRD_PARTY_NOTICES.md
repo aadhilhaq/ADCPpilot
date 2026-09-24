@@ -16,6 +16,7 @@ under their own terms.
 | MSMS, MSLIB (in the ADFRsuite download) | Scripps Research Institute | Free for academic use; commercial use needs a licence | Not used and not installed: the installers pass the ADFRsuite installer's `-l` switch, which leaves them out |
 | PDB2PQR | APBS/PDB2PQR developers | BSD-3-Clause | pip |
 | PROPKA (run by PDB2PQR) | PROPKA developers | LGPL-2.1 | pip, with PDB2PQR |
+| ADCP 1.1 environment (optional): adcp, adfr, autosite and their libraries | Scripps Research Institute | ADCP under GNU LGPL; the environment also includes the MSMS library (mslib) and the UT packages, free for academic use only | Installed by the user with `adcp-dock install-adcp11`, which follows Scripps' own script |
 | AmberTools: tleap, sander, MMPBSA.py | Amber developers | Several licences (GPL-3.0-or-later, LGPL-3.0-or-later, BSD, MIT, by component) | conda, only when MM-GBSA is wanted |
 
 ## Python libraries imported by the package (not included in this repository)

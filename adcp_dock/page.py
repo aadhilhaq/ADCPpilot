@@ -491,6 +491,14 @@ __STALE__
   </div>
   <div id=recinfo class=why style="margin-top:9px"></div>
   <div id=chainbox class="hide" style="margin-top:10px"></div>
+  <!-- A target made in AGFR or AGFRGUI replaces the receptor preparation
+       and the site: the run takes its receptor, maps and box from it. -->
+  <div class=row style="margin-top:10px">
+    <div class=fieldwrap style="flex:3 1 280px">
+      <label for=targetfile>or a target file made in AGFR or AGFRGUI (.trg)</label>
+      <input type=text id=targetfile
+             placeholder="/path/to/target.trg  (optional: its receptor, maps and box are used)"></div>
+  </div>
 </div>
 
 <div class=card>
@@ -609,6 +617,19 @@ __STALE__
       <input type=number id=ph value="7.4" step="0.1" min="0" max="14"></div>
   </div>
   <div class=why id=stepsguide style="margin-top:7px"></div>
+  <!-- Which ADCP. 1.1 adds non-standard and D amino acids (N<BHD>, &D in a
+       sequence) and an OpenMM minimization of the top poses. -->
+  <div class=row style="margin-top:12px">
+    <div><label for=adcp_engine>Docking engine</label>
+      <select id=adcp_engine>
+        <option value=auto>ADCP, newest installed</option>
+        <option value="1.1">ADCP 1.1</option>
+        <option value="1.0">ADCP 1.0</option>
+      </select></div>
+    <div><label for=omm_minimize>Poses to minimize with OpenMM</label>
+      <input type=number id=omm_minimize value="0" min="0" max="10"></div>
+    <div class=why id=enginenote style="flex:2 1 260px;align-self:center"></div>
+  </div>
   <div class=row style="margin-top:12px">
     <!-- The checkboxes are their own row, evenly spaced: a group of four of
          the same kind, laid out as one. -->

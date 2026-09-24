@@ -543,6 +543,77 @@ for _reps, _steps, _cores, _len, _meas, _what in (
           % (_what, _m, _meas))
 
 
+# --- ADCP 1.1: sequence syntax, output layout, OpenMM table, target files ---
+import shutil as _sh                                            # noqa: E402
+import tempfile as _tf                                          # noqa: E402
+import zipfile as _zf                                           # noqa: E402
+from adcp_dock import adcp11, agfr_target, job as _job, peptide as _pep  # noqa: E402
+from adcp_dock import report as _rep                            # noqa: E402
+
+_s, _p = _pep.check("n<BHD>pis&dvd", extended=True, library={"BHD"})
+check(not _p and len(_pep.residues(_s)) == 7,
+      "an ADCP 1.1 sequence with a non-standard and a D residue was refused "
+      "or miscounted: %r %r" % (_s, [x.message for x in _p]))
+_s, _p = _pep.check("n<BHD>pis&dvd")
+check(_p and _p[0].kind == "needs_adcp11",
+      "ADCP 1.1 syntax was accepted for an ADCP 1.0 run")
+_s, _p = _pep.check("n<ZZZ>pisdv", extended=True, library={"BHD"})
+check(any(x.kind == "unknown_nst" for x in _p),
+      "a side chain missing from ADCP's library was accepted")
+check(_job.key("NPISDVD") == "NPISDVD" and _job.key("N<BHD>PIS&DVD") == "N_BHD_PIS_DVD",
+      "folder names changed for ordinary peptides, or kept <, > and &")
+check(adcp11.adcp_sequence("N<BHD>PIS&DVD") == "n<BHD>pis&dvd",
+      "the sequence passed to ADCP 1.1 lower-cased a library name")
+
+_wd = _tf.mkdtemp()
+for _f in ("out_out.pdb", "out_summary.dlg"):
+    _sh.copy(os.path.join(HERE, "data", "adcp11", _f), _wd)
+check(adcp11.split_poses(_wd) == 5
+      and all(os.path.isfile(os.path.join(_wd, "out_ranked_%d.pdb" % k))
+              for k in range(1, 6)),
+      "ADCP 1.1's multi-model file was not split into one pose per file")
+_m = adcp11.read_modes(_wd)
+check([x["rank"] for x in _m] == [1, 2, 3, 4, 5] and _m[0]["affinity"] == -10.5,
+      "ADCP 1.1's mode table was not read: %r" % _m[:2])
+_o = adcp11.read_openmm(_wd)
+check(len(_o) == 3 and _o[0]["rank_adcp"] == 3
+      and _o[0]["e_complex_receptor"] == -262.4,
+      "the OpenMM re-ranking table was not read: %r" % _o[:1])
+_row = _rep.summarise("N<BHD>PIS&DVD", [{"score": -10.5}, {"score": -10.0}],
+                      openmm=_o, engine="ADCP 1.1.21")
+check(_row["length"] == 7 and _row["omm_best"] == -262.4
+      and _row["omm_best_pose"] == 3 and _row["engine"] == "ADCP 1.1.21",
+      "the report row miscounts residues or drops the OpenMM result: %r" % _row)
+
+# A small target file with the layout agfr writes.
+_t = _tf.mkdtemp()
+_trg = os.path.join(_t, "mytarget.trg")
+with _zf.ZipFile(_trg, "w") as _z:
+    for _k in range(20):
+        _z.writestr("mytarget/rigidReceptor.T%d.map" % _k, "0\n")
+    _z.writestr("mytarget/rigidReceptor.pdbqt",
+                "ATOM      1  N   ALA A   1      1.000   2.000   3.000  1.00  0.00    -0.300 N \n"
+                "ATOM      2  CA  ALA A   1      2.000   2.000   3.000  1.00  0.00     0.100 C \n"
+                "ATOM      3  OG  SER A   2      3.000   2.000   3.000  1.00  0.00    -0.400 OA\n")
+    _z.writestr("mytarget/rigidReceptor.gpf", "npts 80 60 40 # grid\nspacing 0.375\n"
+                "gridcenter 1.0 2.0 3.0\n")
+_run = _tf.mkdtemp()
+_trg2, _prep, _q, _c, _sz = agfr_target.import_target(_trg, _run, log=lambda *a: None)
+check(os.path.basename(_trg2) == "mytarget.trg" and _c == [1.0, 2.0, 3.0]
+      and _sz == [30.0, 22.5, 15.0],
+      "a target file lost its name or its box: %r %r %r" % (_trg2, _c, _sz))
+_pdb = open(_prep).read()
+check(_pdb.count("ATOM") == 3 and " O\n" in _pdb.replace("  O\n", " O\n"),
+      "the receptor from a target file was not written as a PDB with elements")
+_j = _job.default(target_file=_trg, peptides=[{"name": "p", "sequence": "NPISDVD"}])
+check(not [x for x in _job.validate(_j) if "receptor" in x.lower() or "site" in x.lower()],
+      "a run from a target file still asks for a receptor or a site: %r"
+      % _job.validate(_j))
+_j = _job.default(adcp_engine="1.0", receptor=_prep, hotspots="A:1",
+                  peptides=[{"name": "p", "sequence": "N<BHD>PIS&DVD"}])
+check(any("ADCP 1.1" in x for x in _job.validate(_j)),
+      "an ADCP 1.0 run accepted a non-standard residue")
+
 if fails:
     print("test_engine FAILED (%d)" % len(fails))
     for f in fails:

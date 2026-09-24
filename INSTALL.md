@@ -243,6 +243,30 @@ Use the notebook to explore the workflow and inspect inputs. Reduced search sett
 
 ---
 
+## 3a. ADCP 1.1 (optional)
+
+ADCP 1.1 is the current version of AutoDock CrankPep. It adds non-standard and D amino acids, all-atom poses in one file, and an optional OpenMM minimization and re-ranking of the top poses. The Scripps Research Institute distributes it as its own Python 3.7 environment. Install it, on a cluster login node, a workstation or in Colab, with:
+
+```bash
+adcp-dock install-adcp11                      # into ~/.adcp-dock/adcpsuite
+adcp-dock install-adcp11 --dest /path/adcpsuite
+```
+
+This follows Scripps' own installation script: it creates the environment with micromamba (downloaded if needed), installs OpenMM, Open Babel and PDBFixer from conda-forge, and fetches the Scripps packages from ccsb.scripps.edu, checking each against a pinned SHA-256. It takes about ten minutes and 3 GB. Scripps' own instructions are at <https://ccsb.scripps.edu/adcpv11/downloads/>.
+
+The interface finds ADCP 1.1 at `$ADCPSUITE_HOME`, in a folder named `adcpsuite` beside ADFRsuite or in a tools folder given with `--tools-root`, at `~/.adcp-dock/adcpsuite`, or at `/content/adcpsuite` in Colab. ADFRsuite 1.0 is still needed, for receptor preparation and the grid maps.
+
+Each run chooses its engine under **Docking engine**: *ADCP, newest installed* (the default) uses 1.1 when it is found and 1.0 otherwise. On the command line, `adcp-dock new ... --engine 1.1`. With ADCP 1.1:
+
+* **Non-standard and D amino acids.** Write a non-standard residue as the one-letter code of the standard residue whose coarse model it uses, followed by its library name in angle brackets, and a D residue with `&` before its letter: `N<BHD>PIS&DVD` is seven residues. The names are those of ADCP's side-chain libraries (the SwissSideChain set). MM-GBSA rescoring is skipped for these peptides, since its force field has no parameters for them; use the OpenMM minimization instead.
+* **OpenMM minimization.** *Poses to minimize with OpenMM* (`--omm-minimize N`) minimizes the top N poses in implicit solvent and reports the lowest E(complex) minus E(receptor) beside the scores. The minimized complexes and their Amber topologies stay in the run's docking folder.
+
+A run can also start from a target file made in AGFR or AGFRGUI: give its path under *or a target file* (`--target-file`). The receptor, maps and box then come from that file, and this package's receptor preparation is not run. The file's name must not be changed, since ADCP finds the maps by it.
+
+Scripps' ADCP 1.1 environment includes the MSMS library (mslib) and the UT packages, which are free for academic use only; check their terms before commercial use.
+
+---
+
 ## 4. The desktop launcher
 
 The launcher connects to a cluster over SSH, supports two-factor

@@ -165,7 +165,28 @@ class App:
                 "missing": T.missing_required(),
                 "optional_missing": [n for n, p in T.report()
                                      if not p and n not in toolmod.REQUIRED],
-                "mmgbsa": T.can_rescore()}
+                "mmgbsa": T.can_rescore(),
+                # ADCP 1.1, when it is installed: the page offers it, its
+                # non-standard residue syntax and OpenMM minimization.
+                "adcp11": self._adcp11()[0],
+                "adcp11_version": self._adcp11()[1]}
+
+    def _adcp11(self):
+        """(executable or None, version), looked up once per server."""
+        if not hasattr(self, "_a11"):
+            from . import adcp11
+            exe = adcp11.find(self.tools_roots)
+            self._a11 = (exe, adcp11.version(exe) if exe else "")
+            self._a11lib = adcp11.library(exe) if exe else set()
+        return self._a11
+
+    def _pepcheck(self, body):
+        """The keyword arguments a peptide check needs for the chosen engine."""
+        mx = int(body.get("max_length") or peptide.MAX_LENGTH)
+        engine = str(body.get("adcp_engine") or "auto")
+        exe = self._adcp11()[0] if engine != "1.0" else None
+        return {"max_length": mx, "extended": bool(exe),
+                "library": self._a11lib if exe else None}
 
     def roots(self):
         """Where the browser should offer to start.
@@ -366,7 +387,8 @@ class App:
         """What to ask the queue for, from what the form currently holds."""
         seqs = [peptide.clean(p.get("sequence", ""))
                 for p in body.get("peptides") or []]
-        seqs = [s for s in seqs if s]
+        # Residues, not characters: N<BHD>PIS&DVD is seven residues.
+        seqs = [len(peptide.residues(s)) for s in seqs if s]
         if not seqs:
             return {"error": "add a peptide first"}
         # What the receptor itself costs, read from the file rather
@@ -607,12 +629,12 @@ class App:
 
     def peptides(self, body):
         """Live validation. Positions come back so the box can underline."""
-        mx = int(body.get("max_length") or peptide.MAX_LENGTH)
+        kw = self._pepcheck(body)
         out = []
         for row in body.get("peptides") or []:
-            seq, probs = peptide.check(row.get("sequence", ""), max_length=mx)
+            seq, probs = peptide.check(row.get("sequence", ""), **kw)
             out.append({"name": row.get("name", ""), "sequence": seq,
-                        "length": len(seq),
+                        "length": len(peptide.residues(seq)),
                         "ok": not probs,
                         "problems": [p.as_dict() for p in probs]})
         return {"peptides": out,
@@ -620,8 +642,7 @@ class App:
 
     def paste(self, body):
         """A pasted block or FASTA, split into rows the page can show."""
-        mx = int(body.get("max_length") or peptide.MAX_LENGTH)
-        rows = peptide.parse_many(body.get("text", ""), max_length=mx)
+        rows = peptide.parse_many(body.get("text", ""), **self._pepcheck(body))
         return {"peptides": [{"name": n, "sequence": s,
                               "ok": not p,
                               "problems": [x.as_dict() for x in p]}
@@ -745,7 +766,7 @@ class App:
             return None, "the receptor has not been prepared yet"
         if what == "receptor" or not peptide:
             return open(rec).read(), None
-        pose = os.path.join(rundir, "docking", peptide,
+        pose = os.path.join(rundir, "docking", jobmod.key(peptide),
                             "out_ranked_%d.pdb" % int(rank))
         if not os.path.isfile(pose):
             return None, "no pose %s for %s" % (rank, peptide)
@@ -771,11 +792,11 @@ class App:
     def pose_list(self, rundir, peptide):
         """Which ranked poses exist, with their scores, for the pose picker."""
         import glob
-        d = os.path.join(rundir, "docking", peptide)
+        d = os.path.join(rundir, "docking", jobmod.key(peptide))
         if not os.path.isdir(d):
             return {"poses": []}
-        from ._vendor import adcp as adcpmod
-        modes = {m["rank"]: m for m in adcpmod.read_modes(d)}
+        from . import adcp11
+        modes = {m["rank"]: m for m in adcp11.read_modes(d)}
         out = []
         for f in sorted(glob.glob(os.path.join(d, "out_ranked_*.pdb")),
                         key=lambda p: int(p.rsplit("_", 1)[1][:-4])):
@@ -785,7 +806,7 @@ class App:
             out.append({"rank": r,
                         "score": (modes.get(r) or {}).get("affinity")})
         mm = None
-        rj = os.path.join(rundir, "results", "%s.json" % peptide)
+        rj = os.path.join(rundir, "results", "%s.json" % jobmod.key(peptide))
         if os.path.isfile(rj):
             try:
                 mm = json.load(open(rj)).get("mmgbsa")

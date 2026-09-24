@@ -18,14 +18,14 @@ from . import credit, fetch, job as jobmod, peptide, pipeline, slurm
 from . import tools as toolmod
 
 
-def _peptides(values, path):
+def _peptides(values, path, **kw):
     out = []
     # -p reads the same forms as a peptide file and the page, so that `-p
     # "p53: ETFSDLWKLLP"` names the peptide rather than being read as a
     # sequence containing a colon.
     bad = []
     for v in values or []:
-        for name, seq, probs in peptide.parse_many(v):
+        for name, seq, probs in peptide.parse_many(v, **kw):
             if probs:
                 bad.append("  %s: %s" % (v, probs[0].message))
             named = ":" in v or v.lstrip().startswith(">")
@@ -39,7 +39,7 @@ def _peptides(values, path):
         # peptides were its comment lines, caught later by validation
         # and far from its cause.
         bad = []
-        for name, seq, probs in peptide.parse_many(open(path).read()):
+        for name, seq, probs in peptide.parse_many(open(path).read(), **kw):
             if probs:
                 bad.append("  %s: %s" % (name, probs[0].message))
             out.append({"name": name, "sequence": seq})
@@ -144,10 +144,20 @@ def main(argv=None):
 
     n = sub.add_parser("new", help="create a run directory")
     n.add_argument("rundir")
-    n.add_argument("-r", "--receptor", required=True,
+    n.add_argument("-r", "--receptor",
                    help="a path, or a four-character PDB id to fetch")
-    n.add_argument("-s", "--site", required=True,
+    n.add_argument("-s", "--site",
                    help="residues the box should cover, e.g. A:41,A:45,A:78")
+    n.add_argument("--target-file", default="",
+                   help="a .trg target made elsewhere (for example in AGFRGUI): "
+                        "its receptor, maps and box are used, and -r and -s "
+                        "are not needed")
+    n.add_argument("--engine", choices=("auto", "1.0", "1.1"), default="auto",
+                   help="which ADCP: auto uses 1.1 where it is installed")
+    n.add_argument("--omm-minimize", type=int, default=0,
+                   help="ADCP 1.1: minimize this many top poses with OpenMM")
+    n.add_argument("--omm-env", choices=("implicit", "vacuum"),
+                   default="implicit")
     n.add_argument("-p", "--peptide", action="append", default=[])
     n.add_argument("-f", "--peptides-file")
     n.add_argument("--chain", action="append", default=[])
@@ -239,6 +249,12 @@ def main(argv=None):
     lc.add_argument("--force", action="store_true",
                     help="run here even though this machine has sbatch")
 
+    ia = sub.add_parser("install-adcp11",
+                        help="install ADCP 1.1 (Scripps' conda recipe) so "
+                             "runs can use it")
+    ia.add_argument("--dest", default=None,
+                    help="where to create it (default ~/.adcp-dock/adcpsuite)")
+
     ex = sub.add_parser("example",
                         help="copy a finished example run into the runs "
                              "folder, to open in the interface")
@@ -310,8 +326,11 @@ def main(argv=None):
         # beside the run, so the same id reused on a node with no
         # outbound route still works. Anything else is treated as a
         # path.
-        rec = a.receptor
-        if fetch.looks_like_code(rec):
+        if not a.target_file and not (a.receptor and a.site):
+            print("give -r and -s, or --target-file")
+            return 2
+        rec = a.receptor or ""
+        if rec and fetch.looks_like_code(rec):
             cache = os.path.join(os.path.dirname(os.path.abspath(a.rundir)),
                                  ".pdb_cache")
             try:
@@ -320,8 +339,18 @@ def main(argv=None):
                 print("could not fetch %s: %s" % (a.receptor, exc))
                 return 1
             print("fetched %s -> %s" % (a.receptor.upper(), rec))
+        roots = [os.path.abspath(r) for r in a.tools_root]
+        engine, exe = jobmod.resolve_engine({"adcp_engine": a.engine,
+                                             "tools_roots": roots})
+        kw = {}
+        if engine == "1.1":
+            from . import adcp11
+            kw = {"extended": True, "library": adcp11.library(exe)}
         j = jobmod.default(
-            receptor=os.path.abspath(rec), hotspots=a.site,
+            receptor=os.path.abspath(rec) if rec else "", hotspots=a.site or "",
+            target_file=os.path.abspath(a.target_file) if a.target_file else "",
+            adcp_engine=a.engine, omm_minimize=a.omm_minimize,
+            omm_env=a.omm_env,
             chains=a.chain, ph=a.ph, minimise=a.minimise, poses=a.poses,
             replicas=a.replicas, steps=a.steps, mmgbsa=a.mmgbsa,
             mmgbsa_poses=a.mmgbsa_poses, top_n=a.top_n,
@@ -330,8 +359,8 @@ def main(argv=None):
             account=a.account, sbatch_extra=a.sbatch_extra,
             keep_hetatms=a.keep_hetatms, fill_loops=a.fill_loops,
             box_chains=a.box_chains,
-            tools_roots=[os.path.abspath(r) for r in a.tools_root],
-            peptides=_peptides(a.peptide, a.peptides_file))
+            tools_roots=roots,
+            peptides=_peptides(a.peptide, a.peptides_file, **kw))
         problems = jobmod.validate(j)
         jobmod.save(a.rundir, j)
         print("wrote %s" % jobmod.path_of(a.rundir))
@@ -371,6 +400,11 @@ def main(argv=None):
         if spread is None and a.rundir:
             spread = affinity.spread_of(a.rundir)
         affinity.table(a.temperature, spread)
+        return 0
+
+    if a.cmd == "install-adcp11":
+        from . import adcp11_install
+        adcp11_install.install(a.dest or adcp11_install.DEFAULT)
         return 0
 
     if a.cmd == "example":

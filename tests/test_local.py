@@ -24,6 +24,7 @@ sys.path.insert(0, ROOT)
 
 from adcp_dock import job as jobmod, peptide, pipeline, slurm   # noqa: E402
 
+ENGINES = []
 fails, ran = [], 0
 
 
@@ -153,54 +154,90 @@ if skip is None:
     # peptide on chain B. Chain A only, and redock p53's core into the cleft
     # it came from. The budget is tiny: this proves the path runs, not that
     # the search is good.
+    def run_local(body):
+        """Create a run through the page's API, wait for it, check it, and
+        return its result rows."""
+        made = call("/api/create", body)
+        check("error" not in made, "the run was not created: %r" % made)
+        rundir = made.get("rundir", "")
+        jobs = made.get("jobs") or {}
+        check(set(jobs) == {"prepare", "dock", "report"}
+              and all(str(v).startswith("L-") for v in jobs.values()),
+              "local submission did not return local ids: %r" % jobs)
+        t0, done, last = time.time(), False, {}
+        while time.time() - t0 < 1500:
+            st = call("/api/run", dir=rundir)
+            last = {k: v.get("state") for k, v in (st.get("jobs") or {}).items()}
+            live = any(s in ("RUNNING", "PENDING")
+                       for c in last.values() for s in (c or {}))
+            if last and not live:
+                done = True
+                break
+            time.sleep(5)
+        check(done, "the local run did not finish in 25 minutes: %r" % last)
+        check(all(set(c) <= {"COMPLETED"} for c in last.values() if c),
+              "a stage did not complete: %r; see %s/logs/local_*.out"
+              % (last, rundir))
+        # The preparation was complete, not merely finished. A stage that
+        # could not protonate still exits 0 and the run still ranks peptides,
+        # so the run's preparation warnings are checked too.
+        st = call("/api/run", dir=rundir)
+        check(st.get("prep_warnings") == [],
+              "the preparation was degraded: %r" % st.get("prep_warnings"))
+        for f in ("HOW_TO_CITE.txt", "CITATION.bib", "CITATION.ris"):
+            check(os.path.isfile(os.path.join(rundir, f)),
+                  "%s was not written into the run" % f)
+        res = os.path.join(rundir, "results.json")
+        check(os.path.isfile(res), "no results.json was written")
+        if not os.path.isfile(res):
+            return rundir, []
+        rows = json.load(open(res))
+        return rundir, (rows if isinstance(rows, list) else rows.get("rows", []))
+
+    # The receptor this is written for is 1YCR: MDM2 on chain A, a bound p53
+    # peptide on chain B. Chain A only, and redock p53's core into the cleft
+    # it came from. The budget is tiny: this proves the path runs, not that
+    # the search is good. ADCP 1.0 first, named, since "auto" would pick 1.1
+    # wherever it is installed.
     body = {"label": "localtest", "receptor": RECEPTOR, "chains": ["A"],
             "hotspots": "A:54, A:62, A:67, A:96, A:99",
             "peptides": [{"name": "p53_core", "sequence": "FSDLWKLL"}],
-            "replicas": 4, "steps": 400000, "poses": 3,
+            "replicas": 4, "steps": 400000, "poses": 3, "adcp_engine": "1.0",
             "cpus": min(4, slurm.usable_cores()), "mmgbsa": False}
-    made = call("/api/create", body)
-    check("error" not in made, "the run was not created: %r" % made)
-    rundir = made.get("rundir", "")
-    jobs = made.get("jobs") or {}
-    check(set(jobs) == {"prepare", "dock", "report"}
-          and all(str(v).startswith("L-") for v in jobs.values()),
-          "local submission did not return local ids: %r" % jobs)
+    rundir, rows = run_local(body)
+    ENGINES.append("ADCP 1.0")
+    check(len(rows) == 1 and rows[0].get("name") == "p53_core",
+          "the result does not carry its peptide's name: %r"
+          % [(r.get("name"), r.get("peptide")) for r in rows])
+    check(rows and rows[0].get("adcp_best") is not None
+          and rows[0].get("engine") == "ADCP 1.0",
+          "the ADCP 1.0 result has no score or no engine: %r" % rows[:1])
 
-    t0, done, last = time.time(), False, {}
-    while time.time() - t0 < 1500:
-        st = call("/api/run", dir=rundir)
-        last = {k: v.get("state") for k, v in (st.get("jobs") or {}).items()}
-        live = any(s in ("RUNNING", "PENDING")
-                   for c in last.values() for s in (c or {}))
-        if last and not live:
-            done = True
-            break
-        time.sleep(5)
-    check(done, "the local run did not finish in 25 minutes: %r" % last)
-    check(all(set(c) <= {"COMPLETED"} for c in last.values() if c),
-          "a stage did not complete: %r; see %s/logs/local_*.out"
-          % (last, rundir))
-
-    # The preparation was complete, not merely finished. A stage that
-    # could not protonate still exits 0 and the run still ranks peptides,
-    # so the run's preparation warnings are checked too.
-    st = call("/api/run", dir=rundir)
-    check(st.get("prep_warnings") == [],
-          "the preparation was degraded: %r" % st.get("prep_warnings"))
-
-    res = os.path.join(rundir, "results.json")
-    check(os.path.isfile(res), "no results.json was written")
-    if os.path.isfile(res):
-        rows = json.load(open(res))
-        rows = rows if isinstance(rows, list) else rows.get("rows", [])
-        check(len(rows) == 1 and rows[0].get("name") == "p53_core",
-              "the result does not carry its peptide's name: %r"
-              % [(r.get("name"), r.get("peptide")) for r in rows])
-        check(rows and rows[0].get("adcp_best") is not None,
-              "the result has no ADCP score")
-    for f in ("HOW_TO_CITE.txt", "CITATION.bib", "CITATION.ris"):
-        check(os.path.isfile(os.path.join(rundir, f)),
-              "%s was not written into the run" % f)
+    # ADCP 1.1 where it is installed: a non-standard and a D residue, and the
+    # top pose minimized with OpenMM.
+    if tl.get("adcp11"):
+        ENGINES.append("ADCP 1.1")
+        body = dict(body, label="localtest11", adcp_engine="1.1",
+                    omm_minimize=1, steps=200000,
+                    peptides=[{"name": "p53_core", "sequence": "FSDLWKLL"},
+                              {"name": "nonstd", "sequence": "FSN<BHD>LW&KLL"}])
+        rundir, rows = run_local(body)
+        by = {r.get("name"): r for r in rows}
+        check(set(by) == {"p53_core", "nonstd"}
+              and all(str(r.get("engine", "")).startswith("ADCP 1.1")
+                      for r in rows),
+              "the ADCP 1.1 run did not dock both peptides with 1.1: %r"
+              % [(r.get("name"), r.get("engine")) for r in rows])
+        check(by.get("nonstd", {}).get("length") == 8,
+              "the non-standard peptide is not counted as 8 residues: %r"
+              % by.get("nonstd", {}).get("length"))
+        check(any(r.get("omm_n") for r in rows),
+              "no OpenMM minimization result was reported: %r" % rows)
+        poses = call("/api/poses", dir=rundir, peptide="FSN<BHD>LW&KLL")
+        check(len(poses.get("poses") or []) >= 1,
+              "the non-standard peptide's poses cannot be listed: %r" % poses)
+    else:
+        print("skip  ADCP 1.1 is not installed here; only ADCP 1.0 was run")
     httpd.shutdown()
     os.environ.pop("ADCP_EXECUTOR", None)
 
@@ -216,5 +253,5 @@ if skip:
     print("ok  local mode is opt-in and reads a dead runner as dead, %d checks; "
           "the real run was skipped: %s" % (ran, skip))
 else:
-    print("ok  a real run went prepare -> dock -> report on this machine "
-          "through the server, %d checks" % ran)
+    print("ok  real runs went prepare -> dock -> report on this machine "
+          "through the server (%s), %d checks" % (" and ".join(ENGINES), ran))
