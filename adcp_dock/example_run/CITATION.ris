@@ -38,6 +38,25 @@ N1  - used for: grid maps (agfr) and receptor preparation (prepare_receptor)
 ER  - 
 
 TY  - JOUR
+TI  - AutoDock4 and AutoDockTools4: automated docking with selective receptor flexibility
+AU  - Morris, Garrett M.
+AU  - Huey, Ruth
+AU  - Lindstrom, William
+AU  - Sanner, Michel F.
+AU  - Belew, Richard K.
+AU  - Goodsell, David S.
+AU  - Olson, Arthur J.
+JO  - Journal of Computational Chemistry
+PY  - 2009
+VL  - 30
+IS  - 16
+SP  - 2785
+EP  - 2791
+DO  - 10.1002/jcc.21256
+N1  - used for: the affinity maps agfr computes with AutoGrid4
+ER  - 
+
+TY  - JOUR
 TI  - AutoSite: an automated approach for pseudo-ligands prediction-from ligand-binding sites identification to predicting key ligand atoms
 AU  - Ravindranath, Pradeep Anand
 AU  - Sanner, Michel F.
@@ -108,6 +127,24 @@ SP  - 6183
 EP  - 6191
 DO  - 10.1021/acs.jcim.3c01153
 N1  - used for: tleap, sander and the force field used for MM-GBSA
+ER  - 
+
+TY  - JOUR
+TI  - ff14SB: improving the accuracy of protein side chain and backbone parameters from ff99SB
+AU  - Maier, James A.
+AU  - Martinez, Carmenza
+AU  - Kasavajhala, Koushik
+AU  - Wickstrom, Lauren
+AU  - Hauser, Kevin E.
+AU  - Simmerling, Carlos
+JO  - Journal of Chemical Theory and Computation
+PY  - 2015
+VL  - 11
+IS  - 8
+SP  - 3696
+EP  - 3713
+DO  - 10.1021/acs.jctc.5b00255
+N1  - used for: the ff14SB protein force field tleap builds with
 ER  - 
 
 TY  - JOUR

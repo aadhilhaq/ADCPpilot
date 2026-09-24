@@ -27,6 +27,12 @@ REFERENCES = [
      "specified binding site flexibility. PLoS Comput Biol 11(12):e1004586, "
      "2015.",
      "10.1371/journal.pcbi.1004586"),
+    # agfr computes the affinity maps with AutoGrid4 (ADFR/utils/MakeGrids.py).
+    ("autogrid", "always", "the affinity maps agfr computes with AutoGrid4",
+     "Morris GM, Huey R, Lindstrom W, Sanner MF, Belew RK, Goodsell DS, "
+     "Olson AJ. AutoDock4 and AutoDockTools4: automated docking with "
+     "selective receptor flexibility. J Comput Chem 30(16):2785-2791, 2009.",
+     "10.1002/jcc.21256"),
     # AutoSite is run by agfr on every target to place the translational
     # points ADCP searches from, and agfr prints its own request to cite
     # both papers.
@@ -59,6 +65,13 @@ REFERENCES = [
     ("amber", "mmgbsa", "tleap, sander and the force field used for MM-GBSA",
      "Case DA, et al. AmberTools. J Chem Inf Model 63(20):6183-6191, 2023.",
      "10.1021/acs.jcim.3c01153"),
+    # Asked for by https://ambermd.org/CiteAmber.php with the force field.
+    ("ff14sb", "mmgbsa", "the ff14SB protein force field tleap builds with",
+     "Maier JA, Martinez C, Kasavajhala K, Wickstrom L, Hauser KE, "
+     "Simmerling C. ff14SB: improving the accuracy of protein side chain and "
+     "backbone parameters from ff99SB. J Chem Theory Comput 11(8):3696-3713, "
+     "2015.",
+     "10.1021/acs.jctc.5b00255"),
     ("mmpbsa", "mmgbsa", "the MM-GBSA calculation itself",
      "Miller BR III, McGee TD Jr, Swails JM, Homeyer N, Gohlke H, Roitberg "
      "AE. MMPBSA.py: an efficient program for end-state free energy "
@@ -172,6 +185,24 @@ BIB = {
               "calculations",
         journal="Journal of Chemical Theory and Computation", year=2012,
         volume="8", number="9", pages="3314--3321"),
+    "autogrid": dict(
+        bibkey="Morris2009",
+        author="Morris, Garrett M. and Huey, Ruth and Lindstrom, William and "
+               "Sanner, Michel F. and Belew, Richard K. and Goodsell, David S. "
+               "and Olson, Arthur J.",
+        title="AutoDock4 and AutoDockTools4: automated docking with selective "
+              "receptor flexibility",
+        journal="Journal of Computational Chemistry", year=2009, volume="30",
+        number="16", pages="2785--2791"),
+    "ff14sb": dict(
+        bibkey="Maier2015",
+        author="Maier, James A. and Martinez, Carmenza and Kasavajhala, "
+               "Koushik and Wickstrom, Lauren and Hauser, Kevin E. and "
+               "Simmerling, Carlos",
+        title="ff14SB: improving the accuracy of protein side chain and "
+              "backbone parameters from ff99SB",
+        journal="Journal of Chemical Theory and Computation", year=2015,
+        volume="11", number="8", pages="3696--3713"),
     "gbmodel": dict(
         bibkey="Onufriev2004",
         author="Onufriev, Alexey and Bashford, Donald and Case, David A.",
@@ -228,7 +259,7 @@ def used_by(job):
     """The keys a given run actually used, from its job.json."""
     keys = {k for k, when, *_ in REFERENCES if when == "always"}
     if job.get("mmgbsa"):
-        keys |= {"amber", "mmpbsa", "gbmodel"}
+        keys |= {"amber", "ff14sb", "mmpbsa", "gbmodel"}
     if job.get("minimise", True):
         keys.add("openmm")
     if job.get("fill_loops"):

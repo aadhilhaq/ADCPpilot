@@ -1,7 +1,7 @@
 HOW TO CITE
 
 This interface:
-  Aadhil Haq, Sandun Fernando (2026). GUI to ADCP Docking v0.1.8: a browser and command-line workflow for peptide docking with ADCP. HOPE Lab, Texas A&M University.  [no DOI yet; see `adcp-dock cite --how`]
+  Aadhil Haq, Sandun Fernando (2026). GUI to ADCP Docking v0.1.10: a browser and command-line workflow for peptide docking with ADCP. HOPE Lab, Texas A&M University.  [no DOI yet; see `adcp-dock cite --how`]
 
 ADCP is a product of the Scripps Research Institute and is not ours. It must be cited whatever else is:
   https://ccsb.scripps.edu/adcp/
@@ -13,6 +13,9 @@ For this run, from its job.json:
   - grid maps (agfr) and receptor preparation (prepare_receptor)
       Ravindranath PA, Forli S, Goodsell DS, Olson AJ, Sanner MF. AutoDockFR: advances in protein-ligand docking with explicitly specified binding site flexibility. PLoS Comput Biol 11(12):e1004586, 2015.
       doi:10.1371/journal.pcbi.1004586
+  - the affinity maps agfr computes with AutoGrid4
+      Morris GM, Huey R, Lindstrom W, Sanner MF, Belew RK, Goodsell DS, Olson AJ. AutoDock4 and AutoDockTools4: automated docking with selective receptor flexibility. J Comput Chem 30(16):2785-2791, 2009.
+      doi:10.1002/jcc.21256
   - the translational points agfr computes for every grid target
       Ravindranath PA, Sanner MF. AutoSite: an automated approach for pseudo-ligands prediction—from ligand-binding sites identification to predicting key ligand atoms. Bioinformatics 32(20):3142-3149, 2016.
       doi:10.1093/bioinformatics/btw367
@@ -29,6 +32,10 @@ For this run, from its job.json:
   - tleap, sander and the force field used for MM-GBSA
       Case DA, et al. AmberTools. J Chem Inf Model 63(20):6183-6191, 2023.
       doi:10.1021/acs.jcim.3c01153
+      (only if: mmgbsa)
+  - the ff14SB protein force field tleap builds with
+      Maier JA, Martinez C, Kasavajhala K, Wickstrom L, Hauser KE, Simmerling C. ff14SB: improving the accuracy of protein side chain and backbone parameters from ff99SB. J Chem Theory Comput 11(8):3696-3713, 2015.
+      doi:10.1021/acs.jctc.5b00255
       (only if: mmgbsa)
   - the MM-GBSA calculation itself
       Miller BR III, McGee TD Jr, Swails JM, Homeyer N, Gohlke H, Roitberg AE. MMPBSA.py: an efficient program for end-state free energy calculations. J Chem Theory Comput 8(9):3314-3321, 2012.

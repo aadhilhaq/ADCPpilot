@@ -2110,6 +2110,13 @@ if os.path.isfile(RECEPTOR):
 else:
     print("skip  the ion rule needs a receptor (ADCP_TEST_RECEPTOR)")
 
+# --- the README lists every paper the tool can ask a run to cite ------------
+from adcp_dock import cite as _cite                             # noqa: E402
+_readme = open(os.path.join(ROOT, "README.md"), encoding="utf-8").read()
+_gone = [doi for _k, _w, _d, _r, doi in _cite.REFERENCES
+         if "https://doi.org/" + doi not in _readme]
+check(not _gone, "README does not link these references: %s" % _gone)
+
 # --- deleting a run, and showing where it is ---------------------------------
 #
 # Delete removes only a run folder inside the runs folder, and never while one

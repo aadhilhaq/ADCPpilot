@@ -151,11 +151,26 @@ Report problems through [GitHub Issues](https://github.com/aadhilhaq/ADCP_dockin
 
 ## Citation
 
-Cite ADCP when reporting docking calculations:
+This interface drives other programs, and each has its own paper. Cite the ones your run used; `adcp-dock cite <run>` and the `HOW_TO_CITE.txt`, `CITATION.bib` and `CITATION.ris` files written into every run list exactly those. ADCP and ADFRsuite are products of the Scripps Research Institute. The Amber developers ask for the AmberTools paper and the force field paper ([ambermd.org/CiteAmber.php](https://ambermd.org/CiteAmber.php)).
 
-> Zhang Y, Sanner MF. AutoDock CrankPep: combining folding and docking to predict protein-peptide complexes. *Bioinformatics*. 2019;35(24):5121-5127. [DOI](https://doi.org/10.1093/bioinformatics/btz459).
-
-Cite ADFRsuite and the preparation, rescoring, and visualization tools used in the analysis. The package can generate references for a specific run:
+| Tool | Cite for | Reference | DOI |
+|---|---|---|---|
+| ADCP | every run | Zhang Y, Sanner MF. AutoDock CrankPep: combining folding and docking to predict protein-peptide complexes. Bioinformatics 35(24):5121-5127, 2019. | [10.1093/bioinformatics/btz459](https://doi.org/10.1093/bioinformatics/btz459) |
+| ADFRsuite (agfr, prepare_receptor) | every run | Ravindranath PA, Forli S, Goodsell DS, Olson AJ, Sanner MF. AutoDockFR: advances in protein-ligand docking with explicitly specified binding site flexibility. PLoS Comput Biol 11(12):e1004586, 2015. | [10.1371/journal.pcbi.1004586](https://doi.org/10.1371/journal.pcbi.1004586) |
+| AutoGrid4 | every run | Morris GM, Huey R, Lindstrom W, Sanner MF, Belew RK, Goodsell DS, Olson AJ. AutoDock4 and AutoDockTools4: automated docking with selective receptor flexibility. J Comput Chem 30(16):2785-2791, 2009. | [10.1002/jcc.21256](https://doi.org/10.1002/jcc.21256) |
+| AutoSite | every run | Ravindranath PA, Sanner MF. AutoSite: an automated approach for pseudo-ligands prediction—from ligand-binding sites identification to predicting key ligand atoms. Bioinformatics 32(20):3142-3149, 2016. | [10.1093/bioinformatics/btw367](https://doi.org/10.1093/bioinformatics/btw367) |
+| PDB2PQR | every run | Jurrus E, Engel D, Star K, et al. Improvements to the APBS biomolecular solvation software suite. Protein Sci 27(1):112-128, 2018. | [10.1002/pro.3280](https://doi.org/10.1002/pro.3280) |
+| PROPKA | every run | Olsson MHM, Sondergaard CR, Rostkowski M, Jensen JH. PROPKA3: consistent treatment of internal and surface residues in empirical pKa predictions. J Chem Theory Comput 7(2):525-537, 2011. | [10.1021/ct100578z](https://doi.org/10.1021/ct100578z) |
+| PDBFixer | receptor preparation (default) | Eastman P, et al. OpenMM 7: rapid development of high performance algorithms for molecular dynamics. PLoS Comput Biol 13(7):e1005659, 2017.  (PDBFixer is distributed with OpenMM.) | [10.1371/journal.pcbi.1005659](https://doi.org/10.1371/journal.pcbi.1005659) |
+| OpenMM | receptor minimization (default) | Eastman P, et al. OpenMM 7: rapid development of high performance algorithms for molecular dynamics. PLoS Comput Biol 13(7):e1005659, 2017. | [10.1371/journal.pcbi.1005659](https://doi.org/10.1371/journal.pcbi.1005659) |
+| AmberTools (tleap, sander) | runs with MM-GBSA | Case DA, et al. AmberTools. J Chem Inf Model 63(20):6183-6191, 2023. | [10.1021/acs.jcim.3c01153](https://doi.org/10.1021/acs.jcim.3c01153) |
+| ff14SB force field | runs with MM-GBSA | Maier JA, Martinez C, Kasavajhala K, Wickstrom L, Hauser KE, Simmerling C. ff14SB: improving the accuracy of protein side chain and backbone parameters from ff99SB. J Chem Theory Comput 11(8):3696-3713, 2015. | [10.1021/acs.jctc.5b00255](https://doi.org/10.1021/acs.jctc.5b00255) |
+| MMPBSA.py | runs with MM-GBSA | Miller BR III, McGee TD Jr, Swails JM, Homeyer N, Gohlke H, Roitberg AE. MMPBSA.py: an efficient program for end-state free energy calculations. J Chem Theory Comput 8(9):3314-3321, 2012. | [10.1021/ct300418h](https://doi.org/10.1021/ct300418h) |
+| GB-OBC(II) solvation model | runs with MM-GBSA | Onufriev A, Bashford D, Case DA. Exploring protein native states and large-scale conformational changes with a modified generalized born model. Proteins 55(2):383-394, 2004. | [10.1002/prot.20033](https://doi.org/10.1002/prot.20033) |
+| 3Dmol.js | figures made in the 3Dmol.js viewer | Rego N, Koes D. 3Dmol.js: molecular visualization with WebGL. Bioinformatics 31(8):1322-1324, 2015. | [10.1093/bioinformatics/btu829](https://doi.org/10.1093/bioinformatics/btu829) |
+| Mol* | figures made in the Mol* viewer | Sehnal D, Bittrich S, Deshpande M, et al. Mol* Viewer: modern web app for 3D visualization and analysis of large biomolecular structures. Nucleic Acids Res 49(W1):W431-W437, 2021. | [10.1093/nar/gkab314](https://doi.org/10.1093/nar/gkab314) |
+| NumPy | every run | Harris CR, Millman KJ, van der Walt SJ, et al. Array programming with NumPy. Nature 585(7825):357-362, 2020. | [10.1038/s41586-020-2649-2](https://doi.org/10.1038/s41586-020-2649-2) |
+| RDKit | every run | RDKit: Open-source cheminformatics. https://www.rdkit.org | [10.5281/zenodo.591637](https://doi.org/10.5281/zenodo.591637) |
 
 ```bash
 adcp-dock cite                 # all supported tools
@@ -163,8 +178,8 @@ adcp-dock cite <run>           # tools recorded for one run
 adcp-dock cite --bibtex        # use --ris for EndNote or Zotero
 ```
 
-Run outputs include `HOW_TO_CITE.txt`, `CITATION.bib`, and `CITATION.ris`. For this interface, use GitHub's **Cite this repository** button or [CITATION.cff](CITATION.cff), and record the software version used.
+For this interface, use GitHub's **Cite this repository** button or [CITATION.cff](CITATION.cff), and record the software version used.
 
 ## License
 
-This package is distributed under the [MIT license](LICENSE). External scientific programs retain their own licenses and terms of use. Check the terms for the installed versions of ADCP, ADFRsuite, AmberTools, PDB2PQR, and other dependencies.
+This package is distributed under the [MIT license](LICENSE), which covers only the code written for it. ADCP, ADFRsuite, AmberTools, PDB2PQR and the other programs and libraries it uses keep their own licences; [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) lists each one, how it is used and how it is obtained. No Scripps code is included in this repository.
