@@ -662,6 +662,22 @@ if _site and "error" not in _site:
     check("other_chains" in _site,
           "the site endpoint does not say what else the box reaches, so "
           "the choice about it cannot be an informed one")
+# Nothing ticked loads every chain, so no chain can be "other"; the site's
+# own chain is never "other" either. A chain that is loaded must never be
+# offered as one to add.
+_POCKET = "A:54, A:58, A:61, A:62, A:67, A:72, A:93, A:96, A:99"
+if os.path.isfile(RECEPTOR):
+    _all = post("/api/site", {"receptor": RECEPTOR, "chains": [], "hotspots": _POCKET})
+    check("error" not in _all and _all.get("other_chains") == [],
+          "with no chain ticked (every chain loaded), the page still offers "
+          "chains to add: %r" % _all.get("other_chains"))
+    _a = post("/api/site", {"receptor": RECEPTOR, "chains": ["A"], "hotspots": _POCKET})
+    _names = [c.get("chain") for c in (_a.get("other_chains") or [])]
+    check("A" not in _names,
+          "the site's own ticked chain is offered as another chain: %r" % _names)
+    check("B" in _names,
+          "with only chain A ticked, the peptide chain B in the pocket is not "
+          "reported: %r" % _names)
 check("id=box_chains" in html,
       "there is no way to say whether the chains the box reaches should be "
       "docked against")

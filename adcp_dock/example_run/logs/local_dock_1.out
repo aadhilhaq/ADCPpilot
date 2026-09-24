@@ -1,0 +1,12 @@
+docking PMI (TSFAEYWNLLS), 25 replicas x 2000000 steps on 16 core(s)
+  10 ranked pose(s)
+  MM-GBSA uses the prepared receptor
+  MM-GBSA backend: amber, GB-OBC(II) with an interior dielectric of 1
+    1 construct(s) x up to 5 pose(s): 5 to compute, 0 kept from a previous run
+    computing 5 pose energies, 5 at a time
+      [1/5] TSFAEYWNLLS pose 4: -49.01 kcal/mol
+      [2/5] TSFAEYWNLLS pose 5: -31.99 kcal/mol
+      [3/5] TSFAEYWNLLS pose 3: -54.30 kcal/mol
+      [4/5] TSFAEYWNLLS pose 1: -39.27 kcal/mol
+      [5/5] TSFAEYWNLLS pose 2: -48.41 kcal/mol
+    TSFAEYWNLLS: dG = -44.59 kcal/mol (mean of 5 pose(s), spread 22.3)

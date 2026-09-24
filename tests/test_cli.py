@@ -102,6 +102,59 @@ check(rc not in (0, None) and "colon" in (out + str(rc)),
       "a name glued to a sequence on -p was not refused with the fix: %r"
       % out[-200:])
 
+# --- the example run: installed, complete, and read by the page -------------
+#
+# The copy must point at its own folder, with no placeholder left, and every
+# panel the page opens on a finished run must find what it reads.
+runs = tempfile.mkdtemp()
+rc, out = run("example", "--runs", runs)
+ex = os.path.join(runs, "example_MDM2")
+check(rc in (0, None) and os.path.isfile(os.path.join(ex, "job.json")),
+      "adcp-dock example did not install the example: %s %s" % (rc, out[-300:]))
+if os.path.isfile(os.path.join(ex, "job.json")):
+    for base, _dirs, names in os.walk(ex):
+        for n in names:
+            with open(os.path.join(base, n), "rb") as fh:
+                check(b"@RUN@" not in fh.read(),
+                      "the example's %s still holds the placeholder" % n)
+    from adcp_dock import server
+    app = server.App(runs)
+    mon = {r["rundir"]: r for r in app.monitor()["runs"]}
+    check(ex in mon and mon[ex]["dot"] == "done",
+          "the example is not listed as a finished run: %r"
+          % {k: v.get("dot") for k, v in mon.items()})
+    st = app.run_status(ex)
+    rows = (st.get("results") or {}).get("rows") or []
+    check([r.get("name") for r in rows if r.get("name")] and len(rows) == 3
+          and not st.get("outstanding") and not st.get("prep_warnings"),
+          "the example's results are incomplete: %d rows, outstanding %r, "
+          "warnings %r" % (len(rows), st.get("outstanding"),
+                           st.get("prep_warnings")))
+    j = json.load(open(os.path.join(ex, "job.json")))
+    for pep in j.get("peptides", []):
+        seq = pep["sequence"]
+        poses = app.pose_list(ex, seq)["poses"]
+        check(len(poses) >= 5 and all(p.get("score") is not None
+                                      for p in poses)
+              and any(p.get("mmgbsa") is not None for p in poses),
+              "the example has no scored poses with MM-GBSA for %s" % seq)
+        text, err = app.structure_text(ex, seq, 1)
+        check(text and not err and "ATOM" in text,
+              "the example's top pose of %s does not open: %s" % (seq, err))
+    rc, out = run("cite", ex)
+    check(rc in (0, None) and "Amber" in out,
+          "the example's citation list does not name AmberTools: %s"
+          % out[-300:])
+    # A second install leaves the first alone; --force replaces it.
+    open(os.path.join(ex, "mine.txt"), "w").write("kept")
+    run("example", "--runs", runs)
+    check(os.path.isfile(os.path.join(ex, "mine.txt")),
+          "a second adcp-dock example replaced the example already there")
+    run("example", "--runs", runs, "--force")
+    check(not os.path.isfile(os.path.join(ex, "mine.txt"))
+          and os.path.isfile(os.path.join(ex, "job.json")),
+          "adcp-dock example --force did not replace the example")
+
 if fails:
     print("test_cli FAILED (%d)" % len(fails))
     for f in fails:

@@ -1,0 +1,17 @@
+{
+ "receptor": "@RUN@/receptor/1YCR.pdb",
+ "stamp": [
+  94041,
+  1790196564
+ ],
+ "ph": 7.4,
+ "forcefield": "AMBER",
+ "chain": "A",
+ "waters": 0.0,
+ "hetatms": false,
+ "ions": true,
+ "loops": false,
+ "termini": true,
+ "minimise": true,
+ "restraint": 10.0
+}

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "adcp-dock"
-version = "0.1.6"
+version = "0.1.7"
 description = "Browser and command-line workflow for ADCP peptide docking"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -44,4 +44,8 @@ adcp-dock-launcher = "adcp_launcher.entry:main"
 packages = ["adcp_dock", "adcp_dock._vendor", "adcp_launcher"]
 
 [tool.setuptools.package-data]
-adcp_dock = ["static/*.js", "static/*.css"]
+adcp_dock = ["static/*.js", "static/*.css",
+             # The example run, one pattern per folder depth: setuptools
+             # before 62.3 does not expand "**".
+             "example_run/*", "example_run/*/*", "example_run/*/*/*",
+             "example_run/*/*/*/*"]

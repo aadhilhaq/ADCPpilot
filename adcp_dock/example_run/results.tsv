@@ -1,0 +1,4 @@
+rank	name	peptide	length	poses	adcp_best	adcp_top5	adcp_sd	mmgbsa_n	mmgbsa_best	mmgbsa_top5	mmgbsa_median	mmgbsa_sd	mmgbsa_spread
+1	p53	ETFSDLWKLLPEN	13	10	-21.1	-20.44	0.64	5	-70.05	-55.98	-51.79	8.56	23.08
+2	PMI	TSFAEYWNLLS	11	10	-18.7	-18.24	0.54	5	-54.3	-44.59	-48.41	7.94	22.31
+3	12/1 core	RFMDYWEGL	9	10	-17.8	-17.22	0.45	5	-53.82	-39.98	-41.35	9.65	27.8

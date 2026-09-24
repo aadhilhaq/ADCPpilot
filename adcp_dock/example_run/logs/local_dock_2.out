@@ -1,0 +1,12 @@
+docking 12/1 core (RFMDYWEGL), 25 replicas x 2000000 steps on 16 core(s)
+  10 ranked pose(s)
+  MM-GBSA uses the prepared receptor
+  MM-GBSA backend: amber, GB-OBC(II) with an interior dielectric of 1
+    1 construct(s) x up to 5 pose(s): 5 to compute, 0 kept from a previous run
+    computing 5 pose energies, 5 at a time
+      [1/5] RFMDYWEGL pose 4: -41.35 kcal/mol
+      [2/5] RFMDYWEGL pose 2: -45.51 kcal/mol
+      [3/5] RFMDYWEGL pose 1: -26.02 kcal/mol
+      [4/5] RFMDYWEGL pose 5: -53.82 kcal/mol
+      [5/5] RFMDYWEGL pose 3: -33.17 kcal/mol
+    RFMDYWEGL: dG = -39.98 kcal/mol (mean of 5 pose(s), spread 27.8)

@@ -7,6 +7,7 @@
     adcp-dock report RUNDIR
     adcp-dock serve --port 8765                  the web page
     adcp-dock affinity [RUNDIR]                  what a target Kd is worth
+    adcp-dock example                            a finished run to look at
 """
 import argparse
 import json
@@ -235,6 +236,14 @@ def main(argv=None):
     lc.add_argument("--force", action="store_true",
                     help="run here even though this machine has sbatch")
 
+    ex = sub.add_parser("example",
+                        help="copy a finished example run into the runs "
+                             "folder, to open in the interface")
+    ex.add_argument("--runs", default=None,
+                    help="the runs folder, with the same default as serve")
+    ex.add_argument("--force", action="store_true",
+                    help="replace an example that is already there")
+
     s = sub.add_parser("serve", help="the web page")
     s.add_argument("--port", type=int, default=8765)
     s.add_argument("--host", default="127.0.0.1")
@@ -359,6 +368,13 @@ def main(argv=None):
         if spread is None and a.rundir:
             spread = affinity.spread_of(a.rundir)
         affinity.table(a.temperature, spread)
+        return 0
+
+    if a.cmd == "example":
+        from . import example
+        path = example.install(a.runs or default_runs(), force=a.force)
+        print("the example run is in %s; open the interface and choose it "
+              "from the list of runs" % path)
         return 0
 
     if a.cmd in ("local", "serve"):

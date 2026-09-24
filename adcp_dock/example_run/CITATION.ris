@@ -1,0 +1,206 @@
+TY  - COMP
+TI  - GUI to ADCP Docking: a browser and command-line workflow for peptide docking with ADCP
+AU  - Haq, Aadhil
+AU  - Fernando, Sandun
+PY  - 2026
+UR  - https://github.com/aadhilhaq/ADCP_docking
+PB  - HOPE Lab, Texas A&M University
+ER  - 
+
+TY  - JOUR
+TI  - AutoDock CrankPep: combining folding and docking to predict protein-peptide complexes
+AU  - Zhang, Yuqi
+AU  - Sanner, Michel F.
+JO  - Bioinformatics
+PY  - 2019
+VL  - 35
+IS  - 24
+SP  - 5121
+EP  - 5127
+DO  - 10.1093/bioinformatics/btz459
+N1  - used for: the docking search itself
+ER  - 
+
+TY  - JOUR
+TI  - Docking flexible cyclic peptides with AutoDock CrankPep
+AU  - Zhang, Yuqi
+AU  - Sanner, Michel F.
+JO  - Journal of Chemical Theory and Computation
+PY  - 2019
+VL  - 15
+IS  - 10
+SP  - 5161
+EP  - 5168
+DO  - 10.1021/acs.jctc.9b00557
+N1  - used for: the method paper for peptide docking with ADCP
+ER  - 
+
+TY  - JOUR
+TI  - AutoDockFR: advances in protein-ligand docking with explicitly specified binding site flexibility
+AU  - Ravindranath, Pradeep Anand
+AU  - Forli, Stefano
+AU  - Goodsell, David S.
+AU  - Olson, Arthur J.
+AU  - Sanner, Michel F.
+JO  - PLoS Computational Biology
+PY  - 2015
+VL  - 11
+IS  - 12
+SP  - e1004586
+DO  - 10.1371/journal.pcbi.1004586
+N1  - used for: grid maps (agfr) and receptor preparation (prepare_receptor)
+ER  - 
+
+TY  - JOUR
+TI  - AutoSite: an automated approach for pseudo-ligands prediction-from ligand-binding sites identification to predicting key ligand atoms
+AU  - Ravindranath, Pradeep Anand
+AU  - Sanner, Michel F.
+JO  - Bioinformatics
+PY  - 2016
+VL  - 32
+IS  - 20
+SP  - 3142
+EP  - 3149
+DO  - 10.1093/bioinformatics/btw367
+N1  - used for: the translational points agfr computes for every grid target
+ER  - 
+
+TY  - JOUR
+TI  - Improvements to the APBS biomolecular solvation software suite
+AU  - Jurrus, Elizabeth
+AU  - Engel, Dave
+AU  - Star, Keith
+AU  - others
+JO  - Protein Science
+PY  - 2018
+VL  - 27
+IS  - 1
+SP  - 112
+EP  - 128
+DO  - 10.1002/pro.3280
+N1  - used for: protonation states and titration at the chosen pH
+ER  - 
+
+TY  - JOUR
+TI  - PROPKA3: consistent treatment of internal and surface residues in empirical pKa predictions
+AU  - Olsson, Mats H. M.
+AU  - S{\o}ndergaard, Chresten R.
+AU  - Rostkowski, Michal
+AU  - Jensen, Jan H.
+JO  - Journal of Chemical Theory and Computation
+PY  - 2011
+VL  - 7
+IS  - 2
+SP  - 525
+EP  - 537
+DO  - 10.1021/ct100578z
+N1  - used for: the pKa prediction pdb2pqr uses
+ER  - 
+
+TY  - JOUR
+TI  - OpenMM 7: rapid development of high performance algorithms for molecular dynamics
+AU  - Eastman, Peter
+AU  - others
+JO  - PLoS Computational Biology
+PY  - 2017
+VL  - 13
+IS  - 7
+SP  - e1005659
+DO  - 10.1371/journal.pcbi.1005659
+N1  - used for: the restrained energy minimisation
+ER  - 
+
+TY  - JOUR
+TI  - AmberTools
+AU  - Case, David A.
+AU  - others
+JO  - Journal of Chemical Information and Modeling
+PY  - 2023
+VL  - 63
+IS  - 20
+SP  - 6183
+EP  - 6191
+DO  - 10.1021/acs.jcim.3c01153
+N1  - used for: tleap, sander and the force field used for MM-GBSA
+ER  - 
+
+TY  - JOUR
+TI  - MMPBSA.py: an efficient program for end-state free energy calculations
+AU  - Miller III, Bill R.
+AU  - McGee Jr., T. Dwight
+AU  - Swails, Jason M.
+AU  - Homeyer, Nadine
+AU  - Gohlke, Holger
+AU  - Roitberg, Adrian E.
+JO  - Journal of Chemical Theory and Computation
+PY  - 2012
+VL  - 8
+IS  - 9
+SP  - 3314
+EP  - 3321
+DO  - 10.1021/ct300418h
+N1  - used for: the MM-GBSA calculation itself
+ER  - 
+
+TY  - JOUR
+TI  - Exploring protein native states and large-scale conformational changes with a modified generalized born model
+AU  - Onufriev, Alexey
+AU  - Bashford, Donald
+AU  - Case, David A.
+JO  - Proteins: Structure, Function, and Bioinformatics
+PY  - 2004
+VL  - 55
+IS  - 2
+SP  - 383
+EP  - 394
+DO  - 10.1002/prot.20033
+N1  - used for: the generalised Born model itself (igb=5, GB-OBC II, 0.15 M salt)
+ER  - 
+
+TY  - JOUR
+TI  - Open Babel: an open chemical toolbox
+AU  - O'Boyle, Noel M.
+AU  - Banck, Michael
+AU  - James, Craig A.
+AU  - Morley, Chris
+AU  - Vandermeersch, Tim
+AU  - Hutchison, Geoffrey R.
+JO  - Journal of Cheminformatics
+PY  - 2011
+VL  - 3
+IS  - 1
+SP  - 33
+DO  - 10.1186/1758-2946-3-33
+N1  - used for: format conversion
+ER  - 
+
+TY  - JOUR
+TI  - Array programming with NumPy
+AU  - Harris, Charles R.
+AU  - Millman, K. Jarrod
+AU  - van der Walt, St{\'e}fan J.
+AU  - others
+JO  - Nature
+PY  - 2020
+VL  - 585
+IS  - 7825
+SP  - 357
+EP  - 362
+DO  - 10.1038/s41586-020-2649-2
+N1  - used for: the array arithmetic under the box and the poses
+ER  - 
+
+TY  - COMP
+TI  - RDKit: Open-source cheminformatics
+AU  - Landrum, Greg
+AU  - others
+PB  - Zenodo
+PY  - 2026
+UR  - https://www.rdkit.org
+DO  - 10.5281/zenodo.591637
+N1  - used for: the peptide topologies every pose is laid onto
+ER  - 
+
+
+Acknowledgement to include in the manuscript:
+Acknowledge the computing facility that ran this work, if its policy requires it.

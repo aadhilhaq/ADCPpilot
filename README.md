@@ -63,7 +63,7 @@ The first launch installs ADFRsuite if needed. MM-GBSA requires a separate Amber
 
 [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aadhilhaq/ADCP_docking/blob/main/notebooks/ADCP_docking_colab.ipynb)
 
-The notebook runs the same interface on a Colab machine. Step 1 installs the package and downloads ADFRsuite, which takes about five minutes; with **add_MM_GBSA** ticked it also installs AmberTools for MM-GBSA rescoring, which takes a few minutes more. Step 2 opens the interface inside the notebook, or in a separate browser tab. The calculations run on the Colab machine, so the available cores, memory, and session length depend on your Colab plan, and MM-GBSA on two cores is slow. Colab deletes the session's files when it ends; download finished runs from the interface, or with step 3. See [INSTALL.md](INSTALL.md#3-in-google-colab).
+The notebook runs the same interface on a Colab machine. Step 1 installs the package and downloads ADFRsuite, which takes about five minutes; with **add_MM_GBSA** ticked it also installs AmberTools for MM-GBSA rescoring, which takes a few minutes more. Step 2 opens the interface inside the notebook, or in a separate browser tab. The list of runs includes a finished example, MDM2 with three peptides, to open before docking anything. The calculations run on the Colab machine, so the available cores, memory, and session length depend on your Colab plan, and MM-GBSA on two cores is slow. Colab deletes the session's files when it ends; download finished runs from the interface, or with step 3. See [INSTALL.md](INSTALL.md#3-in-google-colab).
 
 Local and Colab runs are useful for learning the workflow and checking inputs. Reduced search settings do not establish sampling convergence. Choose production settings for the target, peptide, and available resources.
 
@@ -82,6 +82,8 @@ adcp-dock report runs/trial
 `-r` accepts a structure path or PDB ID. `-s` specifies residues used to define the docking box. Use `-p` for individual peptides or `-f` for a peptide file. Remove `--mmgbsa` if rescoring is not required. Review the search and resource settings before submitting a run.
 
 Running `adcp-dock run` again submits peptides without completed results.
+
+`adcp-dock example` copies a finished example run into the runs folder: MDM2 with three peptides, docked and rescored with MM-GBSA. Open it in the interface to see what a finished run contains.
 
 ## Requirements
 

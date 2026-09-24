@@ -1,0 +1,57 @@
+HOW TO CITE
+
+This interface:
+  Aadhil Haq, Sandun Fernando (2026). GUI to ADCP Docking v0.1.7: a browser and command-line workflow for peptide docking with ADCP. HOPE Lab, Texas A&M University.  [no DOI yet; see `adcp-dock cite --how`]
+
+ADCP is a product of the Scripps Research Institute and is NOT ours. It must be cited whatever else is:
+  https://ccsb.scripps.edu/adcp/
+
+For THIS run, from its job.json:
+  - the docking search itself
+      Zhang Y, Sanner MF. AutoDock CrankPep: combining folding and docking to predict protein-peptide complexes. Bioinformatics 35(24):5121-5127, 2019.
+      doi:10.1093/bioinformatics/btz459
+  - the method paper for peptide docking with ADCP
+      Zhang Y, Sanner MF. Docking flexible cyclic peptides with AutoDock CrankPep. J Chem Theory Comput 15(10):5161-5168, 2019.
+      doi:10.1021/acs.jctc.9b00557
+  - grid maps (agfr) and receptor preparation (prepare_receptor)
+      Ravindranath PA, Forli S, Goodsell DS, Olson AJ, Sanner MF. AutoDockFR: advances in protein-ligand docking with explicitly specified binding site flexibility. PLoS Comput Biol 11(12):e1004586, 2015.
+      doi:10.1371/journal.pcbi.1004586
+  - the translational points agfr computes for every grid target
+      Ravindranath PA, Sanner MF. AutoSite: an automated approach for pseudo-ligands prediction—from ligand-binding sites identification to predicting key ligand atoms. Bioinformatics 32(20):3142-3149, 2016.
+      doi:10.1093/bioinformatics/btw367
+  - protonation states and titration at the chosen pH
+      Jurrus E, Engel D, Star K, et al. Improvements to the APBS biomolecular solvation software suite. Protein Sci 27(1):112-128, 2018.
+      doi:10.1002/pro.3280
+  - the pKa prediction pdb2pqr uses
+      Olsson MHM, Sondergaard CR, Rostkowski M, Jensen JH. PROPKA3: consistent treatment of internal and surface residues in empirical pKa predictions. J Chem Theory Comput 7(2):525-537, 2011.
+      doi:10.1021/ct100578z
+  - the restrained energy minimisation
+      Eastman P, et al. OpenMM 7: rapid development of high performance algorithms for molecular dynamics. PLoS Comput Biol 13(7):e1005659, 2017.
+      doi:10.1371/journal.pcbi.1005659
+      (only if: prep_minimise)
+  - tleap, sander and the force field used for MM-GBSA
+      Case DA, et al. AmberTools. J Chem Inf Model 63(20):6183-6191, 2023.
+      doi:10.1021/acs.jcim.3c01153
+      (only if: mmgbsa)
+  - the MM-GBSA calculation itself
+      Miller BR III, McGee TD Jr, Swails JM, Homeyer N, Gohlke H, Roitberg AE. MMPBSA.py: an efficient program for end-state free energy calculations. J Chem Theory Comput 8(9):3314-3321, 2012.
+      doi:10.1021/ct300418h
+      (only if: mmgbsa)
+  - the generalised Born model itself (igb=5, GB-OBC II, 0.15 M salt)
+      Onufriev A, Bashford D, Case DA. Exploring protein native states and large-scale conformational changes with a modified generalized born model. Proteins 55(2):383-394, 2004.
+      doi:10.1002/prot.20033
+      (only if: mmgbsa)
+  - format conversion
+      O'Boyle NM, Banck M, James CA, Morley C, Vandermeersch T, Hutchison GR. Open Babel: an open chemical toolbox. J Cheminform 3:33, 2011.
+      doi:10.1186/1758-2946-3-33
+  - the array arithmetic under the box and the poses
+      Harris CR, Millman KJ, van der Walt SJ, et al. Array programming with NumPy. Nature 585(7825):357-362, 2020.
+      doi:10.1038/s41586-020-2649-2
+  - the peptide topologies every pose is laid onto
+      RDKit: Open-source cheminformatics. https://www.rdkit.org
+      doi:10.5281/zenodo.591637
+
+ACKNOWLEDGEMENT
+  Acknowledge the computing facility that ran this work, if its policy requires it.
+
+PI: Dr. Sandun Fernando

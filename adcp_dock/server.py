@@ -471,8 +471,11 @@ class App:
         others = []
         try:
             from ._vendor import receptor as _rec
-            found = _rec.chains_in_box(path, centre, size,
-                                       exclude=set(keep or []),
+            # The chains the run will load: the ticked ones, or every
+            # chain when none is ticked. Only chains outside that set are
+            # "other"; with none ticked there are none.
+            loaded = set(keep) if keep else {a.chain for a in all_atoms}
+            found = _rec.chains_in_box(path, centre, size, exclude=loaded,
                                        min_atoms=20)
             # Both numbers are reported: the box may reach a few
             # hundred atoms of another chain, but including it

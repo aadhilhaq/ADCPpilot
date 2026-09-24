@@ -1,0 +1,12 @@
+docking p53 (ETFSDLWKLLPEN), 25 replicas x 2000000 steps on 16 core(s)
+  10 ranked pose(s)
+  MM-GBSA uses the prepared receptor
+  MM-GBSA backend: amber, GB-OBC(II) with an interior dielectric of 1
+    1 construct(s) x up to 5 pose(s): 5 to compute, 0 kept from a previous run
+    computing 5 pose energies, 5 at a time
+      [1/5] ETFSDLWKLLPEN pose 2: -61.44 kcal/mol
+      [2/5] ETFSDLWKLLPEN pose 5: -51.79 kcal/mol
+      [3/5] ETFSDLWKLLPEN pose 1: -46.97 kcal/mol
+      [4/5] ETFSDLWKLLPEN pose 3: -49.64 kcal/mol
+      [5/5] ETFSDLWKLLPEN pose 4: -70.05 kcal/mol
+    ETFSDLWKLLPEN: dG = -55.98 kcal/mol (mean of 5 pose(s), spread 23.1)

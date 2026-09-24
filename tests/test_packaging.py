@@ -86,7 +86,12 @@ if built is not None:
     for must in ("adcp_dock/__init__.py", "adcp_dock/_vendor/adcp.py",
                  "adcp_dock/_vendor/prepare.py", "adcp_dock/adfr.py",
                  "adcp_dock/static/app.js", "adcp_dock/static/3Dmol-min.js",
-                 "adcp_launcher/__init__.py"):
+                 "adcp_launcher/__init__.py",
+                 # the example run, at its deepest folder as well as its top
+                 "adcp_dock/example_run/job.json",
+                 "adcp_dock/example_run/docking/ETFSDLWKLLPEN/out_ranked_1.pdb",
+                 "adcp_dock/example_run/mmgbsa/ETFSDLWKLLPEN/pose1/"
+                 "ETFSDLWKLLPEN_mmgbsa.dat"):
         check(must in built, "the built wheel does not contain %s" % must)
 
 if fails:

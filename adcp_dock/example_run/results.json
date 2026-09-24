@@ -1,0 +1,54 @@
+{
+ "ranked_by": "mmgbsa_top5",
+ "top_n": 5,
+ "rows": [
+  {
+   "name": "p53",
+   "peptide": "ETFSDLWKLLPEN",
+   "length": 13,
+   "poses": 10,
+   "adcp_best": -21.1,
+   "adcp_top5": -20.44,
+   "adcp_sd": 0.64,
+   "mmgbsa_n": 5,
+   "mmgbsa_best": -70.05,
+   "mmgbsa_top5": -55.98,
+   "mmgbsa_median": -51.79,
+   "mmgbsa_sd": 8.56,
+   "mmgbsa_spread": 23.08,
+   "rank": 1
+  },
+  {
+   "name": "PMI",
+   "peptide": "TSFAEYWNLLS",
+   "length": 11,
+   "poses": 10,
+   "adcp_best": -18.7,
+   "adcp_top5": -18.24,
+   "adcp_sd": 0.54,
+   "mmgbsa_n": 5,
+   "mmgbsa_best": -54.3,
+   "mmgbsa_top5": -44.59,
+   "mmgbsa_median": -48.41,
+   "mmgbsa_sd": 7.94,
+   "mmgbsa_spread": 22.31,
+   "rank": 2
+  },
+  {
+   "name": "12/1 core",
+   "peptide": "RFMDYWEGL",
+   "length": 9,
+   "poses": 10,
+   "adcp_best": -17.8,
+   "adcp_top5": -17.22,
+   "adcp_sd": 0.45,
+   "mmgbsa_n": 5,
+   "mmgbsa_best": -53.82,
+   "mmgbsa_top5": -39.98,
+   "mmgbsa_median": -41.35,
+   "mmgbsa_sd": 9.65,
+   "mmgbsa_spread": 27.8,
+   "rank": 3
+  }
+ ]
+}

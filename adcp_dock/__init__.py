@@ -11,7 +11,7 @@ cli (the command line), slurm (scheduling and local execution), cite
 rescoring engine is in _vendor.
 """
 
-__version__ = "0.1.6"
+__version__ = "0.1.7"
 
 # Authorship and attribution, defined once and read by the launcher, the
 # page, the CLI and the README. ADCP and ADFRsuite are products of the
@@ -23,7 +23,7 @@ ENGINE_URL = "https://ccsb.scripps.edu/adcp/"
 BLURB = ("Peptide docking tool to be run in an interactive manner for "
          "users")
 LAB = "HOPE Lab"
-AUTHORS = ("Aadhil Haq",)
+AUTHORS = ("Aadhil Haq", "Sandun Fernando")
 PI = "Dr. Sandun Fernando"
 POWERED_BY = "Powered by HOPE Lab"
 # A computing facility may require an acknowledgement in publications.
