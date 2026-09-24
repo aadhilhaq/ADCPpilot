@@ -180,6 +180,23 @@ class App:
             self._a11lib = adcp11.library(exe) if exe else set()
         return self._a11
 
+    def modifications(self):
+        """What the Modifications dialog may offer: ADCP 1.1's non-standard
+        side chains that this installation has, grouped by parent residue in
+        the page. Empty, and not available, without ADCP 1.1."""
+        exe = self._adcp11()[0]
+        if not exe:
+            return {"available": False, "modifications": []}
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "static", "modifications.json")
+        try:
+            rows = json.load(open(path))["modifications"]
+        except (OSError, ValueError, KeyError):
+            rows = []
+        lib = self._a11lib
+        return {"available": True,
+                "modifications": [r for r in rows if r["code"] in lib]}
+
     def _pepcheck(self, body):
         """The keyword arguments a peptide check needs for the chosen engine."""
         mx = int(body.get("max_length") or peptide.MAX_LENGTH)
@@ -1092,6 +1109,8 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/api/sequence":
             return self._send(app.sequence(q.get("path", [""])[0],
                                            q.get("chain", [""])[0]))
+        if u.path == "/api/modifications":
+            return self._send(app.modifications())
         if u.path == "/api/runs":
             return self._send(app.list_runs())
         if u.path == "/api/run":

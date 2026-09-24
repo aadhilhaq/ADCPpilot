@@ -241,15 +241,14 @@ BIB = {
         pages="1322--1324"),
 }
 
-# This package. No DOI until a release is archived: see `adcp-dock cite
-# --how`. Left blank rather than filled with a placeholder.
+# This package's DOI, once a release is archived. Left blank rather than
+# filled with a placeholder.
 SELF_DOI = ""
 
 
 def self_citation(year=2026):
     who = ", ".join(AUTHORS)
-    doi = ("  doi:%s" % SELF_DOI) if SELF_DOI else \
-          "  [no DOI yet; see `adcp-dock cite --how`]"
+    doi = ("  doi:%s" % SELF_DOI) if SELF_DOI else ""
     return ("%s (%s). %s v%s: a browser and command-line workflow for "
             "peptide docking with %s. %s, Texas A&M University.%s"
             % (who, year, APP, __version__, ENGINE, LAB, doi))
@@ -313,53 +312,6 @@ def formatted(fmt, job=None):
 FILENAMES = {"txt": "HOW_TO_CITE.txt",
              "bib": "CITATION.bib",
              "ris": "CITATION.ris"}
-
-
-def how(out=print):
-    """What has to happen before this package is citable with a DOI."""
-    out("""\
-MAKING THIS TOOL CITABLE
-
-A GitHub URL is not a citation. It has no DOI, it is not indexed, and it
-can change or vanish after the paper is published. Three steps, in order:
-
-1. CITATION.cff in the repository root.
-   GitHub reads it and shows a "Cite this repository" button that emits
-   BibTeX and APA. Costs nothing, no external service, works today.
-
-2. A Zenodo DOI, by archiving a release.
-   Link the GitHub repo to Zenodo, then cut a tagged release. Zenodo mints
-   a DOI for that exact version AND a "concept DOI" that always points at
-   the newest one. Cite the version DOI in a paper, so a reader gets the
-   code that produced the results rather than whatever it became later.
-   This is what makes the software citable in the ordinary sense.
-
-3. A software paper, if citation counts matter.
-   A Zenodo DOI is citable but is poorly indexed: Google Scholar picks up
-   Zenodo records inconsistently, and a dataset-type record often does not
-   accrue visible citations. A short peer-reviewed software paper does:
-     - JOSS (Journal of Open Source Software): free, open review on GitHub,
-       typically weeks, indexed by Scholar and Crossref. Requires the
-       software to be open source, documented and tested. Best fit here.
-     - SoftwareX (Elsevier) or Bioinformatics Application Note: longer,
-       higher profile, Bioinformatics is the natural venue for a docking
-       front end but expects novelty beyond a GUI.
-   The paper becomes the thing people cite; the DOI stays in the methods
-   for the exact version.
-
-WHAT COUNTS IN GOOGLE SCHOLAR
-   Scholar indexes what looks like a paper with a resolvable identifier and
-   a reference list. In practice: a JOSS or SoftwareX paper accrues
-   citations normally; a Zenodo software record accrues them unreliably; a
-   bare GitHub URL accrues none. If the goal is a countable citation, the
-   route is step 3. If the goal is reproducibility, step 2 is enough and is
-   what reviewers increasingly ask for.
-
-ORDER OF WORK
-   Items 1 and 2 are quick, and make the tool citable. Do 3 when it is
-   stable and has users beyond
-   the project, which is what a software-paper reviewer checks.
-""")
 
 
 def verify(out=print, timeout=20):

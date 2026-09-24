@@ -161,10 +161,10 @@ environment lands under your home directory, whose file allowance is small,
 and the build dies partway with "Disk quota exceeded" having already spent
 twenty minutes. envs/adcp is appended to whatever is given.
 
-If the lab's HOPE environment is somewhere this did not look, point at it
-instead and nothing is built at all:
+If a suitable environment already exists somewhere this did not look, point
+at it instead and nothing is built at all:
 
-    ADCP_ENV=/path/to/envs/hope ./install.sh
+    ADCP_ENV=/path/to/env ./install.sh
 
 MSG
     exit 1

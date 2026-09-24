@@ -108,6 +108,47 @@ def library(exe):
     return names
 
 
+def openmm_sets(exe):
+    """{side chain: {"swiss": (inside, N-terminal, C-terminal), "sannerlab":
+    (...)}} from ADCP's AVAILABLE_PARAMETER.dat: which OpenMM parameter set
+    covers each non-standard side chain, and in which position."""
+    out = {}
+    for f in glob.glob(os.path.join(home_of(exe), "lib", "python3*", "site-packages",
+                                    "ADCP", "data", "openMMff",
+                                    "AVAILABLE_PARAMETER.dat")):
+        for line in open(f):
+            p = line.split()
+            if line.startswith("#") or len(p) < 11 or not p[0].isdigit():
+                continue
+            yes = [x == "Y" for x in p[2:11]]
+            out[p[1].upper()] = {"swiss": tuple(yes[0:3]),
+                                 "sannerlab": tuple(yes[3:6])}
+    return out
+
+
+def openmm_set_for(exe, seq):
+    """The parameter set (-F) that covers every non-standard residue of `seq`
+    where it sits, "sannerlab" (ADCP's default) first; None when neither does,
+    and "" when the peptide has no non-standard residue."""
+    res = peptide.residues(seq)
+    codes = [(i, re.search(r"<([A-Z0-9]{1,4})>", r)) for i, r in enumerate(res)]
+    codes = [(i, m.group(1)) for i, m in codes if m]
+    if not codes:
+        return ""
+    table = openmm_sets(exe)
+    for name in ("sannerlab", "swiss"):
+        ok = True
+        for i, code in codes:
+            col = 1 if i == 0 else (2 if i == len(res) - 1 else 0)
+            cover = (table.get(code) or {}).get(name)
+            if not cover or not cover[col]:
+                ok = False
+                break
+        if ok:
+            return name
+    return None
+
+
 def adcp_sequence(seq):
     """Lower case, which starts every replica as coil, except the library
     names, which ADCP matches as written."""
@@ -158,16 +199,27 @@ def dock(sequence, trg, workdir, exe, key=None, replicas=100, steps=5_000_000,
             cmd += ["-c", str(cpus)]
         if peptide.nonstandard(sequence):
             cmd += ["-L", "swiss"]
+        ffset = openmm_set_for(exe, sequence) if minimize else ""
+        if minimize and ffset is None:
+            # ADCP stops the whole docking, not just the minimization, when
+            # no parameter set covers a residue, so the docking runs without.
+            log("      %s: no OpenMM parameters cover its non-standard residues "
+                "where they sit; docking without minimization" % sequence)
+            minimize = 0
+        base = list(cmd)
         if minimize:
             # -dr keeps ADCP's order, so out_ranked_<n> stays ADCP's rank n
             # and the OpenMM energies are reported beside it.
             cmd += ["-nmin", str(minimize), "-env", omm_env, "-dr"]
-        with open(os.path.join(wd, "adcp_run.log"), "w") as fh:
-            fh.write(" ".join(cmd) + "\n")
-            fh.flush()
-            r = subprocess.run(cmd, stdout=fh, stderr=subprocess.STDOUT, cwd=wd,
-                               env=_env(exe))
+            if ffset:
+                cmd += ["-F", ffset]
+        r = _run(cmd, wd, exe)
         n = split_poses(wd)
+        if not n and minimize:
+            log("      %s: the docking with OpenMM minimization gave no pose; "
+                "docking again without it" % sequence)
+            r = _run(base, wd, exe, append=True)
+            n = split_poses(wd)
         if r.returncode == 0 and n:
             with open(marker, "w") as fh:
                 fh.write("ADCP 1.1: %d replicas, %d steps\n" % (replicas, steps))
@@ -214,6 +266,14 @@ def _modes11(summary):
         seen.add(row["rank"])
         first.append(row)
     return first
+
+
+def _run(cmd, wd, exe, append=False):
+    with open(os.path.join(wd, "adcp_run.log"), "a" if append else "w") as fh:
+        fh.write(" ".join(cmd) + "\n")
+        fh.flush()
+        return subprocess.run(cmd, stdout=fh, stderr=subprocess.STDOUT, cwd=wd,
+                              env=_env(exe))
 
 
 def split_poses(wd, job="out"):

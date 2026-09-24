@@ -1,0 +1,1384 @@
+{
+ "source": "ADCP 1.1 Swiss side-chain library; names and parents from the RCSB Chemical Component Dictionary",
+ "modifications": [
+  {
+   "code": "HHK",
+   "name": "(2s)-2,8-diaminooctanoic acid",
+   "parent": "A",
+   "coarse": "K",
+   "d": "DHHK"
+  },
+  {
+   "code": "OBF",
+   "name": "(2S)-2-amino-4,4-difluorobutanoic acid",
+   "parent": "A",
+   "coarse": "A",
+   "d": "DOBF"
+  },
+  {
+   "code": "2AG",
+   "name": "(2S)-2-aminopent-4-enoic acid",
+   "parent": "A",
+   "coarse": "A",
+   "d": "D2AG"
+  },
+  {
+   "code": "DAB",
+   "name": "2,4-diaminobutyric acid",
+   "parent": "A",
+   "coarse": "K",
+   "d": "DDAB"
+  },
+  {
+   "code": "ALC",
+   "name": "2-amino-3-cyclohexyl-propionic acid",
+   "parent": "A",
+   "coarse": "A",
+   "d": "DALC"
+  },
+  {
+   "code": "AA4",
+   "name": "2-amino-5-hydroxypentanoic acid",
+   "parent": "A",
+   "coarse": "S",
+   "d": "DAA4"
+  },
+  {
+   "code": "AHP",
+   "name": "2-amino-heptanoic acid",
+   "parent": "A",
+   "coarse": "A",
+   "d": "DAHP"
+  },
+  {
+   "code": "DDZ",
+   "name": "3,3-dihydroxy l-alanine",
+   "parent": "A",
+   "coarse": "S",
+   "d": "DDDZ"
+  },
+  {
+   "code": "HQA",
+   "name": "3-(8-hydroxyquinolin-3-yl)-L-alanine",
+   "parent": "A",
+   "coarse": "F",
+   "d": "DHQA"
+  },
+  {
+   "code": "C2N",
+   "name": "3-chloro-D-alanine",
+   "parent": "A",
+   "coarse": "A",
+   "d": "DC2N"
+  },
+  {
+   "code": "ADAM",
+   "name": "ADAM",
+   "parent": "A",
+   "coarse": "A",
+   "d": "DADM"
+  },
+  {
+   "code": "ABA",
+   "name": "alpha-aminobutyric acid",
+   "parent": "A",
+   "coarse": "A",
+   "d": "DABA"
+  },
+  {
+   "code": "TIH",
+   "name": "beta(2-thienyl)alanine",
+   "parent": "A",
+   "coarse": "H",
+   "d": "DTIH"
+  },
+  {
+   "code": "NAL",
+   "name": "beta-(2-naphthyl)-alanine",
+   "parent": "A",
+   "coarse": "F",
+   "d": "DNAL"
+  },
+  {
+   "code": "BUG",
+   "name": "BUG",
+   "parent": "A",
+   "coarse": "A",
+   "d": "DBUG"
+  },
+  {
+   "code": "ACZ",
+   "name": "cis-amiclenomycin",
+   "parent": "A",
+   "coarse": "A",
+   "d": "DACZ"
+  },
+  {
+   "code": "CPA3",
+   "name": "CPA3",
+   "parent": "A",
+   "coarse": "A",
+   "d": "DCPE"
+  },
+  {
+   "code": "CHG",
+   "name": "cyclohexyl-glycine",
+   "parent": "A",
+   "coarse": "A",
+   "d": "DCHG"
+  },
+  {
+   "code": "DPP",
+   "name": "diaminopropanoic acid",
+   "parent": "A",
+   "coarse": "K",
+   "d": "DDPP"
+  },
+  {
+   "code": "DILE",
+   "name": "DILE",
+   "parent": "A",
+   "coarse": "A",
+   "d": "D2EL"
+  },
+  {
+   "code": "FVAL",
+   "name": "FVAL",
+   "parent": "A",
+   "coarse": "A",
+   "d": "DFVL"
+  },
+  {
+   "code": "HLEU",
+   "name": "HLEU",
+   "parent": "A",
+   "coarse": "A",
+   "d": "DHL1"
+  },
+  {
+   "code": "ORN",
+   "name": "L-ornithine",
+   "parent": "A",
+   "coarse": "K",
+   "d": "DORN"
+  },
+  {
+   "code": "ALN",
+   "name": "naphthalen-2-yl-3-alanine",
+   "parent": "A",
+   "coarse": "F",
+   "d": "DALN"
+  },
+  {
+   "code": "TFLE",
+   "name": "TFLE",
+   "parent": "A",
+   "coarse": "A",
+   "d": "DTFL"
+  },
+  {
+   "code": "FLA",
+   "name": "trifluoroalanine",
+   "parent": "A",
+   "coarse": "A",
+   "d": "DFLA"
+  },
+  {
+   "code": "HCS",
+   "name": "2-amino-4-mercapto-butyric acid",
+   "parent": "C",
+   "coarse": "C",
+   "d": "DHCS"
+  },
+  {
+   "code": "BCS",
+   "name": "benzylcysteine",
+   "parent": "C",
+   "coarse": "F",
+   "d": "DBCS"
+  },
+  {
+   "code": "CCS",
+   "name": "carboxymethylated cysteine",
+   "parent": "C",
+   "coarse": "D",
+   "d": "DCCS"
+  },
+  {
+   "code": "OCY",
+   "name": "hydroxyethylcysteine",
+   "parent": "C",
+   "coarse": "S",
+   "d": "DOCY"
+  },
+  {
+   "code": "YCM",
+   "name": "s-(2-amino-2-oxoethyl)-l-cysteine",
+   "parent": "C",
+   "coarse": "N",
+   "d": "DYCM"
+  },
+  {
+   "code": "2AS",
+   "name": "(2S,3S)-3-methyl-aspartic acid",
+   "parent": "D",
+   "coarse": "D",
+   "d": "D2AS"
+  },
+  {
+   "code": "BHD",
+   "name": "(3S)-3-hydroxy-L-aspartic acid",
+   "parent": "D",
+   "coarse": "D",
+   "d": "DBHD"
+  },
+  {
+   "code": "26P",
+   "name": "2-amino-6-oxopimelic acid",
+   "parent": "D",
+   "coarse": "D",
+   "d": "D26P"
+  },
+  {
+   "code": "UN1",
+   "name": "2-aminohexanedioic acid",
+   "parent": "D",
+   "coarse": "D",
+   "d": "DUN1"
+  },
+  {
+   "code": "SYM",
+   "name": "2s,4r-4-methylglutamate",
+   "parent": "D",
+   "coarse": "D",
+   "d": "DSYM"
+  },
+  {
+   "code": "DMK",
+   "name": "3,3-dimethyl aspartic acid",
+   "parent": "D",
+   "coarse": "D",
+   "d": "DDMK"
+  },
+  {
+   "code": "FGA4",
+   "name": "FGA4",
+   "parent": "D",
+   "coarse": "D",
+   "d": "D4FG"
+  },
+  {
+   "code": "2NP",
+   "name": "l-2-amino-6-methylene-pimelic acid",
+   "parent": "D",
+   "coarse": "D",
+   "d": "D2NP"
+  },
+  {
+   "code": "LME",
+   "name": "(2S,3R)-2-azanyl-3-methyl-pentanedioic acid",
+   "parent": "E",
+   "coarse": "D",
+   "d": "DLME"
+  },
+  {
+   "code": "MEG",
+   "name": "(2S,3S)-2-azanyl-3-methyl-pentanedioic acid",
+   "parent": "E",
+   "coarse": "D",
+   "d": "DMEG"
+  },
+  {
+   "code": "3GL",
+   "name": "(2S,4S)-2-amino-4-hydroxy-pentanedioic acid",
+   "parent": "E",
+   "coarse": "D",
+   "d": "D3GL"
+  },
+  {
+   "code": "GME",
+   "name": "5-O-methyl-glutamic acid",
+   "parent": "E",
+   "coarse": "D",
+   "d": "DGME"
+  },
+  {
+   "code": "3FG",
+   "name": "(2S)-amino(3,5-dihydroxyphenyl)ethanoic acid",
+   "parent": "F",
+   "coarse": "F",
+   "d": "D3FG"
+  },
+  {
+   "code": "D4P",
+   "name": "(2s)-amino(4-hydroxyphenyl)acetic acid",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DD4P"
+  },
+  {
+   "code": "004",
+   "name": "(2S)-amino(phenyl)ethanoic acid",
+   "parent": "F",
+   "coarse": "F",
+   "d": "D004"
+  },
+  {
+   "code": "BB8",
+   "name": "(2s,3s)-beta-hydroxy-phenylalanine",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DBB8"
+  },
+  {
+   "code": "BIF",
+   "name": "(r)-2-amino-3-(4-phenylcyclohexyl)propanoic acid",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DBIF"
+  },
+  {
+   "code": "PF5",
+   "name": "2,3,4,5,6-pentafluoro-l-phenylalanine",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DPF5"
+  },
+  {
+   "code": "F2F",
+   "name": "3,4-difluoro-L-phenylalanine",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DF2F"
+  },
+  {
+   "code": "WFP",
+   "name": "3,5-difluoro-L-phenylalanine",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DWFP"
+  },
+  {
+   "code": "FCL",
+   "name": "3-chloro-l-phenylalanine",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DFCL"
+  },
+  {
+   "code": "3CF",
+   "name": "3-cyano-L-phenylalanine",
+   "parent": "F",
+   "coarse": "F",
+   "d": "D3CF"
+  },
+  {
+   "code": "APD",
+   "name": "3-methylphenylalanine",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DAPD"
+  },
+  {
+   "code": "HOX",
+   "name": "4-amino-L-phenylalanine",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DHOX"
+  },
+  {
+   "code": "0BN",
+   "name": "4-carbamimidoyl-L-phenylalanine",
+   "parent": "F",
+   "coarse": "F",
+   "d": "D0BN"
+  },
+  {
+   "code": "200",
+   "name": "4-chloro-l-phenylalanine",
+   "parent": "F",
+   "coarse": "F",
+   "d": "D200"
+  },
+  {
+   "code": "4CF",
+   "name": "4-cyano-L-phenylalanine",
+   "parent": "F",
+   "coarse": "F",
+   "d": "D4CF"
+  },
+  {
+   "code": "PFF",
+   "name": "4-fluoro-l-phenylalanine",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DPFF"
+  },
+  {
+   "code": "4PH",
+   "name": "4-methyl-L-phenylalanine",
+   "parent": "F",
+   "coarse": "F",
+   "d": "D4PH"
+  },
+  {
+   "code": "4HMP",
+   "name": "4HMP",
+   "parent": "F",
+   "coarse": "F",
+   "d": "D4HZ"
+  },
+  {
+   "code": "ANTH",
+   "name": "ANTH",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DNTL"
+  },
+  {
+   "code": "CNP2",
+   "name": "CNP2",
+   "parent": "F",
+   "coarse": "F",
+   "d": "D2CF"
+  },
+  {
+   "code": "CP24",
+   "name": "CP24",
+   "parent": "F",
+   "coarse": "F",
+   "d": "D24E"
+  },
+  {
+   "code": "CP34",
+   "name": "CP34",
+   "parent": "F",
+   "coarse": "F",
+   "d": "D34E"
+  },
+  {
+   "code": "CPG2",
+   "name": "CPG2",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DCG6"
+  },
+  {
+   "code": "CPG3",
+   "name": "CPG3",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DCG5"
+  },
+  {
+   "code": "CPG4",
+   "name": "CPG4",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DCGD"
+  },
+  {
+   "code": "CPH2",
+   "name": "CPH2",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DCF6"
+  },
+  {
+   "code": "DIPH",
+   "name": "DIPH",
+   "parent": "F",
+   "coarse": "F",
+   "d": "D2F1"
+  },
+  {
+   "code": "DMP3",
+   "name": "DMP3",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DDF4"
+  },
+  {
+   "code": "FPG2",
+   "name": "FPG2",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DFP6"
+  },
+  {
+   "code": "FPG3",
+   "name": "FPG3",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DFP7"
+  },
+  {
+   "code": "FPG4",
+   "name": "FPG4",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DFP8"
+  },
+  {
+   "code": "FPH2",
+   "name": "FPH2",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DFF2"
+  },
+  {
+   "code": "FPH3",
+   "name": "FPH3",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DFF3"
+  },
+  {
+   "code": "HPE",
+   "name": "homophenylalanine",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DHPE"
+  },
+  {
+   "code": "PHI",
+   "name": "iodo-phenylalanine",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DPHI"
+  },
+  {
+   "code": "APM",
+   "name": "m-amidinophenyl-3-alanine",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DAPM"
+  },
+  {
+   "code": "MP34",
+   "name": "MP34",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DM34"
+  },
+  {
+   "code": "MPH2",
+   "name": "MPH2",
+   "parent": "F",
+   "coarse": "F",
+   "d": "D2MF"
+  },
+  {
+   "code": "NAO1",
+   "name": "NAO1",
+   "parent": "F",
+   "coarse": "F",
+   "d": "D51N"
+  },
+  {
+   "code": "NAO2",
+   "name": "NAO2",
+   "parent": "F",
+   "coarse": "F",
+   "d": "D62N"
+  },
+  {
+   "code": "OTYR",
+   "name": "OTYR",
+   "parent": "F",
+   "coarse": "F",
+   "d": "D2TR"
+  },
+  {
+   "code": "PBF",
+   "name": "para-(benzoyl)-phenylalanine",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DPBF"
+  },
+  {
+   "code": "PPN",
+   "name": "para-nitrophenylalanine",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DPPN"
+  },
+  {
+   "code": "PYR2",
+   "name": "PYR2",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DY23"
+  },
+  {
+   "code": "PYR3",
+   "name": "PYR3",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DY33"
+  },
+  {
+   "code": "PYR4",
+   "name": "PYR4",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DY34"
+  },
+  {
+   "code": "QU32",
+   "name": "QU32",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DQ32"
+  },
+  {
+   "code": "QU33",
+   "name": "QU33",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DQ33"
+  },
+  {
+   "code": "QU34",
+   "name": "QU34",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DQ34"
+  },
+  {
+   "code": "QU35",
+   "name": "QU35",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DQ35"
+  },
+  {
+   "code": "QU36",
+   "name": "QU36",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DQ36"
+  },
+  {
+   "code": "QX32",
+   "name": "QX32",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DQX3"
+  },
+  {
+   "code": "STYA",
+   "name": "STYA",
+   "parent": "F",
+   "coarse": "F",
+   "d": "DSYA"
+  },
+  {
+   "code": "TBP4",
+   "name": "TBP4",
+   "parent": "F",
+   "coarse": "F",
+   "d": "D4TF"
+  },
+  {
+   "code": "TFG2",
+   "name": "TFG2",
+   "parent": "F",
+   "coarse": "F",
+   "d": "D2TG"
+  },
+  {
+   "code": "TFG3",
+   "name": "TFG3",
+   "parent": "F",
+   "coarse": "F",
+   "d": "D3TG"
+  },
+  {
+   "code": "TFG4",
+   "name": "TFG4",
+   "parent": "F",
+   "coarse": "F",
+   "d": "D4TG"
+  },
+  {
+   "code": "TFP2",
+   "name": "TFP2",
+   "parent": "F",
+   "coarse": "F",
+   "d": "D2TF"
+  },
+  {
+   "code": "TFP3",
+   "name": "TFP3",
+   "parent": "F",
+   "coarse": "F",
+   "d": "D3TF"
+  },
+  {
+   "code": "TFP4",
+   "name": "TFP4",
+   "parent": "F",
+   "coarse": "F",
+   "d": "D4TM"
+  },
+  {
+   "code": "FGL",
+   "name": "2-aminopropanedioic acid",
+   "parent": "G",
+   "coarse": "D",
+   "d": "DFGL"
+  },
+  {
+   "code": "CHP",
+   "name": "3-chloro-4-hydroxyphenylglycine",
+   "parent": "G",
+   "coarse": "F",
+   "d": "DCHP"
+  },
+  {
+   "code": "IGL",
+   "name": "alpha-amino-2-indanacetic acid",
+   "parent": "G",
+   "coarse": "A",
+   "d": "DIGL"
+  },
+  {
+   "code": "LVG",
+   "name": "l-vinylglycine",
+   "parent": "G",
+   "coarse": "A",
+   "d": "DLVG"
+  },
+  {
+   "code": "2HF",
+   "name": "2-fluoro-L-histidine",
+   "parent": "H",
+   "coarse": "H",
+   "d": "D2HF"
+  },
+  {
+   "code": "2HF1",
+   "name": "2HF1",
+   "parent": "H",
+   "coarse": "H",
+   "d": "D2H1"
+  },
+  {
+   "code": "2HF2",
+   "name": "2HF2",
+   "parent": "H",
+   "coarse": "H",
+   "d": "D2H2"
+  },
+  {
+   "code": "FUA2",
+   "name": "FUA2",
+   "parent": "H",
+   "coarse": "H",
+   "d": "DFUO"
+  },
+  {
+   "code": "PYZ1",
+   "name": "PYZ1",
+   "parent": "H",
+   "coarse": "H",
+   "d": "DPZ4"
+  },
+  {
+   "code": "TEZA",
+   "name": "TEZA",
+   "parent": "H",
+   "coarse": "H",
+   "d": "DTEZ"
+  },
+  {
+   "code": "THA3",
+   "name": "THA3",
+   "parent": "H",
+   "coarse": "H",
+   "d": "D3TA"
+  },
+  {
+   "code": "TRZ4",
+   "name": "TRZ4",
+   "parent": "H",
+   "coarse": "H",
+   "d": "DTZR"
+  },
+  {
+   "code": "TZA4",
+   "name": "TZA4",
+   "parent": "H",
+   "coarse": "H",
+   "d": "D4TH"
+  },
+  {
+   "code": "I2M",
+   "name": "3-methyl-L-alloisoleucine",
+   "parent": "I",
+   "coarse": "A",
+   "d": "DI2M"
+  },
+  {
+   "code": "ILX",
+   "name": "4,5-dihydroxyisoleucine",
+   "parent": "I",
+   "coarse": "S",
+   "d": "DILX"
+  },
+  {
+   "code": "BIU",
+   "name": "5-bromo-L-isoleucine",
+   "parent": "I",
+   "coarse": "A",
+   "d": "DBIU"
+  },
+  {
+   "code": "IIL",
+   "name": "iso-isoleucine",
+   "parent": "I",
+   "coarse": "A",
+   "d": "DIIL"
+  },
+  {
+   "code": "6CL",
+   "name": "6-carboxylysine",
+   "parent": "K",
+   "coarse": "D",
+   "d": "D6CL"
+  },
+  {
+   "code": "SLZ",
+   "name": "l-thialysine",
+   "parent": "K",
+   "coarse": "K",
+   "d": "DSLZ"
+  },
+  {
+   "code": "HL2",
+   "name": "(2S,3R)-2-amino-3-hydroxy-4-methylpentanoic acid",
+   "parent": "L",
+   "coarse": "S",
+   "d": "DHL2"
+  },
+  {
+   "code": "LEF",
+   "name": "(4s)-5-fluoro-l-leucine",
+   "parent": "L",
+   "coarse": "A",
+   "d": "DLEF"
+  },
+  {
+   "code": "HLU",
+   "name": "beta-hydroxyleucine",
+   "parent": "L",
+   "coarse": "S",
+   "d": "DHLU"
+  },
+  {
+   "code": "NLE",
+   "name": "norleucine",
+   "parent": "L",
+   "coarse": "A",
+   "d": "DNLE"
+  },
+  {
+   "code": "ESC",
+   "name": "2-amino-4-ethyl sulfanyl butyric acid",
+   "parent": "M",
+   "coarse": "M",
+   "d": "DESC"
+  },
+  {
+   "code": "ME0",
+   "name": "hydroxy-L-methionine",
+   "parent": "M",
+   "coarse": "M",
+   "d": "DME0"
+  },
+  {
+   "code": "SME",
+   "name": "methionine sulfoxide",
+   "parent": "M",
+   "coarse": "M",
+   "d": "DSME"
+  },
+  {
+   "code": "4CY",
+   "name": "nitrilo-L-methionine",
+   "parent": "M",
+   "coarse": "M",
+   "d": "D4CY"
+  },
+  {
+   "code": "2FM",
+   "name": "s-(difluoromethyl)homocysteine",
+   "parent": "M",
+   "coarse": "M",
+   "d": "D2FM"
+  },
+  {
+   "code": "OMT",
+   "name": "s-dioxymethionine",
+   "parent": "M",
+   "coarse": "M",
+   "d": "DOMT"
+  },
+  {
+   "code": "MHO",
+   "name": "s-oxymethionine",
+   "parent": "M",
+   "coarse": "M",
+   "d": "DMHO"
+  },
+  {
+   "code": "AHB",
+   "name": "beta-hydroxyasparagine",
+   "parent": "N",
+   "coarse": "N",
+   "d": "DAHB"
+  },
+  {
+   "code": "HGA",
+   "name": "glutamine hydroxamate",
+   "parent": "N",
+   "coarse": "N",
+   "d": "DHGA"
+  },
+  {
+   "code": "MEN",
+   "name": "n-methyl asparagine",
+   "parent": "N",
+   "coarse": "N",
+   "d": "DMEN"
+  },
+  {
+   "code": "GHG",
+   "name": "(2S,4S)-2,5-diamino-4-hydroxy-5-oxopentanoic acid (non-preferred name)",
+   "parent": "Q",
+   "coarse": "N",
+   "d": "DGHG"
+  },
+  {
+   "code": "LMQ",
+   "name": "(3S)-3-methyl-L-glutamine",
+   "parent": "Q",
+   "coarse": "N",
+   "d": "DLMQ"
+  },
+  {
+   "code": "MEQ",
+   "name": "n5-methylglutamine",
+   "parent": "Q",
+   "coarse": "N",
+   "d": "DMEQ"
+  },
+  {
+   "code": "AGM",
+   "name": "5-methyl-arginine",
+   "parent": "R",
+   "coarse": "R",
+   "d": "DAGM"
+  },
+  {
+   "code": "ARO",
+   "name": "c-gamma-hydroxy arginine",
+   "parent": "R",
+   "coarse": "R",
+   "d": "DARO"
+  },
+  {
+   "code": "CIR",
+   "name": "citrulline",
+   "parent": "R",
+   "coarse": "R",
+   "d": "DCIR"
+  },
+  {
+   "code": "GBUT",
+   "name": "GBUT",
+   "parent": "R",
+   "coarse": "R",
+   "d": "DGBT"
+  },
+  {
+   "code": "GDPR",
+   "name": "GDPR",
+   "parent": "R",
+   "coarse": "R",
+   "d": "DGPA"
+  },
+  {
+   "code": "GGB",
+   "name": "l-canavanine",
+   "parent": "R",
+   "coarse": "R",
+   "d": "DGGB"
+  },
+  {
+   "code": "HRG",
+   "name": "l-homoarginine",
+   "parent": "R",
+   "coarse": "R",
+   "d": "DHRG"
+  },
+  {
+   "code": "THIC",
+   "name": "THIC",
+   "parent": "R",
+   "coarse": "R",
+   "d": "DTVI"
+  },
+  {
+   "code": "LDO",
+   "name": "6-hydroxy-l-norleucine",
+   "parent": "S",
+   "coarse": "S",
+   "d": "DLDO"
+  },
+  {
+   "code": "HIL4",
+   "name": "HIL4",
+   "parent": "S",
+   "coarse": "S",
+   "d": "DHIL"
+  },
+  {
+   "code": "HSER",
+   "name": "HSER",
+   "parent": "S",
+   "coarse": "S",
+   "d": "DHSE"
+  },
+  {
+   "code": "SEP",
+   "name": "phosphoserine",
+   "parent": "S",
+   "coarse": "S",
+   "d": "DSEP"
+  },
+  {
+   "code": "SEP2",
+   "name": "SEP2",
+   "parent": "S",
+   "coarse": "S",
+   "d": "DSE2"
+  },
+  {
+   "code": "CTH",
+   "name": "4-chlorothreonine",
+   "parent": "T",
+   "coarse": "S",
+   "d": "DCTH"
+  },
+  {
+   "code": "TH6",
+   "name": "4-hydroxy-l-threonine",
+   "parent": "T",
+   "coarse": "S",
+   "d": "DTH6"
+  },
+  {
+   "code": "ALO",
+   "name": "allo-threonine",
+   "parent": "T",
+   "coarse": "S",
+   "d": "DALO"
+  },
+  {
+   "code": "TPO",
+   "name": "phosphothreonine",
+   "parent": "T",
+   "coarse": "T",
+   "d": "DTPO"
+  },
+  {
+   "code": "TPO2",
+   "name": "TPO2",
+   "parent": "T",
+   "coarse": "T",
+   "d": "DPO6"
+  },
+  {
+   "code": "VAH",
+   "name": "(3R)-3-hydroxy-L-norvaline",
+   "parent": "V",
+   "coarse": "S",
+   "d": "DVAH"
+  },
+  {
+   "code": "HVA",
+   "name": "3-hydroxy-L-valine",
+   "parent": "V",
+   "coarse": "S",
+   "d": "DHVA"
+  },
+  {
+   "code": "LE1",
+   "name": "3-sulfanyl-L-valine",
+   "parent": "V",
+   "coarse": "C",
+   "d": "DLE1"
+  },
+  {
+   "code": "NVA",
+   "name": "norvaline",
+   "parent": "V",
+   "coarse": "A",
+   "d": "DNVA"
+  },
+  {
+   "code": "KYN",
+   "name": "(2S)-2-amino-4-(2-aminophenyl)-4-oxobutanoic acid",
+   "parent": "W",
+   "coarse": "F",
+   "d": "DKYN"
+  },
+  {
+   "code": "32T",
+   "name": "(s)-2-amino-3-(4h-thieno[3,2-b]-pyrrol-6-yl)-propionic acid",
+   "parent": "W",
+   "coarse": "W",
+   "d": "D32T"
+  },
+  {
+   "code": "TRO",
+   "name": "2-hydroxy-tryptophan",
+   "parent": "W",
+   "coarse": "W",
+   "d": "DTRO"
+  },
+  {
+   "code": "4IN",
+   "name": "4-amino-l-tryptophan",
+   "parent": "W",
+   "coarse": "W",
+   "d": "D4IN"
+  },
+  {
+   "code": "4FW",
+   "name": "4-fluorotryptophane",
+   "parent": "W",
+   "coarse": "W",
+   "d": "D4FW"
+  },
+  {
+   "code": "4HT",
+   "name": "4-hydroxytryptophan",
+   "parent": "W",
+   "coarse": "W",
+   "d": "D4HT"
+  },
+  {
+   "code": "HRP",
+   "name": "5-hydroxy-l-tryptophan",
+   "parent": "W",
+   "coarse": "W",
+   "d": "DHRP"
+  },
+  {
+   "code": "TTQ",
+   "name": "6-amino-7-hydroxy-l-tryptophan",
+   "parent": "W",
+   "coarse": "W",
+   "d": "DTTQ"
+  },
+  {
+   "code": "BTR",
+   "name": "6-bromo-tryptophan",
+   "parent": "W",
+   "coarse": "W",
+   "d": "DBTR"
+  },
+  {
+   "code": "6CW",
+   "name": "6-chloro-l-tryptophan",
+   "parent": "W",
+   "coarse": "W",
+   "d": "D6CW"
+  },
+  {
+   "code": "FT6",
+   "name": "6-fluoro-l-tryptophan",
+   "parent": "W",
+   "coarse": "W",
+   "d": "DFT6"
+  },
+  {
+   "code": "TRX",
+   "name": "6-hydroxytryptophan",
+   "parent": "W",
+   "coarse": "W",
+   "d": "DTRX"
+  },
+  {
+   "code": "CTE",
+   "name": "7-chlorotryptophan",
+   "parent": "W",
+   "coarse": "W",
+   "d": "DCTE"
+  },
+  {
+   "code": "0AF",
+   "name": "7-hydroxy-L-tryptophan",
+   "parent": "W",
+   "coarse": "W",
+   "d": "D0AF"
+  },
+  {
+   "code": "HTR",
+   "name": "beta-hydroxytryptophane",
+   "parent": "W",
+   "coarse": "W",
+   "d": "DHTR"
+  },
+  {
+   "code": "BTH3",
+   "name": "BTH3",
+   "parent": "W",
+   "coarse": "W",
+   "d": "DTH9"
+  },
+  {
+   "code": "FTR",
+   "name": "fluorotryptophane",
+   "parent": "W",
+   "coarse": "W",
+   "d": "DFTR"
+  },
+  {
+   "code": "MOT5",
+   "name": "MOT5",
+   "parent": "W",
+   "coarse": "W",
+   "d": "D5XW"
+  },
+  {
+   "code": "MTR5",
+   "name": "MTR5",
+   "parent": "W",
+   "coarse": "W",
+   "d": "D5MW"
+  },
+  {
+   "code": "MTR6",
+   "name": "MTR6",
+   "parent": "W",
+   "coarse": "W",
+   "d": "D6MW"
+  },
+  {
+   "code": "OMY",
+   "name": "(betaR)-3-chloro-beta-hydroxy-L-tyrosine",
+   "parent": "Y",
+   "coarse": "F",
+   "d": "DOMY"
+  },
+  {
+   "code": "OMX",
+   "name": "(betaR)-beta-hydroxy-L-Tyrosine",
+   "parent": "Y",
+   "coarse": "F",
+   "d": "DOMX"
+  },
+  {
+   "code": "DAH",
+   "name": "3,4-dihydroxyphenylalanine",
+   "parent": "Y",
+   "coarse": "F",
+   "d": "DDAH"
+  },
+  {
+   "code": "DBY",
+   "name": "3,5 dibromotyrosine",
+   "parent": "Y",
+   "coarse": "F",
+   "d": "DDBY"
+  },
+  {
+   "code": "TYI",
+   "name": "3,5-diiodotyrosine",
+   "parent": "Y",
+   "coarse": "F",
+   "d": "DTYI"
+  },
+  {
+   "code": "TYQ",
+   "name": "3-amino-6-hydroxy-tyrosine",
+   "parent": "Y",
+   "coarse": "F",
+   "d": "DTYQ"
+  },
+  {
+   "code": "TY2",
+   "name": "3-amino-l-tyrosine",
+   "parent": "Y",
+   "coarse": "F",
+   "d": "DTY2"
+  },
+  {
+   "code": "3MY",
+   "name": "3-chloro-D-tyrosine",
+   "parent": "Y",
+   "coarse": "F",
+   "d": "D3MY"
+  },
+  {
+   "code": "YOF",
+   "name": "3-fluorotyrosine",
+   "parent": "Y",
+   "coarse": "F",
+   "d": "DYOF"
+  },
+  {
+   "code": "IYR",
+   "name": "3-iodo-tyrosine",
+   "parent": "Y",
+   "coarse": "F",
+   "d": "DIYR"
+  },
+  {
+   "code": "4BF",
+   "name": "4-bromo-l-phenylalanine",
+   "parent": "Y",
+   "coarse": "F",
+   "d": "D4BF"
+  },
+  {
+   "code": "NIY",
+   "name": "meta-nitro-tyrosine",
+   "parent": "Y",
+   "coarse": "F",
+   "d": "DNIY"
+  },
+  {
+   "code": "MTY",
+   "name": "meta-tyrosine",
+   "parent": "Y",
+   "coarse": "F",
+   "d": "DMTY"
+  },
+  {
+   "code": "0A1",
+   "name": "O-methyl-L-tyrosine",
+   "parent": "Y",
+   "coarse": "F",
+   "d": "D0A1"
+  },
+  {
+   "code": "PTR",
+   "name": "o-phosphotyrosine",
+   "parent": "Y",
+   "coarse": "Y",
+   "d": "DPTR"
+  },
+  {
+   "code": "PTR2",
+   "name": "PTR2",
+   "parent": "Y",
+   "coarse": "Y",
+   "d": "DPT6"
+  }
+ ]
+}

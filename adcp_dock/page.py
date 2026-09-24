@@ -226,6 +226,32 @@ button.primary{background:var(--accent);border-color:var(--accent);color:#fff;
 button.primary:hover{filter:brightness(1.08)}
 button.ghost{font-size:12.5px;padding:5px 12px;color:var(--dim)}
 button.ghost.danger{color:var(--bad)}
+/* The peptide menu and the Modifications dialog, laid out as AlphaFold
+   Server's: a menu under the row's dots, then a dialog in which a residue is
+   clicked to add a row with a type chosen from that residue's options. */
+.pepmenu{position:absolute;z-index:40;background:var(--card);border:1px solid var(--line);
+  border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.14);padding:6px 0;min-width:250px}
+.pepmenu button{display:flex;gap:12px;align-items:center;width:100%;border:0;border-radius:0;
+  background:none;padding:9px 16px;font-size:13.5px;color:var(--fg);text-align:left;cursor:pointer}
+.pepmenu button:hover{background:var(--soft)}
+.pepmenu button[disabled]{color:var(--dim);cursor:default;background:none}
+.pepmenu .mi{width:18px;text-align:center;font-size:15px}
+#moddlg{width:min(640px,94vw)}
+#modseq{font:14px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.12em;line-height:2.2;
+  padding:10px 12px;border:1px solid var(--line);border-radius:8px;margin:10px 16px;word-break:break-all}
+#modseq .r{cursor:pointer;padding:2px 1px;border-radius:3px}
+#modseq .r:hover{background:var(--soft)}
+#modseq .r.on,.seq .mod{background:#f6e85a;color:#1b1b1b;border-radius:3px}
+#modseq .grp{position:relative;margin-right:.9em}
+#modseq .grp::before{content:attr(data-n);position:absolute;right:0;top:-1.3em;font-size:10px;
+  color:var(--dim);letter-spacing:0}
+.modrow{display:flex;gap:10px;align-items:center;background:var(--soft);border-radius:10px;
+  padding:10px 12px;margin:8px 16px}
+.modrow .chip{background:#f6e85a;color:#1b1b1b;border-radius:8px;padding:10px 12px;
+  font:13px ui-monospace,Menlo,Consolas,monospace;min-width:54px}
+.modrow select{flex:1 1 auto;min-width:0}
+.modnote{margin:10px 16px 0;padding:10px 12px;border-radius:10px;background:var(--soft);
+  font-size:12.5px;color:var(--fg)}
 button.icon{border:0;background:none;color:var(--dim);padding:4px 7px;
   font-size:15px;line-height:1}
 button:disabled{opacity:.45;cursor:default}
@@ -551,9 +577,8 @@ __STALE__
 
 <div class=card>
   <h2>Peptides</h2>
-  <p class=hint>One-letter codes; B, J, O, U, X, Z and anything that is not
-    a letter are refused. Pasting is fine: whitespace, case and FASTA
-    headers are all handled.</p>
+  <p class=hint>One-letter codes; pasted FASTA, spaces and case are fine.
+    For modified and D residues (ADCP 1.1), use a peptide's &#8942; menu.</p>
   <div id=peps></div>
   <div class=bar>
     <button id=addpep>+ Add peptide</button>
@@ -810,6 +835,26 @@ larger of the two and takes a moment the first time.">
      from inside a notebook's frame is blocked without a word. The addresses
      and the details to paste are always shown, so a report can be sent
      whatever the browser allows. -->
+<div class="pepmenu hide" id=pepmenu role=menu>
+  <button id=pm_mods role=menuitem><span class=mi><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg></span>Modifications (PTMs, D residues)</button>
+  <button id=pm_dup role=menuitem><span class=mi><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M8 3h11v13h-2V5H8V3zM5 7h10v14H5V7zm2 2v10h6V9H7z"/></svg></span>Duplicate</button>
+  <button id=pm_rm role=menuitem><span class=mi><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9 3h6l1 2h4v2H4V5h4l1-2zm-3 6h12l-1 12H7L6 9zm4 2v8h2v-8h-2zm4 0v8h2v-8h-2z"/></svg></span>Delete</button>
+</div>
+<dialog id=moddlg>
+  <div class=dlg-h><b>Post-translational modifications and D residues</b></div>
+  <div class=modnote>Click a residue to modify it, then choose what it becomes.
+    Once modifications are saved the sequence is changed here, not by typing.
+    Modified peptides need ADCP 1.1.</div>
+  <div id=modseq></div>
+  <div id=modrows></div>
+  <div class=dlg-f>
+    <span class=why id=modmsg></span>
+    <span style="display:flex;gap:8px;align-items:center">
+      <button class=ghost id=modcancel>Cancel</button>
+      <button id=modsave disabled>Save</button>
+    </span>
+  </div>
+</dialog>
 <dialog id=folderdlg>
   <div class=dlg-h><b>Run folder</b>
     <span class=why id=folderhint></span></div>

@@ -1,7 +1,7 @@
 HOW TO CITE
 
 This interface:
-  Aadhil Haq, Sandun Fernando (2026). GUI to ADCP Docking v0.1.11: a browser and command-line workflow for peptide docking with ADCP. HOPE Lab, Texas A&M University.  [no DOI yet; see `adcp-dock cite --how`]
+  Aadhil Haq, Sandun Fernando (2026). GUI to ADCP Docking v0.1.11: a browser and command-line workflow for peptide docking with ADCP. HOPE Lab, Texas A&M University.
 
 ADCP is a product of the Scripps Research Institute and is not ours. It must be cited whatever else is:
   https://ccsb.scripps.edu/adcp/

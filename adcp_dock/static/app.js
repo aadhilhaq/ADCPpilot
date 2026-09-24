@@ -605,11 +605,21 @@ function drawPeps(){
     +     'data-ph="Type or paste a peptide sequence"></div>'
     +   '<div class=seqmsg></div><div class=seqlen></div></div>'
     + '<div class=tools>'
-    +   '<button class=icon data-dup="' + i + '" title="Duplicate">⋮</button>'
+    +   '<button class=icon data-menu="' + i + '" title="Modifications, duplicate, delete" '
+    +     'aria-haspopup=menu>⋮</button>'
     +   '<button class=icon data-rm="' + i + '" title="Remove">✕</button>'
     + '</div></div>').join('');
 
   $('peps').querySelectorAll('.ps').forEach((el, i) => {
+    // A modified peptide is shown, not typed: its sequence is changed in the
+    // Modifications dialog, as on AlphaFold Server.
+    if(isModified(PEPS[i].sequence)){
+      renderModified(el, PEPS[i].sequence);
+      el.contentEditable = 'false';
+      el.title = 'Modified residues are highlighted. Change them with the ⋮ menu, '
+               + 'Modifications.';
+      return;
+    }
     renderSeq(el, PEPS[i].sequence, new Set());
     el.addEventListener('input', () => {
       const off = caretOffset(el);
@@ -649,13 +659,165 @@ function drawPeps(){
       if(!PEPS.length) PEPS.push({name:'', sequence:''});
       drawPeps(); };
   });
-  $('peps').querySelectorAll('button[data-dup]').forEach(b => {
-    b.onclick = () => { const i = +b.getAttribute('data-dup');
-      PEPS.splice(i + 1, 0, {name:'', sequence: PEPS[i].sequence});
-      drawPeps(); };
+  $('peps').querySelectorAll('button[data-menu]').forEach(b => {
+    b.onclick = e => { e.stopPropagation(); openPepMenu(+b.getAttribute('data-menu'), b); };
   });
   validate();
 }
+
+/* ===================== modifications (PTMs, D residues) =============== */
+/* ADCP 1.1 writes a modified residue as the one-letter code of the residue
+   whose coarse model it uses, then its library name in angle brackets
+   (F<0A1>), and a D residue with & before its letter (&W, &F<0A1>). The
+   dialog edits that string one residue at a time. */
+const RESNAME = {A:'Alanine', R:'Arginine', N:'Asparagine', D:'Aspartate',
+  C:'Cysteine', Q:'Glutamine', E:'Glutamate', G:'Glycine', H:'Histidine',
+  I:'Isoleucine', L:'Leucine', K:'Lysine', M:'Methionine', F:'Phenylalanine',
+  P:'Proline', S:'Serine', T:'Threonine', W:'Tryptophan', Y:'Tyrosine',
+  V:'Valine'};
+let MODLIB = [], MODLIB_OK = false;
+api('/api/modifications').then(d => {
+  if(d && !d.error){ MODLIB = d.modifications || []; MODLIB_OK = !!d.available; }
+});
+function isModified(seq){ return /[<&]/.test(seq || ''); }
+function tokens(seq){
+  return ((seq || '').toUpperCase().match(/&?[A-Z](?:<[A-Z0-9]{1,4}>)?/g) || [])
+    .map(t => ({d: t[0] === '&', letter: t.replace('&', '')[0],
+                code: (t.match(/<([A-Z0-9]{1,4})>/) || [])[1] || null}));
+}
+function compose(toks){
+  return toks.map(t => (t.d ? '&' : '') + t.letter + (t.code ? '<' + t.code + '>' : ''))
+    .join('');
+}
+function modName(code){
+  const m = MODLIB.find(x => x.code === code);
+  return m ? m.name : code;
+}
+function renderModified(el, seq){
+  const toks = tokens(seq), out = [];
+  for(let i = 0; i < toks.length; i += 10){
+    out.push('<span class=grp data-n="' + Math.min(i + 10, toks.length) + '">'
+      + toks.slice(i, i + 10).map((t, k) => {
+          const label = t.code ? t.code : t.letter;
+          const what = t.code ? (t.d ? 'D form of ' : '') + modName(t.code)
+                     : (t.d ? 'D-' + (RESNAME[t.letter] || t.letter) : '');
+          return what ? '<span class=mod title="' + esc((i + k + 1) + ': ' + what)
+                        + '">' + esc((t.d ? '&' : '') + label) + '</span>'
+                      : '<span class=' + (HYDRO.has(t.letter) ? 'h' : 'p') + '>'
+                        + esc(t.letter) + '</span>';
+        }).join('') + '</span>');
+  }
+  el.innerHTML = out.join('');
+}
+
+let MENU_I = null;
+function openPepMenu(i, btn){
+  MENU_I = i;
+  const m = $('pepmenu'), r = btn.getBoundingClientRect();
+  m.style.top = (r.bottom + window.scrollY + 4) + 'px';
+  m.style.left = Math.max(8, r.right + window.scrollX - 260) + 'px';
+  $('pm_mods').disabled = !MODLIB_OK || !(PEPS[i].sequence || '').trim();
+  $('pm_mods').title = !MODLIB_OK ? 'Modifications need ADCP 1.1, which is not '
+                                    + 'installed here (see INSTALL.md)'
+                     : (!(PEPS[i].sequence || '').trim() ? 'Enter a sequence first' : '');
+  m.classList.remove('hide');
+}
+document.addEventListener('click', e => {
+  if(!$('pepmenu').contains(e.target)) $('pepmenu').classList.add('hide');
+});
+$('pm_dup').onclick = () => {
+  const i = MENU_I; $('pepmenu').classList.add('hide');
+  PEPS.splice(i + 1, 0, {name:'', sequence: PEPS[i].sequence}); drawPeps();
+};
+$('pm_rm').onclick = () => {
+  const i = MENU_I; $('pepmenu').classList.add('hide');
+  PEPS.splice(i, 1); if(!PEPS.length) PEPS.push({name:'', sequence:''}); drawPeps();
+};
+$('pm_mods').onclick = () => { $('pepmenu').classList.add('hide'); openMods(MENU_I); };
+
+/* The dialog works on a copy: rows are {pos, choice}, where choice is "" (not
+   chosen yet), "D" (the D form), "M:<code>" or "DM:<code>". */
+let MODS = null;
+function openMods(i){
+  const toks = tokens(PEPS[i].sequence);
+  const rows = [];
+  toks.forEach((t, pos) => {
+    if(t.code) rows.push({pos, choice: (t.d ? 'DM:' : 'M:') + t.code});
+    else if(t.d) rows.push({pos, choice: 'D'});
+  });
+  // The residue each position started as, for the options it offers. A
+  // modified position keeps its parent from the library.
+  const base = toks.map(t => {
+    const m = t.code && MODLIB.find(x => x.code === t.code);
+    return m ? m.parent : t.letter;
+  });
+  MODS = {i, toks, base, rows};
+  drawMods();
+  $('moddlg').showModal();
+}
+function optionsFor(letter){
+  const opts = [];
+  if(letter !== 'G') opts.push(['D', 'D-' + (RESNAME[letter] || letter) + ' (mirror image)']);
+  MODLIB.filter(m => m.parent === letter).forEach(m => {
+    opts.push(['M:' + m.code, m.name + ' (' + m.code + ')']);
+    if(m.d) opts.push(['DM:' + m.code, 'D form of ' + m.name + ' (' + m.code + ')']);
+  });
+  return opts;
+}
+function drawMods(){
+  const on = new Set(MODS.rows.map(r => r.pos));
+  const out = [];
+  for(let i = 0; i < MODS.base.length; i += 10){
+    out.push('<span class=grp data-n="' + Math.min(i + 10, MODS.base.length) + '">'
+      + MODS.base.slice(i, i + 10).map((c, k) => '<span class="r' + (on.has(i + k) ? ' on' : '')
+          + '" data-pos="' + (i + k) + '" title="' + (i + k + 1) + ' ' + esc(RESNAME[c] || c)
+          + '">' + esc(c) + '</span>').join('') + '</span>');
+  }
+  $('modseq').innerHTML = out.join('');
+  $('modrows').innerHTML = MODS.rows.map((r, k) => {
+    const c = MODS.base[r.pos], opts = optionsFor(c);
+    return '<div class=modrow><span class=chip>' + (r.pos + 1) + ' ' + esc(c) + '</span>'
+      + '<select data-row="' + k + '" aria-label="Type of modification for residue '
+      + (r.pos + 1) + '"><option value="">Select modification</option>'
+      + opts.map(([v, t]) => '<option value="' + esc(v) + '"' + (v === r.choice ? ' selected' : '')
+          + '>' + esc(t) + '</option>').join('') + '</select>'
+      + '<button class=icon data-del="' + k + '" title="Remove this modification"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9 3h6l1 2h4v2H4V5h4l1-2zm-3 6h12l-1 12H7L6 9zm4 2v8h2v-8h-2zm4 0v8h2v-8h-2z"/></svg></button></div>';
+  }).join('');
+  $('modseq').querySelectorAll('.r').forEach(el => el.onclick = () => {
+    const pos = +el.getAttribute('data-pos');
+    if(!MODS.rows.some(r => r.pos === pos)){
+      MODS.rows.push({pos, choice: ''});
+      MODS.rows.sort((a, b) => a.pos - b.pos);
+    }
+    drawMods();
+  });
+  $('modrows').querySelectorAll('select').forEach(el => el.onchange = () => {
+    MODS.rows[+el.getAttribute('data-row')].choice = el.value; modReady();
+  });
+  $('modrows').querySelectorAll('button[data-del]').forEach(b => b.onclick = () => {
+    MODS.rows.splice(+b.getAttribute('data-del'), 1); drawMods();
+  });
+  modReady();
+}
+function modReady(){
+  const open = MODS.rows.filter(r => !r.choice).length;
+  $('modsave').disabled = open > 0;
+  $('modmsg').textContent = open ? 'Choose a type for every highlighted residue.' : '';
+}
+$('modcancel').onclick = () => $('moddlg').close();
+$('modsave').onclick = () => {
+  const toks = MODS.base.map(letter => ({d: false, letter, code: null}));
+  MODS.rows.forEach(r => {
+    if(r.choice === 'D'){ toks[r.pos].d = true; return; }
+    const [kind, code] = r.choice.split(':');
+    const m = MODLIB.find(x => x.code === code);
+    // ADCP models the side chain with the coarse residue its library gives.
+    toks[r.pos] = {d: kind === 'DM', letter: m ? m.coarse : MODS.base[r.pos], code};
+  });
+  PEPS[MODS.i].sequence = compose(toks);
+  $('moddlg').close();
+  drawPeps();
+};
 $('addpep').onclick = () => { PEPS.push({name:'', sequence:''}); drawPeps();
   const b = $('peps').querySelectorAll('.ps'); b[b.length - 1].focus(); };
 

@@ -229,8 +229,6 @@ def main(argv=None):
                                      "everything it runs")
     ct.add_argument("rundir", nargs="?",
                     help="a run directory: lists only what that run used")
-    ct.add_argument("--how", action="store_true",
-                    help="how to make this tool itself citable (DOI, JOSS)")
     ct.add_argument("--verify", action="store_true",
                     help="resolve every DOI against Crossref (login node)")
     ct.add_argument("--bibtex", action="store_true", help="emit BibTeX")
@@ -282,9 +280,6 @@ def main(argv=None):
         from . import cite as citemod
         if a.verify:
             return citemod.verify()
-        if a.how:
-            citemod.how()
-            return 0
         job = None
         if a.rundir:
             # No `import os` here: an import anywhere inside

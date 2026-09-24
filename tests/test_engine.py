@@ -8,6 +8,7 @@ The last section checks that the stages call the shared engine in
 adcp_dock/_vendor rather than local reimplementations, which would
 require the same fixes a second time.
 """
+import json
 import os
 import sys
 import zipfile
@@ -613,6 +614,27 @@ _j = _job.default(adcp_engine="1.0", receptor=_prep, hotspots="A:1",
                   peptides=[{"name": "p", "sequence": "N<BHD>PIS&DVD"}])
 check(any("ADCP 1.1" in x for x in _job.validate(_j)),
       "an ADCP 1.0 run accepted a non-standard residue")
+
+# --- the Modifications dialog's list, and OpenMM parameter sets ------------
+_mods = json.load(open(os.path.join(os.path.dirname(HERE), "adcp_dock", "static",
+                                    "modifications.json")))["modifications"]
+check(len(_mods) > 100 and all(m["parent"] in _pep.STANDARD and m["coarse"]
+                               in _pep.STANDARD and m["code"] and m["name"]
+                               for m in _mods),
+      "the modification list is empty or has an entry without a parent, a "
+      "coarse residue, a code or a name")
+_exe = adcp11.find()
+if _exe:
+    for _seq, _want in (("R&WGPGAF<KYN>GS", "swiss"), ("RWGPGAF<0A1>GS", "sannerlab"),
+                        ("F<KYN>WGPGAS", None), ("RWGPGAWGS", "")):
+        check(adcp11.openmm_set_for(_exe, _seq) == _want,
+              "the OpenMM parameter set for %s is %r, expected %r"
+              % (_seq, adcp11.openmm_set_for(_exe, _seq), _want))
+    _lib = adcp11.library(_exe)
+    check(all(m["code"] in _lib for m in _mods),
+          "the modification list offers side chains ADCP 1.1 does not have")
+else:
+    print("skip  ADCP 1.1 is not installed here; its parameter checks were skipped")
 
 if fails:
     print("test_engine FAILED (%d)" % len(fails))
