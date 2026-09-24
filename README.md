@@ -129,6 +129,8 @@ The report also includes individual score summaries, pose counts, and available 
 
 Use MM-GBSA as an approximate ranking aid within a consistently prepared run. These values are not experimentally measured binding free energies or dissociation constants.
 
+Each run in the interface's list can be opened, reused as the starting point for a new run, downloaded, reported as an issue, shown on disk, or deleted. **folder** opens the run in your file manager when the interface runs on your own computer; on a cluster or in Colab it shows the run's path and how to reach it. **delete** asks first, removes the run's folder permanently, and is refused while any of the run's jobs is queued or running.
+
 ## Workflow checks
 
 The workflow checks grid-target contents before docking, identifies receptor and peptide selections by chain for rescoring, and checks bonded-energy cancellation in single-trajectory MM-GBSA calculations. Poses that fail the rescoring consistency check are excluded from those results.

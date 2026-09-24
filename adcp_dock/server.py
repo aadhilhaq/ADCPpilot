@@ -127,6 +127,18 @@ def fill_names(results, j):
     return results
 
 
+def _open_detached(cmd):
+    """Start a file manager and return at once; its window is the user's."""
+    import subprocess
+    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     stdin=subprocess.DEVNULL, start_new_session=True)
+
+
+# The function that starts the file manager: a name, so the tests can put
+# a recorder in its place instead of opening windows.
+OPENER = _open_detached
+
+
 class App:
     def __init__(self, runs, tools_roots=()):
         self.runs = os.path.abspath(os.path.expanduser(runs))
@@ -396,6 +408,94 @@ class App:
             return ("%s is not a run directory: it holds no job.json"
                     % rundir)
         return None
+
+    def _inside_runs(self, rundir):
+        """Whether a path is a run folder inside the runs folder itself."""
+        root = os.path.realpath(self.runs)
+        real = os.path.realpath(rundir)
+        return real != root and real.startswith(root + os.sep)
+
+    def delete_run(self, rundir):
+        """Remove a finished run's folder.
+
+        Only a run folder inside the runs folder, and only when none of its
+        jobs is queued or running: deleting under a running job leaves it
+        writing into a folder that is gone.
+        """
+        bad = self.check_run(rundir)
+        if bad:
+            return {"error": bad}
+        if not self._inside_runs(rundir):
+            return {"error": "only runs inside %s can be deleted here"
+                             % self.runs}
+        j = jobmod.load(rundir)
+        live = []
+        for k, v in (j.get("jobs") or {}).items():
+            word = self.summarise_state(slurm.state(v, rundir=rundir))
+            if word in ("running", "queued"):
+                live.append("%s %s" % (k, v))
+        if live:
+            return {"error": "this run still has jobs %s (%s); cancel them "
+                             "or let them finish first"
+                             % ("running" if len(live) == 1 else "queued or "
+                                "running", ", ".join(live))}
+        import shutil
+        shutil.rmtree(rundir)
+        return {"deleted": rundir}
+
+    def open_folder(self, rundir):
+        """Open a run's folder in the file manager, where that is possible.
+
+        Only when the interface runs on the computer in front of the user
+        (adcp-dock local, or a Mac or Windows machine): on a cluster or in
+        Colab the folder is on another machine, and the page shows its path
+        and how to reach it instead.
+        """
+        import platform
+        import subprocess
+        bad = self.check_run(rundir)
+        if bad:
+            return {"error": bad}
+        path = os.path.realpath(rundir)
+        host = platform.node()
+        if os.environ.get("COLAB_RELEASE_TAG"):
+            return {"opened": False, "path": path, "where": "colab",
+                    "hint": "In Colab, open the Files panel (the folder icon "
+                            "on the left) and go to this folder. Step 3 of "
+                            "the notebook downloads a run as a zip."}
+        system = platform.system()
+        desktop = (os.environ.get("ADCP_DESKTOP") == "1"
+                   or system in ("Darwin", "Windows"))
+        if desktop:
+            cmd = None
+            if system == "Darwin":
+                cmd = ["open", path]
+            elif system == "Windows":
+                cmd = ["explorer", path]
+            elif "microsoft" in platform.release().lower():
+                try:
+                    win = subprocess.run(["wslpath", "-w", path],
+                                         capture_output=True, text=True,
+                                         timeout=10).stdout.strip()
+                    cmd = ["explorer.exe", win] if win else None
+                except (OSError, subprocess.SubprocessError):
+                    cmd = None
+            elif os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"):
+                cmd = ["xdg-open", path]
+            if cmd:
+                try:
+                    OPENER(cmd)
+                    return {"opened": True, "path": path}
+                except OSError as exc:
+                    return {"opened": False, "path": path, "where": "local",
+                            "hint": "The file manager could not be opened "
+                                    "(%s); the folder is below." % exc}
+        return {"opened": False, "path": path, "where": "server",
+                "hint": "This run is on %s, the machine running the "
+                        "interface. Open it there in a terminal (cd to the "
+                        "folder), or with a file transfer program such as "
+                        "WinSCP, FileZilla or Cyberduck connected to that "
+                        "machine." % (host or "the server")}
 
     def run_sizes(self, rundir):
         """What each download would cost, so it can be said on the button."""
@@ -1027,6 +1127,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(app.create(body))
         if u.path == "/api/estimate":
             return self._send(app.estimate_run(body))
+        if u.path == "/api/delete":
+            return self._send(app.delete_run(body.get("rundir")))
+        if u.path == "/api/open_folder":
+            return self._send(app.open_folder(body.get("rundir")))
         if u.path == "/api/mkdir":
             return self._send(app.make_dir(body.get("parent"),
                                            body.get("name")))

@@ -93,6 +93,9 @@ def _local(a):
     os.environ["PATH"] = os.path.join(tools, "bin") + os.pathsep \
         + os.environ.get("PATH", "")
     os.environ["ADCP_EXECUTOR"] = "local"
+    # The browser is on this machine, so the page may open a run's folder in
+    # the file manager.
+    os.environ["ADCP_DESKTOP"] = "1"
 
     runs = os.path.abspath(os.path.expanduser(a.runs))
     os.makedirs(runs, exist_ok=True)

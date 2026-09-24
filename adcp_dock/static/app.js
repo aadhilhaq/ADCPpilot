@@ -1047,7 +1047,12 @@ async function listRuns(){
           + '" title="the whole run directory, grid maps included">'
           + 'all<span class=sz data-size="' + esc(r.rundir) + ':all"></span></button> '
           + '<button class=ghost data-issue="' + esc(r.rundir)
-          + '" title="send us the logs for this run">report an issue</button>'
+          + '" title="send us the logs for this run">report an issue</button> '
+          + '<button class="ghost sm" data-folder="' + esc(r.rundir)
+          + '" title="where this run is on disk">folder</button> '
+          + '<button class="ghost sm danger" data-del="' + esc(r.rundir)
+          + '" data-label="' + esc(r.label) + '" title="delete this run and '
+          + 'everything in its folder">delete</button>'
           + '</td></tr>').join('') + '</table>'
     : '<div class=why>no runs yet</div>';
   $('runs').querySelectorAll('button[data-open]').forEach(b =>
@@ -1056,6 +1061,11 @@ async function listRuns(){
     b.onclick = () => openIssue(b.getAttribute('data-issue')));
   $('runs').querySelectorAll('button[data-reuse]').forEach(b =>
     b.onclick = () => reuseRun(b.getAttribute('data-reuse')));
+  $('runs').querySelectorAll('button[data-folder]').forEach(b =>
+    b.onclick = () => showFolder(b.getAttribute('data-folder')));
+  $('runs').querySelectorAll('button[data-del]').forEach(b =>
+    b.onclick = () => deleteRun(b.getAttribute('data-del'),
+                                b.getAttribute('data-label')));
   // A plain navigation, so the browser saves the file under the name the
   // server gives and shows its own progress. Fetching it into memory first
   // would hold a large run in the tab.
@@ -1971,6 +1981,43 @@ async function fillSizes(dir){
       '[data-size="' + cssEsc(dir + ':' + what) + '"]');
     if(el && d[what]) el.textContent = ' ' + d[what].human;
   });
+}
+
+/* Where the run is. Opened in the file manager when the interface runs on
+   this computer; otherwise the folder is on another machine (a cluster, a
+   Colab session), so its path is shown with how to reach it. */
+async function showFolder(dir){
+  const r = await api('/api/open_folder', {rundir: dir});
+  if(r.error){ alert(r.error); return; }
+  $('foldertext').textContent = r.path;
+  $('folderhint').textContent = r.opened
+    ? 'Opened in your file manager.' : (r.hint || '');
+  $('foldernote').textContent = '';
+  $('folderdlg').showModal();
+}
+$('foldercopy').onclick = () => copyText($('foldertext').textContent,
+  $('foldertext'), $('foldernote'));
+$('folderclose').onclick = () => $('folderdlg').close();
+
+/* Deleting is permanent, so the question names the folder and its size, and
+   the server refuses while any of the run's jobs is queued or running. */
+async function deleteRun(dir, label){
+  const s = SIZES[dir];
+  const size = (s && s.all) ? ' (' + s.all.human + ' in ' + s.all.files
+    + ' files)' : '';
+  if(!confirm('Delete the run "' + (label || dir) + '"?\n\n' + dir + size
+              + '\n\nThe folder and everything in it are removed. This '
+              + 'cannot be undone.')) return;
+  const r = await api('/api/delete', {rundir: dir});
+  if(r.error){ alert('Not deleted: ' + r.error); return; }
+  delete SIZES[dir];
+  if(RUN === dir){
+    RUN = null;
+    clearInterval(WATCH);
+    $('rundetail').innerHTML = '';
+    $('viewcard').classList.add('hide');
+  }
+  listRuns();
 }
 
 /* One button; the form appears when it is wanted. */

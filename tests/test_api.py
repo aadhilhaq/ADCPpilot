@@ -2110,6 +2110,82 @@ if os.path.isfile(RECEPTOR):
 else:
     print("skip  the ion rule needs a receptor (ADCP_TEST_RECEPTOR)")
 
+# --- deleting a run, and showing where it is ---------------------------------
+#
+# Delete removes only a run folder inside the runs folder, and never while one
+# of its jobs is queued or running. The folder button opens a file manager only
+# where the interface runs on the user's own computer.
+_root = _tf.mkdtemp()
+_app = server.App(_root)
+
+
+def _mkrun(parent, name, jobs=None):
+    d = os.path.join(parent, name)
+    os.makedirs(d)
+    _jobmod.save(d, _jobmod.default(jobs=jobs or {}))
+    return d
+
+
+_done = _mkrun(_root, "finished")
+check(_app.delete_run(_done).get("deleted") == _done and not os.path.exists(_done),
+      "a finished run inside the runs folder was not deleted")
+_out = _mkrun(_tf.mkdtemp(), "elsewhere")
+check("error" in _app.delete_run(_out) and os.path.isdir(_out),
+      "a run outside the runs folder was deleted")
+_plain = os.path.join(_root, "not_a_run")
+os.makedirs(_plain)
+check("error" in _app.delete_run(_plain) and os.path.isdir(_plain),
+      "a folder that is not a run was deleted")
+check("error" in _app.delete_run(_root) and os.path.isdir(_root),
+      "the runs folder itself was accepted for deletion")
+_busy = _mkrun(_root, "busy", jobs={"dock": "L-dock"})
+json.dump({"pid": os.getpid(), "stages": {"dock": {"0": "RUNNING"}}},
+          open(os.path.join(_busy, "local_state.json"), "w"))
+_r = _app.delete_run(_busy)
+check("error" in _r and "running" in _r["error"] and os.path.isdir(_busy),
+      "a run with a job still running was deleted: %r" % _r)
+# In the server's runs folder as it is now: an earlier check moves it.
+_viahttp = _mkrun(httpd.app.runs, "delete_me_%d" % os.getpid())
+_resp = post("/api/delete", {"rundir": _viahttp})
+check(_resp.get("deleted") == _viahttp and not os.path.exists(_viahttp),
+      "/api/delete does not delete a finished run: %r" % _resp)
+
+_opened = []
+_real_opener = server.OPENER
+server.OPENER = lambda cmd: _opened.append(cmd)
+_env = {k: os.environ.get(k) for k in ("ADCP_DESKTOP", "COLAB_RELEASE_TAG", "DISPLAY")}
+try:
+    for k in _env:
+        os.environ.pop(k, None)
+    _f = _app.open_folder(_busy)
+    check(_f.get("opened") is False and _f.get("where") == "server"
+          and _f.get("path") == os.path.realpath(_busy) and not _opened,
+          "on a server the folder button opened something or gave no path: %r" % _f)
+    os.environ["COLAB_RELEASE_TAG"] = "test"
+    _f = _app.open_folder(_busy)
+    check(_f.get("where") == "colab" and "Files panel" in _f.get("hint", ""),
+          "in Colab the folder button does not point to the Files panel: %r" % _f)
+    os.environ.pop("COLAB_RELEASE_TAG")
+    os.environ["ADCP_DESKTOP"] = "1"
+    os.environ["DISPLAY"] = ":0"
+    _f = _app.open_folder(_busy)
+    check(_f.get("opened") is True and _opened
+          and _opened[-1] == ["xdg-open", os.path.realpath(_busy)],
+          "on a desktop the folder was not opened with the path as one "
+          "argument: %r %r" % (_f, _opened))
+    check("error" in _app.open_folder(_plain),
+          "the folder button opened a folder that is not a run")
+finally:
+    server.OPENER = _real_opener
+    for k, v in _env.items():
+        if v is None:
+            os.environ.pop(k, None)
+        else:
+            os.environ[k] = v
+check("id=folderdlg" in html and "data-folder=" in appjs and "data-del=" in appjs
+      and "confirm('Delete the run" in appjs,
+      "the run rows have no folder and delete buttons, or delete does not ask")
+
 # --- the length limit a run is created with is the one the page checks ------
 check(_jobmod.default()["max_length"] == peptide.MAX_LENGTH,
       "a new run's length limit is %s while the page checks %d"

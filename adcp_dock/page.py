@@ -225,6 +225,7 @@ button.primary{background:var(--accent);border-color:var(--accent);color:#fff;
   font-weight:600;padding:10px 26px}
 button.primary:hover{filter:brightness(1.08)}
 button.ghost{font-size:12.5px;padding:5px 12px;color:var(--dim)}
+button.ghost.danger{color:var(--bad)}
 button.icon{border:0;background:none;color:var(--dim);padding:4px 7px;
   font-size:15px;line-height:1}
 button:disabled{opacity:.45;cursor:default}
@@ -788,6 +789,19 @@ larger of the two and takes a moment the first time.">
      from inside a notebook's frame is blocked without a word. The addresses
      and the details to paste are always shown, so a report can be sent
      whatever the browser allows. -->
+<dialog id=folderdlg>
+  <div class=dlg-h><b>Run folder</b>
+    <span class=why id=folderhint></span></div>
+  <div class=listing><pre id=foldertext
+    style="white-space:pre-wrap;word-break:break-all;margin:0;font-size:12.5px"></pre></div>
+  <div class=dlg-f>
+    <span class=why id=foldernote></span>
+    <span style="display:flex;gap:8px;align-items:center">
+      <button class=ghost id=foldercopy>Copy path</button>
+      <button class=ghost id=folderclose>Close</button>
+    </span>
+  </div>
+</dialog>
 <dialog id=fbdlg>
   <div class=dlg-h><b>Send feedback</b>
     <span class=why>Write to aadhil.haq@tamu.edu, copying sfernando@tamu.edu,

@@ -18,7 +18,7 @@ authors:
     affiliation: "HOPE Lab, Texas A&M University"
     orcid: "https://orcid.org/0000-0002-7692-2170"
     role: "Principal Investigator"
-version: "0.1.8"
+version: "0.1.9"
 license: "MIT"
 abstract: >-
   Browser and command-line workflow for ADCP peptide docking. It connects
