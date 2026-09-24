@@ -227,7 +227,7 @@ merely has the Slurm client installed.
 
 The notebook runs the same interface on a Google Colab machine. Nothing is installed on your own computer. Press ▶ on each step in order.
 
-1. **Install.** Installs the package, PDB2PQR, OpenMM and PDBFixer, then downloads ADFRsuite from the Scripps Research Institute and checks it against its pinned checksum. It takes about five minutes and ends with a single line such as *Installed in 4 min 50 s*.
+1. **Install.** Installs the package, PDB2PQR, OpenMM and PDBFixer, then downloads ADFRsuite from the Scripps Research Institute and checks it against its pinned checksum. With **add_MM_GBSA** ticked (the default), it also installs AmberTools from conda-forge into its own folder, using micromamba, for MM-GBSA rescoring. It takes about five minutes, a few more with AmberTools, and ends with a single line such as *Installed in 6 min 10 s, with MM-GBSA*.
 2. **Open GUI to ADCP Docking.** Starts the interface on the Colab machine and shows it inside the notebook, across the full width of the page. **Open in a separate tab** shows the same interface in its own browser tab.
 3. **Download a run.** Optional. Finished runs can be downloaded from the interface; this step zips a run and downloads it instead.
 
@@ -235,7 +235,7 @@ Things to know before you start:
 
 * The calculations run on the Colab machine, one step after another. The number of cores, the memory, and the session length depend on your Colab plan. The interface shows the cores it found and starts with small search settings.
 * Colab deletes the session's files when the session ends. Download the runs you want to keep.
-* MM-GBSA rescoring is not available in the notebook, because AmberTools is not on pip. Docking and the ADCP scores work normally, and the interface disables the MM-GBSA option.
+* MM-GBSA rescoring needs AmberTools, which step 1 installs when **add_MM_GBSA** is ticked. Without it, docking and the ADCP scores work normally and the interface disables the MM-GBSA option. On two cores MM-GBSA is slow: allow several minutes per pose.
 * ADFRsuite includes components that are free for academic use only (see the end of this guide).
 
 Use the notebook to explore the workflow and inspect inputs. Reduced search settings are not a validated production protocol.
