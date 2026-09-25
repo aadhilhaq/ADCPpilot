@@ -22,21 +22,27 @@ For this run, from its job.json:
   - protonation states and titration at the chosen pH
       Jurrus E, Engel D, Star K, et al. Improvements to the APBS biomolecular solvation software suite. Protein Sci 27(1):112-128, 2018.
       doi:10.1002/pro.3280
+      (only if: receptor preparation, or MM-GBSA)
   - the pKa prediction pdb2pqr uses
       Olsson MHM, Sondergaard CR, Rostkowski M, Jensen JH. PROPKA3: consistent treatment of internal and surface residues in empirical pKa predictions. J Chem Theory Comput 7(2):525-537, 2011.
       doi:10.1021/ct100578z
+      (only if: receptor preparation, or MM-GBSA)
+  - rebuilding missing side chains and atoms
+      Eastman P, et al. OpenMM 7: rapid development of high performance algorithms for molecular dynamics. PLoS Comput Biol 13(7):e1005659, 2017.  (PDBFixer is distributed with OpenMM.)
+      doi:10.1371/journal.pcbi.1005659
+      (only if: receptor preparation, or ADCP 1.1's minimization)
   - the restrained energy minimisation
       Eastman P, et al. OpenMM 7: rapid development of high performance algorithms for molecular dynamics. PLoS Comput Biol 13(7):e1005659, 2017.
       doi:10.1371/journal.pcbi.1005659
-      (only if: prep_minimise)
+      (only if: the receptor's minimization, or ADCP 1.1's)
   - tleap, sander and the force field used for MM-GBSA
       Case DA, et al. AmberTools. J Chem Inf Model 63(20):6183-6191, 2023.
       doi:10.1021/acs.jcim.3c01153
       (only if: mmgbsa)
-  - the ff14SB protein force field tleap builds with
+  - the ff14SB protein force field of the receptor's minimization and of MM-GBSA
       Maier JA, Martinez C, Kasavajhala K, Wickstrom L, Hauser KE, Simmerling C. ff14SB: improving the accuracy of protein side chain and backbone parameters from ff99SB. J Chem Theory Comput 11(8):3696-3713, 2015.
       doi:10.1021/acs.jctc.5b00255
-      (only if: mmgbsa)
+      (only if: the receptor's minimization, or MM-GBSA)
   - the MM-GBSA calculation itself
       Miller BR III, McGee TD Jr, Swails JM, Homeyer N, Gohlke H, Roitberg AE. MMPBSA.py: an efficient program for end-state free energy calculations. J Chem Theory Comput 8(9):3314-3321, 2012.
       doi:10.1021/ct300418h
@@ -45,6 +51,10 @@ For this run, from its job.json:
       Onufriev A, Bashford D, Case DA. Exploring protein native states and large-scale conformational changes with a modified generalized born model. Proteins 55(2):383-394, 2004.
       doi:10.1002/prot.20033
       (only if: mmgbsa)
+  - the GBn2 implicit solvent model of the OpenMM minimizations
+      Nguyen H, Roe DR, Simmerling C. Improved generalized Born solvent model parameters for protein simulations. J Chem Theory Comput 9(4):2020-2034, 2013.
+      doi:10.1021/ct3010485
+      (only if: the receptor's minimization, or ADCP 1.1's in implicit solvent)
   - the array arithmetic under the box and the poses
       Harris CR, Millman KJ, van der Walt SJ, et al. Array programming with NumPy. Nature 585(7825):357-362, 2020.
       doi:10.1038/s41586-020-2649-2

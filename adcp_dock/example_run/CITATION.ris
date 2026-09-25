@@ -112,7 +112,7 @@ VL  - 13
 IS  - 7
 SP  - e1005659
 DO  - 10.1371/journal.pcbi.1005659
-N1  - used for: the restrained energy minimisation
+N1  - used for: rebuilding missing side chains and atoms
 ER  - 
 
 TY  - JOUR
@@ -144,7 +144,7 @@ IS  - 8
 SP  - 3696
 EP  - 3713
 DO  - 10.1021/acs.jctc.5b00255
-N1  - used for: the ff14SB protein force field tleap builds with
+N1  - used for: the ff14SB protein force field of the receptor's minimization and of MM-GBSA
 ER  - 
 
 TY  - JOUR
@@ -178,6 +178,21 @@ SP  - 383
 EP  - 394
 DO  - 10.1002/prot.20033
 N1  - used for: the generalised Born model itself (igb=5, GB-OBC II, 0.15 M salt)
+ER  - 
+
+TY  - JOUR
+TI  - Improved generalized Born solvent model parameters for protein simulations
+AU  - Nguyen, Hai
+AU  - Roe, Daniel R.
+AU  - Simmerling, Carlos
+JO  - Journal of Chemical Theory and Computation
+PY  - 2013
+VL  - 9
+IS  - 4
+SP  - 2020
+EP  - 2034
+DO  - 10.1021/ct3010485
+N1  - used for: the GBn2 implicit solvent model of the OpenMM minimizations
 ER  - 
 
 TY  - JOUR

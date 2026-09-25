@@ -45,22 +45,25 @@ REFERENCES = [
      "pseudo-ligands prediction—from ligand-binding sites identification "
      "to predicting key ligand atoms. Bioinformatics 32(20):3142-3149, 2016.",
      "10.1093/bioinformatics/btw367"),
-    ("pdb2pqr", "always", "protonation states and titration at the chosen pH",
+    ("pdb2pqr", "receptor preparation, or MM-GBSA",
+     "protonation states and titration at the chosen pH",
      "Jurrus E, Engel D, Star K, et al. Improvements to the APBS "
      "biomolecular solvation software suite. Protein Sci 27(1):112-128, 2018.",
      "10.1002/pro.3280"),
-    ("propka", "always", "the pKa prediction pdb2pqr uses",
+    ("propka", "receptor preparation, or MM-GBSA",
+     "the pKa prediction pdb2pqr uses",
      "Olsson MHM, Sondergaard CR, Rostkowski M, Jensen JH. PROPKA3: "
      "consistent treatment of internal and surface residues in empirical "
      "pKa predictions. J Chem Theory Comput 7(2):525-537, 2011.",
      "10.1021/ct100578z"),
-    ("pdbfixer", "prep_fill_loops or missing atoms rebuilt",
+    ("pdbfixer", "receptor preparation, or ADCP 1.1's minimization",
      "rebuilding missing side chains and atoms",
      "Eastman P, et al. OpenMM 7: rapid development of high performance "
      "algorithms for molecular dynamics. PLoS Comput Biol 13(7):e1005659, "
      "2017.  (PDBFixer is distributed with OpenMM.)",
      "10.1371/journal.pcbi.1005659"),
-    ("openmm", "prep_minimise", "the restrained energy minimisation",
+    ("openmm", "the receptor's minimization, or ADCP 1.1's",
+     "the restrained energy minimisation",
      "Eastman P, et al. OpenMM 7: rapid development of high performance "
      "algorithms for molecular dynamics. PLoS Comput Biol 13(7):e1005659, "
      "2017.",
@@ -69,7 +72,10 @@ REFERENCES = [
      "Case DA, et al. AmberTools. J Chem Inf Model 63(20):6183-6191, 2023.",
      "10.1021/acs.jcim.3c01153"),
     # Asked for by https://ambermd.org/CiteAmber.php with the force field.
-    ("ff14sb", "mmgbsa", "the ff14SB protein force field tleap builds with",
+    # The receptor's minimization uses it too (OpenMM's amber14-all.xml).
+    ("ff14sb", "the receptor's minimization, or MM-GBSA",
+     "the ff14SB protein force field of the receptor's minimization and of "
+     "MM-GBSA",
      "Maier JA, Martinez C, Kasavajhala K, Wickstrom L, Hauser KE, "
      "Simmerling C. ff14SB: improving the accuracy of protein side chain and "
      "backbone parameters from ff99SB. J Chem Theory Comput 11(8):3696-3713, "
@@ -102,15 +108,16 @@ REFERENCES = [
      "2004.",
      "10.1002/jcc.20035"),
     # ADCP 1.1 minimizes with OpenMM using Amber ff99SB (amber99sb.xml) and,
-    # in implicit solvent, the GBn2 model (gbn2.xml): openMMmethods.py.
+    # in implicit solvent, the GBn2 model (gbn2.xml): openMMmethods.py. The
+    # receptor's minimization uses GBn2 as well (implicit/gbn2.xml).
     ("ff99sb", "ADCP 1.1 poses minimized with OpenMM",
      "the Amber ff99SB force field ADCP 1.1 minimizes poses with",
      "Hornak V, Abel R, Okur A, Strockbine B, Roitberg A, Simmerling C. "
      "Comparison of multiple Amber force fields and development of improved "
      "protein backbone parameters. Proteins 65(3):712-725, 2006.",
      "10.1002/prot.21123"),
-    ("gbn2", "ADCP 1.1 poses minimized with OpenMM in implicit solvent",
-     "the GBn2 implicit solvent model of that minimization",
+    ("gbn2", "the receptor's minimization, or ADCP 1.1's in implicit solvent",
+     "the GBn2 implicit solvent model of the OpenMM minimizations",
      "Nguyen H, Roe DR, Simmerling C. Improved generalized Born solvent model "
      "parameters for protein simulations. J Chem Theory Comput "
      "9(4):2020-2034, 2013.",
@@ -319,18 +326,23 @@ def used_by(job):
     """The keys a given run actually used, from its job.json."""
     keys = {k for k, when, *_ in REFERENCES if when == "always"}
     seqs = [(p.get("sequence") or "").upper() for p in job.get("peptides") or []]
-    # MM-GBSA runs only on peptides without non-standard or D residues.
+    # A run given a target file skips this package's preparation.
+    if not str(job.get("target_file") or "").strip():
+        # PDBFixer checks every receptor for missing atoms, and the
+        # minimization is OpenMM with ff14SB and GBn2 (prepare.minimise).
+        keys |= {"pdb2pqr", "propka", "pdbfixer"}
+        if job.get("minimise", True):
+            keys |= {"openmm", "ff14sb", "gbn2"}
+    # MM-GBSA runs only on peptides without non-standard or D residues, and
+    # protonates each complex with PDB2PQR and PROPKA first.
     if job.get("mmgbsa") and (not seqs or any(not peptide.is_extended(s) for s in seqs)):
-        keys |= {"amber", "ff14sb", "mmpbsa", "gbmodel"}
+        keys |= {"amber", "ff14sb", "mmpbsa", "gbmodel", "pdb2pqr", "propka"}
     omm = int(job.get("omm_minimize") or 0)
-    if job.get("minimise", True) or omm:
-        keys.add("openmm")
     if omm:
-        keys.add("ff99sb")
+        # ADCP 1.1 completes each pose with PDBFixer before minimizing it.
+        keys |= {"openmm", "pdbfixer", "ff99sb"}
         if (job.get("omm_env") or "implicit") == "implicit":
             keys.add("gbn2")
-    if job.get("fill_loops"):
-        keys.add("pdbfixer")
     if any(peptide.nonstandard((p.get("sequence") or "").upper())
            for p in job.get("peptides") or []):
         keys.add("swisssidechain")

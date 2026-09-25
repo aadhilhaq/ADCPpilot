@@ -351,7 +351,7 @@ references:
     end: "3713"
     year: 2015
     doi: "10.1021/acs.jctc.5b00255"
-    notes: "The ff14SB force field, when MM-GBSA is run."
+    notes: "The ff14SB force field of the receptor minimization and of MM-GBSA."
   - type: article
     title: "MMPBSA.py: An Efficient Program for End-State Free Energy Calculations"
     authors:
@@ -408,7 +408,7 @@ references:
     end: "D332"
     year: 2012
     doi: "10.1093/nar/gks991"
-    notes: "the non-standard side chains and rotamers in ADCP 1.1's library"
+    notes: "SwissSidechain, the source of the non-standard side chains and rotamers in ADCP 1.1's library."
   - type: article
     title: "Development and testing of a general amber force field"
     authors:
@@ -429,7 +429,7 @@ references:
     end: "1174"
     year: 2004
     doi: "10.1002/jcc.20035"
-    notes: "the GAFF parameters ADCP 1.1 minimizes non-standard residues with"
+    notes: "GAFF, the parameters ADCP 1.1 minimizes non-standard residues with."
   - type: article
     title: "Comparison of multiple Amber force fields and development of improved protein backbone parameters"
     authors:
@@ -452,7 +452,7 @@ references:
     end: "725"
     year: 2006
     doi: "10.1002/prot.21123"
-    notes: "the Amber ff99SB force field ADCP 1.1 minimizes poses with"
+    notes: "The Amber ff99SB force field ADCP 1.1 minimizes poses with."
   - type: article
     title: "Improved Generalized Born Solvent Model Parameters for Protein Simulations"
     authors:
@@ -469,7 +469,7 @@ references:
     end: "2034"
     year: 2013
     doi: "10.1021/ct3010485"
-    notes: "the GBn2 implicit solvent model of that minimization"
+    notes: "The GBn2 implicit solvent model of the receptor minimization and of ADCP 1.1's pose minimization."
   - type: article
     title: "3Dmol.js: molecular visualization with WebGL"
     authors:

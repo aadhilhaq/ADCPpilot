@@ -2323,11 +2323,27 @@ check("swisssidechain" in _k and "gaff" not in _k,
 _k = _cite.used_by({"peptides": [{"sequence": "GAWAG"}], "omm_minimize": 2})
 check({"openmm", "ff99sb", "gbn2"} <= _k,
       "a minimized run does not cite OpenMM, ff99SB and GBn2: %s" % sorted(_k))
-_k = _cite.used_by({"peptides": [{"sequence": "GAWAG"}], "omm_minimize": 2, "omm_env": "vacuum"})
+_k = _cite.used_by({"peptides": [{"sequence": "GAWAG"}], "omm_minimize": 2, "omm_env": "vacuum",
+                    "minimise": False})
 check("ff99sb" in _k and "gbn2" not in _k, "a run minimized in vacuum cites GBn2")
+# The receptor's minimization is OpenMM with ff14SB and GBn2
+_k = _cite.used_by({"peptides": [{"sequence": "GAWAG"}]})
+check({"pdb2pqr", "propka", "pdbfixer", "openmm", "ff14sb", "gbn2"} <= _k,
+      "a prepared and minimized receptor does not cite what prepared it: %s" % sorted(_k))
+_k = _cite.used_by({"peptides": [{"sequence": "GAWAG"}], "minimise": False})
+check({"pdb2pqr", "propka", "pdbfixer"} <= _k and not ({"openmm", "ff14sb", "gbn2"} & _k),
+      "an unminimized receptor cites the minimization, or not its preparation: %s" % sorted(_k))
+# A run from a target file prepares nothing; MM-GBSA still protonates with PDB2PQR
+_k = _cite.used_by({"peptides": [{"sequence": "GAWAG"}], "target_file": "/x/rec.trg"})
+check(not ({"pdb2pqr", "propka", "pdbfixer", "openmm", "ff14sb", "gbn2"} & _k),
+      "a run from a target file cites a preparation it did not run: %s" % sorted(_k))
+_k = _cite.used_by({"peptides": [{"sequence": "GAWAG"}], "target_file": "/x/rec.trg", "mmgbsa": True})
+check({"pdb2pqr", "propka", "amber", "ff14sb", "mmpbsa", "gbmodel"} <= _k
+      and not ({"openmm", "gbn2"} & _k),
+      "MM-GBSA from a target file is cited wrongly: %s" % sorted(_k))
 # MM-GBSA is cited only when some peptide can be rescored with it
 _k = _cite.used_by({"peptides": [{"sequence": "GAF<KYN>AG"}, {"sequence": "GA&WAG"}], "mmgbsa": True})
-check(not ({"amber", "ff14sb", "mmpbsa", "gbmodel"} & _k),
+check(not ({"amber", "mmpbsa", "gbmodel"} & _k),
       "MM-GBSA is cited for a run where no peptide could be rescored: %s" % sorted(_k))
 _k = _cite.used_by({"peptides": [{"sequence": "GAF<KYN>AG"}, {"sequence": "GAWAG"}], "mmgbsa": True})
 check({"amber", "ff14sb", "mmpbsa", "gbmodel"} <= _k,
