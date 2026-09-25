@@ -112,4 +112,12 @@ Report problems through [GitHub Issues](https://github.com/aadhilhaq/ADCP_dockin
 
 ## License
 
-The [BSD 3-Clause license](LICENSE) covers this package's own code. ADCP, ADFRsuite, AmberTools, PDB2PQR and the other programs it uses keep their own licences; [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) lists them. No Scripps code is included in this repository.
+| What | License | Text |
+|---|---|---|
+| This package: all code and documents in this repository, except the rows below | BSD 3-Clause | [LICENSE](LICENSE) |
+| 3Dmol.js, bundled structure viewer | BSD 3-Clause | `adcp_dock/static/3Dmol.LICENSE.txt` |
+| Mol*, bundled structure viewer | MIT | `adcp_dock/static/molstar.LICENSE.txt` |
+| Table of ADCP 1.1's non-standard residues (codes, structures) | Derived from ADCP 1.1's SwissSidechain library | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) |
+| ADCP, ADFRsuite, AmberTools, PDB2PQR and the other programs it runs | Their own licences; not included in this repository | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) |
+
+No Scripps code is included in this repository: ADCP and ADFRsuite are downloaded from the Scripps Research Institute by each user. Some of their components are free for academic use only; THIRD_PARTY_NOTICES.md says which, and which of them this package installs.

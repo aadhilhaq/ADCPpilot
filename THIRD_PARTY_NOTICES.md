@@ -13,7 +13,7 @@ under their own terms.
 |---|---|---|---|
 | ADCP (adcp) | Scripps Research Institute | GNU LGPL (version 2.1 or later, per runADCP.py) | Downloaded from Scripps by the user's installer, in ADFRsuite 1.0 |
 | agfr, prepare_receptor, AutoGrid4, AutoSite | Scripps Research Institute | ADFRsuite terms, generally LGPL; see https://ccsb.scripps.edu/adfr/downloads/ | As above |
-| MSMS, MSLIB (in the ADFRsuite download) | Scripps Research Institute | Free for academic use; commercial use needs a licence | Not used and not installed: the installers pass the ADFRsuite installer's `-l` switch, which leaves them out |
+| MSMS program and library (mslib), UT packages, and the other parts ADFRsuite's LICENSE.txt marks academic-only | Scripps Research Institute; University of Texas at Austin | Free for academic use only; commercial use needs a licence from their owners | Unpacked in every ADFRsuite installation, but not used by the programs this package runs (prepare_receptor, agfr, autogrid4, adcp): mslib is imported only by ADFR's map-fixing utility and its graphical interface, the UT packages only by graphical packages. The installers pass `-l`, so the MSMS library is never activated. |
 | PDB2PQR | APBS/PDB2PQR developers | BSD-3-Clause | pip |
 | PROPKA (run by PDB2PQR) | PROPKA developers | LGPL-2.1 | pip, with PDB2PQR |
 | ADCP 1.1 environment (optional): adcp, adfr, autosite and their libraries | Scripps Research Institute | ADCP under GNU LGPL; the environment also includes the MSMS library (mslib) and the UT packages, free for academic use only | Installed by the user with `adcp-dock install-adcp11`, which follows Scripps' own script |

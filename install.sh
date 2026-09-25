@@ -249,8 +249,8 @@ MSG
   # No licence answer is given on the user's behalf. The Scripps installer
   # asks "ACADEMIC INSTALLATION (Y/N)?" about MSMS, a licence declaration
   # only the installing user can make. This tool never calls MSMS, so -l
-  # (the installer's own switch) leaves it out, and stdin is /dev/null so no
-  # prompt can block the install.
+  # (the installer's own switch) skips the question and the MSMS library is
+  # never activated; stdin is /dev/null so no prompt can block the install.
   if ! ./install.sh -d "$TOOLS/ADFRsuite" -c 0 -l < /dev/null > "$LOG" 2>&1; then
     say "  the installer returned non-zero; checking what it produced anyway"
   fi

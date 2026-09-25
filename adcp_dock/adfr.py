@@ -23,10 +23,11 @@ platform-independent sources are byte-identical to the Linux tarball's.
 
 LICENSING. ADFRsuite is distributed mostly under the LGPL 2, but bundles
 components that are free for academic use only: MSMS (Scripps), the UT
-packages (UT Austin) and STRIDE. This package calls none of them. MSMS in
-particular is installed only after the installing user answers an
-academic-or-commercial question, and this installer does not answer it on
-their behalf: it passes -l, the installer's own switch for omitting MSMS.
+packages (UT Austin) and STRIDE. Every installation unpacks them, but the
+programs this package runs do not use them. The MSMS library is activated
+only when the installing user answers an academic-or-commercial question,
+and this installer does not answer it on their behalf: it passes -l, the
+installer's own switch for skipping that question, so it stays inactive.
 Scripps asks that ADFRsuite be downloaded from their site rather than
 redistributed, which is what this does.
 """
@@ -180,9 +181,9 @@ def install(dest, cache=None, log=print):
             t.extractall(cache)
     src = os.path.join(cache, top)
 
-    # MSMS is omitted with -l rather than answered for: the installer's
-    # academic-or-commercial question is a licence declaration only the
-    # installing user can make, and nothing in this package calls MSMS.
+    # The academic-or-commercial question about MSMS is skipped with -l
+    # rather than answered: it is a licence declaration only the installing
+    # user can make, and nothing in this package calls MSMS.
     # stdin is /dev/null so no prompt can block the install.
     log("  running the Scripps installer (a few minutes)")
     logf = os.path.join(cache, "adfr_install.log")
@@ -202,9 +203,9 @@ def install(dest, cache=None, log=print):
     shutil.rmtree(src, ignore_errors=True)
     log("ADFRsuite installed in %s" % dest)
     log(LICENCE_NOTE)
-    log("MSMS was not installed: it needs you to state academic or commercial "
-        "use, and this tool does not use it. To add it, run ADFRsuite's own "
-        "installer yourself, without -l.")
+    log("The MSMS library was not activated: that needs you to state academic "
+        "or commercial use, and this tool does not use it. To activate it, run "
+        "ADFRsuite's own installer yourself, without -l.")
     return dest
 
 
