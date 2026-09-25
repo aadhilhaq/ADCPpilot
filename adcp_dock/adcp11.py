@@ -1,6 +1,8 @@
 """ADCP 1.1: finding it, running it, and writing what it produces in the
 layout the rest of this package reads.
 
+By Aadhil Haq
+
 ADCP 1.1 is installed by the Scripps Research Institute's own recipe as a
 separate conda environment (called adcpsuite), with its own Python. It adds
 non-standard and D amino acids, all-atom poses in one multi-model file, and
@@ -227,17 +229,25 @@ def dock(sequence, trg, workdir, exe, key=None, replicas=100, steps=5_000_000,
             cmd += ["-nmin", str(minimize), "-env", omm_env, "-dr"]
             if ffset:
                 cmd += ["-F", ffset]
-        r = _run(cmd, wd, exe)
+        _run(cmd, wd, exe)
         n = split_poses(wd)
         if not n and minimize:
             log("      %s: the docking with OpenMM minimization gave no pose; "
                 "docking again without it" % sequence)
-            r = _run(base, wd, exe, append=True)
+            _run(base, wd, exe, append=True)
             n = split_poses(wd)
-        if r.returncode == 0 and n:
+        elif n and minimize and not read_openmm(wd):
+            # ADCP writes the poses before it minimizes them, and exits with
+            # an error when OpenMM cannot use a residue's template: ADCP
+            # 1.1.21 lists parameters for FVAL, FPG2, FPG3, FTR and FT6 that
+            # do not match the residues it builds. The docking stands.
+            log("      %s: docked, but ADCP's OpenMM minimization failed, so "
+                "its poses are not minimized; see %s"
+                % (sequence, os.path.join(wd, "adcp_run.log")))
+        if n:
             with open(marker, "w") as fh:
                 fh.write("ADCP 1.1: %d replicas, %d steps\n" % (replicas, steps))
-        elif not n:
+        else:
             log("      %s: ADCP 1.1 produced no pose; see %s"
                 % (sequence, os.path.join(wd, "adcp_run.log")))
     omm = read_openmm(wd)

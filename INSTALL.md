@@ -10,7 +10,7 @@ Choose the environment where the calculations will run:
 | **your own computer** (Linux, macOS, or Windows through WSL) | install in a Python environment | [2](#2-on-your-own-computer) |
 | **Google Colab** | install and run in the notebook runtime | [3](#3-in-google-colab) |
 
-The desktop launcher ([4](#4-the-desktop-launcher)) is an optional convenience
+The desktop launcher ([5](#5-the-desktop-launcher)) is an optional convenience
 for the first of those: it signs in, starts the tool on the cluster and opens
 the page for you.
 
@@ -52,7 +52,7 @@ pip install -e ".[local]"              # the package, and pdb2pqr
 python -m adcp_dock.adfr --dest ~/tools/ADFRsuite
 ```
 
-The last command downloads ADFRsuite from Scripps, checks the archive against a pinned SHA-256 checksum, and installs it. The installer includes a certificate-error fallback; the checksum check remains required. A checksum verifies the expected archive contents, while TLS verification addresses the server connection.
+The last command downloads ADFRsuite from Scripps, checks the archive against a pinned SHA-256 checksum, and installs it.
 
 **For a whole group**, install once in a shared directory and have everyone
 use it: `--dest /path/to/group/tools/ADFRsuite`, with the repository cloned
@@ -116,7 +116,7 @@ The server binds to 127.0.0.1 and requires an access token. Keep the token priva
 ssh -N -L 41823:127.0.0.1:41823 you@login.your-cluster.edu
 ```
 
-Or let the launcher do all of that (section 4): choose **Other (SLURM)** and
+Or let the launcher do all of that (section 5): choose **Other (SLURM)** and
 give it your cluster's login address.
 
 ### 1.6 If your cluster does not allow servers on login nodes
@@ -237,13 +237,13 @@ Things to know before you start:
 * Colab deletes the session's files when the session ends. Download the runs you want to keep. **Runtime → Disconnect and delete runtime** removes every run at once; the example returns the next time step 2 runs.
 * Each person who opens the notebook gets a separate Colab machine, so nobody else sees your runs.
 * MM-GBSA rescoring needs AmberTools, which step 1 installs when **add_MM_GBSA** is ticked. Without it, docking and the ADCP scores work normally and the interface disables the MM-GBSA option. On two cores MM-GBSA is slow: allow several minutes per pose.
-* ADFRsuite includes components that are free for academic use only (see the end of this guide).
+* Some components of ADFRsuite and of ADCP 1.1 are free for academic use only; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 Use the notebook to explore the workflow and inspect inputs. Reduced search settings are not a validated production protocol.
 
 ---
 
-## 3a. ADCP 1.1 (optional)
+## 4. ADCP 1.1 (optional)
 
 ADCP 1.1 is the current version of AutoDock CrankPep. It adds non-standard and D amino acids, all-atom poses in one file, and an optional OpenMM minimization and re-ranking of the top poses. The Scripps Research Institute distributes it as its own Python 3.7 environment. Install it, on a cluster login node, a workstation or in Colab, with:
 
@@ -260,7 +260,7 @@ Each run chooses its engine under **Docking engine**: *ADCP, newest installed* (
 
 * **Non-standard and D amino acids.** Write a non-standard residue as the one-letter code of the standard residue whose coarse model it uses, followed by its library name in angle brackets, and a D residue with `&` before its letter: `N<BHD>PIS&DVD` is seven residues. The names are those of ADCP's side-chain libraries (the SwissSideChain set). MM-GBSA rescoring is skipped for these peptides, since its force field has no parameters for them; use the OpenMM minimization instead.
 * **Choosing them in the page.** Open a peptide's &#8942; menu and choose *Modifications*. Click a residue, then pick its D form or one of the modifications ADCP has for that residue; the list offers only what the installed ADCP 1.1 contains. Each choice is drawn below the list as the residue sits in the chain, with the charge ADCP models it with, so variants such as SEP and SEP2 (charge &minus;1 and &minus;2) can be told apart. A D residue is drawn as the mirror image of the L one, which is how ADCP builds it. Saving writes the sequence in the syntax above.
-* **OpenMM minimization.** *Poses to minimize with OpenMM* (`--omm-minimize N`) minimizes the top N poses in implicit solvent and reports the lowest E(complex) minus E(receptor) beside the scores. The minimized complexes and their Amber topologies stay in the run's docking folder.
+* **OpenMM minimization.** *Poses to minimize with OpenMM* (`--omm-minimize N`) minimizes the top N poses in implicit solvent and reports the lowest E(complex) minus E(receptor) beside the scores. The minimized complexes and their Amber topologies stay in the run's docking folder. It covers nearly every residue the dialog offers. ADCP 1.1.21 has no parameters for IYR, PBF, PHI and TYI, and its parameters for FVAL, FPG2, FPG3, FTR and FT6 fail in OpenMM; a peptide containing one of these is still docked, its poses are left unminimized, and the run's log says so.
 
 A run can also start from a target file made in AGFR or AGFRGUI: give its path under *or a target file* (`--target-file`). The receptor, maps and box then come from that file, and this package's receptor preparation is not run. The file's name must not be changed, since ADCP finds the maps by it.
 
@@ -268,13 +268,13 @@ Scripps' ADCP 1.1 environment includes the MSMS library (mslib) and the UT packa
 
 ---
 
-## 4. The desktop launcher
+## 5. The desktop launcher
 
 The launcher connects to a cluster over SSH, supports two-factor
 authentication, starts `adcp-dock serve` on the login node, forwards a port
 and opens your browser. Closing it stops the server.
 
-### 4.1 Get it
+### 5.1 Get it
 
 * **Windows and macOS**: download from the repository's **Releases** page.
   Windows is a folder: keep it together and run the `.exe` inside. macOS is
@@ -287,7 +287,7 @@ Windows says *Windows protected your PC* (**More info → Run anyway**); macOS
 refuses to open it (**right-click → Open → Open**). Signing removes those
 prompts.
 
-### 4.2 What it asks for
+### 5.2 What it asks for
 
 | field | what to put |
 |---|---|
@@ -303,7 +303,7 @@ whichever your cluster uses.
 
 ---
 
-## 5. If something does not work
+## 6. If something does not work
 
 | what you see | what it means |
 |---|---|
@@ -319,7 +319,7 @@ whichever your cluster uses.
 
 ---
 
-## 6. Uninstall
+## 7. Uninstall
 
 ```bash
 pip uninstall adcp-dock
@@ -327,11 +327,3 @@ rm -rf ADCP_docking ~/.adcp-dock
 ```
 
 The commands above remove the named installation directories. Run outputs stored elsewhere remain available; move any outputs saved inside those directories before removing them.
-
----
-
-Use `adcp-dock cite <run>` to list the tools recorded for a particular run, with
-DOIs, and every finished run carries `HOW_TO_CITE.txt`, `CITATION.bib` and
-`CITATION.ris`. ADFRsuite bundles components that are free for academic use
-only (MSMS, the UT packages, STRIDE); commercial users should contact the
-Scripps Research Institute.

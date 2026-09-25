@@ -1,5 +1,7 @@
 """The parts that fail silently: target contents and the MM-GBSA split.
 
+By Aadhil Haq
+
 Both produce numbers when they are wrong. A stage that crashes announces
 itself; a stage that returns a plausible energy computed on the wrong
 molecules does not.
@@ -182,8 +184,8 @@ check(rows[0]["peptide"] == "B", "the better MM-GBSA did not rank first")
 # chains, so a ranked pose lists a residue's atoms in two places. Copying
 # those lines out in file order produced a PDB with duplicate residues, a
 # topology twice the size it should be, and a PDB2PQR refusal: after the
-# docking had already succeeded. hope_core does not copy the pose at all: it
-# builds the peptide from the sequence and moves each atom to the coordinate
+# docking had already succeeded. The pose is therefore not copied: the
+# peptide is built from the sequence and each atom is moved to the coordinate
 # that matches it by (residue number, atom name), so the order in the file
 # cannot matter.
 SEQ = "AGGA"
@@ -269,7 +271,7 @@ for call, src, why in [
          "the rescoring: the batch entry, which caches per pose and "
          "runs them several at a time")]:
     check(call in src,
-          "%s no longer calls %s: %s is hope_core's and is not to be "
+          "%s no longer calls %s: %s is the engine's and is not to be "
           "written again here" % ("stage_prepare" if src is prep_src
                                   else "stage_dock", call.rstrip("("), why))
 
@@ -635,6 +637,51 @@ if _exe:
           "the modification list offers side chains ADCP 1.1 does not have")
 else:
     print("skip  ADCP 1.1 is not installed here; its parameter checks were skipped")
+
+# --- nothing in adcp_dock/ shadows a module of the engine -------------------
+# adcp_dock/_vendor holds the engine. A module of the same name directly in
+# adcp_dock/ is easily imported in its place, and replaces a stage silently.
+_vend = {f for f in os.listdir(os.path.join(os.path.dirname(HERE), "adcp_dock", "_vendor"))
+         if f.endswith(".py") and f != "__init__.py"}
+_top = {f for f in os.listdir(os.path.join(os.path.dirname(HERE), "adcp_dock"))
+        if f.endswith(".py")}
+check(not (_vend & _top), "these modules exist both in adcp_dock/ and in _vendor/: %s"
+      % sorted(_vend & _top))
+
+# --- a failed OpenMM minimization keeps the docking --------------------------
+# ADCP writes its poses, then exits 1 when OpenMM cannot use a residue's
+# template (ADCP 1.1.21 does for FVAL, FPG2, FPG3, FTR and FT6). The poses
+# are kept, the peptide is marked done so a resumed run does not dock it
+# again, and the log says its poses are not minimized.
+import subprocess as _sp                                            # noqa: E402
+_wd2 = _tf.mkdtemp()
+_trg = os.path.join(_wd2, "receptor.trg")
+open(_trg, "wb").write(b"x")
+
+
+def _fake_run(cmd, wd, exe, append=False):
+    _sh.copy(os.path.join(HERE, "data", "adcp11", "out_out.pdb"), wd)
+    with open(os.path.join(wd, "out_summary.dlg"), "w") as fh:
+        fh.writelines(x for x in open(os.path.join(HERE, "data", "adcp11", "out_summary.dlg"))
+                      if not x.startswith("OMM"))
+    return _sp.CompletedProcess(cmd, 1)
+
+
+_saved = (adcp11._run, adcp11.command, adcp11.openmm_set_for)
+adcp11._run = _fake_run
+adcp11.command = lambda exe: ["adcp"]
+adcp11.openmm_set_for = lambda exe, seq: "sannerlab"
+_said = []
+try:
+    _modes, _wdd = adcp11.dock("GAA<FVAL>AG", _trg, _wd2, "/nowhere/bin/adcp", key="fval",
+                               minimize=1, log=_said.append)
+finally:
+    adcp11._run, adcp11.command, adcp11.openmm_set_for = _saved
+check(_modes and os.path.isfile(os.path.join(_wdd, ".adcp_finished")),
+      "a docking whose OpenMM minimization failed was not kept as done")
+check(any("minimization failed" in x for x in _said),
+      "a failed OpenMM minimization was not reported: %r" % _said)
+_sh.rmtree(_wd2, ignore_errors=True)
 
 if fails:
     print("test_engine FAILED (%d)" % len(fails))
