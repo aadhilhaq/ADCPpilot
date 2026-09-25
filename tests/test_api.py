@@ -2213,6 +2213,103 @@ check(_why, "11 poses per peptide were accepted; ADCP writes at most 10")
 check('id=poses value="10" min="1" max="10"' in html,
       "the page offers more poses than ADCP can write")
 
+# --- the Modifications dialog draws each choice ------------------------------
+# The drawings come from the server. A D residue is the mirror image of the
+# L one, as ADCP builds it, and a non-standard residue is ADCP's own, so a
+# wrong structure here is a wrong picture beside the user's choice.
+from rdkit import Chem as _Ch                                      # noqa: E402
+from rdkit.Chem import rdCIPLabeler as _cipl                       # noqa: E402
+from adcp_dock import depict as _dp                                # noqa: E402
+
+
+def _labels(mol):
+    """Sorted CIP labels of a residue read as the free amino acid (* on N
+    as H, * on the carbonyl as OH), the form its usual name describes."""
+    rw = _Ch.RWMol(mol)
+    for a in rw.GetAtoms():
+        if a.GetAtomicNum() == 0:
+            a.SetAtomicNum(1 if a.GetNeighbors()[0].GetSymbol() == "N" else 8)
+            a.SetNoImplicit(False)
+    m = rw.GetMol()
+    _Ch.SanitizeMol(m)
+    m = _Ch.RemoveHs(m)
+    _cipl.AssignCIPLabels(m)
+    return sorted(a.GetProp("_CIPCode") for a in m.GetAtoms() if a.HasProp("_CIPCode"))
+
+
+_WANT = {k: ["S"] for k in _dp.STANDARD}
+_WANT.update({"C": ["R"], "G": [], "I": ["S", "S"], "T": ["R", "S"]})
+_FLIP = {"R": "S", "S": "R"}
+for _k, _w in _WANT.items():
+    _l = _labels(_dp.residue(_k))
+    check(_l == _w, "L-%s is drawn %s, not %s" % (_k, _l, _w))
+    if _k != "G":
+        _dl = _labels(_dp.residue(_k, d=True))
+        check(_dl == sorted(_FLIP[x] for x in _w),
+              "D-%s is drawn %s, not the mirror image of %s" % (_k, _dl, _w))
+try:
+    _dp.residue("G", d=True)
+    check(False, "glycine was given a D form")
+except ValueError:
+    pass
+
+# anchored at both chain ends, so a second amino acid in a side chain
+# (aminomalonate, diaminopimelate) is not read as the backbone
+_L = _Ch.MolFromSmarts("[#0][#7][C@@H]([!#1;!#0])[CX3](=O)[#0]")
+_D = _Ch.MolFromSmarts("[#0][#7][C@H]([!#1;!#0])[CX3](=O)[#0]")
+_lib = _dp.library()
+check(len(_lib) >= 190, "only %d modifications have a structure" % len(_lib))
+for _code, _r in _lib.items():
+    _m = _Ch.MolFromSmiles(_r["smiles"])
+    if _m is None:
+        check(False, "%s has a structure RDKit cannot read: %s" % (_code, _r["smiles"]))
+        continue
+    _ends = sorted(a.GetNeighbors()[0].GetSymbol() for a in _m.GetAtoms()
+                   if a.GetAtomicNum() == 0)
+    check(_ends == ["C", "N"],
+          "%s is not drawn as a residue with two chain ends: %s" % (_code, _ends))
+    check(sum(a.GetFormalCharge() for a in _m.GetAtoms()) == _r["charge"],
+          "%s is labelled charge %s but drawn with another" % (_code, _r["charge"]))
+    if _m.HasSubstructMatch(_L, useChirality=True) or _m.HasSubstructMatch(_D, useChirality=True):
+        check(_m.HasSubstructMatch(_L, useChirality=True)
+              and not _m.HasSubstructMatch(_D, useChirality=True),
+              "%s, an L residue in ADCP, is drawn D" % _code)
+        _mm = _dp.mirror(_m)
+        check(_mm.HasSubstructMatch(_D, useChirality=True),
+              "the D form of %s is not drawn as its mirror image" % _code)
+
+
+def _raw(endpoint, **q):
+    q["t"] = TOKEN
+    url = "http://127.0.0.1:%d%s?%s" % (PORT, endpoint, urllib.parse.urlencode(q))
+    with urllib.request.urlopen(url, timeout=60) as r:
+        return r.headers.get("Content-Type", ""), r.read().decode()
+
+
+_ct, _dw = _raw("/api/depict", res="W", d="1")
+check(_ct.startswith("image/svg+xml") and "<svg" in _dw,
+      "D-Trp was not drawn as an SVG: %s" % _ct)
+_ct, _sep2 = _raw("/api/depict", code="SEP2")
+check(_ct.startswith("image/svg+xml") and "<svg" in _sep2, "SEP2 was not drawn")
+_ct, _dark = _raw("/api/depict", res="W", d="1", dark="1")
+check(_dark != _dw, "the drawing for a dark page is the same as for a light one")
+for _bad in ({"res": "X"}, {"code": "NOPE"}, {"res": "G", "d": "1"}, {}):
+    try:
+        _raw("/api/depict", **_bad)
+        check(False, "a drawing was returned for %s" % _bad)
+    except urllib.error.HTTPError as exc:
+        check(exc.code == 404, "%s got %d, not 404" % (_bad, exc.code))
+try:
+    urllib.request.urlopen("http://127.0.0.1:%d/api/depict?res=W" % PORT, timeout=10)
+    check(False, "a drawing was returned with no token")
+except urllib.error.HTTPError as exc:
+    check(exc.code == 403, "a tokenless drawing request got %d" % exc.code)
+check("id=modviews" in html and "function drawViews" in appjs
+      and "/api/depict?" in appjs and "prefers-color-scheme: dark" in appjs,
+      "the dialog does not draw the structure of each choice")
+check("chargeText(m.charge)" in appjs,
+      "the options do not tell charge variants (SEP, SEP2) apart")
+
 if fails:
     print("test_api FAILED (%d)" % len(fails))
     for f in fails:

@@ -37,6 +37,13 @@ under their own terms.
 | 3Dmol.js | 2.5.5 | BSD-3-Clause (includes code from GLmol, Three.js and jQuery) | `adcp_dock/static/3Dmol-min.js`, licence in `3Dmol.LICENSE.txt` and `3Dmol-min.js.LICENSE.txt` |
 | Mol* viewer | 4.9.0 | MIT (bundles third-party code listed in its licence file) | `adcp_dock/static/molstar.js`, `molstar.css`, licence in `molstar.LICENSE.txt` and `molstar.js.LICENSE.txt` |
 
+## Data
+
+| Data | Source | Terms | File |
+|---|---|---|---|
+| Codes, coarse residues and structures of ADCP 1.1's non-standard residues | Derived from ADCP 1.1's side-chain library and OpenMM templates (Scripps Research Institute, from the SwissSideChain set) by `scripts/modifications_table.py` | As ADCP 1.1 | `adcp_dock/static/modifications.json` |
+| Residue names | RCSB Chemical Component Dictionary; PubChem | CC0 1.0; public domain | As above |
+
 ## Desktop launcher builds
 
 The Windows and macOS launcher downloads are built with PyInstaller and contain

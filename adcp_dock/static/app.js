@@ -689,9 +689,12 @@ function compose(toks){
   return toks.map(t => (t.d ? '&' : '') + t.letter + (t.code ? '<' + t.code + '>' : ''))
     .join('');
 }
-function modName(code){
+// The D form's name is the L name mirrored (every R and S, D and L
+// swapped) where the name states its configuration; otherwise "D form of".
+function modName(code, d){
   const m = MODLIB.find(x => x.code === code);
-  return m ? m.name : code;
+  if(!m) return (d ? 'D form of ' : '') + code;
+  return d ? (m.dname || 'D form of ' + m.name) : m.name;
 }
 function renderModified(el, seq){
   const toks = tokens(seq), out = [];
@@ -699,7 +702,7 @@ function renderModified(el, seq){
     out.push('<span class=grp data-n="' + Math.min(i + 10, toks.length) + '">'
       + toks.slice(i, i + 10).map((t, k) => {
           const label = t.code ? t.code : t.letter;
-          const what = t.code ? (t.d ? 'D form of ' : '') + modName(t.code)
+          const what = t.code ? modName(t.code, t.d)
                      : (t.d ? 'D-' + (RESNAME[t.letter] || t.letter) : '');
           return what ? '<span class=mod title="' + esc((i + k + 1) + ': ' + what)
                         + '">' + esc((t.d ? '&' : '') + label) + '</span>'
@@ -755,14 +758,53 @@ function openMods(i){
   drawMods();
   $('moddlg').showModal();
 }
+// The net charge ADCP models a side chain with, when it has one: variants
+// such as SEP and SEP2 differ only in this.
+function chargeText(q){
+  return q ? ', charge ' + (q > 0 ? '+' : '\u2212') + Math.abs(q) : '';
+}
 function optionsFor(letter){
   const opts = [];
   if(letter !== 'G') opts.push(['D', 'D-' + (RESNAME[letter] || letter) + ' (mirror image)']);
   MODLIB.filter(m => m.parent === letter).forEach(m => {
-    opts.push(['M:' + m.code, m.name + ' (' + m.code + ')']);
-    if(m.d) opts.push(['DM:' + m.code, 'D form of ' + m.name + ' (' + m.code + ')']);
+    const tail = chargeText(m.charge) + ' (' + m.code + ')';
+    opts.push(['M:' + m.code, m.name + tail]);
+    if(m.d) opts.push(['DM:' + m.code, modName(m.code, true) + tail]);
   });
   return opts;
+}
+/* A drawing of each chosen residue, below the rows. The server draws it
+   from ADCP's own definition of the residue; a D form is the mirror image,
+   as ADCP builds it. */
+function viewOf(r){
+  if(!r.choice) return null;
+  const base = MODS.base[r.pos];
+  if(r.choice === 'D'){
+    return {q: 'res=' + base + '&d=1', name: 'D-' + (RESNAME[base] || base),
+            meta: 'mirror image of L-' + (RESNAME[base] || base).toLowerCase()};
+  }
+  const [kind, code] = r.choice.split(':');
+  const m = MODLIB.find(x => x.code === code) || {name: code};
+  return {q: 'code=' + encodeURIComponent(code) + (kind === 'DM' ? '&d=1' : ''),
+          name: modName(code, kind === 'DM'),
+          meta: code + chargeText(m.charge) + (kind === 'DM' ? ', mirror image' : '')};
+}
+function drawViews(){
+  const cards = MODS.rows.map(r => [r, viewOf(r)]).filter(x => x[1]);
+  if(!cards.length){ $('modviews').innerHTML = ''; return; }
+  const src = (q, dark) => '/api/depict?' + q + (dark ? '&dark=1' : '') + '&t=' + encodeURIComponent(T);
+  $('modviews').innerHTML = '<div class=mvhead>Structures</div><div class=mvgrid>'
+    + cards.map(([r, v]) => '<figure class=mv><figcaption><span class=pos>'
+        + (r.pos + 1) + ' ' + esc(MODS.base[r.pos]) + '</span><span class=mvname>' + esc(v.name)
+        + '</span></figcaption><picture><source media="(prefers-color-scheme: dark)" srcset="'
+        + esc(src(v.q, true)) + '"><img alt="Structure of ' + esc(v.name) + '" src="'
+        + esc(src(v.q, false)) + '"></picture><span class=meta>' + esc(v.meta)
+        + '</span></figure>').join('') + '</div>';
+  $('modviews').querySelectorAll('img').forEach(img => img.onerror = () => {
+    const fig = img.closest('figure');
+    fig.classList.add('nodraw');
+    fig.querySelector('.meta').textContent += '; no drawing available';
+  });
 }
 function drawMods(){
   const on = new Set(MODS.rows.map(r => r.pos));
@@ -792,12 +834,13 @@ function drawMods(){
     drawMods();
   });
   $('modrows').querySelectorAll('select').forEach(el => el.onchange = () => {
-    MODS.rows[+el.getAttribute('data-row')].choice = el.value; modReady();
+    MODS.rows[+el.getAttribute('data-row')].choice = el.value; modReady(); drawViews();
   });
   $('modrows').querySelectorAll('button[data-del]').forEach(b => b.onclick = () => {
     MODS.rows.splice(+b.getAttribute('data-del'), 1); drawMods();
   });
   modReady();
+  drawViews();
 }
 function modReady(){
   const open = MODS.rows.filter(r => !r.choice).length;

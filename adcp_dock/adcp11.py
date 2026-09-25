@@ -75,7 +75,21 @@ def command(exe):
 
 
 def version(exe):
-    """ADCP's version number, e.g. "1.1.21"."""
+    """ADCP's version number, e.g. "1.1.21". Read from its source, where
+    utils.py sets BUILD_VERSION and runADCP.py prints "1.1.%d": asking ADCP
+    imports its whole modelling stack, which takes half a minute on a node
+    whose file cache is cold, and the page waits for the answer."""
+    for pkg in glob.glob(os.path.join(home_of(exe), "lib", "python3*",
+                                      "site-packages", "ADCP")):
+        try:
+            build = re.search(r"^BUILD_VERSION\s*=\s*(\d+)",
+                              open(os.path.join(pkg, "utils.py")).read(), re.M)
+            major = re.search(r'version="(\d+\.\d+)\.%d"',
+                              open(os.path.join(pkg, "runADCP.py")).read())
+        except OSError:
+            continue
+        if build and major:
+            return "%s.%s" % (major.group(1), build.group(1))
     try:
         p = subprocess.run(command(exe) + ["--version"], capture_output=True,
                            text=True, timeout=120, env=_env(exe))

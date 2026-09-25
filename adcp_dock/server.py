@@ -1111,6 +1111,19 @@ class Handler(BaseHTTPRequestHandler):
                                            q.get("chain", [""])[0]))
         if u.path == "/api/modifications":
             return self._send(app.modifications())
+        if u.path == "/api/depict":
+            # One residue drawn for the Modifications dialog: res=<letter>
+            # or code=<ADCP code>, d=1 for the D form, dark=1 for a dark page.
+            one = lambda k: (q.get(k) or [""])[0]            # noqa: E731
+            try:
+                from . import depict
+                svg = depict.svg(one("res").upper(), one("code").upper(),
+                                 one("d") == "1", one("dark") == "1")
+            except (KeyError, ValueError) as e:
+                return self._send({"error": "no drawing for that residue: %s" % e}, 404)
+            except ImportError:
+                return self._send({"error": "drawing needs RDKit"}, 501)
+            return self._send(svg, ctype="image/svg+xml")
         if u.path == "/api/runs":
             return self._send(app.list_runs())
         if u.path == "/api/run":

@@ -236,7 +236,7 @@ button.ghost.danger{color:var(--bad)}
 .pepmenu button:hover{background:var(--soft)}
 .pepmenu button[disabled]{color:var(--dim);cursor:default;background:none}
 .pepmenu .mi{width:18px;text-align:center;font-size:15px}
-#moddlg{width:min(640px,94vw)}
+#moddlg{width:min(760px,94vw)}
 #modseq{font:14px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.12em;line-height:2.2;
   padding:10px 12px;border:1px solid var(--line);border-radius:8px;margin:10px 16px;word-break:break-all}
 #modseq .r{cursor:pointer;padding:2px 1px;border-radius:3px}
@@ -252,6 +252,28 @@ button.ghost.danger{color:var(--bad)}
 .modrow select{flex:1 1 auto;min-width:0}
 .modnote{margin:10px 16px 0;padding:10px 12px;border-radius:10px;background:var(--soft);
   font-size:12.5px;color:var(--fg)}
+/* Only the middle scrolls, so Save stays in view however many residues
+   are modified. */
+#moddlg[open]{display:flex;flex-direction:column;max-height:min(90vh,980px)}
+.modbody{overflow:auto;flex:1 1 auto;min-height:0;padding-bottom:4px}
+/* The structure of each choice, drawn by the server from ADCP's own
+   residue definitions: a residue as it sits in a chain, with wavy bonds
+   where the chain continues. */
+#modviews{margin:2px 16px 10px}
+#modviews:empty{display:none}
+.mvhead{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);
+  margin:10px 0 6px}
+.mvgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.mv{margin:0;border:1px solid var(--line);border-radius:10px;background:var(--card);
+  padding:8px 10px 10px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.mv figcaption{display:flex;gap:8px;align-items:baseline;font-size:12.5px;line-height:1.35;
+  min-width:0}
+.mv .pos{flex:none;font:12px ui-monospace,Menlo,Consolas,monospace;background:#f6e85a;
+  color:#1b1b1b;border-radius:5px;padding:1px 6px}
+.mv .mvname{overflow-wrap:anywhere}
+.mv img{display:block;width:100%;height:auto;aspect-ratio:320/240}
+.mv .meta{color:var(--dim);font-size:11.5px;overflow-wrap:anywhere}
+.mv.nodraw img{display:none}
 button.icon{border:0;background:none;color:var(--dim);padding:4px 7px;
   font-size:15px;line-height:1}
 button:disabled{opacity:.45;cursor:default}
@@ -842,11 +864,14 @@ larger of the two and takes a moment the first time.">
 </div>
 <dialog id=moddlg>
   <div class=dlg-h><b>Post-translational modifications and D residues</b></div>
-  <div class=modnote>Click a residue to modify it, then choose what it becomes.
-    Once modifications are saved the sequence is changed here, not by typing.
-    Modified peptides need ADCP 1.1.</div>
-  <div id=modseq></div>
-  <div id=modrows></div>
+  <div class=modbody>
+    <div class=modnote>Click a residue to modify it, then choose what it becomes.
+      Once modifications are saved the sequence is changed here, not by typing.
+      Modified peptides need ADCP 1.1.</div>
+    <div id=modseq></div>
+    <div id=modrows></div>
+    <div id=modviews></div>
+  </div>
   <div class=dlg-f>
     <span class=why id=modmsg></span>
     <span style="display:flex;gap:8px;align-items:center">
