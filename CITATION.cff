@@ -18,7 +18,7 @@ authors:
     affiliation: "HOPE Lab, Texas A&M University"
     orcid: "https://orcid.org/0000-0002-7692-2170"
 version: "0.1.13"
-license: "MIT"
+license: "BSD-3-Clause"
 abstract: >-
   Browser and command-line workflow for peptide docking with AutoDock
   CrankPep (ADCP 1.0 and 1.1). It connects receptor preparation, grid

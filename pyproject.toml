@@ -8,7 +8,7 @@ version = "0.1.13"
 description = "Browser and command-line workflow for ADCP peptide docking"
 readme = "README.md"
 requires-python = ">=3.9"
-license = {text = "MIT"}
+license = {text = "BSD-3-Clause"}
 authors = [{name = "Aadhil Haq"}]
 maintainers = [{name = "Aadhil Haq"}]
 keywords = ["docking", "peptide", "ADCP", "MM-GBSA", "Slurm", "HPC"]

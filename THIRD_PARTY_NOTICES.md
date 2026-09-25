@@ -1,6 +1,6 @@
 # Third-party notices
 
-The MIT License in [LICENSE](LICENSE) covers the code in this repository
+The BSD 3-Clause License in [LICENSE](LICENSE) covers the code in this repository
 written for GUI to ADCP Docking. It does not cover, and cannot relicense, the
 programs and libraries below. Each keeps its own licence.
 

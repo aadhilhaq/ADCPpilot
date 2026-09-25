@@ -110,4 +110,4 @@ Report problems through [GitHub Issues](https://github.com/aadhilhaq/ADCP_dockin
 
 ## License
 
-The [MIT license](LICENSE) covers this package's own code. ADCP, ADFRsuite, AmberTools, PDB2PQR and the other programs it uses keep their own licences; [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) lists them. No Scripps code is included in this repository.
+The [BSD 3-Clause license](LICENSE) covers this package's own code. ADCP, ADFRsuite, AmberTools, PDB2PQR and the other programs it uses keep their own licences; [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) lists them. No Scripps code is included in this repository.
