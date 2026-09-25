@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,7 +8,13 @@ version = "0.1.14"
 description = "Browser and command-line workflow for ADCP peptide docking"
 readme = "README.md"
 requires-python = ">=3.9"
-license = {text = "BSD-3-Clause"}
+# This package's code is BSD 3-Clause; the wheel also carries Mol* (MIT) and
+# 3Dmol.js (BSD 3-Clause), whose licence texts are listed with it.
+license = "BSD-3-Clause AND MIT"
+license-files = ["LICENSE", "adcp_dock/static/3Dmol.LICENSE.txt",
+                 "adcp_dock/static/3Dmol-min.js.LICENSE.txt",
+                 "adcp_dock/static/molstar.LICENSE.txt",
+                 "adcp_dock/static/molstar.js.LICENSE.txt"]
 authors = [{name = "Aadhil Haq"}]
 maintainers = [{name = "Aadhil Haq"}]
 keywords = ["docking", "peptide", "ADCP", "MM-GBSA", "Slurm", "HPC"]
