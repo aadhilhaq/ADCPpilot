@@ -101,7 +101,9 @@ if built is not None:
                  "adcp_dock/example_run/job.json",
                  "adcp_dock/example_run/docking/ETFSDLWKLLPEN/out_ranked_1.pdb",
                  "adcp_dock/example_run/mmgbsa/ETFSDLWKLLPEN/pose1/"
-                 "ETFSDLWKLLPEN_mmgbsa.dat"):
+                 "ETFSDLWKLLPEN_mmgbsa.dat",
+                 # which radii the example's energies were computed with
+                 "adcp_dock/example_run/mmgbsa/RADII"):
         check(must in built, "the built wheel does not contain %s" % must)
 
 if fails:

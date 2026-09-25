@@ -10,3 +10,15 @@ docking PMI (TSFAEYWNLLS), 25 replicas x 2000000 steps on 16 core(s)
       [4/5] TSFAEYWNLLS pose 1: -39.27 kcal/mol
       [5/5] TSFAEYWNLLS pose 2: -48.41 kcal/mol
     TSFAEYWNLLS: dG = -44.59 kcal/mol (mean of 5 pose(s), spread 22.3)
+
+MM-GBSA recomputed on the same poses with mbondi2 radii (version 0.1.16):
+  MM-GBSA uses the prepared receptor
+  MM-GBSA backend: amber, GB-OBC(II) with mbondi2 radii and an interior dielectric of 1
+    1 construct(s) x up to 5 pose(s): 5 to compute, 0 kept from a previous run
+    computing 5 pose energies, 5 at a time
+      [1/5] TSFAEYWNLLS pose 4: -51.43 kcal/mol
+      [2/5] TSFAEYWNLLS pose 1: -42.37 kcal/mol
+      [3/5] TSFAEYWNLLS pose 2: -51.78 kcal/mol
+      [4/5] TSFAEYWNLLS pose 3: -56.41 kcal/mol
+      [5/5] TSFAEYWNLLS pose 5: -45.42 kcal/mol
+    TSFAEYWNLLS: dG = -49.48 kcal/mol (mean of 5 pose(s), spread 14.0)

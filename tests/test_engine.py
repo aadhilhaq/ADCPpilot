@@ -683,6 +683,37 @@ check(any("minimization failed" in x for x in _said),
       "a failed OpenMM minimization was not reported: %r" % _said)
 _sh.rmtree(_wd2, ignore_errors=True)
 
+# --- MM-GBSA uses the radii GB-OBC(II) was fitted with ------------------------
+# igb=5 goes with mbondi2; tleap's default is mbondi. A run scored before the
+# radii were set keeps mbondi, so it is never part one set and part another.
+import tempfile as _tf                                             # noqa: E402
+_leap = mmgbsa.LEAP.format(complex_pdb="c.pdb", receptor_pdb="r.pdb",
+                           ligand_pdb="l.pdb", prefix="X", radii=mmgbsa.RADII)
+check(mmgbsa.RADII == "mbondi2" and "set default PBRadii mbondi2" in _leap
+      and _leap.index("PBRadii") < _leap.index("loadpdb"),
+      "tleap does not build the complex with mbondi2 radii: %r" % _leap)
+with _tf.TemporaryDirectory() as _t:
+    _new = os.path.join(_t, "run1", "mmgbsa")
+    check(mmgbsa.radii_for(_new) == "mbondi2"
+          and open(os.path.join(_new, "RADII")).read().strip() == "mbondi2",
+          "a new run's MM-GBSA folder is not given and does not record mbondi2")
+    _old = os.path.join(_t, "run2", "mmgbsa")
+    os.makedirs(_old)
+    with open(os.path.join(_old, "ETFSDLWKLLPEN.dg"), "w") as _fh:
+        _fh.write("# igb 5 saltcon 0.150 intdiel 1\n1 -40.0\n")
+    check(mmgbsa.radii_for(_old) == "mbondi",
+          "a run scored before the radii were set does not keep mbondi")
+    _dg = os.path.join(_t, "X.dg")
+    mmgbsa._write_cache(_dg, {1: -40.0}, 1.0, "mbondi2")
+    check(mmgbsa._read_cache(_dg, 1.0, "mbondi2") == {1: -40.0}
+          and mmgbsa._read_cache(_dg, 1.0, "mbondi") == {},
+          "cached energies are reused under different radii")
+check("kept.append(ranks[r - 1]" in dock_src,
+      "MM-GBSA energies are recorded by their position among the scored "
+      "poses, not by ADCP rank, so a skipped pose shifts every later one")
+check('out["mmgbsa_radii"]' in dock_src,
+      "a peptide's result does not record the radii its MM-GBSA used")
+
 if fails:
     print("test_engine FAILED (%d)" % len(fails))
     for f in fails:

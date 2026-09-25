@@ -295,11 +295,17 @@ def stage_dock(rundir, index, j=None, log=print):
                 ok, bad = verify.mmgbsa_split(dat)
                 if ok:
                     good.append(vals[i])
-                    kept.append(r)
+                    # r counts the poses MM-GBSA was given; ranks
+                    # says which ADCP pose each one is, and the two
+                    # differ once a pose could not be matched.
+                    kept.append(ranks[r - 1] if 0 < r <= len(ranks) else r)
                 else:
                     log("    pose %d discarded: %s" % (r, verify.explain(bad)))
             out["mmgbsa"] = good
             out["mmgbsa_ranks"] = kept
+            # Which Born radii the energies were computed with (mbondi2 for
+            # a new run; a run scored before they were set keeps mbondi).
+            out["mmgbsa_radii"] = d.get("radii")
         else:
             log("  no pose could be laid on a clean topology; no MM-GBSA")
             out["mmgbsa"] = []

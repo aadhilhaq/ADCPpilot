@@ -22,11 +22,12 @@ should be read as a ranking aid rather than as predicted affinities.
 """
 from __future__ import annotations
 import concurrent.futures as cf
-import os, re, shutil, subprocess, threading
+import glob, os, re, shutil, subprocess, threading
 
 from . import prep
 
 LEAP = """source leaprc.protein.ff14SB
+set default PBRadii {radii}
 com = loadpdb {complex_pdb}
 saveamberparm com {prefix}_com.parm7 {prefix}_com.rst7
 quit
@@ -66,6 +67,15 @@ those clashes rather than by the interaction.
 # comment rather than exposed as a setting: a knob that cannot move is worse
 # than no setting, because a setting will be changed.
 INTDIEL = 1.0
+
+# The Born radii every topology here is built with. GB-OBC(II), igb=5, was
+# fitted with the mbondi2 set (Onufriev, Bashford and Case, Proteins 55:383,
+# 2004), and the Amber manual pairs the two. tleap's own default is mbondi,
+# and every topology built before this setting existed carries it. A run
+# keeps the radii its MM-GBSA started with (radii_for), so a resumed run is
+# never scored with one set for some constructs and the other for the rest.
+RADII = "mbondi2"
+LEGACY_RADII = "mbondi"
 
 MMPBSA_IN = """Single-structure MM-GBSA rescoring of a docked pose
 &general
@@ -355,7 +365,8 @@ def _parm_atoms(parm7: str):
 
 def run_amber(rec, pose_mol, workdir: str, prefix: str, log=print,
               prep_ph: float | None = 7.4,
-              intdiel: float = INTDIEL) -> float | None:
+              intdiel: float = INTDIEL,
+              radii: str = RADII) -> float | None:
     # tleap and sander run with cwd=workdir, so every path given to them
     # must be absolute or a bare basename: a relative path resolves
     # inside the working directory.
@@ -373,7 +384,7 @@ def run_amber(rec, pose_mol, workdir: str, prefix: str, log=print,
         fh.write(LEAP.format(complex_pdb=os.path.basename(com_pdb),
                              receptor_pdb=os.path.basename(rec_pdb),
                              ligand_pdb=os.path.basename(lig_pdb),
-                             prefix=prefix))
+                             prefix=prefix, radii=radii))
     subprocess.run([os.path.join(home, "bin", "tleap"), "-f", leap],
                    cwd=workdir, capture_output=True, text=True, env=env)
     if not os.path.isfile(os.path.join(workdir, f"{prefix}_com.parm7")):
@@ -500,7 +511,7 @@ def run_amber(rec, pose_mol, workdir: str, prefix: str, log=print,
 
 
 def _one_pose(rec, mol, workdir, seq, rank, prep_ph, log,
-              intdiel=INTDIEL):
+              intdiel=INTDIEL, radii=RADII):
     """One (construct, pose) unit, in a directory of its own.
 
     Its own directory because tleap always writes leap.log into the working
@@ -510,10 +521,10 @@ def _one_pose(rec, mol, workdir, seq, rank, prep_ph, log,
     than a collision.
     """
     wd = os.path.join(workdir, seq, "pose%d" % rank)
-    return run_amber(rec, mol, wd, seq, log, prep_ph, intdiel)
+    return run_amber(rec, mol, wd, seq, log, prep_ph, intdiel, radii)
 
 
-def _read_cache(path, intdiel=None):
+def _read_cache(path, intdiel=None, radii=None):
     """rank -> dG from the cache file, tolerating the older single-float format.
 
     The settings the numbers were computed under are written into the file, and
@@ -535,6 +546,16 @@ def _read_cache(path, intdiel=None):
                     return {}
                 if abs(was - float(intdiel)) > 1e-9:
                     return {}
+    if radii is not None:
+        # A cache written before the radii were recorded holds energies
+        # computed with tleap's default, LEGACY_RADII.
+        was = LEGACY_RADII
+        for line in text.splitlines():
+            bits = line.split()
+            if line.startswith("#") and "radii" in bits[:-1]:
+                was = bits[bits.index("radii") + 1]
+        if was != radii:
+            return {}
     if intdiel is not None and not any(l.startswith("#") for l
                                        in text.splitlines()):
         # Written before the settings line existed. That is not an unknown:
@@ -557,15 +578,69 @@ def _read_cache(path, intdiel=None):
     return out
 
 
-def _write_cache(path, values, intdiel=None):
+def _write_cache(path, values, intdiel=None, radii=None):
     try:
         with open(path, "w") as fh:
             if intdiel is not None:
-                fh.write("# igb 5 saltcon 0.150 intdiel %g\n" % float(intdiel))
+                fh.write("# igb 5 saltcon 0.150 intdiel %g%s\n"
+                         % (float(intdiel),
+                            (" radii %s" % radii) if radii else ""))
             for rank in sorted(values):
                 fh.write("%d %.6f\n" % (rank, values[rank]))
     except OSError:
         pass
+
+
+def radii_for(workdir):
+    """The radii a run's MM-GBSA uses: the ones it started with.
+
+    They are recorded in a RADII file in the working directory. Without one,
+    energies already in the folder, or in another MM-GBSA folder of the same
+    run beside it, decide: the radii their cache names, or tleap's default for
+    energies computed before caches named them. Every other run gets RADII.
+    """
+    marker = os.path.join(workdir, "RADII")
+    try:
+        got = open(marker).read().strip()
+    except OSError:
+        got = ""
+    if got:
+        return got
+    radii = RADII
+    here = os.path.abspath(workdir)
+    parent = os.path.dirname(here)
+    for d in [here] + [x for x in sorted(glob.glob(os.path.join(parent, "mmgbsa*")))
+                       if os.path.abspath(x) != here]:
+        if not os.path.isdir(d):
+            continue
+        try:
+            other = open(os.path.join(d, "RADII")).read().strip()
+        except OSError:
+            other = ""
+        if other:
+            radii = other
+            break
+        dgs = sorted(glob.glob(os.path.join(d, "*.dg")))
+        if dgs:
+            # Energies there already: the radii their cache names, or, from
+            # before caches named them, tleap's default.
+            radii = LEGACY_RADII
+            for f in dgs:
+                try:
+                    bits = open(f).readline().split()
+                except OSError:
+                    continue
+                if bits[:1] == ["#"] and "radii" in bits[:-1]:
+                    radii = bits[bits.index("radii") + 1]
+                    break
+            break
+    try:
+        os.makedirs(workdir, exist_ok=True)
+        with open(marker, "w") as fh:
+            fh.write(radii + "\n")
+    except OSError:
+        pass
+    return radii
 
 
 # Total atoms over heavy atoms, below which the complex is missing hydrogens.
@@ -667,7 +742,7 @@ def summarise(values, aggregate="median"):
 def run(constructs: list[dict], rec, poses: dict, workdir: str, log=print,
         prep_ph: float | None = 7.4, n_poses: int = 1, workers: int = 1,
         aggregate: str = "best", details: dict | None = None,
-        intdiel: float = INTDIEL) -> dict:
+        intdiel: float = INTDIEL, radii: str | None = None) -> dict:
     """Rescore each construct. Returns sequence -> dG, missing where it failed.
 
     `poses` maps a sequence to one pose or a list of poses, best first. With
@@ -689,8 +764,16 @@ def run(constructs: list[dict], rec, poses: dict, workdir: str, log=print,
     if b is None:
         log("  SKIPPING MM-GBSA: neither AmberTools nor Schrodinger Prime found")
         return {}
-    log(f"  MM-GBSA backend: {b}, GB-OBC(II) with an interior "
-        f"dielectric of {float(intdiel):g}")
+    if radii:
+        # Asked for by name: the folder's energies are recomputed under it,
+        # and the record says so.
+        os.makedirs(workdir, exist_ok=True)
+        with open(os.path.join(workdir, "RADII"), "w") as fh:
+            fh.write(radii + "\n")
+    else:
+        radii = radii_for(workdir)
+    log(f"  MM-GBSA backend: {b}, GB-OBC(II) with {radii} radii and an "
+        f"interior dielectric of {float(intdiel):g}")
     os.makedirs(workdir, exist_ok=True)
     n_poses = max(1, int(n_poses))
 
@@ -706,7 +789,8 @@ def run(constructs: list[dict], rec, poses: dict, workdir: str, log=print,
         if not mols:
             continue
         wanted[seq] = len(mols)
-        have = _read_cache(os.path.join(workdir, seq + ".dg"), intdiel)
+        have = _read_cache(os.path.join(workdir, seq + ".dg"), intdiel,
+                           radii)
         cached[seq] = {r: v for r, v in have.items() if r <= len(mols)}
         for i, m in enumerate(mols, 1):
             if i not in cached[seq]:
@@ -730,7 +814,7 @@ def run(constructs: list[dict], rec, poses: dict, workdir: str, log=print,
             seq, rank, mol = unit
             quiet = (lambda *a: None) if workers > 1 else log
             dg = _one_pose(rec, mol, workdir, seq, rank, prep_ph, quiet,
-                           intdiel)
+                           intdiel, radii)
             with lock:
                 done[0] += 1
                 if workers > 1:
@@ -753,7 +837,7 @@ def run(constructs: list[dict], rec, poses: dict, workdir: str, log=print,
         for seq in wanted:
             if results.get(seq):
                 _write_cache(os.path.join(workdir, seq + ".dg"), results[seq],
-                             intdiel)
+                             intdiel, radii)
 
     out = {}
     for seq in wanted:
@@ -768,7 +852,8 @@ def run(constructs: list[dict], rec, poses: dict, workdir: str, log=print,
             # and the two diverge as soon as a pose fails.
             details[seq] = dict(values=[vals[r] for r in sorted(vals)],
                                 ranks=sorted(vals),
-                                n=n, spread=spread, aggregate=aggregate)
+                                n=n, spread=spread, aggregate=aggregate,
+                                radii=radii)
         if n > 1:
             log(f"    {seq}: dG = {dg:.2f} kcal/mol "
                 f"({aggregate} of {n} pose(s), spread {spread:.1f})")

@@ -10,3 +10,15 @@ docking 12/1 core (RFMDYWEGL), 25 replicas x 2000000 steps on 16 core(s)
       [4/5] RFMDYWEGL pose 5: -53.82 kcal/mol
       [5/5] RFMDYWEGL pose 3: -33.17 kcal/mol
     RFMDYWEGL: dG = -39.98 kcal/mol (mean of 5 pose(s), spread 27.8)
+
+MM-GBSA recomputed on the same poses with mbondi2 radii (version 0.1.16):
+  MM-GBSA uses the prepared receptor
+  MM-GBSA backend: amber, GB-OBC(II) with mbondi2 radii and an interior dielectric of 1
+    1 construct(s) x up to 5 pose(s): 5 to compute, 0 kept from a previous run
+    computing 5 pose energies, 5 at a time
+      [1/5] RFMDYWEGL pose 4: -42.58 kcal/mol
+      [2/5] RFMDYWEGL pose 2: -45.01 kcal/mol
+      [3/5] RFMDYWEGL pose 3: -32.90 kcal/mol
+      [4/5] RFMDYWEGL pose 5: -55.21 kcal/mol
+      [5/5] RFMDYWEGL pose 1: -40.68 kcal/mol
+    RFMDYWEGL: dG = -43.28 kcal/mol (mean of 5 pose(s), spread 22.3)

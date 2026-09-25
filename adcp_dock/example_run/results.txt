@@ -1,11 +1,11 @@
 ranked by mmgbsa_top5, most negative first
 
 #    name       peptide         len poses  ADCP best   ADCP top5     sd   MM n  MM best    MM top5   MM med     sd  spread
-1    p53        ETFSDLWKLLPEN    13    10      -21.1      -20.44   0.64      5   -70.05     -55.98   -51.79   8.56   23.08
-2    PMI        TSFAEYWNLLS      11    10      -18.7      -18.24   0.54      5   -54.30     -44.59   -48.41   7.94   22.31
-3    12/1 core  RFMDYWEGL         9    10      -17.8      -17.22   0.45      5   -53.82     -39.98   -41.35   9.65   27.80
+1    p53        ETFSDLWKLLPEN    13    10      -21.1      -20.44   0.64      5   -74.60     -61.22   -64.36   9.72   27.04
+2    PMI        TSFAEYWNLLS      11    10      -18.7      -18.24   0.54      5   -56.41     -49.48   -51.43   4.98   14.04
+3    12/1 core  RFMDYWEGL         9    10      -17.8      -17.22   0.45      5   -55.21     -43.28   -42.58   7.22   22.31
 
 MM-GBSA is an ordering within this run against this receptor.
 It is not a Kd and not a binding free energy: there is no entropy term
 in it. The whole picomolar-to-nanomolar range is 4.1 kcal/mol; the widest
-pose spread in this run is 27.8. `adcp-dock affinity` prints the ruler.
+pose spread in this run is 27.0. `adcp-dock affinity` prints the ruler.
