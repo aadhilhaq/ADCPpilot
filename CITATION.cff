@@ -17,7 +17,7 @@ authors:
     family-names: Fernando
     affiliation: "HOPE Lab, Texas A&M University"
     orcid: "https://orcid.org/0000-0002-7692-2170"
-version: "0.1.14"
+version: "0.1.15"
 license: "BSD-3-Clause"
 abstract: >-
   Browser and command-line workflow for peptide docking with AutoDock
