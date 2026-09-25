@@ -37,19 +37,20 @@ restrained minimisation and read mmCIF.
 
 ### 1.2 Install
 
-Run these commands in a location permitted by your cluster's installation policy. Module names vary by site.
+Install in a group or scratch folder that your cluster's policy permits, not in your home directory: on most clusters home has a small file allowance, and the environment and ADFRsuite together hold tens of thousands of files. Everything below stays inside the checkout, including the conda environment and the download caches. Module names vary by site.
 
 ```bash
-module load Anaconda3                  # or Miniforge, or your own conda
-conda create -n adcp -c conda-forge python=3.11 rdkit pdbfixer openmm \
-      biopython ambertools -y          # drop ambertools if you will not rescore
-conda activate adcp
-
 git clone https://github.com/aadhilhaq/ADCP_docking.git
 cd ADCP_docking
+export CONDA_PKGS_DIRS=$PWD/.conda_pkgs PIP_CACHE_DIR=$PWD/.pip_cache
+
+module load Anaconda3                  # or Miniforge, or your own conda
+conda create -p ./env -c conda-forge python=3.11 rdkit pdbfixer openmm \
+      biopython ambertools -y          # drop ambertools if you will not rescore
+conda activate ./env
 pip install -e ".[local]"              # the package, and pdb2pqr
 
-python -m adcp_dock.adfr --dest ~/tools/ADFRsuite
+python -m adcp_dock.adfr --dest tools/docking/ADFRsuite
 ```
 
 The last command downloads ADFRsuite from Scripps, checks the archive against a pinned SHA-256 checksum, and installs it.
@@ -61,7 +62,7 @@ next to it. Each person runs their own server from the shared install.
 ### 1.3 Point it at the tools
 
 ```bash
-export ADFRSUITE_HOME=~/tools/ADFRsuite
+export ADFRSUITE_HOME=/path/to/ADCP_docking/tools/docking/ADFRsuite
 export AMBERHOME=$CONDA_PREFIX          # only if you installed ambertools
 adcp-dock check
 ```
@@ -248,13 +249,13 @@ Use the notebook to explore the workflow and inspect inputs. Reduced search sett
 ADCP 1.1 is the current version of AutoDock CrankPep. It adds non-standard and D amino acids, all-atom poses in one file, and an optional OpenMM minimization and re-ranking of the top poses. The Scripps Research Institute distributes it as its own Python 3.7 environment. Install it, on a cluster login node, a workstation or in Colab, with:
 
 ```bash
-adcp-dock install-adcp11                      # into ~/.adcp-dock/adcpsuite
+adcp-dock install-adcp11                      # beside ADFRsuite, in the tools folder
 adcp-dock install-adcp11 --dest /path/adcpsuite
 ```
 
 This follows Scripps' own installation script: it creates the environment with micromamba (downloaded if needed), installs OpenMM, Open Babel and PDBFixer from conda-forge, and fetches the Scripps packages from ccsb.scripps.edu, checking each against a pinned SHA-256. It takes about ten minutes and 3 GB. Scripps' own instructions are at <https://ccsb.scripps.edu/adcpv11/downloads/>.
 
-The interface finds ADCP 1.1 at `$ADCPSUITE_HOME`, in a folder named `adcpsuite` beside ADFRsuite or in a tools folder given with `--tools-root`, at `~/.adcp-dock/adcpsuite`, or at `/content/adcpsuite` in Colab. ADFRsuite 1.0 is still needed, for receptor preparation and the grid maps.
+Without `--dest` it goes beside ADFRsuite (`$ADFRSUITE_HOME/../adcpsuite`), in the installation's own tools folder, and on a computer without ADFRsuite set up yet into `~/.adcp-dock/adcpsuite`. The interface finds ADCP 1.1 at `$ADCPSUITE_HOME`, in a folder named `adcpsuite` beside ADFRsuite or in a tools folder given with `--tools-root`, at `~/.adcp-dock/adcpsuite`, or at `/content/adcpsuite` in Colab. ADFRsuite 1.0 is still needed, for receptor preparation and the grid maps.
 
 Each run chooses its engine under **Docking engine**: *ADCP, newest installed* (the default) uses 1.1 when it is found and 1.0 otherwise. On the command line, `adcp-dock new ... --engine 1.1`. With ADCP 1.1:
 

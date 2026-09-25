@@ -23,14 +23,14 @@ Developed by Aadhil Haq, HOPE Lab, under the supervision of Dr. Sandun Fernando.
 | Your own computer (Linux, macOS, or Windows through WSL) | [INSTALL.md, section 2](INSTALL.md#2-on-your-own-computer) |
 | Google Colab | [Open the notebook](https://colab.research.google.com/github/aadhilhaq/ADCP_docking/blob/main/notebooks/ADCP_docking_colab.ipynb); nothing is installed on your computer |
 
-On a cluster, once the environment in INSTALL.md is set up:
+On a cluster, once the environment in INSTALL.md is set up, in a group or scratch folder rather than your home directory:
 
 ```bash
 git clone https://github.com/aadhilhaq/ADCP_docking.git
 cd ADCP_docking
-pip install -e ".[local]"
-python -m adcp_dock.adfr --dest ~/tools/ADFRsuite
-export ADFRSUITE_HOME=~/tools/ADFRsuite
+pip install --no-cache-dir -e ".[local]"
+python -m adcp_dock.adfr --dest tools/docking/ADFRsuite
+export ADFRSUITE_HOME=$PWD/tools/docking/ADFRsuite
 adcp-dock check
 adcp-dock serve --port 0
 ```

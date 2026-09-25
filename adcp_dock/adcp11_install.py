@@ -21,6 +21,7 @@ from .adfr import _fetch, _sha256
 
 BASE = "https://ccsb.scripps.edu/mamba/pip/py37"
 DOWNLOADS = "https://ccsb.scripps.edu/adcpv11/downloads/"
+#: On a computer without ADFRsuite set up yet, or without a checkout.
 DEFAULT = os.path.expanduser("~/.adcp-dock/adcpsuite")
 # What Scripps' script installs from conda-forge and from PyPI, with its pins.
 CONDA = ["python=3.7", "setuptools=59.8.0", "numpy=1.21.6", "openbabel=2.4.1",
@@ -84,22 +85,39 @@ def micromamba(where, log=print):
     return exe
 
 
-def install(dest=DEFAULT, log=print):
+def default_dest():
+    """Where ADCP 1.1 goes when no --dest is given: beside ADFRsuite, in the
+    installation's own tools folder, where the interface looks for it first.
+    Not the home directory, whose file allowance on a cluster an environment
+    of this size can use up."""
+    adfr = os.environ.get("ADFRSUITE_HOME")
+    if adfr:
+        return os.path.join(os.path.dirname(os.path.abspath(adfr)), "adcpsuite")
+    home = os.environ.get("ADCP_HOME")
+    if home:
+        return os.path.join(home, "tools", "docking", "adcpsuite")
+    return DEFAULT
+
+
+def install(dest=None, log=print):
     """Create the ADCP 1.1 environment at `dest`; returns its adcp executable."""
     from . import adcp11
-    dest = os.path.abspath(os.path.expanduser(dest))
+    dest = os.path.abspath(os.path.expanduser(dest or default_dest()))
     if adcp11.find([os.path.dirname(dest)]) or os.path.isfile(
             os.path.join(dest, "bin", "adcp")):
         log("ADCP 1.1 is already installed at %s" % dest)
         return os.path.join(dest, "bin", "adcp")
     base = os.path.dirname(dest)
     mm = micromamba(os.path.join(base, "micromamba"), log)
-    env = dict(os.environ, MAMBA_ROOT_PREFIX=os.path.join(base, "mamba_root"))
+    # Downloads and caches stay beside the installation, not in home.
+    env = dict(os.environ, MAMBA_ROOT_PREFIX=os.path.join(base, "mamba_root"),
+               XDG_CACHE_HOME=os.path.join(base, "cache"),
+               PIP_CACHE_DIR=os.path.join(base, "cache", "pip"))
     log("creating the ADCP 1.1 environment at %s (Python 3.7, conda-forge)" % dest)
     _run([mm, "create", "-y", "-q", "-p", dest, "-c", "conda-forge", "--no-rc"]
          + CONDA, log, env=env)
     py = os.path.join(dest, "bin", "python")
-    _run([py, "-m", "pip", "install", "-q"] + PYPI, log)
+    _run([py, "-m", "pip", "install", "-q"] + PYPI, log, env=env)
     cache = os.path.join(base, "adcpsuite_pkgs")
     os.makedirs(cache, exist_ok=True)
     log("downloading the ADCP 1.1 packages from the Scripps Research Institute")
@@ -118,10 +136,10 @@ def install(dest=DEFAULT, log=print):
         cache, os.path.basename(p) + "-py3-none-any.whl") for p in WHEELS}
     for name in FIRST:
         _run([py, "-m", "pip", "install", "-q", "--no-index",
-              "--find-links=" + cache, wheels[name]], log)
+              "--find-links=" + cache, wheels[name]], log, env=env)
     rest = [w for n, w in wheels.items() if n not in FIRST]
     _run([py, "-m", "pip", "install", "-q", "--no-cache-dir", "--no-dependencies",
-          "--no-index", "--find-links=" + cache] + rest, log)
+          "--no-index", "--find-links=" + cache] + rest, log, env=env)
     exe = adcp11.find([base]) or os.path.join(dest, "bin", "adcp")
     log("installed ADCP %s at %s" % (adcp11.version(exe) or "1.1", dest))
     return exe
@@ -130,8 +148,9 @@ def install(dest=DEFAULT, log=print):
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="adcp-dock install-adcp11",
                                  description=__doc__.split("\n\n")[0])
-    ap.add_argument("--dest", default=DEFAULT,
-                    help="where to create it (default %(default)s)")
+    ap.add_argument("--dest", default=None,
+                    help="where to create it (default: beside ADFRsuite, "
+                         "or %s)" % DEFAULT)
     a = ap.parse_args(argv)
     install(a.dest)
     return 0

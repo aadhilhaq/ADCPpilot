@@ -176,10 +176,10 @@ MSG
   command -v conda >/dev/null 2>&1 || {
     echo "conda is not on PATH. 'module load Anaconda3' first." >&2; exit 1; }
   # Into the shared package cache, not ~/.conda, for the same reason the
-  # prefix is not optional.
-  if [ -d "$PREFIX/conda_shared/pkgs" ]; then
-    conda config --add pkgs_dirs "$PREFIX/conda_shared/pkgs" || true
-  fi
+  # prefix is not optional. Given to this command only, so no setting is
+  # written into the home directory either.
+  mkdir -p "$PREFIX/conda_shared/pkgs"
+  export CONDA_PKGS_DIRS="$PREFIX/conda_shared/pkgs"
   say "  this is the slow part: 15-40 minutes, almost all of it AmberTools"
   conda create -y -p "$ENVDIR" -c conda-forge \
       python=3.11 "numpy<2" rdkit ambertools pdb2pqr \
@@ -288,7 +288,7 @@ head_ "Installing adcp-dock into $found_env"
 # could upgrade packages other users depend on (numpy, for example). The
 # dependencies are checked above instead; if numpy or RDKit were missing,
 # this script would already have built an environment of its own.
-if ! "$found_env/bin/python" -m pip install --quiet --no-deps -e "$HERE"; then
+if ! "$found_env/bin/python" -m pip install --quiet --no-deps --no-cache-dir -e "$HERE"; then
   cat >&2 <<MSG
 
   pip could not install into $found_env.

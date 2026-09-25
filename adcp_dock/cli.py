@@ -253,7 +253,8 @@ def main(argv=None):
                         help="install ADCP 1.1 (Scripps' conda recipe) so "
                              "runs can use it")
     ia.add_argument("--dest", default=None,
-                    help="where to create it (default ~/.adcp-dock/adcpsuite)")
+                    help="where to create it (default: beside ADFRsuite, in "
+                         "the installation's tools folder)")
 
     ex = sub.add_parser("example",
                         help="copy a finished example run into the runs "
@@ -401,7 +402,7 @@ def main(argv=None):
 
     if a.cmd == "install-adcp11":
         from . import adcp11_install
-        adcp11_install.install(a.dest or adcp11_install.DEFAULT)
+        adcp11_install.install(a.dest or adcp11_install.default_dest())
         return 0
 
     if a.cmd == "example":

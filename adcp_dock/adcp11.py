@@ -43,7 +43,9 @@ def candidates(roots=()):
     if env:
         out.append(env)
     adfr = os.environ.get("ADFRSUITE_HOME")
-    for root in list(roots) + ([os.path.dirname(adfr)] if adfr else []):
+    inst = os.environ.get("ADCP_HOME")
+    for root in (list(roots) + ([os.path.dirname(adfr)] if adfr else [])
+                 + ([os.path.join(inst, "tools", "docking")] if inst else [])):
         out += [os.path.join(root, "adcpsuite"), root]
     out += [os.path.expanduser("~/.adcp-dock/adcpsuite"), "/content/adcpsuite"]
     return out
