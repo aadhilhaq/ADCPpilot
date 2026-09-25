@@ -22,9 +22,15 @@ PAGE = r"""<!doctype html><meta charset="utf-8">
 <link rel="apple-touch-icon" href="__FAVICON_PNG__">
 <script>/* ?embed=1: shown inside a notebook frame */
 if (new URLSearchParams(location.search).get("embed"))
-  document.documentElement.classList.add("embed");</script>
+  document.documentElement.classList.add("embed");
+/* The light or dark choice made with the switch in the header, restored
+   before the page is drawn. Without one, the system setting decides. */
+try { const t = localStorage.getItem("adcp.theme");
+      if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+} catch (e) {}</script>
 <style>
 :root{
+  color-scheme:light;
   --bg:#f7f8fb; --card:#fff; --panel:#eceef6; --line:#dfe3ee; --fg:#1b2333;
   --dim:#66718a; --accent:#1a56db; --accent2:#e8efff;
   --hydro:#b4632a; --polar:#1f3a6e; --bad:#c0392b; --warn:#c2571a;
@@ -32,13 +38,10 @@ if (new URLSearchParams(location.search).get("embed"))
   /* the heading band across the top of a card, and the ink on it */
   --ribbon:#eef1f9; --ribbonfg:#2b3550;
 }
-@media (prefers-color-scheme:dark){:root{
-  --bg:#0f1219; --card:#161b26; --panel:#1b2130; --line:#28303f; --fg:#e7ecf5;
-  --dim:#94a0b8; --accent:#5b8cf0; --accent2:#1d2942;
-  --hydro:#e0996a; --polar:#8fb3e8; --bad:#e2796a; --warn:#e0a06a;
-  --good:#4cbf94; --soft:#141a24;
-  --ribbon:#1b2231; --ribbonfg:#cdd8ec;
-}}
+/* Dark: the system's setting, unless the switch in the header chose light;
+   and always when the switch chose dark. */
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){__DARK_VARS__}}
+:root[data-theme=dark]{__DARK_VARS__}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);
   font:14px/1.5 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
@@ -388,7 +391,8 @@ button.q:focus-visible{outline:1px dotted var(--accent);outline-offset:2px}
 @media (max-width:820px){.sitegrid{grid-template-columns:minmax(0,1fr)}}
 #viewD{width:100%;height:330px;border:1px solid var(--line);border-radius:10px;
   background:#fff;position:relative}
-@media (prefers-color-scheme:dark){#viewD{background:#0b0e14}}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) #viewD{background:#0b0e14}}
+:root[data-theme=dark] #viewD{background:#0b0e14}
 .seq2{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;
   max-height:330px;overflow:auto;border:1px solid var(--line);
   border-radius:10px;padding:9px 11px;background:var(--card);line-height:1.85}
@@ -466,7 +470,8 @@ footer{color:var(--dim);font-size:12px;text-align:center;padding:18px 0 4px;
   border:1px solid var(--line);background:none}
 #viewR,#viewM{width:100%;height:min(58vh,520px);border:1px solid var(--line);
   border-radius:10px;position:relative;background:#fff}
-@media (prefers-color-scheme:dark){#viewR,#viewM{background:#0b0e14}}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) :is(#viewR,#viewM){background:#0b0e14}}
+:root[data-theme=dark] :is(#viewR,#viewM){background:#0b0e14}
 /* the ligand interaction diagram */
 #diagwrap h3{font-size:12px;margin:0 0 8px;text-transform:uppercase;
   letter-spacing:.07em;color:var(--dim);font-weight:650;display:flex;
@@ -508,6 +513,8 @@ __STALE__
            the citations most often left out. -->
       <button class=ghost id=citebtn>How to cite</button>
       <button class=ghost id=feedback>Send feedback</button>
+      <button class=ghost id=themebtn aria-pressed=false
+              title="Switch between light and dark">Dark mode</button>
       <span class=sub id=toolnote></span>
     </div>
   </div>
@@ -952,6 +959,19 @@ larger of the two and takes a moment the first time.">
 <script src="/static/drag.js"></script>
 <script src="/static/app.js"></script>
 """
+
+# The dark colour tokens, used twice in the page: for the system setting and
+# for the switch in the header.
+DARK_VARS = """
+  color-scheme:dark;
+  --bg:#0f1219; --card:#161b26; --panel:#1b2130; --line:#28303f; --fg:#e7ecf5;
+  --dim:#94a0b8; --accent:#5b8cf0; --accent2:#1d2942;
+  --hydro:#e0996a; --polar:#8fb3e8; --bad:#e2796a; --warn:#e0a06a;
+  --good:#4cbf94; --soft:#141a24;
+  --ribbon:#1b2231; --ribbonfg:#cdd8ec;
+"""
+PAGE = PAGE.replace("__DARK_VARS__", DARK_VARS)
+
 
 
 # The commit this process started with, read once at import. A running server

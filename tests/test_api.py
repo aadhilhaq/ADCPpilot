@@ -1015,10 +1015,14 @@ if _card_p and _card_r and _h2:
 check(_h2 and "box-shadow:inset" in _h2,
       "the band's accent edge is an outer shadow; it would stack with the "
       "shadow the help and issue panels already carry")
+# One light value, and one dark value that the page uses twice: for the
+# system's dark setting and for the switch in the header.
+from adcp_dock import page as _pg                                  # noqa: E402
 for _tok in ("--ribbon", "--ribbonfg"):
-    check(_bare.count(_tok + ":") == 2,
-          "%s is defined %d times; every colour needs a light AND a dark "
-          "value" % (_tok, _bare.count(_tok + ":")))
+    check(_bare.count(_tok + ":") == 3 and _pg.DARK_VARS.count(_tok + ":") == 1,
+          "%s is defined %d times in the page and %d in DARK_VARS; every colour "
+          "needs a light AND a dark value" % (_tok, _bare.count(_tok + ":"),
+                                             _pg.DARK_VARS.count(_tok + ":")))
 
 
 # --- a label that carries a "?" still starts where the others do ----------
@@ -2305,6 +2309,15 @@ except urllib.error.HTTPError as exc:
 check("id=modviews" in html and "function drawViews" in appjs
       and "/api/depict?" in appjs and "prefers-color-scheme: dark" in appjs,
       "the dialog does not draw the structure of each choice")
+# --- a switch between light and dark, remembered, the system deciding until used
+check("id=themebtn" in html and ":root[data-theme=dark]" in html
+      and "__DARK_VARS__" not in html and html.count("--bg:#0f1219") == 2,
+      "the page has no working light and dark switch")
+check(html.index("adcp.theme") < html.index("<style>"),
+      "the theme choice is not restored before the page is drawn")
+check("localStorage.setItem('adcp.theme'" in appjs and "isDark())" in appjs
+      and "<picture>" not in appjs,
+      "the switch is not remembered, or the drawings ignore it")
 check("chargeText(m.charge)" in appjs,
       "the options do not tell charge variants (SEP, SEP2) apart")
 

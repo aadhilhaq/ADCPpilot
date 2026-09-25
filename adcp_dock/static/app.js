@@ -798,9 +798,8 @@ function drawViews(){
   $('modviews').innerHTML = '<div class=mvhead>Structures</div><div class=mvgrid>'
     + cards.map(([r, v]) => '<figure class=mv><figcaption><span class=pos>'
         + (r.pos + 1) + ' ' + esc(MODS.base[r.pos]) + '</span><span class=mvname>' + esc(v.name)
-        + '</span></figcaption><picture><source media="(prefers-color-scheme: dark)" srcset="'
-        + esc(src(v.q, true)) + '"><img alt="Structure of ' + esc(v.name) + '" src="'
-        + esc(src(v.q, false)) + '"></picture><span class=meta>' + esc(v.meta)
+        + '</span></figcaption><img alt="Structure of ' + esc(v.name) + '" src="'
+        + esc(src(v.q, isDark())) + '"><span class=meta>' + esc(v.meta)
         + '</span></figure>').join('') + '</div>';
   $('modviews').querySelectorAll('img').forEach(img => img.onerror = () => {
     const fig = img.closest('figure');
@@ -1105,6 +1104,33 @@ async function showCite(){
     ? d.text : (d.error || 'could not load the citation list');
 }
 $('citebtn').onclick = showCite;
+
+/* Light or dark. The switch in the header overrides the system setting and
+   is remembered; until it is used, the system setting decides and is
+   followed when it changes. */
+const DARKQ = matchMedia('(prefers-color-scheme: dark)');
+function isDark(){
+  const t = document.documentElement.dataset.theme;
+  return t ? t === 'dark' : DARKQ.matches;
+}
+function themeButton(){
+  const dark = isDark();
+  $('themebtn').textContent = dark ? 'Light mode' : 'Dark mode';
+  $('themebtn').setAttribute('aria-pressed', dark ? 'true' : 'false');
+}
+function themeChanged(){
+  themeButton();
+  /* the residue drawings are made for one background or the other */
+  if($('moddlg') && $('moddlg').open) drawViews();
+}
+$('themebtn').onclick = () => {
+  const t = isDark() ? 'light' : 'dark';
+  document.documentElement.dataset.theme = t;
+  try { localStorage.setItem('adcp.theme', t); } catch(err){}
+  themeChanged();
+};
+DARKQ.addEventListener('change', themeChanged);
+themeButton();
 if($('citefoot')) $('citefoot').onclick = e => { e.preventDefault(); showCite(); };
 $('citeclose').onclick = () => $('citedlg').close();
 $('citecopy').onclick = () => copyText($('citetext').textContent, $('citetext'),
