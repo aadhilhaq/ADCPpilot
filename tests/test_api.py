@@ -2308,6 +2308,18 @@ check("id=modviews" in html and "function drawViews" in appjs
 check("chargeText(m.charge)" in appjs,
       "the options do not tell charge variants (SEP, SEP2) apart")
 
+# --- a run with non-standard residues cites where they come from ------------
+from adcp_dock import cite as _cite                                 # noqa: E402
+_k = _cite.used_by({"peptides": [{"sequence": "GAF<KYN>AG"}], "omm_minimize": 1})
+check({"swisssidechain", "gaff"} <= _k,
+      "a run with a non-standard residue, minimized, does not cite SwissSidechain and GAFF: %s" % sorted(_k))
+_k = _cite.used_by({"peptides": [{"sequence": "GA&WAG"}], "omm_minimize": 1})
+check(not ({"swisssidechain", "gaff"} & _k),
+      "a run with only a D residue cites SwissSidechain or GAFF: %s" % sorted(_k))
+_k = _cite.used_by({"peptides": [{"sequence": "GAF<KYN>AG"}], "omm_minimize": 0})
+check("swisssidechain" in _k and "gaff" not in _k,
+      "an unminimized run with a non-standard residue cites GAFF, or not SwissSidechain")
+
 if fails:
     print("test_api FAILED (%d)" % len(fails))
     for f in fails:

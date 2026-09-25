@@ -607,19 +607,19 @@ function drawPeps(){
     +     'data-ph="Type or paste a peptide sequence"></div>'
     +   '<div class=seqmsg></div><div class=seqlen></div></div>'
     + '<div class=tools>'
-    +   '<button class=icon data-menu="' + i + '" title="Modifications, duplicate, delete" '
+    +   '<button class=icon data-menu="' + i + '" title="Non-standard and D amino acids, duplicate, delete" '
     +     'aria-haspopup=menu>⋮</button>'
     +   '<button class=icon data-rm="' + i + '" title="Remove">✕</button>'
     + '</div></div>').join('');
 
   $('peps').querySelectorAll('.ps').forEach((el, i) => {
-    // A modified peptide is shown, not typed: its sequence is changed in the
-    // Modifications dialog, as on AlphaFold Server.
+    // A peptide with non-standard or D residues is shown, not typed: its
+    // sequence is changed in the dialog, as on AlphaFold Server.
     if(isModified(PEPS[i].sequence)){
       renderModified(el, PEPS[i].sequence);
       el.contentEditable = 'false';
-      el.title = 'Modified residues are highlighted. Change them with the ⋮ menu, '
-               + 'Modifications.';
+      el.title = 'Non-standard and D residues are highlighted. Change them from '
+               + 'the ⋮ menu.';
       return;
     }
     renderSeq(el, PEPS[i].sequence, new Set());
@@ -667,7 +667,7 @@ function drawPeps(){
   validate();
 }
 
-/* ===================== modifications (PTMs, D residues) =============== */
+/* ============ non-standard and D amino acids (ADCP 1.1) ============ */
 /* ADCP 1.1 writes a modified residue as the one-letter code of the residue
    whose coarse model it uses, then its library name in angle brackets
    (F<0A1>), and a D residue with & before its letter (&W, &F<0A1>). The
@@ -722,7 +722,7 @@ function openPepMenu(i, btn){
   m.style.top = (r.bottom + window.scrollY + 4) + 'px';
   m.style.left = Math.max(8, r.right + window.scrollX - 260) + 'px';
   $('pm_mods').disabled = !MODLIB_OK || !(PEPS[i].sequence || '').trim();
-  $('pm_mods').title = !MODLIB_OK ? 'Modifications need ADCP 1.1, which is not '
+  $('pm_mods').title = !MODLIB_OK ? 'Non-standard and D amino acids need ADCP 1.1, which is not '
                                     + 'installed here (see INSTALL.md)'
                      : (!(PEPS[i].sequence || '').trim() ? 'Enter a sequence first' : '');
   m.classList.remove('hide');

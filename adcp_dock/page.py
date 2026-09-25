@@ -228,7 +228,7 @@ button.primary{background:var(--accent);border-color:var(--accent);color:#fff;
 button.primary:hover{filter:brightness(1.08)}
 button.ghost{font-size:12.5px;padding:5px 12px;color:var(--dim)}
 button.ghost.danger{color:var(--bad)}
-/* The peptide menu and the Modifications dialog, laid out as AlphaFold
+/* The peptide menu and the non-standard residue dialog, laid out as AlphaFold
    Server's: a menu under the row's dots, then a dialog in which a residue is
    clicked to add a row with a type chosen from that residue's options. */
 .pepmenu{position:absolute;z-index:40;background:var(--card);border:1px solid var(--line);
@@ -602,7 +602,7 @@ __STALE__
 <div class=card>
   <h2>Peptides</h2>
   <p class=hint>One-letter codes; pasted FASTA, spaces and case are fine.
-    For modified and D residues (ADCP 1.1), use a peptide's &#8942; menu.</p>
+    For non-standard and D amino acids (ADCP 1.1), use a peptide's &#8942; menu.</p>
   <div id=peps></div>
   <div class=bar>
     <button id=addpep>+ Add peptide</button>
@@ -860,16 +860,17 @@ larger of the two and takes a moment the first time.">
      and the details to paste are always shown, so a report can be sent
      whatever the browser allows. -->
 <div class="pepmenu hide" id=pepmenu role=menu>
-  <button id=pm_mods role=menuitem><span class=mi><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg></span>Modifications (PTMs, D residues)</button>
+  <button id=pm_mods role=menuitem><span class=mi><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg></span>Non-standard and D amino acids</button>
   <button id=pm_dup role=menuitem><span class=mi><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M8 3h11v13h-2V5H8V3zM5 7h10v14H5V7zm2 2v10h6V9H7z"/></svg></span>Duplicate</button>
   <button id=pm_rm role=menuitem><span class=mi><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9 3h6l1 2h4v2H4V5h4l1-2zm-3 6h12l-1 12H7L6 9zm4 2v8h2v-8h-2zm4 0v8h2v-8h-2z"/></svg></span>Delete</button>
 </div>
 <dialog id=moddlg>
-  <div class=dlg-h><b>Post-translational modifications and D residues</b></div>
+  <div class=dlg-h><b>Non-standard and D amino acids</b></div>
   <div class=modbody>
-    <div class=modnote>Click a residue to modify it, then choose what it becomes.
-      Once modifications are saved the sequence is changed here, not by typing.
-      Modified peptides need ADCP 1.1.</div>
+    <div class=modnote>Click a residue, then choose its D form or a non-standard
+      residue from ADCP 1.1's library. The library comes from SwissSidechain:
+      phosphorylated, oxidised and halogenated residues among many synthetic
+      ones. Saving changes the sequence here; it is not typed.</div>
     <div id=modseq></div>
     <div id=modrows></div>
     <div id=modviews></div>

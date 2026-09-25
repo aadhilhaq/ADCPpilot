@@ -393,6 +393,44 @@ references:
     doi: "10.1002/prot.20033"
     notes: "The GB-OBC(II) solvation model, when MM-GBSA is run."
   - type: article
+    title: "SwissSidechain: a molecular and structural database of non-natural sidechains"
+    authors:
+      - family-names: "Gfeller"
+        given-names: "David"
+      - family-names: "Michielin"
+        given-names: "Olivier"
+      - family-names: "Zoete"
+        given-names: "Vincent"
+    journal: "Nucleic Acids Research"
+    volume: "41"
+    issue: "D1"
+    start: "D327"
+    end: "D332"
+    year: 2012
+    doi: "10.1093/nar/gks991"
+    notes: "the non-standard side chains and rotamers in ADCP 1.1's library"
+  - type: article
+    title: "Development and testing of a general amber force field"
+    authors:
+      - family-names: "Wang"
+        given-names: "Junmei"
+      - family-names: "Wolf"
+        given-names: "Romain M."
+      - family-names: "Caldwell"
+        given-names: "James W."
+      - family-names: "Kollman"
+        given-names: "Peter A."
+      - family-names: "Case"
+        given-names: "David A."
+    journal: "Journal of Computational Chemistry"
+    volume: "25"
+    issue: "9"
+    start: "1157"
+    end: "1174"
+    year: 2004
+    doi: "10.1002/jcc.20035"
+    notes: "the GAFF parameters ADCP 1.1 minimizes non-standard residues with"
+  - type: article
     title: "3Dmol.js: molecular visualization with WebGL"
     authors:
       - family-names: "Rego"

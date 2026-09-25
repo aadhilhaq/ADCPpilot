@@ -11,6 +11,7 @@ Every DOI here is checked against Crossref or DataCite by `--verify`.
 """
 from __future__ import annotations
 
+from . import peptide
 from . import (APP, AUTHORS, ENGINE, ENGINE_OWNER, ENGINE_URL, LAB,
                PI, REPO, __version__, acknowledgement)
 
@@ -85,6 +86,21 @@ REFERENCES = [
      "large-scale conformational changes with a modified generalized born "
      "model. Proteins 55(2):383-394, 2004.",
      "10.1002/prot.20033"),
+    # ADCP 1.1's non-standard residues and their rotamers come from the
+    # SwissSidechain database, and its OpenMM parameters for them are GAFF
+    # (parmchk2 output, GAFF atom types), as its documentation describes.
+    ("swisssidechain", "peptides with non-standard residues (ADCP 1.1)",
+     "the non-standard side chains and rotamers in ADCP 1.1's library",
+     "Gfeller D, Michielin O, Zoete V. SwissSidechain: a molecular and "
+     "structural database of non-natural sidechains. Nucleic Acids Res "
+     "41(D1):D327-D332, 2013.",
+     "10.1093/nar/gks991"),
+    ("gaff", "OpenMM minimization of peptides with non-standard residues",
+     "the GAFF parameters ADCP 1.1 minimizes non-standard residues with",
+     "Wang J, Wolf RM, Caldwell JW, Kollman PA, Case DA. Development and "
+     "testing of a general amber force field. J Comput Chem 25(9):1157-1174, "
+     "2004.",
+     "10.1002/jcc.20035"),
     ("3dmol", "if a figure from the viewer is used",
      "the interactive structure viewer",
      "Rego N, Koes D. 3Dmol.js: molecular visualization with WebGL. "
@@ -235,6 +251,20 @@ BIB = {
         title="Array programming with NumPy",
         journal="Nature", year=2020, volume="585", number="7825",
         pages="357--362"),
+    "swisssidechain": dict(
+        bibkey="Gfeller2013",
+        author="Gfeller, David and Michielin, Olivier and Zoete, Vincent",
+        title="SwissSidechain: a molecular and structural database of "
+              "non-natural sidechains",
+        journal="Nucleic Acids Research", year=2013, volume="41",
+        number="D1", pages="D327--D332"),
+    "gaff": dict(
+        bibkey="Wang2004",
+        author="Wang, Junmei and Wolf, Romain M. and Caldwell, James W. and "
+               "Kollman, Peter A. and Case, David A.",
+        title="Development and testing of a general amber force field",
+        journal="Journal of Computational Chemistry", year=2004,
+        volume="25", number="9", pages="1157--1174"),
     "3dmol": dict(
         bibkey="Rego2015",
         author="Rego, Nicholas and Koes, David",
@@ -265,6 +295,11 @@ def used_by(job):
         keys.add("openmm")
     if job.get("fill_loops"):
         keys.add("pdbfixer")
+    if any(peptide.nonstandard((p.get("sequence") or "").upper())
+           for p in job.get("peptides") or []):
+        keys.add("swisssidechain")
+        if int(job.get("omm_minimize") or 0):
+            keys.add("gaff")
     return keys
 
 

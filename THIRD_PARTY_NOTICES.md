@@ -41,7 +41,7 @@ under their own terms.
 
 | Data | Source | Terms | File |
 |---|---|---|---|
-| Codes, coarse residues and structures of ADCP 1.1's non-standard residues | Derived from ADCP 1.1's side-chain library and OpenMM templates (Scripps Research Institute, from the SwissSideChain set) by `scripts/modifications_table.py` | As ADCP 1.1 | `adcp_dock/static/modifications.json` |
+| Codes, coarse residues and structures of ADCP 1.1's non-standard residues | Derived by `scripts/modifications_table.py` from ADCP 1.1's side-chain library and OpenMM templates, which the Scripps Research Institute built from the SwissSidechain database (Gfeller, Michielin and Zoete, SIB Swiss Institute of Bioinformatics) | Scripps states that it has permission to distribute this library and that SwissSidechain's terms are moving to CC BY 4.0 (ADCP 1.1 documentation) | `adcp_dock/static/modifications.json` |
 | Residue names | RCSB Chemical Component Dictionary; PubChem | CC0 1.0; public domain | As above |
 
 ## Desktop launcher builds
