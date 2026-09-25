@@ -2319,6 +2319,19 @@ check(not ({"swisssidechain", "gaff"} & _k),
 _k = _cite.used_by({"peptides": [{"sequence": "GAF<KYN>AG"}], "omm_minimize": 0})
 check("swisssidechain" in _k and "gaff" not in _k,
       "an unminimized run with a non-standard residue cites GAFF, or not SwissSidechain")
+# ADCP 1.1 minimizes with ff99SB, and GBn2 in implicit solvent
+_k = _cite.used_by({"peptides": [{"sequence": "GAWAG"}], "omm_minimize": 2})
+check({"openmm", "ff99sb", "gbn2"} <= _k,
+      "a minimized run does not cite OpenMM, ff99SB and GBn2: %s" % sorted(_k))
+_k = _cite.used_by({"peptides": [{"sequence": "GAWAG"}], "omm_minimize": 2, "omm_env": "vacuum"})
+check("ff99sb" in _k and "gbn2" not in _k, "a run minimized in vacuum cites GBn2")
+# MM-GBSA is cited only when some peptide can be rescored with it
+_k = _cite.used_by({"peptides": [{"sequence": "GAF<KYN>AG"}, {"sequence": "GA&WAG"}], "mmgbsa": True})
+check(not ({"amber", "ff14sb", "mmpbsa", "gbmodel"} & _k),
+      "MM-GBSA is cited for a run where no peptide could be rescored: %s" % sorted(_k))
+_k = _cite.used_by({"peptides": [{"sequence": "GAF<KYN>AG"}, {"sequence": "GAWAG"}], "mmgbsa": True})
+check({"amber", "ff14sb", "mmpbsa", "gbmodel"} <= _k,
+      "MM-GBSA is not cited for a run where a standard peptide was rescored")
 
 if fails:
     print("test_api FAILED (%d)" % len(fails))

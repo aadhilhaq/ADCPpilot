@@ -431,6 +431,46 @@ references:
     doi: "10.1002/jcc.20035"
     notes: "the GAFF parameters ADCP 1.1 minimizes non-standard residues with"
   - type: article
+    title: "Comparison of multiple Amber force fields and development of improved protein backbone parameters"
+    authors:
+      - family-names: "Hornak"
+        given-names: "Viktor"
+      - family-names: "Abel"
+        given-names: "Robert"
+      - family-names: "Okur"
+        given-names: "Asim"
+      - family-names: "Strockbine"
+        given-names: "Bentley"
+      - family-names: "Roitberg"
+        given-names: "Adrian"
+      - family-names: "Simmerling"
+        given-names: "Carlos"
+    journal: "Proteins: Structure, Function, and Bioinformatics"
+    volume: "65"
+    issue: "3"
+    start: "712"
+    end: "725"
+    year: 2006
+    doi: "10.1002/prot.21123"
+    notes: "the Amber ff99SB force field ADCP 1.1 minimizes poses with"
+  - type: article
+    title: "Improved Generalized Born Solvent Model Parameters for Protein Simulations"
+    authors:
+      - family-names: "Nguyen"
+        given-names: "Hai"
+      - family-names: "Roe"
+        given-names: "Daniel R."
+      - family-names: "Simmerling"
+        given-names: "Carlos"
+    journal: "Journal of Chemical Theory and Computation"
+    volume: "9"
+    issue: "4"
+    start: "2020"
+    end: "2034"
+    year: 2013
+    doi: "10.1021/ct3010485"
+    notes: "the GBn2 implicit solvent model of that minimization"
+  - type: article
     title: "3Dmol.js: molecular visualization with WebGL"
     authors:
       - family-names: "Rego"

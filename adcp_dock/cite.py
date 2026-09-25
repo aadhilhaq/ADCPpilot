@@ -101,6 +101,20 @@ REFERENCES = [
      "testing of a general amber force field. J Comput Chem 25(9):1157-1174, "
      "2004.",
      "10.1002/jcc.20035"),
+    # ADCP 1.1 minimizes with OpenMM using Amber ff99SB (amber99sb.xml) and,
+    # in implicit solvent, the GBn2 model (gbn2.xml): openMMmethods.py.
+    ("ff99sb", "ADCP 1.1 poses minimized with OpenMM",
+     "the Amber ff99SB force field ADCP 1.1 minimizes poses with",
+     "Hornak V, Abel R, Okur A, Strockbine B, Roitberg A, Simmerling C. "
+     "Comparison of multiple Amber force fields and development of improved "
+     "protein backbone parameters. Proteins 65(3):712-725, 2006.",
+     "10.1002/prot.21123"),
+    ("gbn2", "ADCP 1.1 poses minimized with OpenMM in implicit solvent",
+     "the GBn2 implicit solvent model of that minimization",
+     "Nguyen H, Roe DR, Simmerling C. Improved generalized Born solvent model "
+     "parameters for protein simulations. J Chem Theory Comput "
+     "9(4):2020-2034, 2013.",
+     "10.1021/ct3010485"),
     ("3dmol", "if a figure from the viewer is used",
      "the interactive structure viewer",
      "Rego N, Koes D. 3Dmol.js: molecular visualization with WebGL. "
@@ -265,6 +279,21 @@ BIB = {
         title="Development and testing of a general amber force field",
         journal="Journal of Computational Chemistry", year=2004,
         volume="25", number="9", pages="1157--1174"),
+    "ff99sb": dict(
+        bibkey="Hornak2006",
+        author="Hornak, Viktor and Abel, Robert and Okur, Asim and Strockbine, "
+               "Bentley and Roitberg, Adrian and Simmerling, Carlos",
+        title="Comparison of multiple Amber force fields and development of "
+              "improved protein backbone parameters",
+        journal="Proteins: Structure, Function, and Bioinformatics", year=2006,
+        volume="65", number="3", pages="712--725"),
+    "gbn2": dict(
+        bibkey="Nguyen2013",
+        author="Nguyen, Hai and Roe, Daniel R. and Simmerling, Carlos",
+        title="Improved generalized Born solvent model parameters for protein "
+              "simulations",
+        journal="Journal of Chemical Theory and Computation", year=2013,
+        volume="9", number="4", pages="2020--2034"),
     "3dmol": dict(
         bibkey="Rego2015",
         author="Rego, Nicholas and Koes, David",
@@ -289,10 +318,17 @@ def self_citation(year=2026):
 def used_by(job):
     """The keys a given run actually used, from its job.json."""
     keys = {k for k, when, *_ in REFERENCES if when == "always"}
-    if job.get("mmgbsa"):
+    seqs = [(p.get("sequence") or "").upper() for p in job.get("peptides") or []]
+    # MM-GBSA runs only on peptides without non-standard or D residues.
+    if job.get("mmgbsa") and (not seqs or any(not peptide.is_extended(s) for s in seqs)):
         keys |= {"amber", "ff14sb", "mmpbsa", "gbmodel"}
-    if job.get("minimise", True) or int(job.get("omm_minimize") or 0):
+    omm = int(job.get("omm_minimize") or 0)
+    if job.get("minimise", True) or omm:
         keys.add("openmm")
+    if omm:
+        keys.add("ff99sb")
+        if (job.get("omm_env") or "implicit") == "implicit":
+            keys.add("gbn2")
     if job.get("fill_loops"):
         keys.add("pdbfixer")
     if any(peptide.nonstandard((p.get("sequence") or "").upper())
