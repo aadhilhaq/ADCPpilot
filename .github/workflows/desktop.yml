@@ -1,5 +1,7 @@
 # Builds the desktop launcher, for Windows and for macOS.
 #
+# By Aadhil Haq
+#
 # PyInstaller does not cross-compile: a Windows .exe has to be built on
 # Windows and a Mac .app on a Mac. Rather than ask anyone who wants one to
 # install a build environment, this runs on both runners and leaves each
@@ -10,8 +12,8 @@
 # `adcp-dock-launcher`. This is for a launcher that can be double-clicked.
 name: desktop launcher
 
-# Not on a push to main (see CONTRIBUTING.md): the test suite needs ADFRsuite
-# and Amber, so it runs on a cluster. A version tag starts this build, since a
+# Not on a push to main: the test suite needs ADFRsuite and Amber, so it
+# runs on a cluster. A version tag starts this build, since a
 # tag is pushed only when a release is wanted. It can also be run from the
 # Actions tab.
 on:

@@ -1,5 +1,7 @@
 """The web page: one file, no build step, no network access at run time.
 
+By Aadhil Haq
+
 The peptide list is laid out as a row per sequence, with the entry number,
 the type, and a sequence box that numbers its own residues.
 

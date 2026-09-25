@@ -1,5 +1,7 @@
 """A run that starts from a target file made elsewhere, such as in AGFRGUI.
 
+By Aadhil Haq
+
 AGFR (and its interface, AGFRGUI) writes a .trg file: a zip archive holding
 the grid maps, the receptor they were computed from, and the grid parameters.
 A run given one skips this package's receptor preparation and map building.

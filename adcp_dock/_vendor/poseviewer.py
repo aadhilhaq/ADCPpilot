@@ -1,5 +1,7 @@
 """Clean, viewer-ready pose files.
 
+By Aadhil Haq
+
 A docked pose cannot be handed to a molecular viewer as it is. Its atom
 order follows the docking program's internal order rather than the residue
 sequence, so a residue's atoms are not contiguous, and it carries no CONECT

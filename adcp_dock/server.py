@@ -1,5 +1,7 @@
 """The web front end: a local page that sets a run up and watches it.
 
+By Aadhil Haq
+
 Standard library only, and bound to localhost by default. A tool people run
 on a login node should not open a port to the rest of the cluster, and the
 token in the URL means a second person on the same node cannot drive a user

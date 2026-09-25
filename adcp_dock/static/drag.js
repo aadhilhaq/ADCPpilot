@@ -1,9 +1,8 @@
-/* Copied from the HOPE peptide pipeline (hope_monitor/page_pick.py):
-   label dragging for the 3Dmol viewer. It keeps a dragged label inside
+/* Label dragging for the 3Dmol viewer. It keeps a dragged label inside
    the canvas and draws its leader line into a saved PNG, which 3Dmol
    does not do itself.
 
-   Edit the original and copy it across, so the two stay the same. */
+   By Aadhil Haq */
 
 /* ===== DRAGGABLE LABELS ====================================
    3Dmol labels carry a per-label screenOffset that the render

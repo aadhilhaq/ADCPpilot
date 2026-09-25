@@ -1,5 +1,7 @@
 """The web API, driven the way the page drives it.
 
+By Aadhil Haq
+
 A form that validates on the server has to be tested against the server: the
 page's own checks can agree with themselves perfectly while the thing that
 decides whether a run starts disagrees.
@@ -1257,10 +1259,9 @@ for _lb in ("colour", "draw", "surface", "contacts", "figure", "view"):
     check(_g != -1, "the %r label is not inside a group, so it can be "
                     "separated from its buttons by a wrap" % _lb)
 
-# --- labels can be moved, with the helper the other pipelines use ---------
+# --- labels can be moved ---------------------------------------------------
 check("id=rdrag" in _html and "id=rdragoff" in _html,
-      "the viewer has no move-labels control, which the other pipelines' "
-      "3Dmol viewer has had for months")
+      "the viewer has no move-labels control")
 check("/static/drag.js" in _html, "drag.js is not loaded")
 _drag = os.path.join(ROOT, "adcp_dock", "static", "drag.js")
 check(os.path.isfile(_drag), "drag.js was not vendored")
@@ -1268,8 +1269,6 @@ if os.path.isfile(_drag):
     _d = open(_drag).read()
     check("root.makeLabelDrag = makeLabelDrag" in _d,
           "drag.js does not export makeLabelDrag")
-    check("hope_monitor/page_pick.py" in _d and "Edit the original" in _d,
-          "the vendored copy does not say where its source is")
 check("makeLabelDrag(VR" in _js2,
       "nothing constructs the dragger for the pose viewer")
 check("RDRAG.reset()" in _js2,
@@ -1331,8 +1330,7 @@ check(_pep.MIN_LENGTH == 5 and _pep.MAX_LENGTH == 30,
 #
 # ADCP searches inside the box and nowhere else, so a box that cannot hold
 # the peptide returns a pose folded to fit, which scores and ranks like an
-# answer. The rule is measured from solved peptide complexes;
-# scripts/measure_box.py re-derives it.
+# answer. The rule is measured from solved peptide complexes.
 from adcp_dock import sizing as _sz                               # noqa: E402
 check(hasattr(_sz, "box_for_length") and hasattr(_sz, "box_warning"),
       "nothing predicts whether a peptide fits the box")

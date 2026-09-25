@@ -1,5 +1,7 @@
 """ADCP re-docking of stitched constructs.
 
+By Aadhil Haq
+
 AutoDock CrankPep folds the peptide inside the receptor field instead of docking a
 fixed conformer, so a construct is not required to reproduce the poses of the two
 anchors it was built from. This is why a pair whose parent poses overlap can still
@@ -21,9 +23,8 @@ from .receptor import is_hydrogen
 _MODE = re.compile(r"^\s*(\d+)\s+(-?\d+\.\d+)\s+\S+\s+\S+\s+(\d+)")
 
 # --- the engine contract ------------------------------------------------------
-# hope_core.rerank dispatches to one of these modules. Each provides the same
-# three things so that choosing an engine is a config value rather than a
-# different code path through the pipeline.
+# Each docking engine module provides the same three things, so that choosing
+# an engine is a config value rather than a different code path.
 
 def engine_available(tools=None):
     """Whether this machine can run ADCP."""

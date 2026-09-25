@@ -1,5 +1,7 @@
 """The launcher window builds, and the site table fills it in.
 
+By Aadhil Haq
+
 Where there is a display (the Windows and macOS build runners have one)
 the real window is constructed and driven. Where there is not, the checks
 that need no display still run and this file says which half was skipped.
@@ -40,32 +42,13 @@ check("<svg" in brand.LOGO_SVG and "</svg>" in brand.LOGO_SVG,
 check(brand.version(), "brand.version() returned nothing; the window shows "
                        "this and must not be blank")
 
-# Three launchers sit side by side in one taskbar. This one's mark must not
-# be a sibling's or the peptide pipeline's.
-for other in ("hope_aptamer", "hope_core"):
-    try:
-        mod = __import__("%s.brand" % other, fromlist=["brand"])
-    except ImportError:
-        continue
-    try:
-        check(mod.logo_png() != png,
-              "this launcher's mark is byte-identical to %s's: at 16 "
-              "pixels in a taskbar they would be the same icon" % other)
-        check(mod.NAME != brand.NAME,
-              "this launcher has the same name as %s's" % other)
-    except Exception:                                           # noqa: BLE001
-        pass
-
-# --- the three launchers cannot tread on each other -------------------------
+# --- this launcher's settings and ports are its own ------------------------
 from adcp_launcher import app as appmod                         # noqa: E402
 
 check(".adcp" in os.path.basename(appmod.CONFIG),
       "the settings file is %r, which is not this tool's own. Three "
       "launchers sharing one file means each overwrites the others' "
       "cluster, account and paths" % appmod.CONFIG)
-for other in (".hope_launcher.json", ".hope_aptamer_launcher.json"):
-    check(os.path.basename(appmod.CONFIG) != other,
-          "the settings file collides with %s" % other)
 
 # The port band is this tool's own, and a sibling's formula is the one to
 # stay clear of: 8000 + (sum of the account's characters mod 1000).

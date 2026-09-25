@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Update this checkout to the latest version, and say what it now has.
 #
+# By Aadhil Haq
+#
 #     cd /path/to/ADCP_docking && git pull && ./update.sh
 #
 # The pull in front is not redundant: it is what brings in a newer copy of
@@ -100,10 +102,20 @@ say "clearing cached bytecode"
 find "$HERE" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null
 note "done"
 
-# --- say what this install actually has now ---------------------------------
-if [ -x "$HERE/check.sh" ]; then
+# --- what this install has now ----------------------------------------------
+# The checkout is installed in editable mode, so it is what runs. A copy left
+# in site-packages by an older, non-editable install would shadow it, and a
+# pull would then change files that nothing reads.
+if [ -n "$PY" ]; then
   say "what this install has"
-  "$HERE/check.sh" "$HERE"
+  WHERE=$("$PY" -c "import adcp_dock,os;print(os.path.dirname(os.path.abspath(adcp_dock.__file__)))" 2>/dev/null)
+  if [ "$WHERE" = "$HERE/adcp_dock" ]; then
+    note "adcp_dock $("$PY" -c 'import adcp_dock;print(adcp_dock.__version__)' 2>/dev/null), from this checkout"
+  else
+    warn "python imports adcp_dock from ${WHERE:-nowhere}, not from this checkout."
+    warn "Reinstall:  $PY -m pip install --no-deps -e $HERE"
+  fi
+  "$PY" -m adcp_dock.cli check 2>&1 | sed 's/^/  /'
 fi
 
 # A running server keeps the code it started with: page.py is imported once,

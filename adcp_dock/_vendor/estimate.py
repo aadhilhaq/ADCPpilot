@@ -1,8 +1,7 @@
-"""How ADCP dockings share an allocation.
+"""How ADCP dockings share an allocation: how many run at once, and with
+how many cores each.
 
-An excerpt of the HOPE peptide pipeline's cost model: the part this tool
-uses, which decides how many dockings run at once and with how many cores.
-scripts/refresh_vendor.py compares these names with the upstream module.
+By Aadhil Haq
 """
 
 # ADCP runs each Monte Carlo replica as its own process, as many at a time as

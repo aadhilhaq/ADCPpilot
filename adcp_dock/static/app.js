@@ -1,6 +1,8 @@
 /* The page's behaviour. Plain JavaScript, no framework and no build step.
    Served by the same process that does the work, so it always matches the
-   server it talks to. */
+   server it talks to.
+
+   By Aadhil Haq */
 'use strict';
 const T = new URLSearchParams(location.search).get('t') || '';
 const $ = i => document.getElementById(i);
@@ -1510,9 +1512,7 @@ async function openRun(dir){
 }
 
 /* ===================== the 3D panel ================================== */
-/* Adapted from the HOPE peptide pipeline's results viewer, without the
-   controls that have nothing to act on here: the overlay of a co-folded
-   prediction, and a choice of viewer engine.
+/* The pose viewer.
 
    Note: writing the second engine's name with its asterisk followed by a slash
    inside a block comment would end the comment early. */
@@ -1608,8 +1608,7 @@ async function loadPose(rank){
   }
   if(!VR){
     VR = $3Dmol.createViewer($('viewR'), {backgroundColor:'white'});
-    // Label dragging, using the same helper as the HOPE peptide pipeline's
-    // viewer. A figure author moves labels clear of the structure before
+    // Label dragging (drag.js). A figure author moves labels clear of the structure before
     // saving; the helper keeps a dragged label inside the canvas and draws its
     // leader line into the saved PNG, which pngURI() does not include because
     // the line is SVG.

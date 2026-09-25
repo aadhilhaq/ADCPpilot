@@ -1,5 +1,7 @@
 """Protein preparation. The steps live in prepare.py; this is the name callers use.
 
+By Aadhil Haq
+
 prep.run() hands the work to prepare, which follows the steps of a
 preparation wizard: alternate locations, modified residues, waters,
 cofactors, missing side chains, termini, disulfides, protonation at a

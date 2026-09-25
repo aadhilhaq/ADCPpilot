@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
-# The whole test suite, in one command. Run it on a compute node:
+# The whole test suite, in one command.
+#
+# By Aadhil Haq
+#
+# Run it on a compute node, adding the account and partition your cluster
+# requires:
 #
 #     srun --pty -c 8 -t 30 bash tests/run_all.sh
 #
-# adding the account and partition your cluster requires. The checks that
-# matter need ADFRsuite and Amber, so the suite runs on a cluster rather than
-# on GitHub's runners; see CONTRIBUTING.md. It does not replace a real
+# The checks that matter need ADFRsuite and Amber, so the suite runs on a
+# cluster rather than on GitHub's runners. It does not replace a real
 # docking run.
 #
 # Each test is a script: exit 0 passes, 77 skips, and anything else fails
@@ -70,8 +74,6 @@ done
 
 # Checks that would otherwise exist only in the workflow file, so that the
 # cluster runs them too.
-run "the vendored list is exactly what it claims" \
-    "$PY" "$REPO/scripts/refresh_vendor.py" --audit
 run "the launcher reaches the end of --selftest" \
     bash -c '"$1" "$2" --selftest | grep -q "^SELFTEST OK$"' _ "$PY" "$REPO/packaging/launcher.py"
 

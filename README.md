@@ -2,38 +2,28 @@
   <img src="brand/banner.png" alt="GUI to ADCP Docking" width="100%">
 </p>
 
-GUI to ADCP Docking provides a browser interface and command-line workflow for peptide docking with [AutoDock CrankPep (ADCP)](https://ccsb.scripps.edu/adcp/). It connects receptor preparation, grid generation, docking, optional MM-GBSA rescoring, and reporting. Calculations can run on a Slurm cluster, a local computer, or Google Colab.
+GUI to ADCP Docking is a browser interface and command line for peptide docking with [AutoDock CrankPep (ADCP)](https://ccsb.scripps.edu/adcp/). Give it a receptor structure and peptide sequences: it prepares the receptor, builds the grid maps, docks each peptide, can rescore the poses with MM-GBSA, and reports ranked results with the structures. The calculations run on a Slurm cluster, on your own computer, or in Google Colab.
 
-Provide a receptor structure and peptide sequences to generate predicted poses and a ranked results table. ADCP performs the docking calculations. This package manages the surrounding workflow.
+Developed by Aadhil Haq, HOPE Lab, under the supervision of Dr. Sandun Fernando. ADCP and ADFRsuite are developed by the Scripps Research Institute; this project is independent of it.
 
-Developed by Aadhil Haq, HOPE Lab, under the supervision of Dr. Sandun Fernando. This project is independent of the Scripps Research Institute, which developed ADCP and ADFRsuite.
+## Features
 
-## Workflow
-
-```text
-Receptor structure and peptide sequences
-    → Receptor preparation
-    → Receptor conversion and grid generation
-    → ADCP docking for each peptide
-    → Optional MM-GBSA rescoring
-    → Structures, ranked results, and citation files
-```
-
-On Slurm, a preparation job is followed by an array with one task per peptide. Each task includes optional rescoring. The reporting job runs after the array terminates, so it can collect partial results when a task fails.
+* Receptor preparation: protonation at a chosen pH, missing side chains, a restrained minimization, and a docking box built around the residues you choose.
+* ADCP 1.0 and ADCP 1.1. With ADCP 1.1: non-standard and D amino acids, chosen from a peptide's menu with a drawing of each; OpenMM minimization of the top poses; runs that start from an AGFR or AGFRGUI target file.
+* Optional MM-GBSA rescoring with AmberTools.
+* A ranked results table, a 3D pose viewer, and the citations for the tools each run used.
+* On Slurm, one array task per peptide; a run that stopped can be resumed.
+* A desktop launcher for Windows and macOS that signs in to a cluster and opens the interface.
 
 ## Getting started
 
-Choose where the calculations will run. [INSTALL.md](INSTALL.md) provides the full setup instructions, dependency requirements, and troubleshooting steps.
-
-| Environment | Setup |
+| Where the calculations run | How to install |
 |---|---|
-| Slurm cluster | Install the package and scientific tools on the cluster. Connect through SSH or the desktop launcher. |
-| Local computer | Use Linux, macOS, or Windows through WSL, with the required scientific tools. |
-| Google Colab | Open the [notebook](https://colab.research.google.com/github/aadhilhaq/ADCP_docking/blob/main/notebooks/ADCP_docking_colab.ipynb). Nothing is installed on your computer. |
+| A Slurm cluster | [INSTALL.md, section 1](INSTALL.md#1-on-a-slurm-cluster) |
+| Your own computer (Linux, macOS, or Windows through WSL) | [INSTALL.md, section 2](INSTALL.md#2-on-your-own-computer) |
+| Google Colab | [Open the notebook](https://colab.research.google.com/github/aadhilhaq/ADCP_docking/blob/main/notebooks/ADCP_docking_colab.ipynb); nothing is installed on your computer |
 
-### Slurm cluster
-
-After setting up the environment described in [INSTALL.md](INSTALL.md#1-on-a-slurm-cluster):
+On a cluster, once the environment in INSTALL.md is set up:
 
 ```bash
 git clone https://github.com/aadhilhaq/ADCP_docking.git
@@ -45,11 +35,9 @@ adcp-dock check
 adcp-dock serve --port 0
 ```
 
-The server prints a local address and access token. Use SSH port forwarding to open that address from your computer, or use the optional [desktop launcher](https://github.com/aadhilhaq/ADCP_docking/releases). See [connection instructions](INSTALL.md#15-start-the-page).
+The server prints an address with an access token. Open it through an SSH tunnel ([INSTALL.md, 1.5](INSTALL.md#15-start-the-page)) or with the [desktop launcher](INSTALL.md#5-the-desktop-launcher).
 
-Computational stages run as batch jobs. Follow your cluster's policy for hosting the interface server; an interactive-job option is described in the installation guide.
-
-### Local computer
+On your own computer:
 
 ```bash
 python3 -m venv ~/.adcp-dock/venv
@@ -57,19 +45,11 @@ python3 -m venv ~/.adcp-dock/venv
 ~/.adcp-dock/venv/bin/adcp-dock local
 ```
 
-The first launch installs ADFRsuite if needed. MM-GBSA requires a separate AmberTools installation. Platform requirements are listed in [INSTALL.md](INSTALL.md#2-on-your-own-computer).
+ADCP 1.1 is an optional extra install: `adcp-dock install-adcp11` ([INSTALL.md, section 4](INSTALL.md#4-adcp-11-optional)).
 
-### Google Colab
+`adcp-dock example` adds a finished run, MDM2 with three peptides, to open before docking anything. The Colab notebook includes it.
 
-[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aadhilhaq/ADCP_docking/blob/main/notebooks/ADCP_docking_colab.ipynb)
-
-The notebook runs the same interface on a Colab machine. Step 1 installs the package and downloads ADFRsuite, which takes about five minutes; with **add_MM_GBSA** ticked it also installs AmberTools for MM-GBSA rescoring, which takes a few minutes more. Step 2 opens the interface inside the notebook, or in a separate browser tab. The list of runs includes a finished example, MDM2 with three peptides, to open before docking anything. The calculations run on the Colab machine, so the available cores, memory, and session length depend on your Colab plan, and MM-GBSA on two cores is slow. Colab deletes the session's files when it ends; download finished runs from the interface, or with step 3. See [INSTALL.md](INSTALL.md#3-in-google-colab).
-
-Local and Colab runs are useful for learning the workflow and checking inputs. Reduced search settings do not establish sampling convergence. Choose production settings for the target, peptide, and available resources.
-
-### Command line
-
-Example commands, after configuring the required tools:
+## Command line
 
 ```bash
 adcp-dock new runs/trial -r 1YCR --chain A \
@@ -79,77 +59,19 @@ adcp-dock status runs/trial
 adcp-dock report runs/trial
 ```
 
-`-r` accepts a structure path or PDB ID. `-s` specifies residues used to define the docking box. Use `-p` for individual peptides or `-f` for a peptide file. Remove `--mmgbsa` if rescoring is not required. Review the search and resource settings before submitting a run.
+`-r` takes a structure file or a PDB ID, `-s` the residues the docking box covers, `-p` a peptide (repeat it for more) or `-f` a peptide file. Running `adcp-dock run` again docks only the peptides that have no result yet.
 
-Running `adcp-dock run` again submits peptides without completed results.
+## Peptides
 
-ADCP 1.1 is supported alongside ADCP 1.0, with non-standard and D amino acids (`N<BHD>PIS&DVD`, or chosen from a peptide's menu with a drawing of each), OpenMM minimization of the top poses, and runs that start from a target file made in AGFRGUI. Install it with `adcp-dock install-adcp11`; see [INSTALL.md](INSTALL.md#3a-adcp-11-optional).
+Sequences of 5 to 30 residues in one-letter codes, one per line, optionally named (`p53: ETFSDLWKLLP`) or as FASTA. Lines starting with `#` are comments. With ADCP 1.1, write a non-standard residue as its coarse one-letter code followed by its library name in angle brackets, and a D residue with `&` before its letter (`N<BHD>PIS&DVD`), or choose them in the interface.
 
-`adcp-dock example` copies a finished example run into the runs folder: MDM2 with three peptides, docked and rescored with MM-GBSA. Open it in the interface to see what a finished run contains.
+## Results
+
+Each run writes `results.tsv`, `results.json` and `results.txt`, the ranked poses, and its logs. Peptides are ranked by the mean of up to five top poses: by MM-GBSA where it ran, otherwise by the ADCP score. Both are ranking aids, not binding free energies. Look at the poses, and make sure the search settings suit your system. The logs record every preparation decision and any step that could not run.
 
 ## Requirements
 
-Python 3.9 or newer, NumPy, and RDKit are required.
-
-| Tool | Source | Purpose |
-|---|---|---|
-| `adcp`, `agfr`, `prepare_receptor` | ADFRsuite | Docking, grid generation, and receptor conversion |
-| `pdb2pqr` | PDB2PQR | Protonation at the selected pH |
-| `tleap`, `sander`, `MMPBSA.py` | AmberTools | Optional MM-GBSA rescoring |
-| `sbatch` | Slurm | Cluster execution |
-
-PDBFixer, OpenMM, and Biopython support structural repair, restrained minimization, and mmCIF input. The preparation log reports unavailable steps.
-
-Run `adcp-dock check` to inspect the installation. The ADFRsuite installer checks the downloaded archive against a pinned checksum. Fetching a receptor by PDB ID requires internet access; downloaded entries are cached.
-
-## Peptide input
-
-Use one-letter amino acid codes for sequences of 5 to 30 residues. The parser rejects B, J, O, U, X, and Z.
-
-Supported formats are a sequence, a named sequence, or FASTA:
-
-```text
-ETFSDLWKLLP
-```
-
-```text
-p53: ETFSDLWKLLP
-```
-
-```fasta
->p53
-ETFSDLWKLLP
-```
-
-Lines beginning with `#` are comments. Use a colon to separate a name from its sequence. Spaces within sequence lines are removed.
-
-## Results and interpretation
-
-The report writes `results.tsv`, `results.json`, and `results.txt`. The default ranking uses the mean of up to five top poses. If MM-GBSA summaries are available, the report uses that ranking criterion; otherwise it uses ADCP scores. Peptides without a value for the selected criterion remain in the report without a rank.
-
-The report also includes individual score summaries, pose counts, and available measures of score variation. Variation across poses does not establish statistical significance, uncertainty in binding affinity, or convergence of the search. Inspect the structures and sampling settings alongside the scores.
-
-Use MM-GBSA as an approximate ranking aid within a consistently prepared run. These values are not experimentally measured binding free energies or dissociation constants.
-
-Each run in the interface's list can be opened, reused as the starting point for a new run, downloaded, reported as an issue, shown on disk, or deleted. **folder** opens the run in your file manager when the interface runs on your own computer; on a cluster or in Colab it shows the run's path and how to reach it. **delete** asks first, removes the run's folder permanently, and is refused while any of the run's jobs is queued or running.
-
-## Workflow checks
-
-The workflow checks grid-target contents before docking, identifies receptor and peptide selections by chain for rescoring, and checks bonded-energy cancellation in single-trajectory MM-GBSA calculations. Poses that fail the rescoring consistency check are excluded from those results.
-
-Preparation decisions and incomplete steps are recorded in the logs, and the results page reports when the receptor preparation was incomplete. Review these records before interpreting a ranking. Passing workflow checks does not validate the predicted binding pose or affinity.
-
-## Tests and contributions
-
-Run the test suite on an allocated compute node:
-
-```bash
-srun --pty -c 8 -t 30 bash tests/run_all.sh
-```
-
-Add the account and partition required by your cluster. Test scripts report pass, skip, or failure; skipped checks have not been verified. See [CONTRIBUTING.md](CONTRIBUTING.md) for individual tests, contribution guidance, and the shared engine modules.
-
-Report problems through [GitHub Issues](https://github.com/aadhilhaq/ADCP_docking/issues) or **Send feedback** in the interface. Include the software revision, settings, relevant log output, and steps to reproduce the problem.
+Python 3.9 or newer with NumPy and RDKit, ADFRsuite (installed by `python -m adcp_dock.adfr`, or on the first `adcp-dock local`), and PDB2PQR (installed with the package). Optional: AmberTools for MM-GBSA; OpenMM and PDBFixer for receptor repair and minimization; Biopython for mmCIF files; ADCP 1.1. `adcp-dock check` lists what it finds.
 
 ## Citation
 
@@ -182,6 +104,10 @@ adcp-dock cite --bibtex        # use --ris for EndNote or Zotero
 
 For this interface, use GitHub's **Cite this repository** button or [CITATION.cff](CITATION.cff), and record the software version used.
 
+## Support
+
+Report problems through [GitHub Issues](https://github.com/aadhilhaq/ADCP_docking/issues) or **Send feedback** in the interface, with the version, the settings and the relevant log. To run the tests, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## License
 
-This package is distributed under the [MIT license](LICENSE), which covers only the code written for it. ADCP, ADFRsuite, AmberTools, PDB2PQR and the other programs and libraries it uses keep their own licences; [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) lists each one, how it is used and how it is obtained. No Scripps code is included in this repository.
+The [MIT license](LICENSE) covers this package's own code. ADCP, ADFRsuite, AmberTools, PDB2PQR and the other programs it uses keep their own licences; [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) lists them. No Scripps code is included in this repository.

@@ -1,4 +1,7 @@
-"""Receptor loading (.pdb / .cif / .mae), docking box construction and PDBQT preparation."""
+"""Receptor loading (.pdb / .cif / .mae), docking box construction and PDBQT preparation.
+
+By Aadhil Haq
+"""
 from __future__ import annotations
 import os
 import re, shutil, subprocess

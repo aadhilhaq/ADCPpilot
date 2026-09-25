@@ -1,5 +1,7 @@
 """Starting the tool on the cluster and getting a URL back.
 
+By Aadhil Haq
+
 The server prints one line holding both the port it got and the token that
 gates it. That line is the whole handshake: nothing is guessed, nothing is
 assumed about which port was free, and a server that failed to start says so
@@ -27,9 +29,9 @@ GUESSES = (
 )
 
 
-#: The oldest Python this tool's code can even be PARSED by. The vendored
-#: hope_core modules open with `from __future__ import annotations`, which
-#: is a SyntaxError before 3.7, and the package declares 3.9.
+#: The oldest Python this tool's code can even be PARSED by. The engine
+#: modules open with `from __future__ import annotations`, which is a
+#: SyntaxError before 3.7, and the package declares 3.9.
 MIN_PYTHON = (3, 9)
 
 

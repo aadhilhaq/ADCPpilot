@@ -1,5 +1,7 @@
 """The command line, as a user types it.
 
+By Aadhil Haq
+
 Drives each subcommand that submits nothing (new, status, cite, check)
 in-process, and checks what it leaves on disk. It also checks that no
 module imported at the top of cli.py is imported again inside main(),

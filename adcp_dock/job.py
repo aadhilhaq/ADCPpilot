@@ -1,5 +1,7 @@
 """A run, on disk: one directory, one job.json, everything else beside it.
 
+By Aadhil Haq
+
 A plain file rather than a database, so that a run survives the web app
 being closed, can be read by anyone asked to look at it later, and can be
 resumed by re-running the same command.

@@ -1,5 +1,7 @@
 """Submitting the computational stages as batch jobs.
 
+By Aadhil Haq
+
 Nothing here runs a docking directly. The login node of a shared cluster is
 for setting a run up and reading it back; a tool that starts a multi-core
 search there risks the user's account.

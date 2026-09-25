@@ -1,5 +1,7 @@
 """Draw the README banner from the same palette as the application mark.
 
+By Aadhil Haq
+
 Committed as a script and not only as a PNG so the banner can be redrawn
 when the wording changes. `python brand/make_banner.py` rewrites
 brand/banner.png in place.
@@ -18,20 +20,12 @@ from adcp_dock.brand import NAME as BRAND_NAME, TAGLINE as BRAND_TAGLINE  # noqa
 
 MUTED = "#9fc4c4"
 
-# Two layouts from one drawing. STANDARD is the README banner. WIDE is for
-# the Colab notebook: a notebook cell is much wider than a README column, so
-# the wide banner keeps its type large enough to read after it is scaled to
-# the width of the cell.
+# The README banner.
 STANDARD = dict(W=1280, H=340, title=58, body=21, small=19, x=248,
                 y_title=96, y_tag=176, y_rule=252, y_small=274,
                 rule=(96, 4), plate=156, plate_x=64, glyph=120, radius=34,
                 amp=34, dot=9, line=5, motif_min=940, motif_pad=48,
                 motif_gap=72, name="banner.png")
-WIDE = dict(W=2560, H=380, title=116, body=42, small=38, x=500,
-            y_title=34, y_tag=180, y_rule=262, y_small=292,
-            rule=(192, 8), plate=300, plate_x=128, glyph=232, radius=64,
-            amp=68, dot=18, line=10, motif_min=1880, motif_pad=96,
-            motif_gap=144, name="banner_wide.png")
 
 
 def _font(name, size):
@@ -133,4 +127,3 @@ def banner(path=None, L=STANDARD):
 
 if __name__ == "__main__":
     print(banner())
-    print(banner(L=WIDE))

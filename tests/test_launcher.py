@@ -1,5 +1,7 @@
 """The launcher, without a cluster, a display or paramiko.
 
+By Aadhil Haq
+
 What can be checked here is the shape: the command it would run, the line
 it would recognise coming back, the timeout it allows for two-factor
 approval, and that the authorship is written in one place that everything

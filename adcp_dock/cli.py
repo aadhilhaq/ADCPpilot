@@ -1,5 +1,7 @@
 """Command line, for people who would rather not use the web page.
 
+By Aadhil Haq
+
     adcp-dock check                              what can be found on this machine
     adcp-dock new  RUNDIR -r rec.pdb -s A:41,A:45 -p RWGPGAW -p KDGGVDG
     adcp-dock run  RUNDIR                        submit it to SLURM

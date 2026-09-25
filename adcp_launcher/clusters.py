@@ -1,5 +1,7 @@
 """What differs between one cluster and the next, as a table rather than in code.
 
+By Aadhil Haq
+
 Selecting a site fills in the rest: a user should need to know their
 account and password, not a group allocation path.
 
@@ -129,8 +131,8 @@ def suggested_port(user):
     """A stable port for this person, in this tool's own band.
 
     Derived from the account name: uncoordinated, repeatable, and still
-    editable. Mixed with the tool's name so that the same person asking
-    three launchers for a suggestion gets three different numbers.
+    editable. Mixed with the tool's name so that the same person gets a
+    different number from another tool's launcher.
     """
     seed = (user or "adcp") + "|adcp-docking"
     return PORT_BASE + (sum(ord(c) * (i + 1) for i, c in enumerate(seed))

@@ -1,5 +1,7 @@
 """The laptop-to-cluster connection, end to end, against a fake SSH server.
 
+By Aadhil Haq
+
 A real login needs a password and a second-factor approval from the
 account owner, so it cannot be tested here. Everything around it can:
 answering a two-stage challenge, passing the server's wording through
