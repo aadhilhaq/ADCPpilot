@@ -1203,14 +1203,40 @@ check("td.seq{" in _html and "text-align:left" in
       _html[_html.index("td.seq{"):_html.index("td.seq{") + 200],
       "the sequence column is not left aligned; it is read letter by letter, "
       "not as a quantity")
+# The results table is built from one column spec (colgroups), so the checks
+# are against the spec rather than against inline markup: a column that is
+# centred there is centred in the heading and in the cell by construction,
+# which is the reason the table was rewritten that way.
+_spec = _js2[_js2.index("function colgroups("):_js2.index("function colsOn(")]
 _res = _js2[_js2.index("rows.map(r => '<tr class=pick"):
             _js2.index("'</tr>').join('')")]
-check("class=num" not in _res,
+check("class=num" not in _res and "'num'" not in _spec,
       "a results cell is still right-aligned under a centred heading")
-check(_res.count("class=c") >= 6,
-      "the results cells are not centred: %d centred cells found"
-      % _res.count("class=c"))
-check("class=seq" in _res, "the peptide column is not the sequence class")
+check(_spec.count("cls: 'c'") >= 6,
+      "the results cells are not centred: %d centred columns in the spec"
+      % _spec.count("cls: 'c'"))
+check("cls: 'seq pin'" in _spec,
+      "the peptide column is not the sequence class")
+# Every column carries a heading and a formatter, or a heading appears above
+# an empty column, or a value appears under no heading.
+_cols = _spec.split("{h: ")[1:]
+check(len(_cols) >= 20,
+      "the spec has only %d columns; the panel is not in the table" % len(_cols))
+check(all("f: " in c for c in _cols),
+      "a column in the spec has no formatter, so its cells would be blank")
+check(all("cls: " in c for c in _cols),
+      "a column in the spec has no cell class, so it would not line up")
+# The columns that say WHICH peptide a row is stay pinned while the rest
+# scrolls sideways. Without them a number in column twenty is unattributable.
+check(_spec.count("pin") >= 3 and "cls: 'nm pin'" in _spec,
+      "the identity columns are not pinned, so the table scrolls the name "
+      "away from its numbers")
+check(".rtable{max-height" in _html and "overflow:auto" in
+      _html[_html.index(".rtable{"):_html.index(".rtable{") + 120],
+      "the results table does not scroll in its own box")
+check("position:sticky" in _html[_html.index(".rtable th{"):
+                                 _html.index(".rtable th{") + 120],
+      "the results table heading does not stay put while it scrolls")
 
 
 # --- the downloads are pills, like open -----------------------------------
@@ -1708,7 +1734,7 @@ _tbl = _rep.table([_r, _rep.summarise("LLKWHY", [{"score": -19.0}], None)])
 check("name" in _tbl and "HOPE9" in _tbl,
       "the fixed-width table has no name column")
 check("-" in _tbl.splitlines()[-6] or True, "")  # unnamed rows render
-check("name" in _html and "<td class=nm>" in appjs,
+check("name" in _html and "cls: 'nm pin'" in appjs,
       "the web results table has no name column")
 # td.nm, not .nm: .nm is already the peptide entry row's 140px name box.
 check("td.nm{" in _bare and "text-align:left" in

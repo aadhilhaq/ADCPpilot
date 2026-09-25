@@ -12,6 +12,7 @@ Developed by Aadhil Haq, HOPE Lab, under the supervision of Dr. Sandun Fernando.
 * ADCP 1.0 and ADCP 1.1. With ADCP 1.1: non-standard and D amino acids, chosen from a peptide's menu with a drawing of each; OpenMM minimization of the top poses; runs that start from an AGFR or AGFRGUI target file.
 * Optional MM-GBSA rescoring with AmberTools.
 * A ranked results table, a 3D pose viewer, and the citations for the tools each run used.
+* An interface panel beside the scores: the four MM-GBSA energy terms, buried surface area and how much of the peptide is buried, typed contacts and clashes, per residue energies from Amber's own decomposition, how much of the nominated site the pose touches, and the sequence liabilities. Every number is measured on the geometry its energy was computed on, and the run records the cutoffs and radii it used.
 * On Slurm, one array task per peptide; a run that stopped can be resumed.
 * A desktop launcher for Windows and macOS that signs in to a cluster and opens the interface.
 
@@ -67,7 +68,9 @@ Sequences of 5 to 30 residues in one-letter codes, one per line, optionally name
 
 ## Results
 
-Each run writes `results.tsv`, `results.json` and `results.txt`, the ranked poses, and its logs. Peptides are ranked by the mean of up to five top poses: by MM-GBSA where it ran, otherwise by the ADCP score. Both are ranking aids, not binding free energies. Look at the poses, and make sure the search settings suit your system. The logs record every preparation decision and any step that could not run.
+Each run writes `results.tsv`, `results.json` and `results.txt`, the ranked poses, a `metrics/` folder, and its logs. Peptides are ranked by the mean of up to five top poses: by MM-GBSA where it ran, otherwise by the ADCP score. Both are ranking aids, not binding free energies. Look at the poses, and make sure the search settings suit your system. The logs record every preparation decision and any step that could not run.
+
+`metrics/` holds the interface panel: one file per peptide with every pose that was measured, and one residue map naming each receptor residue at the interface, what kind of contact it makes, and its own energy. `results.json` carries the constants the panel was measured with, so a number in it can be compared with a number from somewhere else. Two limits are worth knowing before the columns are quoted: the contact counts are this tool's own geometric definitions rather than PLIP's, testing proximity and not hydrogen positions or ring orientation; and a per residue energy comes from a decomposition that agrees with the reported total to within a per cent or two rather than exactly, because Amber uses a per atom surface term in a decomposition where the total uses LCPO.
 
 ## Requirements
 
