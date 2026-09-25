@@ -1237,6 +1237,23 @@ check(".rtable{max-height" in _html and "overflow:auto" in
 check("position:sticky" in _html[_html.index(".rtable th{"):
                                  _html.index(".rtable th{") + 120],
       "the results table heading does not stay put while it scrolls")
+# The heading row spans its group's columns, and both come from the same
+# array, so a group cannot claim more columns than it has.
+_tbl = _js2[_js2.index("function resultsTable("):
+            _js2.index("/* The pinned columns")]
+check("colspan=' + g.cols.length" in _tbl,
+      "a group heading's width is not taken from its own column count, so it "
+      "can disagree with the cells under it")
+check("catch(e) { v = '-'; }" in _tbl,
+      "a column whose formatter throws breaks the whole row instead of "
+      "showing a dash")
+check("'<div class=rtable><table>'" in _tbl,
+      "the results table is not inside the box that scrolls it")
+# A reader who wants the scores should not have to scroll past the panel, so
+# the groups can be switched off, and the choice is remembered.
+check("localStorage.setItem('adcp.cols'" in _js2
+      and "data-col" in _js2,
+      "the column groups cannot be switched off, or the choice is not kept")
 
 
 # --- the downloads are pills, like open -----------------------------------

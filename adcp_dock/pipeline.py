@@ -379,17 +379,35 @@ def _panel_scored(rundir, j, seq, out, mmdir, folders, ranks, values,
     """The panel for the poses MM-GBSA scored, on the geometry it scored them
     on."""
     hot = _hotspots(j)
-    poses, rows_best, best = [], [], None
-    log("  measuring the interface on the minimised geometry of %d pose(s)"
-        % len(folders))
-    for i, fold in enumerate(folders):
-        posedir = os.path.join(mmdir, seq, "pose%d" % fold)
+    log("  measuring the interface on the geometry each of %d pose(s) was "
+        "scored on" % len(folders))
+    cpus = int(os.environ.get("SLURM_CPUS_PER_TASK", j.get("cpus", 0)) or 0)
+    workers = max(1, min(cpus or 1, len(folders), int(j.get("mm_workers", 8))))
+
+    def one(i):
+        """One pose, in its own directory, so several can run at once."""
+        posedir = os.path.join(mmdir, seq, "pose%d" % folders[i])
+        quiet = (lambda *a: None) if workers > 1 else log
         try:
-            m, rows = metrics.for_pose(posedir, seq, hotspots=hot, log=log)
+            return i, metrics.for_pose(posedir, seq, hotspots=hot, log=quiet)
+        except metrics.Mismatch as exc:
+            log("    pose %d: %s, so it is not measured" % (ranks[i], exc))
         except Exception as exc:                                # noqa: BLE001
             log("    pose %d: the panel could not be measured (%s)"
                 % (ranks[i], exc))
-            continue
+        return i, (None, [])
+
+    if workers > 1:
+        import concurrent.futures as cf
+        log("    %d pose(s) at a time" % workers)
+        with cf.ThreadPoolExecutor(max_workers=workers) as pool:
+            done = list(pool.map(one, range(len(folders))))
+    else:
+        done = [one(i) for i in range(len(folders))]
+    # Collected by position, not by the order they finished, so the panel does
+    # not depend on which pose happened to be measured first.
+    poses, rows_best, best = [], [], None
+    for i, (m, rows) in sorted(done, key=lambda kv: kv[0]):
         if not m:
             # Silence here would drop a pose out of the panel while its energy
             # stayed in the table, and nothing would say the two describe
@@ -400,14 +418,17 @@ def _panel_scored(rundir, j, seq, out, mmdir, folders, ranks, values,
         m["pose"] = ranks[i]
         m["dg"] = values[i]
         poses.append(m)
-        # The pose the columns describe is the one with the lowest energy,
-        # not the first that happened to be measured.
+        # The pose the columns describe is the one with the lowest energy, not
+        # the first that happened to be measured.
         if best is None or (m["dg"] is not None
                             and m["dg"] < poses[best]["dg"]):
             best = len(poses) - 1
             rows_best = rows
     if not poses:
         return
+    if len(poses) < len(folders):
+        log("    the panel describes %d of the %d scored pose(s); the energy "
+            "columns cover all of them" % (len(poses), len(folders)))
     panel = dict(poses[best])
     panel.update(_pose_spread(poses))
     panel.update(metrics.developability(seq, ph=float(j.get("ph", 7.4))))
@@ -573,8 +594,9 @@ def _constants(j):
                                "surface terms are apportioned per atom. A "
                                "decomposition is forced to gbsa=2, a per atom "
                                "surface, where the total keeps LCPO, so the "
-                               "per residue column sums to within a per cent "
-                               "or two of the reported total and not exactly",
+                               "per residue column sums to a few per cent "
+                               "more negative than the reported total and not "
+                               "to it exactly; the pairwise terms agree",
               "ph": float(j.get("ph", 7.4)),
               "site": [[c_, n] for c_, n in _hotspots(j)]})
     return c

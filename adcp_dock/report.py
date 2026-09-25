@@ -89,6 +89,7 @@ PANEL_KEYS = [
     ("site_coverage", "site_coverage"),
     ("site_dg", "site_dg"), ("site_dg_mean", "site_dg_mean"),
     ("bsa", "bsa"), ("bsa_per_res", "bsa_per_res"), ("bsa_sd", "bsa_sd"),
+    ("bsa_basis", "bsa_basis"),
     ("f_pep_buried", "f_pep_buried"), ("f_hydrophobic", "f_hydrophobic"),
     ("n_hbond", "n_hbond"), ("n_ionic", "n_ionic"), ("n_stack", "n_stack"),
     ("n_contact", "n_contact"), ("n_clash", "n_clash"),
@@ -253,11 +254,12 @@ def panel_table(rows):
                        str(r.get("name") or r["peptide"]) for r in odd[:6]))
     if any(r.get("site_dg") is not None for r in rows):
         out.append("")
-        out.append("A site energy is MMPBSA.py's decomposition of that pose, "
-                   "and sums to within a per cent or two of its total rather "
-                   "than exactly: a decomposition uses a per atom surface "
-                   "term where the total uses LCPO. The residue map is in "
-                   "metrics/.")
+        out.append("A site energy is MMPBSA.py's decomposition of that pose. "
+                   "It sums to within a few per cent of that pose's total "
+                   "rather than exactly, and always slightly more negative, "
+                   "because a decomposition uses a per atom surface term "
+                   "where the total uses LCPO. The energy terms themselves "
+                   "agree. The residue map is in metrics/.")
     if any(r.get("min_stopped_at_maxcyc") for r in rows):
         out.append("")
         out.append("The minimisation before the energy stopped at its cycle "

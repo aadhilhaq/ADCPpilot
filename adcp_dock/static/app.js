@@ -1481,9 +1481,10 @@ function colgroups(rows, tn, mm, omm){
     {h: 'site dG', cls: 'c', t: 'The sum of those residues’ own '
       + 'contributions, from MMPBSA.py’s per residue decomposition of this '
       + 'same pose, the same topology and the same GB model. It agrees with the '
-      + 'total to within a per cent or two rather than exactly, because a '
-      + 'decomposition uses a per atom surface term where the total uses '
-      + 'LCPO, so read it as a decomposition of this pose and not as an exact '
+      + 'total to within a few per cent rather than exactly, and always '
+      + 'slightly more negative, because a decomposition uses a per atom '
+      + 'surface term where the total uses LCPO; the energy terms themselves '
+      + 'agree. Read it as a decomposition of this pose and not as an exact '
       + 'share of its energy. A nominated residue is where the search was '
       + 'aimed; it is '
       + 'not evidence that the residue must contribute.',
@@ -1498,6 +1499,11 @@ function colgroups(rows, tn, mm, omm){
      f: r => fmt(r.bsa, 0)},
     {h: 'per res', cls: 'c', t: 'The peptide’s buried area divided by its '
       + 'residues.', f: r => fmt(r.bsa_per_res, 0)},
+    {h: 'rolled over', cls: 'c', t: 'Which atoms the area was rolled over. A '
+      + 'complex that has been through tleap has its hydrogens and a docked '
+      + 'pose does not; the same pose measured both ways differs by about 8 '
+      + 'per cent, so the two are not comparable.',
+     f: r => esc(r.bsa_basis || '-')},
     {h: 'buried', cls: 'c', t: 'The share of the peptide’s own free '
       + 'surface that the receptor covers.', f: r => fmt(r.f_pep_buried, 2)},
     {h: 'apolar', cls: 'c', t: 'The share of the peptide’s buried area '

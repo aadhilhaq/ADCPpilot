@@ -66,8 +66,11 @@ check("they sum to DELTA TOTAL",
 check("1-4 VDW is not read as VDWAALS", t["vdw"] == -63.0768)
 check("1-4 EEL is not read as EEL", t["eel"] == -4.9870)
 check("the buried area from ESURF is positive", t["bsa_lcpo"] > 0)
+# Rounded to the nearest square angstrom, which is finer than the surface is
+# known to: see metrics.POINTS.
 check("it is ESURF over the surface tension",
-      abs(t["bsa_lcpo"] - 8.1825 / M.SURFTEN) < 0.2)
+      abs(t["bsa_lcpo"] - 8.1825 / M.SURFTEN) < 1.0,
+      "%s" % t["bsa_lcpo"])
 check("a partial read is visible", "terms_read" in t)
 # A positive ESURF difference is not a buried area.
 open(dat, "w").write(DAT.replace("-8.1825", " 8.1825"))
@@ -242,8 +245,19 @@ check("a peptide 50 A away makes no contacts",
 b = M.burial(far)
 check("and buries nothing", abs(b["bsa"]) < 1.0, "%s" % b.get("bsa"))
 check("so none of it is buried", b["f_pep_buried"] < 0.01)
-check("a structure with one chain returns no interface",
-      M.contacts(M.read_pdb(_pdb([("A", 1, "ALA", "CB", "C", 0, 0, 0)]))) == {})
+# One chain has no interface, and says so with zeros rather than with missing
+# keys: a vanished column makes a ragged row, and a reader cannot tell "no
+# interface" from "not measured".
+_one = M.contacts(M.read_pdb(_pdb([("A", 1, "ALA", "CB", "C", 0, 0, 0)])))
+check("a structure with one chain reports an empty interface, not no columns",
+      _one["n_contact"] == 0 and _one["n_clash"] == 0 and "n_hbond" in _one,
+      "%s" % _one)
+_oneb = M.burial(M.read_pdb(_pdb([("A", 1, "ALA", "CB", "C", 0, 0, 0)])))
+check("and buries nothing, with the same keys as a measured interface",
+      _oneb["bsa"] == 0.0 and "f_pep_buried" in _oneb, "%s" % _oneb)
+check("a structure with no atoms at all does not raise",
+      M.for_structure(M.Structure([], [], [], [], [], []))[0]["n_contact"]
+      == 0)
 
 print("buried area, and what kind of surface it is")
 # A methyl group pressed against a methyl group: the burial is real, the
@@ -257,6 +271,10 @@ check("the buried area is the two partners' loss",
 check("the buried fraction is a fraction",
       0.0 < b["f_pep_buried"] < 1.0, "%s" % b["f_pep_buried"])
 check("two carbons bury an apolar surface", b["f_hydrophobic"] == 1.0)
+# Which atoms the area was rolled over travels with it: the same pose measured
+# with and without hydrogens differs by about 8 per cent, so the two must not
+# be compared as if they were the same quantity.
+check("a heavy atom structure says so", b["bsa_basis"] == "heavy atoms only")
 # The same with an oxygen: now none of it is apolar.
 polar = M.read_pdb(_pdb([
     ("A", 1, "ALA", "CB", "C", 0, 0, 0),
@@ -273,12 +291,69 @@ check("a hydrogen is assigned to a heavy atom in its own residue",
       par[2] == 1, "parent index %d" % par[2])
 check("the hydrogen's area folds onto its parent, so it is still polar",
       M.burial(withh)["f_hydrophobic"] == 0.0)
+check("a structure with hydrogens says so",
+      M.burial(withh)["bsa_basis"] == "heavy atoms and hydrogens")
+# A residue holding hydrogens alone must not reach into another residue for a
+# parent: folding a peptide hydrogen onto a receptor atom would move buried
+# area across the interface.
+lone = M.read_pdb(_pdb([
+    ("A", 1, "ALA", "CB", "C", 0, 0, 0),
+    ("B", 2, "HOH", "H1", "H", 20, 0, 0)]))
+check("a hydrogen with no heavy atom in its residue gets no parent",
+      M.parents(lone)[1] == -1)
 
-print("a PDB where two residues share a number")
-ins = M.read_pdb(_pdb([
-    ("A", 100, "GLY", "N", "N", 0, 0, 0),
-    ("A", 100, "GLY", "CA", "C", 1.5, 0, 0)]) )
-check("both atoms of one residue survive", len(ins) == 2)
+print("a receptor with an insertion code, where 54 and 54A are two residues")
+
+
+def _pdb_ic(rows):
+    """rows of (chain, resnum, icode, resname, name, element, x, y, z)."""
+    p = os.path.join(d, "ic%d.pdb" % len(rows))
+    with open(p, "w") as fh:
+        for i, (ch, rn, ic, res, nm, el, x, y, z) in enumerate(rows, 1):
+            fh.write("ATOM  %5d %-4s %-3s %s%4d%1s   %8.3f%8.3f%8.3f  1.00  "
+                     "0.00          %2s\n"
+                     % (i, (" " + nm) if len(nm) < 4 else nm, res, ch, rn, ic,
+                        x, y, z, el))
+        fh.write("END\n")
+    return p
+
+
+icp = _pdb_ic([
+    ("A", 54, " ", "LEU", "CB", "C", 0, 0, 0),
+    ("A", 54, "A", "PHE", "CB", "C", 5, 0, 0),
+    ("B", 90, " ", "TRP", "CB", "C", 3.5, 0, 0)])
+ic = M.read_pdb(icp)
+check("both residues survive as atoms", len(ic) == 3)
+check("and as two separate residues", len(ic.residues()) == 3)
+check("the inserted residue is numbered apart from its neighbour",
+      ic.num(0) == 54 and ic.num(1) == "54A", "%s and %s"
+      % (ic.num(0), ic.num(1)))
+tm_ic = M.tleap_map(icp)
+check("the tleap map keeps the insertion code",
+      tm_ic[2] == ("A", 54, "PHE", "A"), "%s" % (tm_ic.get(2),))
+check("so the two do not collide into one key",
+      len({(v[0], v[1], v[3]) for v in tm_ic.values()}) == 3)
+
+print("a minimised file that is not the complex tleap read")
+# The labels come from position, so a single extra residue shifts every label
+# after it and every number downstream, all of it plausible.
+good = _pdb([("A", 25, "GLU", "CB", "C", 0, 0, 0),
+             ("A", 26, "THR", "CB", "C", 4, 0, 0)])
+tm_good = {1: ("A", 25, "GLU", ""), 2: ("A", 26, "THR", "")}
+st_good = M.read_minimised(good, tm_good)
+check("a file that fits its map is relabelled",
+      st_good.chain[0] == "A" and st_good.resnum[1] == 26)
+try:
+    M.read_minimised(good, {1: ("A", 25, "GLU", "")})
+    check("an extra residue is refused", False, "it was accepted")
+except M.Mismatch as exc:
+    check("a residue count that does not match is refused", True)
+try:
+    M.read_minimised(good, {1: ("A", 25, "GLU", ""), 2: ("A", 26, "VAL", "")})
+    check("a residue name that does not match is refused", False,
+          "it was accepted")
+except M.Mismatch:
+    check("a residue name that does not match is refused", True)
 
 # --------------------------------------------------- the site and the panel
 print("the nominated site")
@@ -399,6 +474,31 @@ if os.path.isfile(os.path.join(POSE, "WVGGGSYW_com_forleap.pdb")):
     check("the real output's four terms close on its total",
           abs(rt["vdw"] + rt["eel"] + rt["egb"] + rt["esurf"] - rt["total"])
           < 0.001)
+    # The claim the docs and the report make about the decomposition, checked
+    # against the decomposition rather than repeated. Where a run has one on
+    # disk: the pairwise terms must agree closely, the surface term must not,
+    # and the total must come out a few per cent more negative.
+    dfile = os.path.join(POSE, "WVGGGSYW_decomp.dat")
+    if os.path.isfile(dfile):
+        dg = M.decomposition(dfile, tm)
+        tot = sum(v["total"] for v in dg.values())
+        gap = abs(tot - rt["total"]) / abs(rt["total"])
+        check("the decomposition sums close to, but not onto, the total",
+              0.001 < gap < 0.10, "%.2f%% apart" % (100 * gap))
+        check("it is more negative, not less", tot < rt["total"])
+        for term, key in (("vdw", "vdw"), ("eel", "eel"), ("polar", "egb")):
+            got = sum(v[term] for v in dg.values())
+            check("the decomposed %s agrees with the reported one" % term,
+                  abs(got - rt[key]) < 0.1,
+                  "%.3f against %.3f" % (got, rt[key]))
+        surf = sum(v["nonpolar"] for v in dg.values())
+        check("and the whole difference is the surface term",
+              abs((surf - rt["esurf"]) - (tot - rt["total"])) < 0.1,
+              "surface differs by %.3f, total by %.3f"
+              % (surf - rt["esurf"], tot - rt["total"]))
+    else:
+        print("  . no decomposition on disk for this pose, so the closure "
+              "check is skipped")
 else:
     skips.append("no full MM-GBSA pose directory on this machine")
     print("  . %s" % skips[-1])

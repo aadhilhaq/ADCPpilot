@@ -12,8 +12,8 @@ module computes that panel from what a run already has on disk:
   per residue    MMPBSA.py's own decomposition of the same frame, the same
                  topologies and the same GB model, rather than a second
                  estimate from a second force field. It agrees with the
-                 reported total to within a couple of per cent, not exactly:
-                 see decomposition() for why, and never present a per residue
+                 reported total to within a few per cent, not exactly: see
+                 decomposition() for why, and never present a per residue
                  energy as an exact share of the reported number
   interface      buried area, the share of the peptide that is buried, how
                  much of that area is apolar, typed contacts, clashes
@@ -46,10 +46,18 @@ BONDI = {"H": 1.20, "C": 1.70, "N": 1.55, "O": 1.52, "S": 1.80, "P": 1.80,
          "ZN": 1.39, "MG": 1.73, "NA": 2.27, "K": 2.75, "CA": 2.31}
 BONDI_DEFAULT = 1.70
 PROBE = 1.4
-# Points per sphere. Shrake and Rupley used 92; more points cost nothing at
-# this size and stop the third decimal of a buried area from moving when an
-# atom is rotated.
-POINTS = 256
+# Points per sphere. Shrake and Rupley used 92.
+#
+# Measured, not assumed. Against an analytic two sphere area the error is 2.0%
+# at 92 points, 0.56% at 256, 0.24% at 1024 and 0.10% at 4096; against
+# freesasa on the same Bondi radii and probe, this converges to within 0.01%.
+# The number that decides it is not accuracy but ROTATIONAL STABILITY, because
+# the point lattice is fixed in space while the molecule is not: rotating a
+# real complex moved its buried area by 15 A^2 at 256 points and by 3.6 A^2 at
+# 1024. A buried area reported to a tenth of an A^2 from 256 points would be
+# quoting four digits of a number whose third is noise, so this is 1024 and
+# areas are reported to the nearest A^2.
+POINTS = 1024
 
 # The contact rules, identical to the ones the pose viewer paints with. See
 # hope_monitor/interactions_kind.py in the pipelines, which holds the same
@@ -118,23 +126,40 @@ class Structure:
     should fail where it is read rather than three functions later.
     """
 
-    def __init__(self, xyz, name, resname, chain, resnum, element):
-        self.xyz = np.asarray(xyz, dtype=float)
+    def __init__(self, xyz, name, resname, chain, resnum, element,
+                 icode=None):
+        # reshape and the explicit dtypes are for the empty case: numpy infers
+        # float64 from an empty list, and a float mask cannot be inverted or
+        # and-ed, so every function here raised on a structure with no atoms.
+        self.xyz = np.asarray(xyz, dtype=float).reshape(-1, 3)
         self.name = list(name)
         self.resname = list(resname)
         self.chain = list(chain)
         self.resnum = list(resnum)
         self.element = list(element)
+        # The insertion code, which is part of a residue's identity: residues
+        # 54 and 54A are two residues, and the rest of this package keys on
+        # columns 23 to 27 for exactly that reason.
+        self.icode = list(icode) if icode is not None else [""] * len(self.name)
         self.radii = np.array([BONDI.get(e, BONDI_DEFAULT)
-                               for e in self.element])
-        self.heavy = np.array([e != "H" for e in self.element])
+                               for e in self.element], dtype=float)
+        self.heavy = np.array([e != "H" for e in self.element], dtype=bool)
 
     def __len__(self):
         return len(self.name)
 
     def key(self, i):
-        """(chain, residue number, residue name) for atom i."""
-        return (self.chain[i], self.resnum[i], self.resname[i])
+        """(chain, residue number, residue name) for atom i.
+
+        The number carries the insertion code where there is one, as "54A",
+        so two residues sharing a number stay two residues.
+        """
+        return (self.chain[i], self.num(i), self.resname[i])
+
+    def num(self, i):
+        """The residue number of atom i, with its insertion code."""
+        ic = (self.icode[i] or "").strip()
+        return ("%d%s" % (self.resnum[i], ic)) if ic else self.resnum[i]
 
     def residues(self):
         """The residue keys in file order, without repeats."""
@@ -146,6 +171,10 @@ class Structure:
                 out.append(k)
         return out
 
+    def resid(self, i):
+        """(chain, numbered residue) for atom i, without the residue name."""
+        return (self.chain[i], self.num(i))
+
     def select(self, mask):
         m = np.asarray(mask, dtype=bool)
         idx = np.nonzero(m)[0]
@@ -153,7 +182,8 @@ class Structure:
                          [self.resname[i] for i in idx],
                          [self.chain[i] for i in idx],
                          [self.resnum[i] for i in idx],
-                         [self.element[i] for i in idx])
+                         [self.element[i] for i in idx],
+                         [self.icode[i] for i in idx])
 
 
 # Every residue name that means "part of a protein chain", including the forms
@@ -202,13 +232,13 @@ def read_pdb(path, chains=None):
     residues numbered 100 and 100A are different residues, and a key without
     it merges them and silently drops the second one's atoms.
     """
-    xyz, name, resname, chain, resnum, element = [], [], [], [], [], []
-    seen_alt = set()
+    xyz, name, resname, chain, resnum, element, icode = ([], [], [], [], [],
+                                                         [], [])
+    seen = set()
     with open(path) as fh:
         for l in fh:
             if not l.startswith(("ATOM", "HETATM")):
                 continue
-            alt = l[16]
             nm = l[12:16].strip()
             ch = l[21]
             if chains and ch not in chains:
@@ -217,20 +247,22 @@ def read_pdb(path, chains=None):
                 rn = int(l[22:26])
             except ValueError:
                 continue
-            if alt not in (" ", "", "A"):
-                continue
+            # The FIRST alternate location of each atom, whatever letter it
+            # carries. Whitelisting " ", "" and "A" dropped an altLoc of "1",
+            # which some depositions use, along with the ones it meant to.
             k = (ch, rn, l[26], nm)
-            if k in seen_alt:
+            if k in seen:
                 continue
-            seen_alt.add(k)
+            seen.add(k)
             rnm = l[17:20].strip().upper()
             xyz.append((float(l[30:38]), float(l[38:46]), float(l[46:54])))
             name.append(nm)
             resname.append(rnm)
             chain.append(ch)
             resnum.append(rn)
+            icode.append(l[26].strip())
             element.append(_element(nm, l[76:78] if len(l) > 77 else "", rnm))
-    return Structure(xyz, name, resname, chain, resnum, element)
+    return Structure(xyz, name, resname, chain, resnum, element, icode)
 
 
 def write_pdb(st, path):
@@ -316,17 +348,25 @@ def parents(st):
     # and was the slowest thing in the panel on a large receptor.
     by_res = {}
     for k in heavy:
-        by_res.setdefault((st.chain[k], st.resnum[k]), []).append(k)
+        by_res.setdefault(st.resid(k), []).append(k)
     for i in np.nonzero(~st.heavy)[0]:
-        # Same residue first: a hydrogen is never closer to the next
-        # residue's carbon than to its own, and ff14SB always puts it there.
-        pool = np.array(by_res.get((st.chain[i], st.resnum[i])) or heavy)
+        # Its own residue and nowhere else. A hydrogen is never closer to the
+        # next residue's carbon than to its own, and ff14SB always puts it in
+        # the same residue, but a residue holding hydrogens ALONE, which a
+        # stripped water or a mis-split heteroatom can produce, used to reach
+        # across the structure and fold a ligand hydrogen's area onto a
+        # receptor atom. Unparented is better: burial leaves the area where it
+        # is and the total is still conserved.
+        pool = by_res.get(st.resid(i))
+        if not pool:
+            continue
+        pool = np.array(pool)
         d = np.linalg.norm(st.xyz[pool] - st.xyz[i], axis=1)
         out[i] = pool[int(np.argmin(d))]
     return out
 
 
-def burial(complex_st, lig_chain="B"):
+def burial(complex_st, lig_chain="B", points=None):
     """Buried area, and what kind of surface it is.
 
     Three SASA evaluations on the one geometry: the complex, and each partner
@@ -336,15 +376,24 @@ def burial(complex_st, lig_chain="B"):
     bsa is the total area both partners lose, which is the convention a
     structure paper reports; half of it is the interface area on one side.
     """
-    lig = np.array([c == lig_chain for c in complex_st.chain])
+    lig = np.array([c == lig_chain for c in complex_st.chain], dtype=bool)
     rec = ~lig
     if not lig.any() or not rec.any():
-        return {}
-    a_com = sasa(complex_st.xyz, complex_st.radii)
+        # Zeros and Nones rather than missing keys. A vanished column makes a
+        # ragged row in the TSV, and a reader cannot tell "no interface" from
+        # "not measured". This is the same shape the answer takes when the
+        # peptide is simply far away.
+        return dict(EMPTY_BURIAL)
+    # Passed through rather than defaulted inside sasa, so a caller asking for
+    # a different point count actually gets one.
+    n_pts = int(points or POINTS)
+    a_com = sasa(complex_st.xyz, complex_st.radii, points=n_pts)
     a_lig = np.zeros(len(complex_st))
     a_rec = np.zeros(len(complex_st))
-    a_lig[lig] = sasa(complex_st.xyz[lig], complex_st.radii[lig])
-    a_rec[rec] = sasa(complex_st.xyz[rec], complex_st.radii[rec])
+    a_lig[lig] = sasa(complex_st.xyz[lig], complex_st.radii[lig],
+                      points=n_pts)
+    a_rec[rec] = sasa(complex_st.xyz[rec], complex_st.radii[rec],
+                      points=n_pts)
     free = a_lig + a_rec
     lost = free - a_com
     # Hydrogen area folded onto the parent heavy atom, so "apolar" is a
@@ -362,23 +411,40 @@ def burial(complex_st, lig_chain="B"):
     pep_lost = folded[pep].sum()
     pep_apolar = folded[pep & apolar].sum()
     lig_free = a_lig[lig].sum()
-    n_res = len({(complex_st.chain[i], complex_st.resnum[i])
-                 for i in np.nonzero(lig)[0]})
+    n_res = len({complex_st.resid(i) for i in np.nonzero(lig)[0]})
     out = {
-        "bsa": round(float(lost.sum()), 1),
-        "bsa_pep": round(float(pep_lost), 1),
-        "bsa_per_res": round(float(pep_lost / n_res), 1) if n_res else None,
+        # WHICH ATOMS this area was rolled over, carried beside the area and
+        # not inferred later. A complex that has been through tleap has its
+        # hydrogens and a docked pose does not, and the same pose measured
+        # both ways differs by 8 per cent in buried area and 0.05 in the
+        # apolar share. The two are not comparable, so the basis travels with
+        # the number.
+        "bsa_basis": ("heavy atoms and hydrogens" if (~complex_st.heavy).any()
+                      else "heavy atoms only"),
+        # To the nearest A^2: see POINTS for why not to a tenth.
+        "bsa": round(float(lost.sum())),
+        "bsa_pep": round(float(pep_lost)),
+        "bsa_per_res": round(float(pep_lost / n_res)) if n_res else None,
         "f_pep_buried": (round(float(1.0 - a_com[lig].sum() / lig_free), 3)
                          if lig_free > 0 else None),
         "f_hydrophobic": (round(float(pep_apolar / pep_lost), 3)
                           if pep_lost > 0 else None),
-        "sasa_pep_free": round(float(lig_free), 1),
-        "sasa_pep_bound": round(float(a_com[lig].sum()), 1),
+        "sasa_pep_free": round(float(lig_free)),
+        "sasa_pep_bound": round(float(a_com[lig].sum())),
     }
     return out
 
 
 # ------------------------------------------------------------------ contacts
+
+#: What "no interface" looks like, so it looks the same however it arose.
+EMPTY_BURIAL = {"bsa": 0.0, "bsa_pep": 0.0, "bsa_per_res": None,
+                "bsa_basis": None,
+                "f_pep_buried": None, "f_hydrophobic": None,
+                "sasa_pep_free": None, "sasa_pep_bound": None}
+EMPTY_CONTACTS = {"n_hbond": 0, "n_ionic": 0, "n_stack": 0, "n_contact": 0,
+                  "n_clash": 0, "n_rec_res": 0, "n_pep_res": 0}
+
 
 def _on(table, resn, atom):
     return atom in table.get(resn, ())
@@ -402,15 +468,17 @@ def contacts(st, lig_chain="B"):
       n_contact  RESIDUE PAIRS with any heavy atom pair within 4.0 A.
       n_clash    heavy atom pairs closer than 0.80 of the sum of their radii.
 
-    Hydrogens are ignored throughout, because a run without MM-GBSA has none
-    and a panel that changes meaning depending on which stages ran is worse
-    than one that is consistently conservative.
+    Hydrogens are ignored in every one of these counts, because a run without
+    MM-GBSA has none, and a count that changed meaning depending on which
+    stages ran would be worse than one that is consistently conservative.
+    Buried area cannot follow that rule, since a hydrogen genuinely occupies
+    surface, so burial() reports the basis it used instead.
     """
-    lig = np.array([c == lig_chain for c in st.chain]) & st.heavy
-    rec = np.array([c != lig_chain for c in st.chain]) & st.heavy
+    lig = np.array([c == lig_chain for c in st.chain], dtype=bool) & st.heavy
+    rec = np.array([c != lig_chain for c in st.chain], dtype=bool) & st.heavy
     li, ri = np.nonzero(lig)[0], np.nonzero(rec)[0]
     if not len(li) or not len(ri):
-        return {}
+        return dict(EMPTY_CONTACTS, per_residue={})
     d = np.linalg.norm(st.xyz[li][:, None, :] - st.xyz[ri][None, :, :],
                        axis=-1)
     n_hbond = 0
@@ -531,7 +599,7 @@ def terms(dat, mmpbsa_in=None):
             area = -(out["esurf"] + foff) / ften
             # A positive ESURF difference would mean the complex exposes more
             # surface than its parts, which is not a buried area.
-            out["bsa_lcpo"] = round(area, 1) if area > 0 else None
+            out["bsa_lcpo"] = round(area) if area > 0 else None
     return out
 
 
@@ -542,7 +610,13 @@ def terms(dat, mmpbsa_in=None):
 # the receptor the user chose speak in chain and residue number. This is the
 # dictionary between them, read from the file tleap was actually given.
 def tleap_map(forleap_pdb):
-    """{tleap index: (chain, residue number, residue name)}."""
+    """{tleap index: (chain, residue number, residue name, insertion code)}.
+
+    The insertion code is carried because it is part of the identity: a
+    receptor with residues 54 and 54A has two residues there, and a map that
+    drops the code makes them one key, silently losing a row of the
+    decomposition and mis-answering whether the site was touched.
+    """
     out, seen, n = {}, None, 0
     if not forleap_pdb or not os.path.isfile(forleap_pdb):
         return out
@@ -554,10 +628,15 @@ def tleap_map(forleap_pdb):
             n += 1
             seen = key
             try:
-                out[n] = (l[21], int(l[22:26]), l[17:20].strip().upper())
+                out[n] = (l[21], int(l[22:26]), l[17:20].strip().upper(),
+                          l[26].strip())
             except ValueError:
                 continue
     return out
+
+
+class Mismatch(Exception):
+    """The minimised file and the file tleap read are not the same complex."""
 
 
 def read_minimised(min_pdb, tmap):
@@ -566,21 +645,42 @@ def read_minimised(min_pdb, tmap):
     ambpdb writes tleap's numbering and no chain column, so an unrelabelled
     file cannot be asked which atoms are the peptide, and a hotspot given as
     A:54 cannot be found in it.
+
+    The labels come from position, so they are only right while the two files
+    hold the same residues in the same order. One extra residue in either,
+    from a cap, an ion or a water, shifts every label after it and every
+    number downstream: on a test where one residue was prepended, the clash
+    count went from 0 to 8 and the site coverage from 1.0 to 0.67, all of it
+    plausible and all of it wrong. So the fit is checked rather than assumed,
+    on the count and on every residue name, and a mismatch raises instead of
+    returning a labelled structure nobody can tell is mislabelled.
     """
     st = read_pdb(min_pdb)
     if not tmap:
         return st
     idx, seen, n = [], None, 0
     for i in range(len(st)):
-        k = (st.chain[i], st.resnum[i])
+        k = (st.chain[i], st.resnum[i], st.icode[i])
         if k != seen:
             n += 1
             seen = k
         idx.append(n)
-    for i, n in enumerate(idx):
-        got = tmap.get(n)
-        if got:
-            st.chain[i], st.resnum[i], st.resname[i] = got
+    if n != len(tmap):
+        raise Mismatch("the minimised file holds %d residues and the file "
+                       "tleap read holds %d, so the two are not the same "
+                       "complex" % (n, len(tmap)))
+    for i, k in enumerate(idx):
+        got = tmap.get(k)
+        if not got:
+            raise Mismatch("residue %d of the minimised file is not in the "
+                           "map" % k)
+        if got[2] != st.resname[i]:
+            raise Mismatch("residue %d is %s in the minimised file and %s in "
+                           "the file tleap read" % (k, st.resname[i], got[2]))
+    for i, k in enumerate(idx):
+        got = tmap[k]
+        st.chain[i], st.resnum[i], st.resname[i] = got[0], got[1], got[2]
+        st.icode[i] = got[3] if len(got) > 3 else ""
     return st
 
 
@@ -603,12 +703,14 @@ def decomposition(path, tmap=None):
 
     IT DOES NOT SUM TO THE REPORTED TOTAL, and it is worth knowing why before
     anyone presents a hotspot energy as a share of one. MMPBSA.py forces
-    gbsa=2 for any decomposition, so the per residue nonpolar term is an
-    ICOSA per atom surface, while the totals table keeps the LCPO surface. On
-    the pose these numbers were measured from, the decomposition sums to
-    -32.795 against a reported -32.315: the pairwise terms agree to 0.01, and
-    the whole 0.48 kcal/mol is the two surface models disagreeing. Expect
-    agreement of a per cent or two, and read a site energy as a decomposition
+    gbsa=2 for any decomposition, so the per residue nonpolar term is an ICOSA
+    per atom surface, while the totals table keeps the LCPO surface. Measured
+    over the five scored poses of one peptide, the decomposition sums to
+    between 1.5 and 5.3 per cent more negative than the reported total, 0.5 to
+    1.4 kcal/mol. The van der Waals, electrostatic and polar sums agree with
+    the reported terms to within 0.05 kcal/mol in every one of them: the whole
+    difference is the two surface models. So expect agreement to a few per
+    cent, always in that direction, and read a site energy as a decomposition
     of that pose rather than as an exact slice of its total.
 
     How a residue's share is arrived at: van der Waals and electrostatics are
@@ -634,10 +736,18 @@ def decomposition(path, tmap=None):
                 nums.append(float(b))
             except ValueError:
                 continue
-        if len(nums) < 6:
+        # Six terms, each an average, a standard deviation and a standard
+        # error: 18 numbers, as the file's own header declares. A shorter line
+        # is a truncated or half written file, and reading its columns by
+        # position would put a total where a surface term belongs.
+        if len(nums) < 18:
             continue
-        key = (tmap[num][0], tmap[num][1]) if (tmap and num in tmap) \
-            else ("", num)
+        if tmap and num in tmap:
+            t = tmap[num]
+            ic = (t[3] if len(t) > 3 else "") or ""
+            key = (t[0], ("%d%s" % (t[1], ic)) if ic else t[1])
+        else:
+            key = ("", num)
         out[key] = {
             "resname": resname, "side": side, "tleap": num,
             "total": round(nums[-3], 3),
