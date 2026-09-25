@@ -27,53 +27,48 @@ warn() { printf '  \033[33m%s\033[0m\n' "$1"; }
 say "pulling"
 URL=$(git remote get-url origin 2>/dev/null)
 BEFORE=$(git rev-parse --short HEAD 2>/dev/null)
-# Try it first: an https remote with a cached credential pulls normally. The
-# prompt is disabled, so the worst outcome is a clean failure, which is when
-# the deploy-key advice is printed.
+# Never prompt: an https remote with a cached credential pulls normally, and
+# without one the pull fails at once instead of waiting for a password.
 OUT=$(GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="ssh -o BatchMode=yes" \
       git pull --ff-only 2>&1); RC=$?
-case "$RC:$URL" in
-  [1-9]*:https://*)
-    warn "could not pull, and the remote is https so it cannot ask for a"
-    warn "password here. This cluster pulls with a deploy key:"
-    note "  git -C $HERE remote set-url origin \
+REWRITTEN=""
+if [ "$RC" -ne 0 ] && printf '%s' "$OUT" | grep -qi \
+     "diverg\|unrelated histories\|not possible to fast-forward"; then
+  # The fetch worked and the history was rewritten upstream, which --ff-only
+  # cannot cross. This checkout is a deployment rather than a place to
+  # commit, so it takes what the remote has, unless tracked files have local
+  # edits, which are never discarded without asking.
+  if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+    warn "the upstream history was rewritten, and this checkout has"
+    warn "local edits to tracked files. Not discarding them. Save them,"
+    warn "then:  git -C $HERE fetch origin && git -C $HERE reset --hard origin/main"
+    git status --short --untracked-files=no | head -5
+  else
+    note "upstream history was rewritten; resetting to origin/main"
+    git reset -q --hard origin/main && RC=0 && REWRITTEN=1
+  fi
+elif [ "$RC" -ne 0 ] && [ "${URL#https://}" != "$URL" ]; then
+  # Checked only after the rewrite: an https remote whose fetch worked but
+  # could not fast-forward is not a sign-in problem.
+  warn "could not pull, and the remote is https so it cannot ask for a"
+  warn "password here. This cluster pulls with a deploy key:"
+  note "  git -C $HERE remote set-url origin \
 $(printf '%s' "$URL" | sed -e 's|^https://[^/@]*@|https://|' -e 's|^https://\([^/]*\)/|git@\1:|')"
-    warn 'If that says "Permission denied (publickey)", this repository has'
-    warn "no deploy key yet: add this machine's public key to it on GitHub,"
-    warn "read-only."
-    note "$(printf '%s' "$OUT" | head -2)" ;;
-  *)
-    AFTER=$(git rev-parse --short HEAD 2>/dev/null)
-    # A failed pull leaves the commit where it was, as a pull with nothing to
-    # fetch does, so the exit status is what tells the two apart.
-    if [ "$RC" -ne 0 ] && printf '%s' "$OUT" | grep -qi \
-         "diverge\|unrelated histories\|not possible to fast-forward"; then
-      # The history was rewritten upstream. --ff-only cannot cross that, and
-      # this checkout is a deployment rather than a place to commit, so it
-      # takes what the remote has. It refuses if tracked files have local
-      # edits, so local changes are never discarded without asking.
-      if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
-        warn "the upstream history was rewritten, and this checkout has"
-        warn "local edits to tracked files. Not discarding them. Save them,"
-        warn "then:  git -C $HERE fetch origin && git -C $HERE reset --hard origin/main"
-        git status --short --untracked-files=no | head -5
-      else
-        note "upstream history was rewritten; resetting to origin/main"
-        GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="ssh -o BatchMode=yes" \
-          git fetch -q origin && git reset -q --hard origin/main && RC=0
-        AFTER=$(git rev-parse --short HEAD 2>/dev/null)
-        [ "$RC" -eq 0 ] && note "now at $AFTER"
-      fi
-    fi
-    if [ "$RC" -ne 0 ]; then
-      warn "NOT UPDATED (git exited $RC), still at $AFTER"
-      note "$(printf '%s' "$OUT" | head -3)"
-    elif [ "$BEFORE" = "$AFTER" ]; then
-      note "already at $AFTER"
-    else
-      note "$BEFORE -> $AFTER ($(git rev-list --count "$BEFORE..$AFTER") new commit(s))"
-    fi ;;
-esac
+  warn 'If that says "Permission denied (publickey)", this repository has'
+  warn "no deploy key yet: add this machine's public key to it on GitHub,"
+  warn "read-only."
+fi
+AFTER=$(git rev-parse --short HEAD 2>/dev/null)
+if [ "$RC" -ne 0 ]; then
+  warn "NOT UPDATED (git exited $RC), still at $AFTER"
+  note "$(printf '%s' "$OUT" | head -3)"
+elif [ -n "$REWRITTEN" ]; then
+  note "$BEFORE -> $AFTER (the history was rewritten upstream)"
+elif [ "$BEFORE" = "$AFTER" ]; then
+  note "already at $AFTER"
+else
+  note "$BEFORE -> $AFTER ($(git rev-list --count "$BEFORE..$AFTER") new commit(s))"
+fi
 
 # --- reinstall the package, not the environment -----------------------------
 # The code is installed into a shared environment with --no-deps, so this is
