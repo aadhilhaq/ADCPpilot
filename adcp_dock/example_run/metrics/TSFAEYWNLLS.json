@@ -1,0 +1,228 @@
+{
+ "peptide": "TSFAEYWNLLS",
+ "constants": {
+  "radii_set": "Bondi",
+  "probe_radius_A": 1.4,
+  "sphere_points": 1024,
+  "hbond_A": 3.5,
+  "ionic_A": 4.0,
+  "stack_A": 5.0,
+  "contact_A": 4.0,
+  "clash_fraction": 0.8,
+  "apolar_elements": [
+   "C",
+   "S"
+  ],
+  "surften_kcal_per_A2": 0.0072,
+  "contact_rules": "this tool's own geometric definitions, not PLIP's: proximity only, no hydrogen positions and no ring orientation are tested",
+  "histidine": "a residue named HIS is taken as protonated; HID and HIE are read as the neutral forms they are"
+ },
+ "site": [
+  [
+   "A",
+   25
+  ],
+  [
+   "A",
+   26
+  ],
+  [
+   "A",
+   50
+  ],
+  [
+   "A",
+   51
+  ],
+  [
+   "A",
+   54
+  ],
+  [
+   "A",
+   57
+  ],
+  [
+   "A",
+   58
+  ],
+  [
+   "A",
+   61
+  ],
+  [
+   "A",
+   62
+  ],
+  [
+   "A",
+   67
+  ],
+  [
+   "A",
+   70
+  ],
+  [
+   "A",
+   71
+  ],
+  [
+   "A",
+   72
+  ],
+  [
+   "A",
+   73
+  ],
+  [
+   "A",
+   75
+  ],
+  [
+   "A",
+   91
+  ],
+  [
+   "A",
+   93
+  ],
+  [
+   "A",
+   94
+  ],
+  [
+   "A",
+   96
+  ],
+  [
+   "A",
+   99
+  ],
+  [
+   "A",
+   100
+  ],
+  [
+   "A",
+   104
+  ]
+ ],
+ "best_pose": 3,
+ "poses": [
+  {
+   "mm_vdw": -76.5628,
+   "mm_eel": -146.1691,
+   "mm_egb": 190.5578,
+   "mm_esurf": -10.195,
+   "mm_gas": -222.7318,
+   "mm_solv": 180.3628,
+   "mm_total": -42.369,
+   "mm_terms_read": [
+    "eel",
+    "egb",
+    "esurf",
+    "gas",
+    "solv",
+    "total",
+    "vdw"
+   ],
+   "bsa_lcpo": 1416,
+   "geometry": "not kept with this run, so only the energy terms were read",
+   "decomposed": false,
+   "pose": 1,
+   "dg": -42.369
+  },
+  {
+   "mm_vdw": -83.4588,
+   "mm_eel": -184.574,
+   "mm_egb": 226.97,
+   "mm_esurf": -10.715,
+   "mm_gas": -268.0328,
+   "mm_solv": 216.255,
+   "mm_total": -51.7778,
+   "mm_terms_read": [
+    "eel",
+    "egb",
+    "esurf",
+    "gas",
+    "solv",
+    "total",
+    "vdw"
+   ],
+   "bsa_lcpo": 1488,
+   "geometry": "not kept with this run, so only the energy terms were read",
+   "decomposed": false,
+   "pose": 2,
+   "dg": -51.7778
+  },
+  {
+   "mm_vdw": -76.7152,
+   "mm_eel": -167.0538,
+   "mm_egb": 197.4926,
+   "mm_esurf": -10.1302,
+   "mm_gas": -243.7689,
+   "mm_solv": 187.3624,
+   "mm_total": -56.4065,
+   "mm_terms_read": [
+    "eel",
+    "egb",
+    "esurf",
+    "gas",
+    "solv",
+    "total",
+    "vdw"
+   ],
+   "bsa_lcpo": 1407,
+   "geometry": "not kept with this run, so only the energy terms were read",
+   "decomposed": false,
+   "pose": 3,
+   "dg": -56.4065
+  },
+  {
+   "mm_vdw": -78.9764,
+   "mm_eel": -224.5014,
+   "mm_egb": 262.6536,
+   "mm_esurf": -10.6042,
+   "mm_gas": -303.4778,
+   "mm_solv": 252.0494,
+   "mm_total": -51.4284,
+   "mm_terms_read": [
+    "eel",
+    "egb",
+    "esurf",
+    "gas",
+    "solv",
+    "total",
+    "vdw"
+   ],
+   "bsa_lcpo": 1473,
+   "geometry": "not kept with this run, so only the energy terms were read",
+   "decomposed": false,
+   "pose": 4,
+   "dg": -51.4284
+  },
+  {
+   "mm_vdw": -82.5646,
+   "mm_eel": -189.2675,
+   "mm_egb": 237.4516,
+   "mm_esurf": -11.0412,
+   "mm_gas": -271.8321,
+   "mm_solv": 226.4104,
+   "mm_total": -45.4217,
+   "mm_terms_read": [
+    "eel",
+    "egb",
+    "esurf",
+    "gas",
+    "solv",
+    "total",
+    "vdw"
+   ],
+   "bsa_lcpo": 1534,
+   "geometry": "not kept with this run, so only the energy terms were read",
+   "decomposed": false,
+   "pose": 5,
+   "dg": -45.4217
+  }
+ ]
+}

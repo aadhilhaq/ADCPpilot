@@ -23,11 +23,21 @@ RESULTS = (
     "HOW_TO_CITE.txt", "CITATION.bib", "CITATION.ris",
     "job.json",
     "results.tsv", "results.csv", "*.tsv", "*.csv",
+    "results.json",
+    # The interface panel and its residue maps. results.tsv holds one row per
+    # peptide; these hold every pose that was measured and every residue at
+    # the interface, which is what a figure is drawn from.
+    "metrics/*.json", "metrics/*_residues.tsv",
     "report/*",
     "receptor/prepared.pdb", "receptor/preparation.log",
     "docking/*/out_ranked_*.pdb", "docking/*/out_*.pdb",
     "docking/*/adcp.log",
     "mmgbsa/*/*/FINAL_RESULTS*", "mmgbsa/*/*.csv",
+    # The MM-GBSA output the energy terms are read from, and the per residue
+    # decomposition, so the panel can be checked against its own source.
+    "mmgbsa/*/*/*_mmgbsa.dat", "mmgbsa/*/*/*_decomp.dat",
+    "mmgbsa/*/*/*_mmpbsa.in", "mmgbsa/*/*/*_min.out",
+    "mmgbsa/*/*/*_scored_on.txt", "mmgbsa/RADII",
     "logs/*.out", "logs/*.err",
     "*.sbatch",
 )

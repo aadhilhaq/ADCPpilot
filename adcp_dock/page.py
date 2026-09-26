@@ -430,6 +430,30 @@ td.seq{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
    letters counted one by one, so it is not monospaced. td.nm rather than .nm:
    .nm is already the name box in the peptide entry row. */
 td.nm{text-align:left;white-space:nowrap}
+/* The results table carries the metric panel, so it is wider than any window.
+   It scrolls inside its own box rather than pushing the page sideways; the
+   heading row stays put while it scrolls; and the columns that say WHICH
+   peptide a row belongs to stay pinned to the left edge, because a number in
+   column twenty means nothing once its name has scrolled out of sight. */
+.rtable{max-height:64vh;overflow:auto;border:1px solid var(--line);
+  border-radius:10px}
+.rtable table{font-size:12.5px}
+.rtable th{position:sticky;background:var(--card);
+  box-shadow:inset 0 -1px 0 var(--line)}
+.rtable tr.groups th{top:0;z-index:4;text-align:center;font-size:10px;
+  color:var(--dim)}
+.rtable tr.heads th{top:24px;z-index:3}
+.rtable tr.groups th.gsep{border-left:1px solid var(--line)}
+.rtable tr.heads th.gsep,.rtable td.gsep{border-left:1px solid var(--line)}
+.rtable .pin{position:sticky;background:var(--card);z-index:2}
+.rtable th.pin{z-index:5}
+.rtable tr.on td.pin{background:var(--accent2)}
+.rtable td{white-space:nowrap}
+/* Column groups that can be turned off, so a reader after the scores is not
+   made to scroll past the whole panel to reach them. */
+.colpick{display:flex;gap:13px;flex-wrap:wrap;align-items:center;
+  margin:9px 0 6px;font-size:12px;color:var(--dim)}
+.colpick label{display:inline-flex;gap:5px;align-items:center;cursor:pointer}
 /* Row actions have to fit on one line beside the run. */
 .btnlink.sm,button.ghost.sm{font-size:11.5px;padding:3px 10px}
 .sz{color:var(--dim);font-size:10.5px;margin-left:3px}

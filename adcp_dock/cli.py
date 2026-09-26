@@ -215,6 +215,18 @@ def main(argv=None):
         s = sub.add_parser(name, help=helptext)
         s.add_argument("rundir")
 
+    # For a run docked before the interface panel existed. It measures the
+    # panel from the files the MM-GBSA already left and docks nothing again.
+    pn = sub.add_parser("panel",
+                        help="measure the interface panel for a finished run "
+                             "that has none, then rebuild its report")
+    pn.add_argument("rundir")
+    pn.add_argument("--here", action="store_true",
+                    help="measure it on this machine instead of submitting it "
+                         "to SLURM. It reads topologies and runs MMPBSA.py "
+                         "once per pose, so this is for a workstation, not a "
+                         "cluster login node.")
+
     p = sub.add_parser("affinity",
                        help="what a target Kd is worth in kcal/mol")
     p.add_argument("rundir", nargs="?",
@@ -390,6 +402,14 @@ def main(argv=None):
 
     if a.cmd == "report":
         pipeline.stage_report(a.rundir)
+        return 0
+
+    if a.cmd == "panel":
+        if a.here:
+            pipeline.stage_panel(a.rundir)
+            pipeline.stage_report(a.rundir)
+        else:
+            pipeline.submit_panel(a.rundir)
         return 0
 
     if a.cmd == "affinity":

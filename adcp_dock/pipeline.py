@@ -15,7 +15,7 @@ import types
 
 from . import adcp11, job as jobmod, peptide, report, slurm, target, verify
 from . import tools as toolmod
-from ._vendor import adcp, mmgbsa, poseviewer, prep, receptor
+from ._vendor import adcp, metrics, mmgbsa, poseviewer, prep, receptor
 
 
 def tools_for(j):
@@ -225,8 +225,25 @@ def stage_dock(rundir, index, j=None, log=print):
                                 steps=int(j.get("steps", 2_500_000)),
                                 cpus=cpus, log=log)
     out = {"name": name, "peptide": seq, "engine": label,
-           "modes": [dict(rank=m.get("rank"), score=m.get("affinity"))
+           # The cluster size arrives with the score and was being dropped.
+           # It is how many of the search's clustered solutions fall in this
+           # pose's cluster, and it is the only convergence measure a
+           # clustered search can honestly give: the poses are cluster
+           # representatives, so how much they resemble one another says
+           # nothing about how reproducible the search was. It is NOT a count
+           # of replicas: a run of 8 replicas gives a top cluster in the tens.
+           "modes": [dict(rank=m.get("rank"), score=m.get("affinity"),
+                          cluster=m.get("cluster"))
                      for m in (modes or [])][:keep]}
+    # Counted over every mode ADCP ranked rather than the kept ones, or the
+    # share would depend on how many poses this run asked to keep. ADCP prints
+    # at most 100 modes, so the total is a lower bound on the solutions it
+    # clustered and the share of the top cluster is an upper bound.
+    clusters = [m.get("cluster") or 0 for m in (modes or [])]
+    if any(clusters):
+        out["cluster_top"] = clusters[0]
+        out["cluster_total"] = sum(clusters)
+        out["cluster_modes"] = len(clusters)
     log("  %d ranked pose(s)" % len(out["modes"]))
     if engine == "1.1":
         omm = adcp11.read_openmm(pdir)
@@ -288,7 +305,7 @@ def stage_dock(rundir, index, j=None, log=print):
             # through a molecule rather than at the interface
             # still produces a number that looks like any other.
             # Kept by position, not by value: two poses can share an energy.
-            good, kept = [], []
+            good, kept, folders = [], [], []
             for i, r in enumerate(got):
                 dat = os.path.join(mmdir, seq, "pose%d" % r,
                                    "%s_mmgbsa.dat" % seq)
@@ -299,6 +316,7 @@ def stage_dock(rundir, index, j=None, log=print):
                     # says which ADCP pose each one is, and the two
                     # differ once a pose could not be matched.
                     kept.append(ranks[r - 1] if 0 < r <= len(ranks) else r)
+                    folders.append(r)
                 else:
                     log("    pose %d discarded: %s" % (r, verify.explain(bad)))
             out["mmgbsa"] = good
@@ -306,11 +324,193 @@ def stage_dock(rundir, index, j=None, log=print):
             # Which Born radii the energies were computed with (mbondi2 for
             # a new run; a run scored before they were set keeps mbondi).
             out["mmgbsa_radii"] = d.get("radii")
+            _panel_scored(rundir, j, seq, out, mmdir, folders, kept, good,
+                          log=log)
         else:
             log("  no pose could be laid on a clean topology; no MM-GBSA")
             out["mmgbsa"] = []
+    if not out.get("panel"):
+        # No energy for this peptide, and the interface can still be
+        # measured. A peptide with non-standard or D residues can never have
+        # an MM-GBSA number, so this is the only panel it will ever get.
+        _panel_geometry(rundir, j, seq, out, pdir, log=log)
     _save_result(rundir, jobmod.key(seq), out)
     return out
+
+
+def _hotspots(j):
+    """The nominated site, as [(chain, residue number)]."""
+    site = j.get("site") or {}
+    return [(c, int(n)) for c, n in (site.get("hotspots") or [])]
+
+
+def _panel_dir(rundir):
+    d = os.path.join(rundir, "metrics")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def _write_panel(rundir, seq, poses, best, hot, rows, log=print):
+    """One file per peptide with every pose, one with the residue map.
+
+    The map is a file of its own because it has one row per residue at the
+    interface, and the results table has one row per peptide.
+    """
+    import json
+    d = _panel_dir(rundir)
+    key = jobmod.key(seq)
+    with open(os.path.join(d, "%s.json" % key), "w") as fh:
+        json.dump({"peptide": seq, "constants": metrics.CONSTANTS,
+                   "site": [[c, n] for c, n in hot],
+                   "best_pose": best, "poses": poses}, fh, indent=1)
+    if rows:
+        cols = ["chain", "resnum", "resname", "site", "kinds", "d_min",
+                "n_partners", "dg"]
+        with open(os.path.join(d, "%s_residues.tsv" % key), "w") as fh:
+            fh.write("\t".join(cols) + "\n")
+            for r in rows:
+                fh.write("\t".join("" if r.get(c) is None else str(r.get(c))
+                                   for c in cols) + "\n")
+    return d
+
+
+def _panel_scored(rundir, j, seq, out, mmdir, folders, ranks, values,
+                  log=print):
+    """The panel for the poses MM-GBSA scored, on the geometry it scored them
+    on."""
+    hot = _hotspots(j)
+    log("  measuring the interface on the geometry each of %d pose(s) was "
+        "scored on" % len(folders))
+    cpus = int(os.environ.get("SLURM_CPUS_PER_TASK", j.get("cpus", 0)) or 0)
+    workers = max(1, min(cpus or 1, len(folders), int(j.get("mm_workers", 8))))
+
+    def one(i):
+        """One pose, in its own directory, so several can run at once."""
+        posedir = os.path.join(mmdir, seq, "pose%d" % folders[i])
+        quiet = (lambda *a: None) if workers > 1 else log
+        try:
+            return i, metrics.for_pose(posedir, seq, hotspots=hot, log=quiet)
+        except metrics.Mismatch as exc:
+            log("    pose %d: %s, so it is not measured" % (ranks[i], exc))
+        except Exception as exc:                                # noqa: BLE001
+            log("    pose %d: the panel could not be measured (%s)"
+                % (ranks[i], exc))
+        return i, (None, [])
+
+    if workers > 1:
+        import concurrent.futures as cf
+        log("    %d pose(s) at a time" % workers)
+        with cf.ThreadPoolExecutor(max_workers=workers) as pool:
+            done = list(pool.map(one, range(len(folders))))
+    else:
+        done = [one(i) for i in range(len(folders))]
+    # Collected by position, not by the order they finished, so the panel does
+    # not depend on which pose happened to be measured first.
+    poses, rows_best, best = [], [], None
+    for i, (m, rows) in sorted(done, key=lambda kv: kv[0]):
+        if not m:
+            # Silence here would drop a pose out of the panel while its energy
+            # stayed in the table, and nothing would say the two describe
+            # different sets of poses.
+            log("    pose %d: no geometry on disk to measure, so it is in the "
+                "energy columns but not the panel" % ranks[i])
+            continue
+        m["pose"] = ranks[i]
+        m["dg"] = values[i]
+        poses.append(m)
+        # The pose the columns describe is the one with the lowest energy, not
+        # the first that happened to be measured.
+        if best is None or (m["dg"] is not None
+                            and m["dg"] < poses[best]["dg"]):
+            best = len(poses) - 1
+            rows_best = rows
+    if not poses:
+        return
+    if len(poses) < len(folders):
+        log("    the panel describes %d of the %d scored pose(s); the energy "
+            "columns cover all of them" % (len(poses), len(folders)))
+    panel = dict(poses[best])
+    panel.update(_pose_spread(poses))
+    panel.update(metrics.developability(seq, ph=float(j.get("ph", 7.4))))
+    out["panel"] = panel
+    out["panel_poses"] = poses
+    _write_panel(rundir, seq, poses, panel.get("pose"), hot, rows_best,
+                 log=log)
+    log("    buried %s A2, %s of the peptide buried, %s H-bond(s), %s salt "
+        "bridge(s), %s clash(es)"
+        % (panel.get("bsa"), panel.get("f_pep_buried"), panel.get("n_hbond"),
+           panel.get("n_ionic"), panel.get("n_clash")))
+    if panel.get("site_n"):
+        log("    site: %s of %s residue(s) contacted, %s kcal/mol of the "
+            "total from them"
+            % (panel.get("site_touched"), panel.get("site_n"),
+               panel.get("site_dg")))
+
+
+def _pose_spread(poses):
+    """How much the measured interface moves between poses of one peptide.
+
+    A single pose's buried area is one sample of a stochastic search. The
+    spread across the scored poses says whether the panel describes the
+    peptide or the pose.
+    """
+    import statistics as st
+    out = {"panel_n": len(poses)}
+    for k in ("bsa", "f_pep_buried", "n_hbond", "site_coverage"):
+        vals = [p[k] for p in poses if p.get(k) is not None]
+        if len(vals) > 1:
+            out[k + "_sd"] = round(st.pstdev(vals), 3)
+    return out
+
+
+def _panel_geometry(rundir, j, seq, out, pdir, log=print):
+    """The panel without an energy: the docked pose against the prepared
+    receptor.
+
+    Heavy atoms and no minimisation, so the interface columns are filled and
+    the energy columns stay empty. It is the only panel available for a
+    peptide with non-standard or D residues, and for a run on a machine with
+    no Amber.
+    """
+    if not out.get("modes"):
+        return
+    hot = _hotspots(j)
+    try:
+        rec = _rec_for_mmgbsa(j, log=lambda *a: None)
+    except Exception as exc:                                    # noqa: BLE001
+        log("  no panel: the receptor could not be read (%s)" % exc)
+        return
+    n = min(int(j.get("mmgbsa_poses", 5)), len(out["modes"]))
+    poses, rows_best, best = [], [], None
+    for k in range(1, n + 1):
+        pose = adcp.read_pose(pdir, k)
+        if pose is None:
+            break
+        try:
+            st = metrics.from_atoms(rec.atoms, pose)
+            m, per_res = metrics.for_structure(st, hotspots=hot)
+        except Exception as exc:                                # noqa: BLE001
+            log("  pose %d: the panel could not be measured (%s)" % (k, exc))
+            continue
+        m["pose"] = k
+        m["dg"] = None
+        m["geometry"] = "docked pose, not minimised"
+        poses.append(m)
+        if best is None:
+            best = 0
+            rows_best = metrics.residue_table(per_res, {}, hot)
+    if not poses:
+        return
+    panel = dict(poses[best])
+    panel.update(_pose_spread(poses))
+    panel.update(metrics.developability(seq, ph=float(j.get("ph", 7.4))))
+    out["panel"] = panel
+    out["panel_poses"] = poses
+    _write_panel(rundir, seq, poses, panel.get("pose"), hot, rows_best,
+                 log=log)
+    log("  interface of the top pose, measured without minimisation: buried "
+        "%s A2, %s H-bond(s), %s clash(es)"
+        % (panel.get("bsa"), panel.get("n_hbond"), panel.get("n_clash")))
 
 
 def _save_result(rundir, seq, out):
@@ -319,6 +519,94 @@ def _save_result(rundir, seq, out):
     os.makedirs(d, exist_ok=True)
     with open(os.path.join(d, "%s.json" % seq), "w") as fh:
         json.dump(out, fh, indent=1)
+
+
+def _pose_dirs(mmdir, seq):
+    """The pose folders MM-GBSA left for one peptide, in numerical order."""
+    import glob
+    out = []
+    for d in glob.glob(os.path.join(mmdir, seq, "pose*")):
+        tail = os.path.basename(d)[4:]
+        if os.path.isdir(d) and tail.isdigit():
+            out.append((int(tail), d))
+    return [n for n, _d in sorted(out)]
+
+
+def stage_panel(rundir, j=None, log=print):
+    """Measure the panel for a run that was docked before the panel existed.
+
+    Nothing is docked or rescored again. Every number comes from the files the
+    MM-GBSA already left: the topologies, the minimised frame and the output
+    the energy was read from. The per residue decomposition is the only thing
+    computed here, and it is seconds against the minutes each pose cost.
+
+    This exists because the panel is measured in the dock stage, so an old
+    run's result files hold no panel and rebuilding the report alone would
+    show nothing new. Running this and then the report brings an old run up to
+    date in place.
+    """
+    import glob
+    import json
+    j = j or jobmod.load(rundir)
+    mmdir = os.path.join(rundir, "mmgbsa")
+    files = sorted(glob.glob(os.path.join(rundir, "results", "*.json")))
+    if not files:
+        log("no results in this run yet")
+        return 0
+    if not os.path.isdir(mmdir):
+        log("this run has no MM-GBSA output, so there is no geometry to "
+            "measure and no energy to decompose")
+        return 0
+    todo = []
+    for f in files:
+        r = json.load(open(f))
+        if r.get("panel"):
+            continue
+        if not r.get("mmgbsa"):
+            continue
+        todo.append((f, r))
+    if not todo:
+        log("every peptide in this run already has a panel")
+        return 0
+    log("measuring the panel for %d peptide(s) already docked and rescored. "
+        "Nothing is docked again." % len(todo))
+    done = 0
+    for f, r in todo:
+        seq = r["peptide"]
+        folders = _pose_dirs(mmdir, seq)
+        if not folders:
+            log("  %s: no pose folders on disk" % seq)
+            continue
+        # Each pose's own energy, read from its own output, so a value can
+        # never be attached to the wrong pose.
+        vals, keep = [], []
+        for n in folders:
+            d = os.path.join(mmdir, seq, "pose%d" % n)
+            t = metrics.terms(os.path.join(d, "%s_mmgbsa.dat" % seq),
+                              os.path.join(d, "%s_mmpbsa.in" % seq))
+            if t.get("total") is not None:
+                keep.append(n)
+                vals.append(t["total"])
+        if not keep:
+            log("  %s: no energy could be read from its pose folders" % seq)
+            continue
+        # Which ADCP pose each folder is. The result file records it for runs
+        # docked after that was added; older ones are numbered as MM-GBSA saw
+        # them, which is what the tool assumed at the time.
+        stored = r.get("mmgbsa_ranks") or []
+        ranks = stored if len(stored) == len(keep) else keep
+        out = {}
+        log("  %s" % seq)
+        _panel_scored(rundir, j, seq, out, mmdir, keep, ranks, vals, log=log)
+        if not out.get("panel"):
+            continue
+        r["panel"] = out["panel"]
+        r["panel_poses"] = out["panel_poses"]
+        with open(f, "w") as fh:
+            json.dump(r, fh, indent=1)
+        done += 1
+    log("%d peptide(s) measured" % done)
+    return done
 
 
 def stage_report(rundir, j=None, log=print):
@@ -341,10 +629,27 @@ def stage_report(rundir, j=None, log=print):
                                      openmm=r.get("openmm"),
                                      engine=r.get("engine", ""),
                                      name=(r.get("name")
-                                           or by_seq.get(r["peptide"], ""))))
+                                           or by_seq.get(r["peptide"], "")),
+                                     panel=r.get("panel"), clusters=r))
     if not rows:
         log("no results to report yet")
         return None
+    # A run docked before the panel existed has no panel in its result files.
+    # Measuring it is real work, so it happens here only when this is already
+    # running on a compute node; otherwise the run is told how to ask for it.
+    stale = [r for r in rows if r.get("mmgbsa_n") and r.get("panel_pose")
+             is None]
+    if stale:
+        if os.environ.get("SLURM_JOB_ID") or slurm.local_mode():
+            log("%d peptide(s) were docked before the interface panel existed"
+                % len(stale))
+            if stage_panel(rundir, j, log=log):
+                return stage_report(rundir, j, log=log)
+        else:
+            log("%d peptide(s) have no interface panel: they were docked "
+                "before it existed. `adcp-dock panel %s` measures it from the "
+                "files already on disk, without docking anything again."
+                % (len(stale), rundir))
     # The citation list is written into the run, since a method section
     # is usually written later from the output directory. It names only
     # what this run used, so a run without MM-GBSA is not given an Amber
@@ -362,11 +667,78 @@ def stage_report(rundir, j=None, log=print):
             "what this run used, with DOIs")
     except Exception as exc:                                    # noqa: BLE001
         log("  could not write the citation list: %s" % exc)
-    tsv = report.write(rows, rundir, top_n=int(j.get("top_n", 5)))
+    tsv = report.write(rows, rundir, top_n=int(j.get("top_n", 5)),
+                       constants=_constants(j))
     log(report.table(rows, top_n=int(j.get("top_n", 5))))
     j["state"] = "done"
     jobmod.save(rundir, j)
     return tsv
+
+
+def _openmm_used_for(j):
+    """The stages of THIS run that used OpenMM, and nothing else.
+
+    OpenMM does two jobs here and neither is an energy anyone is ranked by:
+    it minimises the receptor during preparation, and ADCP 1.1 minimises its
+    top poses with it when asked. Every reported energy comes from
+    AmberTools. Listing only the stages a given run actually used keeps the
+    record from implying an engine that never ran.
+    """
+    used = []
+    if not str(j.get("target_file") or "").strip() and j.get("minimise", True):
+        used.append("the receptor's restrained minimisation during "
+                    "preparation, with amber14-all (ff14SB) and GBn2. It "
+                    "settles the prepared structure and is not an energy "
+                    "anything is ranked by")
+    if int(j.get("omm_minimize") or 0):
+        used.append("ADCP 1.1's minimisation of its top %d pose(s), with "
+                    "ff99SB and %s, reported in the omm_best column beside "
+                    "the scores and not ranked by"
+                    % (int(j["omm_minimize"]),
+                       "GBn2" if (j.get("omm_env") or "implicit") == "implicit"
+                       else "no solvent"))
+    return used or ["nothing in this run: no number here came from OpenMM"]
+
+
+def _constants(j):
+    """Everything the panel's numbers depend on, written into results.json.
+
+    A buried area without its probe radius, or a hydrogen bond count without
+    its cutoff, cannot be compared with a number from anywhere else.
+    """
+    c = dict(metrics.CONSTANTS)
+    c.update({# The sampling budget. A best score improves simply by searching
+              # or scoring more, so a column of best scores cannot be compared
+              # with anyone else's without these.
+              "replicas": int(j.get("replicas", 50)),
+              "steps": int(j.get("steps", 2_500_000)),
+              "poses_kept": int(j.get("poses", 10)),
+              "mmgbsa_poses": int(j.get("mmgbsa_poses", 5)),
+              # WHICH PROGRAM produced the energies, written down because
+              # this tool runs two force field engines at different stages and
+              # a reader cannot otherwise tell which one a number came from.
+              # Every reported energy is AmberTools; see openmm_used_for.
+              "mmgbsa": "AmberTools only: tleap builds the topologies, sander "
+                        "minimises the complex with the receptor restrained, "
+                        "and MMPBSA.py computes the energy and its per residue "
+                        "decomposition. ff14SB, GB-OBC(II) igb=5 with mbondi2 "
+                        "radii, 0.150 M salt, interior dielectric 1, one "
+                        "minimised frame. No OpenMM is involved in any "
+                        "reported energy or in any panel column",
+              "openmm_used_for": _openmm_used_for(j),
+              "decomposition": "MMPBSA.py idecomp=2 on the same frame, "
+                               "topologies and GB model. The pairwise terms "
+                               "sum exactly and are split half to each "
+                               "residue by convention; the GB polar and "
+                               "surface terms are apportioned per atom. A "
+                               "decomposition is forced to gbsa=2, a per atom "
+                               "surface, where the total keeps LCPO, so the "
+                               "per residue column sums to a few per cent "
+                               "more negative than the reported total and not "
+                               "to it exactly; the pairwise terms agree",
+              "ph": float(j.get("ph", 7.4)),
+              "site": [[c_, n] for c_, n in _hotspots(j)]})
+    return c
 
 
 def outstanding(rundir, j=None):
@@ -490,6 +862,39 @@ def submit(rundir, j=None, python=None, log=print):
     j["state"] = "submitted"
     jobmod.save(rundir, j)
     return j["jobs"]
+
+
+def submit_panel(rundir, j=None, python=None, log=print):
+    """Send the panel measurement to SLURM, then rebuild the report.
+
+    Submitted rather than run here for the same reason every other stage is:
+    it reads topologies, runs MMPBSA.py once per pose and rolls a probe over
+    three states of each complex, which is not work for the machine someone is
+    sitting on.
+    """
+    j = j or jobmod.load(rundir)
+    if slurm.local_mode():
+        return _submit_local(rundir, j, [("panel", ["panel"]),
+                                         ("report", ["report"])], python, log)
+    if not slurm.available():
+        raise SystemExit("sbatch was not found. This tool submits its work to "
+                         "SLURM rather than running it where you are sitting.")
+    common = _scripts(rundir, j, python)
+    s1 = slurm.write_script(os.path.join(rundir, "04_panel.sbatch"),
+                            name=job_name(rundir, j, "panel"),
+                            cpus=min(16, int(j.get("cpus", 48))),
+                            time=j.get("panel_time", "04:00:00"),
+                            stage="panel", **common)
+    id1 = slurm.submit(s1)
+    log("panel: %s" % id1)
+    s2 = slurm.write_script(os.path.join(rundir, "03_report.sbatch"),
+                            name=job_name(rundir, j, "report"), cpus=2,
+                            time="01:00:00", stage="report", **common)
+    id2 = slurm.submit(s2, depends_on=id1, kind="afterany")
+    log("report: %s" % id2)
+    j.setdefault("jobs", {}).update({"panel": id1, "report": id2})
+    jobmod.save(rundir, j)
+    return {"panel": id1, "report": id2}
 
 
 def resume(rundir, j=None, python=None, log=print):

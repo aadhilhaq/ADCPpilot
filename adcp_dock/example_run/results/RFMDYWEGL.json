@@ -57,5 +57,170 @@
   4,
   5
  ],
- "mmgbsa_radii": "mbondi2"
+ "mmgbsa_radii": "mbondi2",
+ "panel": {
+  "mm_vdw": -72.3681,
+  "mm_eel": -126.4195,
+  "mm_egb": 154.1135,
+  "mm_esurf": -10.5353,
+  "mm_gas": -198.7876,
+  "mm_solv": 143.5782,
+  "mm_total": -55.2094,
+  "mm_terms_read": [
+   "eel",
+   "egb",
+   "esurf",
+   "gas",
+   "solv",
+   "total",
+   "vdw"
+  ],
+  "bsa_lcpo": 1463,
+  "geometry": "not kept with this run, so only the energy terms were read",
+  "decomposed": false,
+  "pose": 5,
+  "dg": -55.2094,
+  "panel_n": 5,
+  "gravy": -0.622,
+  "charge_ph7": -1.06,
+  "pi": 4.18,
+  "aromaticity": 0.333,
+  "aliphatic_index": 43.3,
+  "boman": 2.11,
+  "instability": -2.6,
+  "hydrophobic_moment": 0.564,
+  "mw": 1216.37,
+  "pe_score": 3,
+  "verdict": "FLAG",
+  "pe_flags": [
+   "1 tryptic site",
+   "3 chymotryptic sites",
+   "destabilising N-terminal residue (N-end rule): cap or reorder"
+  ],
+  "apolar_run": 2,
+  "liabilities": {
+   "protease_trypsin": 1,
+   "protease_chymotrypsin": 3,
+   "oxidation": 2,
+   "n_end_destabilising": 1,
+   "homopolymer_run": 1
+  }
+ },
+ "panel_poses": [
+  {
+   "mm_vdw": -82.2577,
+   "mm_eel": -311.2474,
+   "mm_egb": 364.4154,
+   "mm_esurf": -11.5916,
+   "mm_gas": -393.505,
+   "mm_solv": 352.8238,
+   "mm_total": -40.6812,
+   "mm_terms_read": [
+    "eel",
+    "egb",
+    "esurf",
+    "gas",
+    "solv",
+    "total",
+    "vdw"
+   ],
+   "bsa_lcpo": 1610,
+   "geometry": "not kept with this run, so only the energy terms were read",
+   "decomposed": false,
+   "pose": 1,
+   "dg": -40.6812
+  },
+  {
+   "mm_vdw": -72.1156,
+   "mm_eel": -237.0124,
+   "mm_egb": 273.1661,
+   "mm_esurf": -9.0501,
+   "mm_gas": -309.128,
+   "mm_solv": 264.116,
+   "mm_total": -45.012,
+   "mm_terms_read": [
+    "eel",
+    "egb",
+    "esurf",
+    "gas",
+    "solv",
+    "total",
+    "vdw"
+   ],
+   "bsa_lcpo": 1257,
+   "geometry": "not kept with this run, so only the energy terms were read",
+   "decomposed": false,
+   "pose": 2,
+   "dg": -45.012
+  },
+  {
+   "mm_vdw": -83.4647,
+   "mm_eel": -68.2312,
+   "mm_egb": 129.5971,
+   "mm_esurf": -10.7983,
+   "mm_gas": -151.6961,
+   "mm_solv": 118.7988,
+   "mm_total": -32.8973,
+   "mm_terms_read": [
+    "eel",
+    "egb",
+    "esurf",
+    "gas",
+    "solv",
+    "total",
+    "vdw"
+   ],
+   "bsa_lcpo": 1500,
+   "geometry": "not kept with this run, so only the energy terms were read",
+   "decomposed": false,
+   "pose": 3,
+   "dg": -32.8973
+  },
+  {
+   "mm_vdw": -77.6636,
+   "mm_eel": -223.5444,
+   "mm_egb": 268.912,
+   "mm_esurf": -10.2885,
+   "mm_gas": -301.2079,
+   "mm_solv": 258.6235,
+   "mm_total": -42.5844,
+   "mm_terms_read": [
+    "eel",
+    "egb",
+    "esurf",
+    "gas",
+    "solv",
+    "total",
+    "vdw"
+   ],
+   "bsa_lcpo": 1429,
+   "geometry": "not kept with this run, so only the energy terms were read",
+   "decomposed": false,
+   "pose": 4,
+   "dg": -42.5844
+  },
+  {
+   "mm_vdw": -72.3681,
+   "mm_eel": -126.4195,
+   "mm_egb": 154.1135,
+   "mm_esurf": -10.5353,
+   "mm_gas": -198.7876,
+   "mm_solv": 143.5782,
+   "mm_total": -55.2094,
+   "mm_terms_read": [
+    "eel",
+    "egb",
+    "esurf",
+    "gas",
+    "solv",
+    "total",
+    "vdw"
+   ],
+   "bsa_lcpo": 1463,
+   "geometry": "not kept with this run, so only the energy terms were read",
+   "decomposed": false,
+   "pose": 5,
+   "dg": -55.2094
+  }
+ ]
 }

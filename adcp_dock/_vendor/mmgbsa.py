@@ -466,9 +466,30 @@ def run_amber(rec, pose_mol, workdir: str, prefix: str, log=print,
                     "-o", f"{prefix}_min.out"],
                    cwd=workdir, capture_output=True, text=True, env=env)
     traj = os.path.basename(minrst) if os.path.isfile(minrst) else f"{prefix}_com.rst7"
+    # Which coordinates MMPBSA.py is about to be given, written down beside the
+    # pose. The metric panel measures the geometry the energy belongs to, and
+    # it cannot work that out afterwards from the files alone.
+    with open(os.path.join(workdir, f"{prefix}_scored_on.txt"), "w") as fh:
+        fh.write(traj + "\n")
     if traj != os.path.basename(minrst):
-        log(f"    {prefix}: minimisation did not converge, using the raw pose")
+        # sander wrote no restart file at all, so the energy below is computed
+        # on the complex as tleap built it: hydrogens unrelaxed, and the pose
+        # where the docking left it. That is a different quantity from every
+        # other pose's energy. It used to be logged as "did not converge",
+        # which reads as a detail about a minimisation that never produced
+        # anything.
+        log(f"    {prefix}: sander wrote no minimised coordinates, so this "
+            f"energy is for the UNMINIMISED complex and is not comparable "
+            f"with the other poses")
     else:
+        # Whether the minimisation reached a gradient or ran out of cycles.
+        # The panel reports this, and the energy means less when the
+        # structure was still moving.
+        _m = _min_state(os.path.join(workdir, f"{prefix}_min.out"))
+        if _m:
+            log(f"    {prefix}: minimised to RMS gradient {_m['rms']:.3f} "
+                f"kcal/mol/A in {_m['cycles']} cycle(s)"
+                + (", stopped at maxcyc" if _m["maxed"] else ""))
         # What the minimisation started from, which indicates whether
         # the pose was usable at all. A pose that begins at a large
         # positive energy is one the minimiser rescued rather than
@@ -655,6 +676,34 @@ MIN_H_RATIO = 1.75
 # A starting energy above this means the pose overlaps the receptor. A clean
 # docked complex starts in the thousands once tleap has added hydrogens.
 CLASHED_START = 1e6
+
+
+def _min_state(min_out):
+    """Where the minimisation stopped, or None.
+
+    sander stops at maxcyc rather than at a gradient for almost every pose,
+    which is expected of a restrained rescoring minimisation and is not the
+    same thing as having converged. Nothing read this file before, and the
+    energy of a pose that was still moving means less than one that settled.
+    """
+    last, maxed = None, False
+    try:
+        with open(min_out, errors="replace") as fh:
+            for line in fh:
+                bits = line.split()
+                if (len(bits) >= 4 and bits[0].isdigit()
+                        and all("E" in b for b in bits[1:4])):
+                    try:
+                        last = (int(bits[0]), float(bits[2]))
+                    except ValueError:
+                        pass
+                elif "Maximum number of minimization cycles reached" in line:
+                    maxed = True
+    except OSError:
+        return None
+    if last is None:
+        return None
+    return {"cycles": last[0], "rms": last[1], "maxed": maxed}
 
 
 def _first_energy(min_out):

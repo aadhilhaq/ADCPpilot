@@ -1412,6 +1412,264 @@ async function reuseRun(dir){
   $('recpath').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
+/* The results table, and the metric panel inside it.
+ *
+ * One definition of the columns, used for the headings, the cells and the
+ * group switches, so a column cannot appear in one and be missing from
+ * another. Each group is a set of columns that belongs together and can be
+ * switched off: a reader after the scores should not have to scroll past
+ * twenty panel columns to reach them, and a reader after the panel should not
+ * have to read a spreadsheet to find it.
+ *
+ * `on` decides whether a group exists for this run at all, from the rows
+ * themselves: a run without MM-GBSA has no energy terms to show, and an empty
+ * column is worse than a missing one.
+ */
+const any = (rows, k) => rows.some(r => r[k] != null && r[k] !== '');
+const pc = (v, n) => (v == null ? '-' : Number(v).toFixed(n));
+
+function colgroups(rows, tn, mm, omm){
+  const G = [];
+  G.push({key: 'id', label: '', always: true, cols: [
+    {h: '#', cls: 'c pin', f: r => (r.rank == null ? '-' : r.rank)},
+    {h: 'name', cls: 'nm pin', f: r => esc(r.name || '-')},
+    {h: 'peptide', cls: 'seq pin', f: r => esc(r.peptide)},
+    {h: 'len', cls: 'c', f: r => r.length},
+  ]});
+  G.push({key: 'score', label: 'docking', always: true, cols: [
+    {h: 'poses', cls: 'c', t: 'How many poses ADCP ranked. A best score '
+      + 'improves simply by scoring more poses, so it is read beside this.',
+     f: r => r.poses},
+    {h: 'ADCP best', cls: 'c', f: r => fmt(r.adcp_best, 1)},
+    {h: 'ADCP top' + tn, cls: 'c', f: r => fmt(r['adcp_top' + tn], 2)},
+  ]});
+  if(any(rows, 'cluster_top'))
+    G[G.length - 1].cols.push(
+      {h: 'top cluster', cls: 'c', t: 'How many of the replicas found the top '
+        + 'pose, and what share of all of them that is. ADCP’s poses are '
+        + 'cluster representatives, so this is the search’s own measure of '
+        + 'convergence; how much the poses differ from each other is not.',
+       f: r => (r.cluster_top == null ? '-' : r.cluster_top + ' / '
+                + pc(r.cluster_frac * 100, 0) + '%')});
+  if(mm) G.push({key: 'mm', label: 'MM-GBSA (AmberTools)', on: true, cols: [
+    {h: 'best', cls: 'c', f: r => fmt(r.mmgbsa_best, 2)},
+    {h: 'top' + tn, cls: 'c', f: r => fmt(r['mmgbsa_top' + tn], 2)},
+    {h: 'median', cls: 'c', f: r => fmt(r.mmgbsa_median, 2)},
+    {h: 'n / spread', cls: 'c', t: 'How many poses were rescored, and the most '
+      + 'positive minus the most negative among them. The spread shows how '
+      + 'much the poses disagree; it is not a statistical test of the ranking.',
+     f: r => (r.mmgbsa_n || '-') + ' / ' + fmt(r.mmgbsa_spread, 1)},
+  ]});
+  if(any(rows, 'mm_vdw')) G.push({key: 'terms', label: 'energy terms (AmberTools)',
+    on: true, cols: [
+    {h: 'vdW', cls: 'c', t: 'VDWAALS, from the same MMPBSA.py output as the '
+      + 'total.', f: r => fmt(r.mm_vdw, 1)},
+    {h: 'elec', cls: 'c', t: 'EEL.', f: r => fmt(r.mm_eel, 1)},
+    {h: 'polar', cls: 'c', t: 'EGB, the polar solvation term.',
+     f: r => fmt(r.mm_egb, 1)},
+    {h: 'nonpolar', cls: 'c', t: 'ESURF, the nonpolar term, from the LCPO '
+      + 'surface. The four terms sum to the MM-GBSA total.',
+     f: r => fmt(r.mm_esurf, 1)},
+  ]});
+  if(any(rows, 'site_n')) G.push({key: 'site', label: 'nominated site',
+    on: true, cols: [
+    {h: 'contacted', cls: 'c', t: 'How many of the residues the site was built '
+      + 'from this pose touches, out of how many there were. Quantised by the '
+      + 'size of the site: on four residues it can only be 0, 1, 2, 3 or 4.',
+     f: r => (r.site_touched == null ? '-'
+              : r.site_touched + ' / ' + r.site_n)},
+    {h: 'site dG', cls: 'c', t: 'The sum of those residues’ own '
+      + 'contributions, from MMPBSA.py’s per residue decomposition of this '
+      + 'same pose, the same topology and the same GB model. It agrees with the '
+      + 'total to within a few per cent rather than exactly, and always '
+      + 'slightly more negative, because a decomposition uses a per atom '
+      + 'surface term where the total uses LCPO; the energy terms themselves '
+      + 'agree. Read it as a decomposition of this pose and not as an exact '
+      + 'share of its energy. A nominated residue is where the search was '
+      + 'aimed; it is '
+      + 'not evidence that the residue must contribute.',
+     f: r => fmt(r.site_dg, 1)},
+    {h: 'per res', cls: 'c', f: r => fmt(r.site_dg_mean, 2)},
+  ]});
+  if(any(rows, 'bsa')) G.push({key: 'iface', label: 'interface', on: true,
+    cols: [
+    {h: 'BSA', cls: 'c', t: 'Buried surface area in square angstroms: the '
+      + 'total both partners lose. Half of it is the interface area on one '
+      + 'side. Shrake and Rupley with Bondi radii and a 1.4 A probe.',
+     f: r => fmt(r.bsa, 0)},
+    {h: 'per res', cls: 'c', t: 'The peptide’s buried area divided by its '
+      + 'residues.', f: r => fmt(r.bsa_per_res, 0)},
+    {h: 'rolled over', cls: 'c', t: 'Which atoms the area was rolled over. A '
+      + 'complex that has been through tleap has its hydrogens and a docked '
+      + 'pose does not; the same pose measured both ways differs by about 8 '
+      + 'per cent, so the two are not comparable.',
+     f: r => esc(r.bsa_basis || '-')},
+    {h: 'buried', cls: 'c', t: 'The share of the peptide’s own free '
+      + 'surface that the receptor covers.', f: r => fmt(r.f_pep_buried, 2)},
+    {h: 'apolar', cls: 'c', t: 'The share of the peptide’s buried area '
+      + 'that is carbon or sulphur, with each hydrogen’s area folded onto '
+      + 'the heavy atom it hangs off.', f: r => fmt(r.f_hydrophobic, 2)},
+    {h: 'HB', cls: 'c', t: 'Atom pairs of N or O within 3.5 A across the '
+      + 'interface. A proximity test: our own rule, not PLIP’s, and no '
+      + 'angle is checked.', f: r => r.n_hbond},
+    {h: 'SB', cls: 'c', t: 'Residue pairs with a basic side chain tip within '
+      + '4.0 A of an acidic one. A bidentate arginine counts once.',
+     f: r => r.n_ionic},
+    {h: 'stack', cls: 'c', t: 'Aromatic residue pairs with ring atoms within '
+      + '5.0 A. Proximity only: an edge to face pair and a parallel stack are '
+      + 'not told apart.', f: r => r.n_stack},
+    {h: 'contacts', cls: 'c', t: 'Residue pairs with any heavy atom pair '
+      + 'within 4.0 A.', f: r => r.n_contact},
+    {h: 'clash', cls: 'c', t: 'Heavy atom pairs across the interface closer '
+      + 'than 0.80 of the sum of their radii. On a minimised complex this '
+      + 'should be zero: the receptor is restrained, so an overlap cannot '
+      + 'relax out.', f: r => r.n_clash},
+  ]});
+  if(any(rows, 'panel_pose')) G.push({key: 'prov', label: 'measured on',
+    on: false, cols: [
+    {h: 'pose', cls: 'c', t: 'Which pose every panel column above describes: '
+      + 'the one with the lowest MM-GBSA energy, or the top ADCP pose when '
+      + 'there is no MM-GBSA.', f: r => (r.panel_pose == null ? '-'
+                                         : r.panel_pose)},
+    {h: 'BSA sd', cls: 'c', t: 'How much the buried area moves between the '
+      + 'scored poses of this peptide. Population sd, and blank for a single '
+      + 'pose, where it is undefined rather than zero.',
+     f: r => fmt(r.bsa_sd, 0)},
+    {h: 'poses measured', cls: 'c', t: 'How many of the scored poses the '
+      + 'panel could measure. The sd columns are over these.',
+     f: r => (r.panel_n == null ? '-' : r.panel_n)},
+    {h: 'geometry', cls: 'c', t: 'The coordinates the panel was measured on. '
+      + 'Anything other than a minimised complex means the energy beside it '
+      + 'was computed on a pose that was not relaxed.',
+     f: r => esc(r.panel_geometry || '-')},
+    {h: 'minimisation', cls: 'c', t: 'Cycles used and the final RMS gradient '
+      + 'of the minimisation before the energy. sander stops at its cycle '
+      + 'limit rather than at a gradient for almost every pose, which is '
+      + 'expected of a restrained rescoring minimisation and is not the same '
+      + 'as having converged, so both facts are shown instead of a verdict.',
+     f: r => (r.min_cycles == null ? '-'
+              : r.min_cycles + ' cyc, grad ' + fmt(r.min_rms_grad, 3)
+                + (r.min_stopped_at_maxcyc ? ', at limit' : ''))},
+  ]});
+  if(any(rows, 'gravy')) G.push({key: 'dev', label: 'sequence (HOPE-PE)',
+    on: true, cols: [
+    {h: 'GRAVY', cls: 'c', t: 'Kyte and Doolittle mean hydropathy. A '
+      + 'descriptive number, not a solubility prediction.',
+     f: r => fmt(r.gravy, 2)},
+    {h: 'charge', cls: 'c', t: 'Net charge at the run’s pH.',
+     f: r => fmt(r.charge_ph7, 1)},
+    {h: 'apolar run', cls: 'c', t: 'The longest run of consecutive apolar '
+      + 'residues (A, V, I, L, M, F, W, Y, C).', f: r => r.apolar_run},
+    {h: 'PE', cls: 'c', t: 'HOPE-PE’s penalty total and verdict. Sequence '
+      + 'liabilities only, and not independent of the structural columns: the '
+      + 'same sequence decides both.',
+     f: r => (r.pe_verdict ? '<span title="' + esc((r.pe_flags || []).join('; '))
+              + '">' + esc(r.pe_verdict) + ' (' + r.pe_score + ')</span>'
+              : '-')},
+  ]});
+  if(omm) G.push({key: 'omm', label: 'ADCP 1.1', on: true, cols: [
+    {h: 'OpenMM best', cls: 'c', t: 'ADCP 1.1 OpenMM minimization: the lowest '
+      + 'E(complex) minus E(receptor) among the minimized poses, and which '
+      + 'pose it was.',
+     f: r => (r.omm_n ? fmt(r.omm_best, 1) + ' (pose ' + r.omm_best_pose + ')'
+              : '-')},
+  ]});
+  G.push({key: 'act', label: '', always: true, cols: [
+    {h: '', cls: 'c', f: r => '<button class="ghost sm" data-view="'
+      + esc(r.peptide) + '">view</button>'}]});
+  return G;
+}
+
+/* Which optional groups are showing. Kept per browser, like the theme, so a
+ * reader who turns the panel off does not have to turn it off again. */
+function colsOn(){
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('adcp.cols') || '{}'); }
+  catch(e) { saved = {}; }
+  return saved;
+}
+
+function resultsTable(rows, tn, mm, omm){
+  const G = colgroups(rows, tn, mm, omm);
+  const saved = colsOn();
+  const shown = G.filter(g => g.always
+    || (saved[g.key] === undefined ? g.on !== false : saved[g.key]));
+  const opt = G.filter(g => !g.always);
+  const pick = opt.length
+    ? '<div class=colpick>columns: ' + opt.map(g => '<label><input '
+        + 'type=checkbox data-col="' + esc(g.key) + '"'
+        + (shown.indexOf(g) >= 0 ? ' checked' : '') + '> '
+        + esc(g.label || g.key) + '</label>').join('') + '</div>'
+    : '';
+  const cols = [];
+  shown.forEach(g => g.cols.forEach((c, i) => cols.push(
+    Object.assign({}, c, {first: i === 0, group: g}))));
+  const groupRow = '<tr class=groups>' + shown.map(g =>
+    '<th class="grp' + (g.always ? '' : ' gsep') + '" colspan=' + g.cols.length
+    + '>' + esc(g.label || '') + '</th>').join('') + '</tr>';
+  const headRow = '<tr class=heads>' + cols.map(c => '<th class="'
+    + (c.cls || '') + (c.first && !c.group.always ? ' gsep' : '') + '"'
+    + (c.t ? ' title="' + esc(c.t) + '"' : '') + '>' + esc(c.h)
+    + '</th>').join('') + '</tr>';
+  const body = rows.map(r => '<tr class=pick data-pep="' + esc(r.peptide)
+    + '">' + cols.map(c => {
+      let v;
+      try { v = c.f(r); } catch(e) { v = '-'; }
+      if(v === undefined || v === null || v === '') v = '-';
+      return '<td class="' + (c.cls || '')
+        + (c.first && !c.group.always ? ' gsep' : '') + '">' + v + '</td>';
+    }).join('') + '</tr>').join('');
+  return pick + '<div class=rtable><table>' + groupRow + headRow + body
+    + '</table></div>'
+    + (mm ? '<div class=why style="margin-top:6px">Every energy here is '
+        + 'AmberTools: tleap, sander and MMPBSA.py. OpenMM appears in this '
+        + 'tool only in the receptor\u2019s preparation and in ADCP 1.1\u2019s '
+        + 'own pose minimisation, and <code>results.json</code> names which of '
+        + 'those this run used.</div>'
+        + '<div class=why style="margin-top:4px">MM-GBSA is an ordering '
+        + 'within this run against this receptor. It is not a K<sub>D</sub> '
+        + 'and not a binding free energy: there is no entropy term in it. The '
+        + 'whole picomolar-to-nanomolar range is 4.1 kcal/mol, which is '
+        + 'narrower than the pose spread of a single peptide here. '
+        + '<code>adcp-dock affinity</code> prints the ruler.</div>' : '')
+    + (any(rows, 'bsa')
+      ? '<div class=why style="margin-top:4px">The panel columns describe ONE '
+        + 'pose per peptide, named in the "measured on" group, and are '
+        + 'measured on the same coordinates its energy was computed on. The '
+        + 'contact rules are this tool’s own geometric definitions, not '
+        + 'PLIP’s. Per residue energies and the full residue map are in '
+        + '<code>metrics/</code>.</div>' : '');
+}
+
+/* The pinned columns have to be told where to stop, and that depends on how
+ * wide the name and the sequence turn out to be, which is only known once the
+ * table is in the page. */
+function pinResults(el){
+  el.querySelectorAll('.rtable table').forEach(t => {
+    const head = t.querySelector('tr.heads');
+    if(!head) return;
+    const w = [];
+    let x = 0, n = 0;
+    for(const th of head.cells){
+      if(!th.classList.contains('pin')) break;
+      w.push(x); x += th.getBoundingClientRect().width; n++;
+    }
+    if(!n) return;
+    const set = row => {
+      for(let i = 0; i < n && i < row.cells.length; i++)
+        row.cells[i].style.left = w[i] + 'px';
+    };
+    set(head);
+    for(const row of t.tBodies[0] ? t.tBodies[0].rows : []) set(row);
+    const grp = t.querySelector('tr.groups');
+    if(grp && grp.cells.length) {
+      grp.cells[0].classList.add('pin');
+      grp.cells[0].style.left = '0px';
+    }
+  });
+}
+
+
 async function openRun(dir){
   clearInterval(WATCH);
   RUN = dir;
@@ -1445,52 +1703,7 @@ async function openRun(dir){
           + '<span class=jid>' + esc(v.id) + '</span>'
           + '<span class=jst>' + esc(Object.keys(v.state || {}).join(', ')
               || 'checking') + '</span></div>').join('') + '</div>'
-      + (rows.length
-        ? '<table><tr><th class=c>#</th><th>name</th><th>peptide</th>'
-          + '<th class=c>len</th>'
-          + '<th class=c>poses</th>'
-          + '<th class=c>ADCP best</th><th class=c>ADCP top' + tn + '</th>'
-          + (mm ? '<th class=c>MM-GBSA best</th><th class=c>MM-GBSA top' + tn
-                  + '</th>'
-                  + '<th class=c>median</th><th class=c title="Most positive minus most '
-                  + 'negative score across the scored poses. It shows how '
-                  + 'much the poses disagree; it is not a statistical test '
-                  + 'of the ranking.">n / '
-                  + 'spread</th>' : '')
-          + (omm ? '<th class=c title="ADCP 1.1 OpenMM minimization: the lowest '
-                  + 'E(complex) minus E(receptor) among the minimized poses, '
-                  + 'and which pose it was.">OpenMM best</th>' : '')
-          + '<th class=c></th></tr>'
-          // Centred, except the sequence. Numbers read as a column when their
-          // digits line up under the heading. The peptide stays left-aligned
-          // and monospaced, because it is read letter by letter.
-          + rows.map(r => '<tr class=pick data-pep="' + esc(r.peptide) + '">'
-              + '<td class=c>' + (r.rank == null ? '-' : r.rank) + '</td>'
-              // The name is left-aligned for the same reason as the sequence:
-              // both are read, not compared down a column.
-              + '<td class=nm>' + esc(r.name || '-') + '</td>'
-              + '<td class=seq>' + esc(r.peptide)
-              + '</td><td class=c>' + r.length + '</td><td class=c>' + r.poses
-              + '</td><td class=c>' + fmt(r.adcp_best, 1) + '</td><td class=c>'
-              + fmt(r['adcp_top' + tn], 2) + '</td>'
-              + (mm ? '<td class=c>' + fmt(r.mmgbsa_best, 2) + '</td>'
-                      + '<td class=c>' + fmt(r['mmgbsa_top' + tn], 2) + '</td>'
-                      + '<td class=c>' + fmt(r.mmgbsa_median, 2) + '</td>'
-                      + '<td class=c>' + (r.mmgbsa_n || '-') + ' / '
-                      + fmt(r.mmgbsa_spread, 1) + '</td>' : '')
-              + (omm ? '<td class=c>' + (r.omm_n ? fmt(r.omm_best, 1)
-                        + ' (pose ' + r.omm_best_pose + ')' : '-') + '</td>' : '')
-              + '<td class=c><button class="ghost sm" data-view="'
-              + esc(r.peptide) + '">view</button></td>'
-              + '</tr>').join('') + '</table>'
-          + (mm ? '<div class=why style="margin-top:6px">MM-GBSA is an '
-                  + 'ordering within this run against this receptor. It is '
-                  + 'not a K<sub>D</sub> and not a binding free energy: '
-                  + 'there is no entropy term in it. The whole picomolar-to-'
-                  + 'nanomolar range is 4.1 kcal/mol, which is narrower than '
-                  + 'the pose spread of a single peptide here. '
-                  + '<code>adcp-dock affinity</code> prints the ruler.</div>'
-             : '')
+      + (rows.length ? resultsTable(rows, tn, mm, omm)
         : '<div class=why>no results yet</div>')
       + ((d.outstanding && d.outstanding.length)
         ? '<div style="margin-top:11px;padding:11px;border:1px solid '
@@ -1515,6 +1728,20 @@ async function openRun(dir){
           + (r.prepared_again ? ' (the receptor is being prepared again)' : '');
       show();
     };
+    // The pinned columns can only be placed once the table is in the page,
+    // and the group switches redraw it.
+    pinResults(el);
+    el.querySelectorAll('.colpick input[data-col]').forEach(cb => {
+      cb.onchange = () => {
+        let saved = {};
+        try { saved = JSON.parse(localStorage.getItem('adcp.cols') || '{}'); }
+        catch(e) { saved = {}; }
+        saved[cb.getAttribute('data-col')] = cb.checked;
+        try { localStorage.setItem('adcp.cols', JSON.stringify(saved)); }
+        catch(e) { /* a browser with storage off still switches the column */ }
+        show();
+      };
+    });
     const pickRow = (tr, pep) => {
       el.querySelectorAll('tr.pick').forEach(x => x.classList.remove('on'));
       tr.classList.add('on');
