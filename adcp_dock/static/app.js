@@ -349,7 +349,7 @@ async function drawPicker(){
       + esc(pdb.slice(0, 200)) + '</div>';
     return;
   }
-  if(!VD) VD = $3Dmol.createViewer($('viewD'), {backgroundColor:'white'});
+  if(!VD) VD = $3Dmol.createViewer($('viewD'), {backgroundColor: viewBg(false)});
   VD.removeAllModels();
   VD.addModel(pdb, 'pdb');
   stylePicker();
@@ -1118,8 +1118,29 @@ function themeButton(){
   $('themebtn').textContent = dark ? 'Light mode' : 'Dark mode';
   $('themebtn').setAttribute('aria-pressed', dark ? 'true' : 'false');
 }
+/* The 3D canvases paint their own background over the page's, so they have to
+   be told which theme is showing. A figure made for a paper stays on white,
+   which is what a journal prints on. */
+const VIEW_DARK = '#0b0e14';
+function viewBg(pub){ return (isDark() && !pub) ? VIEW_DARK : '#ffffff'; }
+function applyViewBg(){
+  try {
+    if(typeof VR !== 'undefined' && VR){
+      VR.setBackgroundColor(viewBg(typeof RPUB !== 'undefined' && RPUB));
+      VR.render();
+    }
+    if(typeof VD !== 'undefined' && VD){
+      VD.setBackgroundColor(viewBg(false)); VD.render();
+    }
+    if(typeof MV !== 'undefined' && MV && MV.plugin && MV.plugin.canvas3d){
+      MV.plugin.canvas3d.setProps({renderer: {backgroundColor:
+        parseInt(viewBg(false).slice(1), 16)}});
+    }
+  } catch(err){ /* a viewer that is not drawn yet takes the colour at birth */ }
+}
 function themeChanged(){
   themeButton();
+  applyViewBg();
   /* the residue drawings are made for one background or the other */
   if($('moddlg') && $('moddlg').open) drawViews();
 }
@@ -1464,6 +1485,9 @@ function colgroups(rows, tn, mm, omm){
   ]});
   if(any(rows, 'mm_vdw')) G.push({key: 'terms', label: 'MM-GBSA breakdown',
     on: true, cols: [
+    {h: 'pose', cls: 'c', t: 'Which ADCP pose these parts, and every '
+      + 'interface column, describe: the one with the lowest MM-GBSA energy.',
+     f: r => (r.panel_pose == null ? '-' : r.panel_pose)},
     {h: 'van der Waals', cls: 'c', t: 'The van der Waals part of the best '
       + 'pose\u2019s MM-GBSA energy. The four parts add up to that energy.',
      f: r => fmt(r.mm_vdw, 1)},
@@ -1525,12 +1549,13 @@ function colgroups(rows, tn, mm, omm){
       + 'should be zero: the receptor is restrained, so an overlap cannot '
       + 'relax out.', f: r => r.n_clash},
   ]});
-  if(any(rows, 'panel_pose')) G.push({key: 'prov', label: 'measured on',
-    on: false, cols: [
-    {h: 'pose', cls: 'c', t: 'Which pose every panel column above describes: '
-      + 'the one with the lowest MM-GBSA energy, or the top ADCP pose when '
-      + 'there is no MM-GBSA.', f: r => (r.panel_pose == null ? '-'
-                                         : r.panel_pose)},
+  // How the interface columns were measured: how many poses, on what
+  // coordinates, and how the minimisation before the energy ended. It exists
+  // only once the interface has been measured, so a run that has only its
+  // MM-GBSA breakdown is not shown a group of empty columns.
+  if(any(rows, 'panel_geometry') || any(rows, 'panel_n')
+     || any(rows, 'min_cycles')) G.push({key: 'prov',
+    label: 'how it was measured', on: false, cols: [
     {h: 'BSA sd', cls: 'c', t: 'How much the buried area moves between the '
       + 'scored poses of this peptide. Population sd, and blank for a single '
       + 'pose, where it is undefined rather than zero.',
@@ -1714,6 +1739,13 @@ async function openRun(dir){
   const show = async () => {
     const d = await api('/api/run?dir=' + encodeURIComponent(dir));
     const el = $('rundetail');
+    // The view is redrawn every fifteen seconds while a run is watched. A
+    // redraw replaces the table, which would throw a reader who had scrolled
+    // across to the panel back to the first column, and drop the row they
+    // had picked. Both are carried over.
+    const was = el.querySelector('.rtable');
+    const keep = was ? {left: was.scrollLeft, top: was.scrollTop} : null;
+    const picked = (el.querySelector('tr.pick.on') || {}).dataset;
     if(d.error){ el.innerHTML = '<span class=bad>' + esc(d.error) + '</span>';
                  return; }
     monitor();
@@ -1769,6 +1801,13 @@ async function openRun(dir){
     // The pinned columns can only be placed once the table is in the page,
     // and the group switches redraw it.
     pinResults(el);
+    const now = el.querySelector('.rtable');
+    if(now && keep){ now.scrollLeft = keep.left; now.scrollTop = keep.top; }
+    if(picked && picked.pep){
+      el.querySelectorAll('tr.pick').forEach(tr => {
+        if(tr.getAttribute('data-pep') === picked.pep) tr.classList.add('on');
+      });
+    }
     const pg = $('panelgo');
     if(pg) pg.onclick = async () => {
       pg.disabled = true;
@@ -1884,6 +1923,70 @@ async function showPeptide(dir, pep){
     + (p.mmgbsa != null ? '  MM ' + p.mmgbsa.toFixed(1) : '') + '</option>').join('');
   if(!POSES.length){ $('viewmsg').textContent = 'no poses for ' + pep; return; }
   loadPose(POSES[0].rank);
+  showResidues(dir, pep);
+}
+
+/* Each residue's part in the binding, on both sides: every residue of the
+ * peptide, which is the side being designed, and the receptor residues the
+ * pose touches. From the interface panel's residue map; a run whose panel was
+ * never measured has none, and the run's page offers to measure it. */
+const KIND_NAME = {ionic: 'salt bridge', hbond: 'H-bond', stack: 'stacking',
+                   vdw: 'contact', clash: 'clash'};
+const KIND_ORDER = ['clash', 'ionic', 'hbond', 'stack', 'vdw'];
+function kindText(k){
+  const got = String(k || '').split(',').filter(Boolean);
+  return KIND_ORDER.filter(x => got.indexOf(x) >= 0).map(x => KIND_NAME[x])
+    .join(', ') || '-';
+}
+async function showResidues(dir, pep){
+  const box = $('residuebox');
+  if(!box) return;
+  box.innerHTML = '';
+  const d = await api('/api/residues?dir=' + encodeURIComponent(dir)
+                      + '&peptide=' + encodeURIComponent(pep));
+  if(!d || d.error) return;
+  if(!d.measured){
+    box.innerHTML = '<div class=why>Per residue energies appear here once the '
+      + 'interface columns have been measured for this run: the run\u2019s '
+      + 'results table offers to measure them.</div>';
+    return;
+  }
+  const rows = d.rows || [];
+  const table = (list, first) => '<div class=restbl><table class=rt><thead>'
+    + '<tr><th>' + first + '</th><th>contact</th>'
+    + '<th class=c title="The closest heavy atom distance to the other '
+    + 'partner, in angstroms.">closest</th>'
+    + '<th class=c title="This residue\u2019s share of the MM-GBSA energy, in '
+    + 'kcal/mol. Negative helps binding. The shares add up to within a few '
+    + 'per cent of the MM-GBSA value, not exactly.">energy</th></tr></thead>'
+    + '<tbody>' + list.map(r => '<tr' + (r.site === '1' ? ' class=site' : '')
+      + '><td class=resnm>' + esc(r.resname) + ' ' + esc(r.chain) + esc(r.resnum)
+      + (r.site === '1' ? ' <span class=pill title="One of the residues the '
+         + 'docking box was built around">site</span>' : '') + '</td>'
+      + '<td>' + esc(kindText(r.kinds)) + '</td>'
+      + '<td class=c>' + (r.d_min == null ? '-' : fmt(r.d_min, 1) + ' \u00c5')
+      + '</td><td class=c>' + (r.dg == null ? '-' : fmt(r.dg, 2)) + '</td></tr>')
+      .join('') + '</tbody></table></div>';
+  const pepRows = rows.filter(r => r.side === 'peptide');
+  const recRows = rows.filter(r => r.side !== 'peptide')
+    .sort((a, b) => (a.dg == null) - (b.dg == null) || (a.dg - b.dg));
+  box.innerHTML = '<h3 class=restitle>Residue by residue'
+    + (d.pose != null ? ' <span class=why>pose ' + esc(d.pose)
+       + ', the one the interface columns describe</span>' : '') + '</h3>'
+    + '<div class=resgrid>'
+    + (pepRows.length ? '<div><div class=reshead>The peptide, every residue'
+       + '</div>' + table(pepRows, 'residue') + '</div>' : '')
+    + (recRows.length ? '<div><div class=reshead>The receptor, residues in '
+       + 'contact, most favourable first</div>' + table(recRows, 'residue')
+       + '</div>' : '')
+    + '</div>'
+    + (!pepRows.length ? '<div class=why>This run\u2019s map was written before '
+       + 'the peptide\u2019s own residues were added; measuring the interface '
+       + 'again adds them.</div>' : '')
+    + '<div class=why style="margin-top:6px">Energy is each residue\u2019s '
+    + 'share of the MM-GBSA value; negative helps binding. The shares add up '
+    + 'to within a few per cent of the MM-GBSA value, not exactly. The full '
+    + 'map is in <code>metrics/</code>.</div>';
 }
 $('rposepick').onchange = () => loadPose(+$('rposepick').value);
 
@@ -1912,7 +2015,7 @@ async function loadPose(rank){
     return;
   }
   if(!VR){
-    VR = $3Dmol.createViewer($('viewR'), {backgroundColor:'white'});
+    VR = $3Dmol.createViewer($('viewR'), {backgroundColor: viewBg(RPUB)});
     // Label dragging (drag.js). A figure author moves labels clear of the structure before
     // saving; the helper keeps a dragged label inside the canvas and draws its
     // leader line into the saved PNG, which pngURI() does not include because
@@ -2352,6 +2455,7 @@ async function drawMolstar(pdb){
         layoutIsExpanded:false, layoutShowControls:false,
         layoutShowSequence:true, layoutShowLog:false,
         viewportShowExpand:true, collapseLeftPanel:true});
+      applyViewBg();
     }
     await MV.plugin.clear();
     await MV.loadStructureFromData(pdb, 'pdb');
@@ -2401,6 +2505,7 @@ document.addEventListener('click', e => {
   } else if(b.id === 'rpub'){
     RPUB = !RPUB; RPUBFRAMED = false;
     b.classList.toggle('on', RPUB);
+    applyViewBg();
     b.textContent = RPUB ? 'on' : 'off';
     if(RPUB && !RCONTACT){ RCONTACT = true;
       $('rcontact').classList.add('on'); $('rcontact').textContent = 'on'; }

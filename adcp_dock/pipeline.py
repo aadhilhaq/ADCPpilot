@@ -364,8 +364,8 @@ def _write_panel(rundir, seq, poses, best, hot, rows, log=print):
                    "site": [[c, n] for c, n in hot],
                    "best_pose": best, "poses": poses}, fh, indent=1)
     if rows:
-        cols = ["chain", "resnum", "resname", "site", "kinds", "d_min",
-                "n_partners", "dg"]
+        cols = ["side", "chain", "resnum", "resname", "site", "kinds",
+                "d_min", "n_partners", "dg"]
         with open(os.path.join(d, "%s_residues.tsv" % key), "w") as fh:
             fh.write("\t".join(cols) + "\n")
             for r in rows:
@@ -488,7 +488,7 @@ def _panel_geometry(rundir, j, seq, out, pdir, log=print):
             break
         try:
             st = metrics.from_atoms(rec.atoms, pose)
-            m, per_res = metrics.for_structure(st, hotspots=hot)
+            m, per_res, per_pep = metrics.for_structure(st, hotspots=hot)
         except Exception as exc:                                # noqa: BLE001
             log("  pose %d: the panel could not be measured (%s)" % (k, exc))
             continue
@@ -498,7 +498,7 @@ def _panel_geometry(rundir, j, seq, out, pdir, log=print):
         poses.append(m)
         if best is None:
             best = 0
-            rows_best = metrics.residue_table(per_res, {}, hot)
+            rows_best = metrics.residue_table(per_res, {}, hot, per_pep)
     if not poses:
         return
     panel = dict(poses[best])

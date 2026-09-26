@@ -356,6 +356,28 @@ except M.Mismatch:
     check("a residue name that does not match is refused", True)
 
 # --------------------------------------------------- the site and the panel
+print("the residue map")
+_map = M.residue_table(
+    {("A", 100, "TYR"): {"kinds": {"vdw"}, "d_min": 3.7, "partners": set()},
+     ("A", 50, "MET"): {"kinds": {"hbond", "vdw"}, "d_min": 2.9,
+                        "partners": set()},
+     ("A", "54A", "LEU"): {"kinds": {"vdw"}, "d_min": 3.3, "partners": set()},
+     ("A", 54, "LEU"): {"kinds": {"vdw"}, "d_min": 3.4, "partners": set()}},
+    {("A", 50): {"total": -1.2, "side": "R"},
+     ("B", 110): {"total": -0.5, "side": "L", "resname": "TRP"},
+     ("B", 111): {"total": 0.2, "side": "L", "resname": "GLY"}},
+    [("A", 54)],
+    {("B", 110, "TRP"): {"kinds": {"hbond"}, "d_min": 2.9, "partners": set()}})
+_rec = [r["resnum"] for r in _map if r["side"] == "receptor"]
+check("receptor residues sort by number, not as text", _rec == [50, 54, "54A", 100],
+      "%s" % _rec)
+_pep = [r for r in _map if r["side"] == "peptide"]
+check("every peptide residue is listed, touching or not", len(_pep) == 2)
+check("a peptide residue that touches nothing still has its energy",
+      [r["dg"] for r in _pep if r["resnum"] == 111] == [0.2])
+check("the site residue is flagged", [r["site"] for r in _map
+                                       if r["resnum"] == 54] == [1])
+
 print("the nominated site")
 sm = M.site_metrics([("A", 1), ("A", 2), ("A", 3), ("A", 4)],
                     {("A", 1, "LEU"): {"kinds": {"vdw"}, "d_min": 3.3,

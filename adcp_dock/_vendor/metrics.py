@@ -478,13 +478,13 @@ def contacts(st, lig_chain="B"):
     rec = np.array([c != lig_chain for c in st.chain], dtype=bool) & st.heavy
     li, ri = np.nonzero(lig)[0], np.nonzero(rec)[0]
     if not len(li) or not len(ri):
-        return dict(EMPTY_CONTACTS, per_residue={})
+        return dict(EMPTY_CONTACTS, per_residue={}, per_peptide={})
     d = np.linalg.norm(st.xyz[li][:, None, :] - st.xyz[ri][None, :, :],
                        axis=-1)
     n_hbond = 0
     pairs_ionic, pairs_stack, pairs_contact = set(), set(), set()
     n_clash = 0
-    per_res = {}
+    per_res, per_pep = {}, {}
     close = np.argwhere(d <= STACK_A)
     for a, b in close:
         i, k = int(li[a]), int(ri[b])
@@ -517,6 +517,14 @@ def contacts(st, lig_chain="B"):
             e["kinds"] |= kinds
             e["d_min"] = min(e["d_min"], round(dist, 2))
             e["partners"].add(st.key(i))
+            # The same contact seen from the peptide, which is the side a
+            # designer edits: which of the peptide's residues carry the
+            # interface, and what each one touches.
+            f = per_pep.setdefault(st.key(i), {"kinds": set(), "d_min": 99.0,
+                                               "partners": set()})
+            f["kinds"] |= kinds
+            f["d_min"] = min(f["d_min"], round(dist, 2))
+            f["partners"].add(st.key(k))
     return {
         "n_hbond": n_hbond,
         "n_ionic": len(pairs_ionic),
@@ -526,6 +534,7 @@ def contacts(st, lig_chain="B"):
         "n_rec_res": len({b for _a, b in pairs_contact}),
         "n_pep_res": len({a for a, _b in pairs_contact}),
         "per_residue": per_res,
+        "per_peptide": per_pep,
     }
 
 
@@ -1058,7 +1067,8 @@ def for_structure(st, hotspots=None, lig_chain="B", dat=None, decomp=None,
     MM-GBSA output that belongs to it."""
     c = contacts(st, lig_chain=lig_chain)
     out = {}
-    out.update({k: v for k, v in c.items() if k != "per_residue"})
+    out.update({k: v for k, v in c.items()
+                if k not in ("per_residue", "per_peptide")})
     out.update(burial(st, lig_chain=lig_chain))
     t = terms(dat, mmpbsa_in) if dat else {}
     for k, v in t.items():
@@ -1069,7 +1079,7 @@ def for_structure(st, hotspots=None, lig_chain="B", dat=None, decomp=None,
     out.update(site_metrics(hotspots, c.get("per_residue") or {},
                             decomp or {}))
     out["has_hydrogens"] = bool((~st.heavy).any())
-    return out, (c.get("per_residue") or {})
+    return out, (c.get("per_residue") or {}), (c.get("per_peptide") or {})
 
 
 def for_pose(posedir, prefix, hotspots=None, lig_chain="B", log=print,
@@ -1106,7 +1116,8 @@ def for_pose(posedir, prefix, hotspots=None, lig_chain="B", log=print,
     # _write_pdbs stamped as B.
     dec = decomposition(decomp_file(posedir, prefix, log=log,
                                     make=make_decomp), tmap)
-    m, per_res = for_structure(st, hotspots=hotspots, lig_chain=lig_chain,
+    m, per_res, per_pep = for_structure(st, hotspots=hotspots,
+                                        lig_chain=lig_chain,
                                dat=dat if os.path.isfile(dat) else None,
                                decomp=dec, mmpbsa_in=mmin)
     # Which coordinates these numbers describe, and what the minimisation
@@ -1117,27 +1128,54 @@ def for_pose(posedir, prefix, hotspots=None, lig_chain="B", log=print,
     m.update(mi)
     m["geometry"] = what or "unknown"
     m["decomposed"] = bool(dec)
-    return m, residue_table(per_res, dec, hotspots)
+    return m, residue_table(per_res, dec, hotspots, per_pep)
 
 
-def residue_table(per_residue, decomp, hotspots=None):
-    """The per residue map, as rows ready for a TSV.
+def residue_table(per_residue, decomp, hotspots=None, per_peptide=None):
+    """The per residue map, as rows ready for a TSV: both sides.
 
-    Its own file rather than a column: a receptor has as many rows as it has
+    Its own file rather than a column: a complex has as many rows as it has
     residues at the interface, and a table with one row per peptide has
-    nowhere to put them.
+    nowhere to put them. Every peptide residue is listed, touching or not,
+    because a residue that contributes nothing is itself worth knowing when
+    the sequence is being edited; on the receptor only the residues in
+    contact are, since the rest of a receptor is not being designed.
     """
     hot = {(c, n) for c, n in (hotspots or [])}
+    dec = decomp or {}
+
+    def order(kv):
+        """Chain, then residue number as a number, then any insertion code,
+        so residue 50 comes before 100 and 54 before 54A."""
+        ch, num = kv[0][0], kv[0][1]
+        m = re.match(r"(-?\d+)(.*)", str(num))
+        return (ch, int(m.group(1)), m.group(2)) if m else (ch, 0, str(num))
+
+    def energy(ch, num):
+        d = dec.get((ch, num)) or dec.get(("", num))
+        return None if d is None else d["total"]
+
     rows = []
-    for (ch, num, resname), e in sorted(per_residue.items(),
-                                        key=lambda kv: (kv[0][0], kv[0][1])):
-        d = (decomp or {}).get((ch, num)) or (decomp or {}).get(("", num))
+    for (ch, num, resname), e in sorted(per_residue.items(), key=order):
         rows.append({
-            "chain": ch, "resnum": num, "resname": resname,
-            "site": int((ch, num) in hot),
-            "kinds": ",".join(sorted(e["kinds"])),
-            "d_min": e["d_min"],
-            "n_partners": len(e["partners"]),
-            "dg": None if d is None else d["total"],
+            "side": "receptor", "chain": ch, "resnum": num,
+            "resname": resname, "site": int((ch, num) in hot),
+            "kinds": ",".join(sorted(e["kinds"])), "d_min": e["d_min"],
+            "n_partners": len(e["partners"]), "dg": energy(ch, num),
+        })
+    pep = dict(per_peptide or {})
+    # peptide residues with no contact at all, from the decomposition
+    for (ch, num), d in dec.items():
+        if d.get("side") == "L" and not any(
+                k[0] == ch and k[1] == num for k in pep):
+            pep[(ch, num, d.get("resname", ""))] = {"kinds": set(),
+                                                    "d_min": None,
+                                                    "partners": set()}
+    for (ch, num, resname), e in sorted(pep.items(), key=order):
+        rows.append({
+            "side": "peptide", "chain": ch, "resnum": num,
+            "resname": resname, "site": 0,
+            "kinds": ",".join(sorted(e["kinds"])), "d_min": e["d_min"],
+            "n_partners": len(e["partners"]), "dg": energy(ch, num),
         })
     return rows

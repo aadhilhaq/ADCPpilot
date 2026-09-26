@@ -10,6 +10,7 @@ else's session by guessing the port.
 Nothing heavy happens in here. Every request either reads a file, validates
 something, or hands work to SLURM.
 """
+import csv
 import glob
 import json
 import os
@@ -660,6 +661,42 @@ class App:
         return {"sent": True,
                 "note": "%s, with %d log file(s)." % (why, len(atts))}
 
+    def residues(self, rundir, peptide):
+        """The per residue map of one peptide, for the viewer.
+
+        Read from metrics/, which the interface panel writes: every receptor
+        residue the pose touches and every residue of the peptide, with the
+        kind of contact each makes and its share of the MM-GBSA energy. A run
+        whose panel was never measured has no map, and says so.
+        """
+        if not rundir or not os.path.isfile(jobmod.path_of(rundir)):
+            return {"error": "no such run"}
+        key = jobmod.key(peptide or "")
+        tsv = os.path.join(rundir, "metrics", "%s_residues.tsv" % key)
+        if not os.path.isfile(tsv):
+            return {"rows": [], "measured": False}
+        rows = []
+        with open(tsv) as fh:
+            for r in csv.DictReader(fh, delimiter="\t"):
+                # Maps written before the peptide side was added have no side
+                # column; every row in them is the receptor's.
+                r.setdefault("side", "receptor")
+                for k in ("dg", "d_min"):
+                    try:
+                        r[k] = float(r[k]) if r.get(k) not in ("", None) \
+                            else None
+                    except ValueError:
+                        r[k] = None
+                rows.append(r)
+        pose = None
+        js = os.path.join(rundir, "metrics", "%s.json" % key)
+        if os.path.isfile(js):
+            try:
+                pose = json.load(open(js)).get("best_pose")
+            except (OSError, ValueError):
+                pose = None
+        return {"rows": rows, "measured": True, "pose": pose}
+
     def panel_run(self, rundir):
         """Measure the interface panel for a run docked before it existed.
 
@@ -1216,6 +1253,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(app.list_runs())
         if u.path == "/api/run":
             return self._send(app.run_status(q.get("dir", [""])[0]))
+        if u.path == "/api/residues":
+            return self._send(app.residues(q.get("dir", [""])[0],
+                                           q.get("peptide", [""])[0]))
         if u.path == "/api/poses":
             return self._send(app.pose_list(q.get("dir", [""])[0],
                                             q.get("peptide", [""])[0]))

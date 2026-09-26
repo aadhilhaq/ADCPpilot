@@ -460,6 +460,21 @@ td.nm{text-align:left;white-space:nowrap}
 .colpick{display:flex;gap:13px;flex-wrap:wrap;align-items:center;
   margin:9px 0 6px;font-size:12px;color:var(--dim)}
 .colpick label{display:inline-flex;gap:5px;align-items:center;cursor:pointer}
+/* Residue by residue, under the viewer: the peptide's residues beside the
+   receptor's, each table scrolling in its own box. */
+.restitle{font-size:14px;margin:4px 0 8px}
+.resgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+  gap:14px}
+.reshead{font-size:12px;color:var(--dim);margin:0 0 5px}
+.restbl{max-height:360px;overflow:auto;border:1px solid var(--line);
+  border-radius:10px}
+.restbl table{width:100%;border-collapse:separate;border-spacing:0;
+  font-size:12.5px}
+.restbl th{position:sticky;top:0;background:var(--card);z-index:1}
+.restbl th,.restbl td{padding:6px 10px;white-space:nowrap;
+  border-bottom:1px solid var(--line)}
+.restbl td.resnm{text-align:left}
+.restbl tr.site td{background:var(--soft)}
 .panelnote{margin:9px 0 2px;padding:10px 12px;border:1px solid var(--line);
   border-radius:10px;font-size:13px}
 /* Row actions have to fit on one line beside the run. */
@@ -877,6 +892,7 @@ larger of the two and takes a moment the first time.">
   <div class=why id=viewmsg style="margin-top:7px"></div>
   <div id=contactbox style="margin-top:10px"></div>
   <div id=diagwrap style="margin-top:14px"></div>
+  <div id=residuebox style="margin-top:16px"></div>
 </div>
 <dialog id=citedlg>
   <div class=dlg-h><b>How to cite</b>
