@@ -1430,13 +1430,15 @@ const pc = (v, n) => (v == null ? '-' : Number(v).toFixed(n));
 
 function colgroups(rows, tn, mm, omm){
   const G = [];
+  // The columns that say WHICH peptide a row is. Exactly these are pinned,
+  // and their group heading spans exactly them, so it can be pinned too.
   G.push({key: 'id', label: '', always: true, cols: [
     {h: '#', cls: 'c pin', f: r => (r.rank == null ? '-' : r.rank)},
-    {h: 'name', cls: 'nm pin', f: r => esc(r.name || '-')},
-    {h: 'peptide', cls: 'seq pin', f: r => esc(r.peptide)},
-    {h: 'len', cls: 'c', f: r => r.length},
+    {h: 'name', cls: 'rnm pin', f: r => esc(r.name || '-')},
+    {h: 'peptide', cls: 'rseq pin', f: r => esc(r.peptide)},
   ]});
   G.push({key: 'score', label: 'docking', always: true, cols: [
+    {h: 'len', cls: 'c', f: r => r.length},
     {h: 'poses', cls: 'c', t: 'How many poses ADCP ranked. A best score '
       + 'improves simply by scoring more poses, so it is read beside this.',
      f: r => r.poses},
@@ -1451,7 +1453,7 @@ function colgroups(rows, tn, mm, omm){
         + 'convergence; how much the poses differ from each other is not.',
        f: r => (r.cluster_top == null ? '-' : r.cluster_top + ' / '
                 + pc(r.cluster_frac * 100, 0) + '%')});
-  if(mm) G.push({key: 'mm', label: 'MM-GBSA (AmberTools)', on: true, cols: [
+  if(mm) G.push({key: 'mm', label: 'MM-GBSA', on: true, cols: [
     {h: 'best', cls: 'c', f: r => fmt(r.mmgbsa_best, 2)},
     {h: 'top' + tn, cls: 'c', f: r => fmt(r['mmgbsa_top' + tn], 2)},
     {h: 'median', cls: 'c', f: r => fmt(r.mmgbsa_median, 2)},
@@ -1460,15 +1462,18 @@ function colgroups(rows, tn, mm, omm){
       + 'much the poses disagree; it is not a statistical test of the ranking.',
      f: r => (r.mmgbsa_n || '-') + ' / ' + fmt(r.mmgbsa_spread, 1)},
   ]});
-  if(any(rows, 'mm_vdw')) G.push({key: 'terms', label: 'energy terms (AmberTools)',
+  if(any(rows, 'mm_vdw')) G.push({key: 'terms', label: 'MM-GBSA breakdown',
     on: true, cols: [
-    {h: 'vdW', cls: 'c', t: 'VDWAALS, from the same MMPBSA.py output as the '
-      + 'total.', f: r => fmt(r.mm_vdw, 1)},
-    {h: 'elec', cls: 'c', t: 'EEL.', f: r => fmt(r.mm_eel, 1)},
-    {h: 'polar', cls: 'c', t: 'EGB, the polar solvation term.',
+    {h: 'van der Waals', cls: 'c', t: 'The van der Waals part of the best '
+      + 'pose\u2019s MM-GBSA energy. The four parts add up to that energy.',
+     f: r => fmt(r.mm_vdw, 1)},
+    {h: 'electrostatic', cls: 'c', t: 'The electrostatic part.',
+     f: r => fmt(r.mm_eel, 1)},
+    {h: 'polar solv.', cls: 'c', t: 'The polar solvation part: what it costs '
+      + 'to take the charged and polar groups out of water.',
      f: r => fmt(r.mm_egb, 1)},
-    {h: 'nonpolar', cls: 'c', t: 'ESURF, the nonpolar term, from the LCPO '
-      + 'surface. The four terms sum to the MM-GBSA total.',
+    {h: 'nonpolar solv.', cls: 'c', t: 'The nonpolar solvation part, which '
+      + 'grows with the surface the two partners bury.',
      f: r => fmt(r.mm_esurf, 1)},
   ]});
   if(any(rows, 'site_n')) G.push({key: 'site', label: 'nominated site',
@@ -1499,11 +1504,6 @@ function colgroups(rows, tn, mm, omm){
      f: r => fmt(r.bsa, 0)},
     {h: 'per res', cls: 'c', t: 'The peptide’s buried area divided by its '
       + 'residues.', f: r => fmt(r.bsa_per_res, 0)},
-    {h: 'rolled over', cls: 'c', t: 'Which atoms the area was rolled over. A '
-      + 'complex that has been through tleap has its hydrogens and a docked '
-      + 'pose does not; the same pose measured both ways differs by about 8 '
-      + 'per cent, so the two are not comparable.',
-     f: r => esc(r.bsa_basis || '-')},
     {h: 'buried', cls: 'c', t: 'The share of the peptide’s own free '
       + 'surface that the receptor covers.', f: r => fmt(r.f_pep_buried, 2)},
     {h: 'apolar', cls: 'c', t: 'The share of the peptide’s buried area '
@@ -1538,6 +1538,11 @@ function colgroups(rows, tn, mm, omm){
     {h: 'poses measured', cls: 'c', t: 'How many of the scored poses the '
       + 'panel could measure. The sd columns are over these.',
      f: r => (r.panel_n == null ? '-' : r.panel_n)},
+    {h: 'area over', cls: 'c', t: 'Which atoms the buried area was measured '
+      + 'over. A complex that has been through the MM-GBSA has its hydrogens '
+      + 'and a docked pose does not; the same pose measured both ways differs '
+      + 'by about 8 per cent, so the two are not comparable.',
+     f: r => esc(r.bsa_basis || '-')},
     {h: 'geometry', cls: 'c', t: 'The coordinates the panel was measured on. '
       + 'Anything other than a minimised complex means the energy beside it '
       + 'was computed on a pose that was not relaxed.',
@@ -1589,26 +1594,28 @@ function colsOn(){
   return saved;
 }
 
-function resultsTable(rows, tn, mm, omm){
+function resultsTable(rows, tn, mm, omm, res){
   const G = colgroups(rows, tn, mm, omm);
   const saved = colsOn();
   const shown = G.filter(g => g.always
     || (saved[g.key] === undefined ? g.on !== false : saved[g.key]));
   const opt = G.filter(g => !g.always);
   const pick = opt.length
-    ? '<div class=colpick>columns: ' + opt.map(g => '<label><input '
+    ? '<div class=colpick>show: ' + opt.map(g => '<label><input '
         + 'type=checkbox data-col="' + esc(g.key) + '"'
         + (shown.indexOf(g) >= 0 ? ' checked' : '') + '> '
         + esc(g.label || g.key) + '</label>').join('') + '</div>'
     : '';
   const cols = [];
-  shown.forEach(g => g.cols.forEach((c, i) => cols.push(
-    Object.assign({}, c, {first: i === 0, group: g}))));
-  const groupRow = '<tr class=groups>' + shown.map(g =>
-    '<th class="grp' + (g.always ? '' : ' gsep') + '" colspan=' + g.cols.length
-    + '>' + esc(g.label || '') + '</th>').join('') + '</tr>';
+  shown.forEach((g, gi) => g.cols.forEach((c, i) => cols.push(
+    Object.assign({}, c, {sep: i === 0 && gi > 0}))));
+  const groupRow = '<tr class=groups>' + shown.map((g, gi) =>
+    '<th class="' + (gi === 0 ? 'pin' : 'rt-grp') + (gi > 0 ? ' gsep' : '')
+    + '" colspan=' + g.cols.length + '>' + esc(g.label || '') + '</th>')
+    .join('') + '</tr>';
   const headRow = '<tr class=heads>' + cols.map(c => '<th class="'
-    + (c.cls || '') + (c.first && !c.group.always ? ' gsep' : '') + '"'
+    + (c.cls || '').split(' ').filter(k => k === 'c' || k === 'pin').join(' ')
+    + (c.sep ? ' gsep' : '') + '"'
     + (c.t ? ' title="' + esc(c.t) + '"' : '') + '>' + esc(c.h)
     + '</th>').join('') + '</tr>';
   const body = rows.map(r => '<tr class=pick data-pep="' + esc(r.peptide)
@@ -1616,55 +1623,86 @@ function resultsTable(rows, tn, mm, omm){
       let v;
       try { v = c.f(r); } catch(e) { v = '-'; }
       if(v === undefined || v === null || v === '') v = '-';
-      return '<td class="' + (c.cls || '')
-        + (c.first && !c.group.always ? ' gsep' : '') + '">' + v + '</td>';
+      return '<td class="' + (c.cls || '') + (c.sep ? ' gsep' : '') + '">'
+        + v + '</td>';
     }).join('') + '</tr>').join('');
-  return pick + '<div class=rtable><table>' + groupRow + headRow + body
-    + '</table></div>'
-    + (mm ? '<div class=why style="margin-top:6px">Every energy here is '
-        + 'AmberTools: tleap, sander and MMPBSA.py. OpenMM appears in this '
-        + 'tool only in the receptor\u2019s preparation and in ADCP 1.1\u2019s '
-        + 'own pose minimisation, and <code>results.json</code> names which of '
-        + 'those this run used.</div>'
-        + '<div class=why style="margin-top:4px">MM-GBSA is an ordering '
+  const missing = (res && res.panel_missing) || 0;
+  const can = (res && res.panel_measurable) || 0;
+  return pick + '<div class=rtable><table class=rt><thead>' + groupRow
+    + headRow + '</thead><tbody>' + body + '</tbody></table></div>'
+    + (missing
+      ? '<div class=panelnote>' + missing + ' peptide(s) have no interface '
+        + 'columns, because this run was docked before they existed. '
+        + (can
+          ? '<button class="ghost sm" id=panelgo>Measure them</button> '
+            + '<span class=why>Nothing is docked again: the cluster reads '
+            + 'the structures this run already saved, in about half a minute '
+            + 'per peptide, and the table fills in when it finishes.</span>'
+            + '<div class=why id=panelmsg style="margin-top:6px"></div>'
+          : '<span class=why>Their structure files are no longer on disk, so '
+            + 'only the MM-GBSA breakdown can be shown.</span>')
+        + '</div>'
+      : '')
+    + (mm ? '<div class=why style="margin-top:6px">MM-GBSA is an ordering '
         + 'within this run against this receptor. It is not a K<sub>D</sub> '
         + 'and not a binding free energy: there is no entropy term in it. The '
         + 'whole picomolar-to-nanomolar range is 4.1 kcal/mol, which is '
         + 'narrower than the pose spread of a single peptide here. '
         + '<code>adcp-dock affinity</code> prints the ruler.</div>' : '')
     + (any(rows, 'bsa')
-      ? '<div class=why style="margin-top:4px">The panel columns describe ONE '
-        + 'pose per peptide, named in the "measured on" group, and are '
-        + 'measured on the same coordinates its energy was computed on. The '
-        + 'contact rules are this tool’s own geometric definitions, not '
-        + 'PLIP’s. Per residue energies and the full residue map are in '
-        + '<code>metrics/</code>.</div>' : '');
+      ? '<div class=why style="margin-top:4px">The interface columns describe '
+        + 'one pose per peptide, the one with the lowest MM-GBSA energy. Hover '
+        + 'over a heading to see what it measures.</div>' : '');
 }
 
-/* The pinned columns have to be told where to stop, and that depends on how
- * wide the name and the sequence turn out to be, which is only known once the
+/* The pinned columns have to be told where to stop, and the second heading
+ * row where to sit, and both depend on sizes that are only known once the
  * table is in the page. */
 function pinResults(el){
-  el.querySelectorAll('.rtable table').forEach(t => {
-    const head = t.querySelector('tr.heads');
-    if(!head) return;
-    const w = [];
-    let x = 0, n = 0;
-    for(const th of head.cells){
-      if(!th.classList.contains('pin')) break;
-      w.push(x); x += th.getBoundingClientRect().width; n++;
+  el.querySelectorAll('.rtable table.rt').forEach(t => {
+    const head = t.tHead;
+    if(!head || head.rows.length < 2) return;
+    const groups = head.rows[0], heads = head.rows[1];
+    // The column headings stick just below the group headings, whatever
+    // height the group row turned out to be.
+    const gh = groups.getBoundingClientRect().height;
+    if(!gh){
+      // Drawn while hidden, in a tab that is not showing: nothing has a size
+      // yet, and pinning now would stack every pinned column at zero. It is
+      // done again the moment the table is shown.
+      if(window.ResizeObserver && !t._pinWatch){
+        t._pinWatch = new ResizeObserver(() => {
+          if(t.getBoundingClientRect().height){
+            t._pinWatch.disconnect();
+            t._pinWatch = null;
+            pinResults(el);
+          }
+        });
+        t._pinWatch.observe(t);
+      }
+      return;
     }
-    if(!n) return;
-    const set = row => {
-      for(let i = 0; i < n && i < row.cells.length; i++)
-        row.cells[i].style.left = w[i] + 'px';
-    };
-    set(head);
-    for(const row of t.tBodies[0] ? t.tBodies[0].rows : []) set(row);
-    const grp = t.querySelector('tr.groups');
-    if(grp && grp.cells.length) {
-      grp.cells[0].classList.add('pin');
-      grp.cells[0].style.left = '0px';
+    for(const th of heads.cells) th.style.top = gh + 'px';
+    const lefts = [];
+    let x = 0;
+    for(const th of heads.cells){
+      if(!th.classList.contains('pin')) break;
+      lefts.push(x);
+      x += th.getBoundingClientRect().width;
+    }
+    // The last pinned column carries a divider, so the columns sliding under
+    // it read as passing behind rather than being cut off.
+    const place = row => lefts.forEach((l, i) => {
+      if(!row.cells[i]) return;
+      row.cells[i].style.left = l + 'px';
+      if(i === lefts.length - 1) row.cells[i].classList.add('pin-last');
+    });
+    place(heads);
+    for(const row of (t.tBodies[0] ? t.tBodies[0].rows : [])) place(row);
+    // The first group heading spans exactly the pinned columns.
+    if(groups.cells[0]){
+      groups.cells[0].style.left = '0px';
+      groups.cells[0].classList.add('pin-last');
     }
   });
 }
@@ -1703,7 +1741,7 @@ async function openRun(dir){
           + '<span class=jid>' + esc(v.id) + '</span>'
           + '<span class=jst>' + esc(Object.keys(v.state || {}).join(', ')
               || 'checking') + '</span></div>').join('') + '</div>'
-      + (rows.length ? resultsTable(rows, tn, mm, omm)
+      + (rows.length ? resultsTable(rows, tn, mm, omm, d.results)
         : '<div class=why>no results yet</div>')
       + ((d.outstanding && d.outstanding.length)
         ? '<div style="margin-top:11px;padding:11px;border:1px solid '
@@ -1731,6 +1769,20 @@ async function openRun(dir){
     // The pinned columns can only be placed once the table is in the page,
     // and the group switches redraw it.
     pinResults(el);
+    const pg = $('panelgo');
+    if(pg) pg.onclick = async () => {
+      pg.disabled = true;
+      $('panelmsg').textContent = 'submitting...';
+      const r = await api('/api/panel', {rundir: dir});
+      if(r.error){
+        $('panelmsg').innerHTML = '<span class=bad>' + esc(r.error) + '</span>';
+        pg.disabled = false;
+        return;
+      }
+      $('panelmsg').innerHTML = '<span class=good>Submitted.</span> The '
+        + 'interface columns appear here when it finishes.';
+      show();
+    };
     el.querySelectorAll('.colpick input[data-col]').forEach(cb => {
       cb.onchange = () => {
         let saved = {};

@@ -430,30 +430,38 @@ td.seq{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
    letters counted one by one, so it is not monospaced. td.nm rather than .nm:
    .nm is already the name box in the peptide entry row. */
 td.nm{text-align:left;white-space:nowrap}
-/* The results table carries the metric panel, so it is wider than any window.
-   It scrolls inside its own box rather than pushing the page sideways; the
-   heading row stays put while it scrolls; and the columns that say WHICH
-   peptide a row belongs to stay pinned to the left edge, because a number in
-   column twenty means nothing once its name has scrolled out of sight. */
+/* The results table. It is as wide as its columns need and scrolls sideways
+   inside its own box, never squeezing a column to fit the window. Both heading
+   rows stay put while it scrolls down, and the three columns that say WHICH
+   peptide a row is stay put while it scrolls across. Its cells have classes of
+   their own: the sequence editor's .seq box is not a table cell style.
+   Separate borders, because a sticky cell under border-collapse leaves its
+   border behind when it scrolls. */
 .rtable{max-height:64vh;overflow:auto;border:1px solid var(--line);
   border-radius:10px}
-.rtable table{font-size:12.5px}
-.rtable th{position:sticky;background:var(--card);
-  box-shadow:inset 0 -1px 0 var(--line)}
-.rtable tr.groups th{top:0;z-index:4;text-align:center;font-size:10px;
-  color:var(--dim)}
-.rtable tr.heads th{top:24px;z-index:3}
-.rtable tr.groups th.gsep{border-left:1px solid var(--line)}
-.rtable tr.heads th.gsep,.rtable td.gsep{border-left:1px solid var(--line)}
-.rtable .pin{position:sticky;background:var(--card);z-index:2}
-.rtable th.pin{z-index:5}
-.rtable tr.on td.pin{background:var(--accent2)}
-.rtable td{white-space:nowrap}
-/* Column groups that can be turned off, so a reader after the scores is not
-   made to scroll past the whole panel to reach them. */
+.rtable table.rt{width:max-content;min-width:100%;border-collapse:separate;
+  border-spacing:0;font-size:12.5px}
+.rtable table.rt th,.rtable table.rt td{white-space:nowrap;padding:7px 11px;
+  border-bottom:1px solid var(--line);background:var(--card)}
+.rtable table.rt thead th{position:sticky;top:0;z-index:3}
+.rtable table.rt tr.groups th{font-size:10px;text-align:center;
+  padding-top:6px;padding-bottom:5px}
+.rtable table.rt .pin{position:sticky;z-index:2}
+.rtable table.rt thead th.pin{z-index:5}
+.rtable table.rt .gsep{border-left:1px solid var(--line)}
+.rtable table.rt .pin-last{box-shadow:inset -1px 0 0 var(--line)}
+.rtable table.rt td.rseq{font-family:ui-monospace,SFMono-Regular,Menlo,
+  monospace;letter-spacing:.02em;text-align:left}
+.rtable table.rt td.rnm{text-align:left}
+.rtable table.rt tbody tr.pick:hover td{background:var(--soft)}
+.rtable table.rt tbody tr.on td{background:var(--accent2)}
+/* Group switches, so a reader after the scores is not made to scroll past the
+   whole panel to reach them. */
 .colpick{display:flex;gap:13px;flex-wrap:wrap;align-items:center;
   margin:9px 0 6px;font-size:12px;color:var(--dim)}
 .colpick label{display:inline-flex;gap:5px;align-items:center;cursor:pointer}
+.panelnote{margin:9px 0 2px;padding:10px 12px;border:1px solid var(--line);
+  border-radius:10px;font-size:13px}
 /* Row actions have to fit on one line beside the run. */
 .btnlink.sm,button.ghost.sm{font-size:11.5px;padding:3px 10px}
 .sz{color:var(--dim);font-size:10.5px;margin-left:3px}

@@ -532,6 +532,65 @@ def _pose_dirs(mmdir, seq):
     return [n for n, _d in sorted(out)]
 
 
+def energy_terms(rundir, r):
+    """The four MM-GBSA terms of a peptide's lowest energy pose, from files.
+
+    Text only: the output MMPBSA.py wrote for each pose already holds the
+    four terms, and reading them needs no Amber, no geometry and no compute.
+    That makes it safe for the web page to call on any run it is showing,
+    including one finished long before the panel existed.
+
+    Only poses whose energy the run kept are considered, matched by value, so
+    a pose discarded for splitting the complex in the wrong place can never
+    lend its terms to a row.
+    """
+    seq = r.get("peptide")
+    kept = [v for v in (r.get("mmgbsa") or []) if v is not None]
+    mmdir = os.path.join(rundir, "mmgbsa")
+    if not seq or not kept or not os.path.isdir(mmdir):
+        return {}
+    folders = _pose_dirs(mmdir, seq)
+    stored = r.get("mmgbsa_ranks") or []
+    best = None
+    for n in folders:
+        d = os.path.join(mmdir, seq, "pose%d" % n)
+        t = metrics.terms(os.path.join(d, "%s_mmgbsa.dat" % seq),
+                          os.path.join(d, "%s_mmpbsa.in" % seq))
+        tot = t.get("total")
+        if tot is None or not any(abs(tot - v) < 0.006 for v in kept):
+            continue
+        if best is None or tot < best[1]["total"]:
+            best = (n, t)
+    if best is None:
+        return {}
+    n, t = best
+    # Which ADCP pose the folder is: recorded for runs docked after that was
+    # added, and the folder's own number before, which is what the tool
+    # assumed then.
+    pose = stored[folders.index(n)] if len(stored) == len(folders) else n
+    out = {"pose": pose}
+    for k in ("vdw", "eel", "egb", "esurf", "total"):
+        if t.get(k) is not None:
+            out["mm_" + k] = t[k]
+    return out
+
+
+def measurable(rundir, r):
+    """Whether the interface panel could still be measured for this peptide:
+    its topologies and scored coordinates are on disk."""
+    seq = r.get("peptide")
+    mmdir = os.path.join(rundir, "mmgbsa")
+    if not seq or not os.path.isdir(mmdir):
+        return False
+    for n in _pose_dirs(mmdir, seq):
+        d = os.path.join(mmdir, seq, "pose%d" % n)
+        if (os.path.isfile(os.path.join(d, "%s_com.parm7" % seq))
+                and (os.path.isfile(os.path.join(d, "%s_min.rst7" % seq))
+                     or os.path.isfile(os.path.join(d, "%s_com.rst7" % seq)))):
+            return True
+    return False
+
+
 def stage_panel(rundir, j=None, log=print):
     """Measure the panel for a run that was docked before the panel existed.
 
@@ -630,15 +689,20 @@ def stage_report(rundir, j=None, log=print):
                                      engine=r.get("engine", ""),
                                      name=(r.get("name")
                                            or by_seq.get(r["peptide"], "")),
-                                     panel=r.get("panel"), clusters=r))
+                                     # A peptide rescored before the panel
+                                     # existed still has its four terms on
+                                     # disk, and they cost nothing to read.
+                                     panel=(r.get("panel")
+                                            or energy_terms(rundir, r)),
+                                     clusters=r))
     if not rows:
         log("no results to report yet")
         return None
     # A run docked before the panel existed has no panel in its result files.
     # Measuring it is real work, so it happens here only when this is already
     # running on a compute node; otherwise the run is told how to ask for it.
-    stale = [r for r in rows if r.get("mmgbsa_n") and r.get("panel_pose")
-             is None]
+    stale = [r for r in rows if r.get("mmgbsa_n") and r.get("bsa") is None
+             and (r.get("panel_geometry") or "") == ""]
     if stale:
         if os.environ.get("SLURM_JOB_ID") or slurm.local_mode():
             log("%d peptide(s) were docked before the interface panel existed"

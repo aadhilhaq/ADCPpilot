@@ -1215,8 +1215,12 @@ check("class=num" not in _res and "'num'" not in _spec,
 check(_spec.count("cls: 'c'") >= 6,
       "the results cells are not centred: %d centred columns in the spec"
       % _spec.count("cls: 'c'"))
-check("cls: 'seq pin'" in _spec,
-      "the peptide column is not the sequence class")
+# Its own class, not the sequence editor's .seq: that one draws a bordered,
+# padded box, which is what put a frame round the peptide heading.
+check("cls: 'rseq pin'" in _spec and "'seq pin'" not in _spec,
+      "the peptide column does not have the table's own sequence class")
+check("td.rseq{font-family:ui-monospace" in _html,
+      "the peptide column is not monospaced")
 # Every column carries a heading and a formatter, or a heading appears above
 # an empty column, or a value appears under no heading.
 _cols = _spec.split("{h: ")[1:]
@@ -1228,15 +1232,25 @@ check(all("cls: " in c for c in _cols),
       "a column in the spec has no cell class, so it would not line up")
 # The columns that say WHICH peptide a row is stay pinned while the rest
 # scrolls sideways. Without them a number in column twenty is unattributable.
-check(_spec.count("pin") >= 3 and "cls: 'nm pin'" in _spec,
+check(_spec.count("pin") >= 3 and "cls: 'rnm pin'" in _spec,
       "the identity columns are not pinned, so the table scrolls the name "
       "away from its numbers")
 check(".rtable{max-height" in _html and "overflow:auto" in
       _html[_html.index(".rtable{"):_html.index(".rtable{") + 120],
       "the results table does not scroll in its own box")
-check("position:sticky" in _html[_html.index(".rtable th{"):
-                                 _html.index(".rtable th{") + 120],
+check("position:sticky" in _html[_html.index(".rtable table.rt thead th{"):
+                                 _html.index(".rtable table.rt thead th{") + 60],
       "the results table heading does not stay put while it scrolls")
+# As wide as its columns need, scrolling sideways in its own box, never
+# squeezed to the window.
+check("width:max-content" in _html[_html.index(".rtable table.rt{"):
+                                   _html.index(".rtable table.rt{") + 80],
+      "the results table is squeezed to the window instead of scrolling "
+      "sideways")
+check("border-collapse:separate" in _html[_html.index(".rtable table.rt{"):
+                                          _html.index(".rtable table.rt{")
+                                          + 120],
+      "sticky cells under border-collapse leave their borders behind")
 # The heading row spans its group's columns, and both come from the same
 # array, so a group cannot claim more columns than it has.
 _tbl = _js2[_js2.index("function resultsTable("):
@@ -1247,8 +1261,36 @@ check("colspan=' + g.cols.length" in _tbl,
 check("catch(e) { v = '-'; }" in _tbl,
       "a column whose formatter throws breaks the whole row instead of "
       "showing a dash")
-check("'<div class=rtable><table>'" in _tbl,
-      "the results table is not inside the box that scrolls it")
+check("'<div class=rtable><table class=rt><thead>'" in _tbl
+      and "'</thead><tbody>'" in _tbl,
+      "the results table is not inside the box that scrolls it, or has no "
+      "heading section for the sticky rows")
+# No class on a results table cell may be styled anywhere else in the page.
+# Twice a cell borrowed a class the sequence editor already owned: .seq drew
+# a bordered box round the peptide heading, and .grp, display:inline-block,
+# stopped the group headings being table cells at all, so their column spans
+# were ignored and they piled up in a staircase. Only "c", the page's shared
+# centring class, is meant to be shared.
+_cls = set()
+for _m in re.finditer(r"cls: '([a-z0-9 -]+)'", _spec):
+    _cls |= set(_m.group(1).split())
+_cls |= set(re.findall(r"\? '([a-z0-9-]+)' : '([a-z0-9-]+)'",
+                       _tbl)[0]) if re.findall(r"\? '([a-z0-9-]+)' : "
+                                               r"'([a-z0-9-]+)'", _tbl) else set()
+_cls |= {"gsep"}
+_css = _html[_html.index("<style>"):_html.index("</style>")]
+_clash = []
+for _c in sorted(_cls - {"c"}):
+    for _m in re.finditer(r"(^|[}\s,])([^{}]*\.%s(?![a-z0-9-])[^{}]*)\{"
+                          % re.escape(_c), _css):
+        if ".rtable" not in _m.group(2):
+            _clash.append("%s in %s" % (_c, _m.group(2).strip()[:50]))
+check(not _clash, "a results table cell uses a class the page styles "
+      "elsewhere: %s" % "; ".join(_clash))
+check("rt-grp" in _cls, "the group headings do not have their own class")
+# A heading carries only its alignment and its pin, never a body cell's look.
+check("filter(k => k === 'c' || k === 'pin')" in _tbl,
+      "the headings borrow the body cells' classes")
 # A reader who wants the scores should not have to scroll past the panel, so
 # the groups can be switched off, and the choice is remembered.
 check("localStorage.setItem('adcp.cols'" in _js2
@@ -1751,7 +1793,7 @@ _tbl = _rep.table([_r, _rep.summarise("LLKWHY", [{"score": -19.0}], None)])
 check("name" in _tbl and "HOPE9" in _tbl,
       "the fixed-width table has no name column")
 check("-" in _tbl.splitlines()[-6] or True, "")  # unnamed rows render
-check("name" in _html and "cls: 'nm pin'" in appjs,
+check("name" in _html and "cls: 'rnm pin'" in appjs,
       "the web results table has no name column")
 # td.nm, not .nm: .nm is already the peptide entry row's 140px name box.
 check("td.nm{" in _bare and "text-align:left" in

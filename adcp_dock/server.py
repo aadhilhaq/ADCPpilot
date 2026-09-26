@@ -10,6 +10,7 @@ else's session by guessing the port.
 Nothing heavy happens in here. Every request either reads a file, validates
 something, or hands work to SLURM.
 """
+import glob
 import json
 import os
 import secrets
@@ -126,6 +127,74 @@ def fill_names(results, j):
     for r in rows:
         if isinstance(r, dict) and not r.get("name"):
             r["name"] = by_seq.get(r.get("peptide") or r.get("sequence"), "")
+    return results
+
+
+# Energy terms read for a run, keyed by the run and the modification times of
+# what they are read from, so a page polling an open run reads the files once.
+_TERMS_CACHE = {}
+
+
+def fill_terms(results, rundir):
+    """Give an older run's rows the four MM-GBSA terms, read from its files.
+
+    The same idea as fill_names: a run docked before the panel existed has a
+    results.json without them, and its report is not rewritten just because
+    someone looked at it. The terms are in the MM-GBSA output the run already
+    holds, so they are read here, in memory, whenever the page asks.
+
+    Also says how many peptides have no interface columns, and how many of
+    those could still be measured from the files on disk, so the page can
+    offer to measure them.
+    """
+    if not results or not rundir:
+        return results
+    rows = results.get("rows") if isinstance(results, dict) else None
+    if not isinstance(rows, list):
+        return results
+    try:
+        stamp = (os.path.getmtime(os.path.join(rundir, "results.json")),
+                 os.path.getmtime(os.path.join(rundir, "mmgbsa"))
+                 if os.path.isdir(os.path.join(rundir, "mmgbsa")) else 0)
+    except OSError:
+        stamp = None
+    got = _TERMS_CACHE.get(rundir)
+    if got is None or got[0] != stamp:
+        extra, missing, can = {}, 0, 0
+        for f in sorted(glob.glob(os.path.join(rundir, "results", "*.json"))):
+            try:
+                r = json.load(open(f))
+            except (OSError, ValueError):
+                continue
+            seq = r.get("peptide")
+            if not seq or not r.get("mmgbsa"):
+                continue
+            panel = r.get("panel") or {}
+            # From the panel where one was measured, since its report may not
+            # have been rebuilt yet; from the MM-GBSA output where not.
+            t = ({k: panel[k] for k in ("pose", "mm_vdw", "mm_eel", "mm_egb",
+                                        "mm_esurf") if k in panel}
+                 if panel else pipeline.energy_terms(rundir, r))
+            if t:
+                extra[seq] = t
+            if panel.get("bsa") is None:
+                missing += 1
+                if pipeline.measurable(rundir, r):
+                    can += 1
+        got = (stamp, extra, missing, can)
+        _TERMS_CACHE[rundir] = got
+    _stamp, extra, missing, can = got
+    for r in rows:
+        t = extra.get(r.get("peptide")) if isinstance(r, dict) else None
+        if not t:
+            continue
+        if r.get("panel_pose") is None:
+            r["panel_pose"] = t.get("pose")
+        for k in ("mm_vdw", "mm_eel", "mm_egb", "mm_esurf"):
+            if r.get(k) is None and t.get(k) is not None:
+                r[k] = t[k]
+    results["panel_missing"] = missing
+    results["panel_measurable"] = can
     return results
 
 
@@ -591,6 +660,22 @@ class App:
         return {"sent": True,
                 "note": "%s, with %d log file(s)." % (why, len(atts))}
 
+    def panel_run(self, rundir):
+        """Measure the interface panel for a run docked before it existed.
+
+        Submitted to the scheduler like every other stage: it runs MMPBSA.py
+        once per pose and rolls a probe over each complex, which is not work
+        for the machine serving this page. Nothing is docked again.
+        """
+        if not rundir or not os.path.isfile(jobmod.path_of(rundir)):
+            return {"error": "no such run"}
+        try:
+            return {"jobs": pipeline.submit_panel(rundir, log=lambda *a: None)}
+        except SystemExit as exc:
+            return {"error": str(exc)}
+        except Exception as exc:                                # noqa: BLE001
+            return {"error": "could not submit the measurement: %s" % exc}
+
     def resume_run(self, rundir):
         if not rundir or not os.path.isfile(jobmod.path_of(rundir)):
             return {"error": "no such run"}
@@ -930,6 +1015,7 @@ class App:
             except ValueError:
                 results = None
         results = fill_names(results, j)
+        results = fill_terms(results, rundir)
         done = len([f for f in os.listdir(os.path.join(rundir, "results"))
                     if f.endswith(".json")]) if os.path.isdir(
                         os.path.join(rundir, "results")) else 0
@@ -1195,6 +1281,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(app.report_problem(body))
         if u.path == "/api/resume":
             return self._send(app.resume_run(body.get("rundir")))
+        if u.path == "/api/panel":
+            return self._send(app.panel_run(body.get("rundir")))
         return self._send({"error": "no such endpoint"}, 404)
 
 

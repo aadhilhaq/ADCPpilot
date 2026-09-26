@@ -187,13 +187,6 @@ def table(rows, top_n=TOP_N):
     if mm:
         widest = max((r.get("mmgbsa_spread") or 0) for r in rows)
         out.append("")
-        out.append("Every energy in this table, and every energy in the "
-                   "panel, is AmberTools: tleap, sander and MMPBSA.py.")
-        out.append("OpenMM appears in this tool only in the receptor's "
-                   "preparation and in ADCP 1.1's own")
-        out.append("pose minimisation, and results.json says which of those "
-                   "this run used.")
-        out.append("")
         out.append("MM-GBSA is an ordering within this run against this "
                    "receptor.")
         out.append("It is not a Kd and not a binding free energy: there is "
@@ -284,18 +277,9 @@ def panel_table(rows):
                           c(r.get("pe_verdict"))))
     if any(r.get("site_dg") is not None for r in rows):
         out.append("")
-        out.append("A site energy is MMPBSA.py's decomposition of that pose. "
-                   "It sums to within a few per cent of that pose's total "
-                   "rather than exactly, and always slightly more negative, "
-                   "because a decomposition uses a per atom surface term "
-                   "where the total uses LCPO. The energy terms themselves "
-                   "agree. The residue map is in metrics/.")
-    if any(r.get("min_stopped_at_maxcyc") for r in rows):
-        out.append("")
-        out.append("The minimisation before the energy stopped at its cycle "
-                   "limit rather than at a gradient, which is usual for a "
-                   "restrained rescoring minimisation. The final gradient is "
-                   "in min_rms_grad in results.tsv.")
+        out.append("Site dG is the site residues' share of the per residue "
+                   "breakdown, which adds up to within a few per cent of "
+                   "MM-GBSA, not exactly. Per residue values are in metrics/.")
     return out
 
 

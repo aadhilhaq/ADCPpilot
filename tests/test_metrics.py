@@ -420,8 +420,12 @@ check("and says the contact rules are ours, not PLIP's",
       "PLIP" in (doc.get("constants", {}).get("contact_rules") or ""))
 txt = open(os.path.join(out, "results.txt")).read()
 check("the printed table has the panel block", "Interface and sequence" in txt)
-check("and warns that a site energy does not close on the total",
-      "rather than exactly" in txt)
+check("and says a site energy does not add up exactly",
+      "not exactly" in txt)
+# Notes for a methods section do not belong in a results table.
+check("the printed table does not lecture about engines",
+      "OpenMM" not in txt and "tleap" not in txt)
+check("nor about minimisation cycle limits", "cycle limit" not in txt)
 
 print("one engine per number, and it is named")
 # Every reported energy is AmberTools. OpenMM runs in this tool too, at the
@@ -481,6 +485,47 @@ check("a run with no results says so, and does not raise",
       _pl.stage_panel(_tmp, {"ph": 7.4}, log=_said.append) == 0)
 check("a run with no MM-GBSA says so too",
       _pl.stage_panel(_tmp, {"ph": 7.4}, log=_said.append) == 0)
+
+print("the web page shows an old run's MM-GBSA breakdown without being asked")
+# An old run's results.json has no terms and its result files no panel, but
+# every pose's MMPBSA.py output is on disk and already holds the four terms.
+# The server reads them when it shows the run: text only, no compute.
+from adcp_dock import server as _srv                           # noqa: E402
+_old = tempfile.mkdtemp()
+os.makedirs(os.path.join(_old, "results"))
+os.makedirs(os.path.join(_old, "mmgbsa", "LLKWHY", "pose1"))
+os.makedirs(os.path.join(_old, "mmgbsa", "LLKWHY", "pose2"))
+open(os.path.join(_old, "mmgbsa", "LLKWHY", "pose1", "LLKWHY_mmgbsa.dat"),
+     "w").write(DAT)
+# A second pose whose energy the run DISCARDED (not in its kept list): its
+# terms must never be shown, even though it is lower.
+open(os.path.join(_old, "mmgbsa", "LLKWHY", "pose2", "LLKWHY_mmgbsa.dat"),
+     "w").write(DAT.replace("-32.3148", "-99.0000"))
+json.dump({"peptide": "LLKWHY", "mmgbsa": [-32.31], "mmgbsa_ranks": [1]},
+          open(os.path.join(_old, "results", "LLKWHY.json"), "w"))
+json.dump({"rows": [{"peptide": "LLKWHY", "mmgbsa_n": 1}]},
+          open(os.path.join(_old, "results.json"), "w"))
+_res = _srv.fill_terms(json.load(open(os.path.join(_old, "results.json"))),
+                       _old)
+_row = _res["rows"][0]
+check("the breakdown is read from the run's own MM-GBSA output",
+      _row.get("mm_vdw") == -63.0768 and _row.get("mm_esurf") == -8.1825,
+      "%s" % _row)
+check("from a pose the run kept, never one it discarded",
+      _row.get("panel_pose") == 1)
+check("the page is told the interface columns are missing",
+      _res.get("panel_missing") == 1)
+check("and that they cannot be measured when the structures are gone",
+      _res.get("panel_measurable") == 0)
+check("reading them wrote nothing into the run",
+      "mm_vdw" not in open(os.path.join(_old, "results.json")).read())
+check("the page can ask the server to measure them",
+      "panel_run" in dir(_srv.App) if hasattr(_srv, "App") else
+      "def panel_run" in open(os.path.join(ROOT, "adcp_dock", "server.py"),
+                              encoding="utf-8").read())
+check("through an endpoint of its own",
+      '"/api/panel"' in open(os.path.join(ROOT, "adcp_dock", "server.py"),
+                             encoding="utf-8").read())
 
 print("the web table reads only fields the report writes")
 # The GUI builds its columns from a spec in app.js. Every r.<field> in that
