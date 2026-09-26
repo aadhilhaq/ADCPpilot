@@ -749,6 +749,11 @@ __STALE__
     <div id=mmopts class="row hide" style="flex:1 1 auto">
       <div><label for=mmposes>Poses to rescore</label>
         <input type=number id=mmposes value="5" min="1" max="10"></div>
+      <div><label for=mmmodel title="The implicit solvent model the MM-GBSA energy is computed in. GB-OBC(II) is the default and what every earlier run used; GBn2 is a newer model with its own atomic radii. Both run in AmberTools and both give per residue energies. The two give different numbers, so compare peptides only within one model.">Solvation model</label>
+        <select id=mmmodel>
+          <option value="obc2" selected>GB-OBC(II), the default</option>
+          <option value="gbn2">GBn2</option>
+        </select></div>
       <div><label for=topn>Report the mean of the top</label>
         <input type=number id=topn value="5" min="1" max="50"></div>
     </div>

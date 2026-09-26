@@ -1,7 +1,7 @@
 HOW TO CITE
 
 This interface:
-  Aadhil Haq, Sandun Fernando (2026). GUI to ADCP Docking v0.1.17: a browser and command-line workflow for peptide docking with ADCP. HOPE Lab, Texas A&M University.
+  Aadhil Haq, Sandun Fernando (2026). GUI to ADCP Docking v0.1.18: a browser and command-line workflow for peptide docking with ADCP. HOPE Lab, Texas A&M University.
 
 ADCP is a product of the Scripps Research Institute and is not ours. It must be cited whatever else is:
   https://ccsb.scripps.edu/adcp/
@@ -51,10 +51,10 @@ For this run, from its job.json:
       Onufriev A, Bashford D, Case DA. Exploring protein native states and large-scale conformational changes with a modified generalized born model. Proteins 55(2):383-394, 2004.
       doi:10.1002/prot.20033
       (only if: mmgbsa)
-  - the GBn2 implicit solvent model of the OpenMM minimizations
+  - the GBn2 implicit solvent model
       Nguyen H, Roe DR, Simmerling C. Improved generalized Born solvent model parameters for protein simulations. J Chem Theory Comput 9(4):2020-2034, 2013.
       doi:10.1021/ct3010485
-      (only if: the receptor's minimization, or ADCP 1.1's in implicit solvent)
+      (only if: the receptor's minimization, ADCP 1.1's in implicit solvent, or MM-GBSA run with GBn2)
   - the array arithmetic under the box and the poses
       Harris CR, Millman KJ, van der Walt SJ, et al. Array programming with NumPy. Nature 585(7825):357-362, 2020.
       doi:10.1038/s41586-020-2649-2

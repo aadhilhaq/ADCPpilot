@@ -186,6 +186,11 @@ def main(argv=None):
     n.add_argument("--steps", type=int, default=2_500_000)
     n.add_argument("--mmgbsa", action="store_true")
     n.add_argument("--mmgbsa-poses", type=int, default=5)
+    n.add_argument("--mmgbsa-model", choices=("obc2", "gbn2"), default="obc2",
+                   help="the implicit solvent model for MM-GBSA: obc2, "
+                        "GB-OBC(II), the default; or gbn2, GBn2 with its own "
+                        "radii. Both run in AmberTools. Compare peptides only "
+                        "within one model")
     n.add_argument("--top-n", type=int, default=5)
     n.add_argument("--max-length", type=int, default=peptide.MAX_LENGTH)
     # No default partition. "cpu" is one cluster's name for it and not
@@ -363,7 +368,8 @@ def main(argv=None):
             omm_env=a.omm_env,
             chains=a.chain, ph=a.ph, minimise=a.minimise, poses=a.poses,
             replicas=a.replicas, steps=a.steps, mmgbsa=a.mmgbsa,
-            mmgbsa_poses=a.mmgbsa_poses, top_n=a.top_n,
+            mmgbsa_poses=a.mmgbsa_poses, mmgbsa_model=a.mmgbsa_model,
+            top_n=a.top_n,
             max_length=a.max_length, partition=a.partition, cpus=a.cpus,
             time=a.time, throttle=a.throttle,
             account=a.account, sbatch_extra=a.sbatch_extra,

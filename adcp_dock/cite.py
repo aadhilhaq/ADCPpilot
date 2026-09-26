@@ -116,8 +116,9 @@ REFERENCES = [
      "Comparison of multiple Amber force fields and development of improved "
      "protein backbone parameters. Proteins 65(3):712-725, 2006.",
      "10.1002/prot.21123"),
-    ("gbn2", "the receptor's minimization, or ADCP 1.1's in implicit solvent",
-     "the GBn2 implicit solvent model of the OpenMM minimizations",
+    ("gbn2", "the receptor's minimization, ADCP 1.1's in implicit solvent, "
+     "or MM-GBSA run with GBn2",
+     "the GBn2 implicit solvent model",
      "Nguyen H, Roe DR, Simmerling C. Improved generalized Born solvent model "
      "parameters for protein simulations. J Chem Theory Comput "
      "9(4):2020-2034, 2013.",
@@ -336,7 +337,10 @@ def used_by(job):
     # MM-GBSA runs only on peptides without non-standard or D residues, and
     # protonates each complex with PDB2PQR and PROPKA first.
     if job.get("mmgbsa") and (not seqs or any(not peptide.is_extended(s) for s in seqs)):
-        keys |= {"amber", "ff14sb", "mmpbsa", "gbmodel", "pdb2pqr", "propka"}
+        keys |= {"amber", "ff14sb", "mmpbsa", "pdb2pqr", "propka"}
+        # The paper for the generalised Born model the energies were computed
+        # in: OBC(II) by default, GBn2 when the run asked for it.
+        keys.add("gbn2" if job.get("mmgbsa_model") == "gbn2" else "gbmodel")
     omm = int(job.get("omm_minimize") or 0)
     if omm:
         # ADCP 1.1 completes each pose with PDBFixer before minimizing it.

@@ -80,6 +80,10 @@ def default(**kw):
         "target_file": "",
         # rescoring
         "mmgbsa": False,
+        # The generalised Born model: "obc2", GB-OBC(II), what every run
+        # before it used, or "gbn2", Amber's GBn2 with its own radii. Both
+        # run in AmberTools. A run keeps the model its MM-GBSA started with.
+        "mmgbsa_model": "obc2",
         "mmgbsa_poses": 5,
         # How the poses of one peptide become a single number. The
         # table reports the mean of the top few either way, with the
@@ -226,6 +230,9 @@ def validate(j):
     elif int(j.get("poses", 0)) > MAX_POSES:
         out.append("ADCP writes at most %d ranked poses per peptide; ask for "
                    "%d or fewer." % (MAX_POSES, MAX_POSES))
+    if j.get("mmgbsa_model", "obc2") not in ("obc2", "gbn2"):
+        out.append("The MM-GBSA model must be obc2 (GB-OBC(II)) or gbn2 "
+                   "(GBn2), not %r." % j.get("mmgbsa_model"))
     if j.get("mmgbsa") and int(j.get("mmgbsa_poses", 0)) < 1:
         out.append("MM-GBSA is on but no poses were chosen to rescore.")
     if j.get("mmgbsa") and int(j.get("mmgbsa_poses", 0)) > int(j.get("poses", 0)):

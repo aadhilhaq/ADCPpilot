@@ -108,9 +108,10 @@ CONSTANTS = {
     "contact_A": VDW_A, "clash_fraction": CLASH_F,
     "apolar_elements": list(APOLAR_ELEM),
     "surften_kcal_per_A2": SURFTEN,
-    "contact_rules": "this tool's own geometric definitions, not PLIP's: "
-                     "proximity only, no hydrogen positions and no ring "
-                     "orientation are tested",
+    "contact_rules": "distance between heavy atoms only: hydrogen bond "
+                     "N or O within 3.5 A, salt bridge charged tips within "
+                     "4.0 A, stacking ring atoms within 5.0 A, contact any "
+                     "heavy atoms within 4.0 A",
     "histidine": "a residue named HIS is taken as protonated; HID and HIE "
                  "are read as the neutral forms they are",
 }
@@ -868,7 +869,7 @@ DECOMP_IN = """Per residue decomposition of a pose already scored
    receptor_mask="{rec_mask}", ligand_mask="{lig_mask}",
 /
 &gb
-   igb=5, saltcon=0.150,
+   igb={igb}, saltcon=0.150,
 /
 &decomp
    idecomp=2, dec_verbose=0, print_res="all",
@@ -876,6 +877,20 @@ DECOMP_IN = """Per residue decomposition of a pose already scored
 """
 
 _MASK = re.compile(r'(receptor|ligand)_mask\s*=\s*"([^"]+)"')
+_IGB = re.compile(r"\bigb\s*=\s*(\d+)")
+
+
+def igb_of(mmpbsa_in, default=5):
+    """The generalised Born model a pose was scored with, from its own input.
+
+    A decomposition in a different model from the energy it decomposes would
+    be a decomposition of some other number.
+    """
+    if mmpbsa_in and os.path.isfile(mmpbsa_in):
+        m = _IGB.search(open(mmpbsa_in).read())
+        if m:
+            return int(m.group(1))
+    return default
 
 
 def masks_of(mmpbsa_in):
@@ -980,7 +995,9 @@ def decomp_file(posedir, prefix, log=print, make=True):
     import subprocess
     inp = os.path.join(posedir, "%s_decomp.in" % prefix)
     with open(inp, "w") as fh:
-        fh.write(DECOMP_IN.format(rec_mask=rec_mask, lig_mask=lig_mask))
+        fh.write(DECOMP_IN.format(
+            rec_mask=rec_mask, lig_mask=lig_mask,
+            igb=igb_of(os.path.join(posedir, "%s_mmpbsa.in" % prefix))))
     log("    %s: per residue decomposition of the pose already scored"
         % prefix)
     subprocess.run([tool, "-O", "-i", os.path.basename(inp),

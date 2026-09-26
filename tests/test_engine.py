@@ -346,9 +346,11 @@ check(report.summarise("A", [{"score": -1.0}], mm=[-5.0], top_n=2)
       "a single pose was given a spread; there is nothing to spread")
 _tbl = report.table(_rows, top_n=2)
 check("spread" in _tbl, "the spread column is not in the printed table")
-check("not a Kd" in _tbl,
-      "the table prints MM-GBSA numbers with no statement of what they are "
-      "not. That is how -30 to -50 came to be quoted as a binding band")
+# The results say what their columns are and nothing about what they are not.
+# A note about Kd under a table with no Kd in it answered a discussion, not the
+# table; the affinity command, which is about Kd, is where that belongs.
+check("Kd" not in _tbl and "entropy" not in _tbl,
+      "the printed table talks about quantities it does not contain")
 
 # --- two peptides with one sequence would overwrite each other ------------
 #

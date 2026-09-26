@@ -1070,6 +1070,7 @@ $('submit').onclick = async () => {
     box_chains: $('box_chains').checked ? 'include' : 'ignore',
     poses:+$('poses').value, replicas:+$('replicas').value, steps:+$('steps').value,
     mmgbsa: $('mmgbsa').checked, mmgbsa_poses:+$('mmposes').value,
+    mmgbsa_model: $('mmmodel').value,
     top_n:+$('topn').value,
     cpus:+$('cpus').value, time: $('walltime').value,
     throttle:+$('throttle').value,
@@ -1366,7 +1367,8 @@ const REUSE_FIELDS = {
   pad:'box_padding', bmin:'box_min', bmax:'box_max',
   ph:'ph', poses:'poses', replicas:'replicas', steps:'steps',
   cpus:'cpus', walltime:'time', throttle:'throttle',
-  mmposes:'mmgbsa_poses', topn:'top_n', adcp_engine:'adcp_engine',
+  mmposes:'mmgbsa_poses', mmmodel:'mmgbsa_model', topn:'top_n',
+  adcp_engine:'adcp_engine',
   omm_minimize:'omm_minimize', targetfile:'target_file',
   account:'account', sbatch_extra:'sbatch_extra'
 };
@@ -1468,12 +1470,14 @@ function colgroups(rows, tn, mm, omm){
   ]});
   if(any(rows, 'cluster_top'))
     G[G.length - 1].cols.push(
-      {h: 'top cluster', cls: 'c', t: 'How many of the replicas found the top '
-        + 'pose, and what share of all of them that is. ADCP’s poses are '
-        + 'cluster representatives, so this is the search’s own measure of '
-        + 'convergence; how much the poses differ from each other is not.',
-       f: r => (r.cluster_top == null ? '-' : r.cluster_top + ' / '
-                + pc(r.cluster_frac * 100, 0) + '%')});
+      {h: 'cluster population', cls: 'c', t: 'How many of ADCP\u2019s '
+        + 'clustered solutions landed in the top pose\u2019s cluster, and '
+        + 'their share of all it clustered. ADCP returns one pose per '
+        + 'cluster, so this is how the search measures its own convergence. '
+        + 'ADCP lists at most a hundred clusters, '
+        + 'so the share is an upper bound.',
+       f: r => (r.cluster_top == null ? '-' : r.cluster_top + ' ('
+                + pc(r.cluster_frac * 100, 0) + '%)')});
   if(mm) G.push({key: 'mm', label: 'MM-GBSA', on: true, cols: [
     {h: 'best', cls: 'c', f: r => fmt(r.mmgbsa_best, 2)},
     {h: 'top' + tn, cls: 'c', f: r => fmt(r['mmgbsa_top' + tn], 2)},
@@ -1514,9 +1518,7 @@ function colgroups(rows, tn, mm, omm){
       + 'slightly more negative, because a decomposition uses a per atom '
       + 'surface term where the total uses LCPO; the energy terms themselves '
       + 'agree. Read it as a decomposition of this pose and not as an exact '
-      + 'share of its energy. A nominated residue is where the search was '
-      + 'aimed; it is '
-      + 'not evidence that the residue must contribute.',
+      + 'share of its energy.',
      f: r => fmt(r.site_dg, 1)},
     {h: 'per res', cls: 'c', f: r => fmt(r.site_dg_mean, 2)},
   ]});
@@ -1534,7 +1536,7 @@ function colgroups(rows, tn, mm, omm){
       + 'that is carbon or sulphur, with each hydrogen’s area folded onto '
       + 'the heavy atom it hangs off.', f: r => fmt(r.f_hydrophobic, 2)},
     {h: 'HB', cls: 'c', t: 'Atom pairs of N or O within 3.5 A across the '
-      + 'interface. A proximity test: our own rule, not PLIP’s, and no '
+      + 'interface. A distance test between the two atoms; no '
       + 'angle is checked.', f: r => r.n_hbond},
     {h: 'SB', cls: 'c', t: 'Residue pairs with a basic side chain tip within '
       + '4.0 A of an acidic one. A bidentate arginine counts once.',
@@ -1668,12 +1670,6 @@ function resultsTable(rows, tn, mm, omm, res){
             + 'only the MM-GBSA breakdown can be shown.</span>')
         + '</div>'
       : '')
-    + (mm ? '<div class=why style="margin-top:6px">MM-GBSA is an ordering '
-        + 'within this run against this receptor. It is not a K<sub>D</sub> '
-        + 'and not a binding free energy: there is no entropy term in it. The '
-        + 'whole picomolar-to-nanomolar range is 4.1 kcal/mol, which is '
-        + 'narrower than the pose spread of a single peptide here. '
-        + '<code>adcp-dock affinity</code> prints the ruler.</div>' : '')
     + (any(rows, 'bsa')
       ? '<div class=why style="margin-top:4px">The interface columns describe '
         + 'one pose per peptide, the one with the lowest MM-GBSA energy. Hover '

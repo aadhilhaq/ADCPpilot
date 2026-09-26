@@ -297,7 +297,8 @@ def stage_dock(rundir, index, j=None, log=print):
                        prep_ph=float(j.get("ph", 7.4)), n_poses=len(mols),
                        workers=workers,
                        aggregate=j.get("mmgbsa_aggregate", "mean"),
-                       details=detail)
+                       details=detail,
+                       model=j.get("mmgbsa_model") or "obc2")
             d = detail.get(seq) or {}
             vals = list(d.get("values") or [])
             got = list(d.get("ranks") or [])
@@ -324,6 +325,7 @@ def stage_dock(rundir, index, j=None, log=print):
             # Which Born radii the energies were computed with (mbondi2 for
             # a new run; a run scored before they were set keeps mbondi).
             out["mmgbsa_radii"] = d.get("radii")
+            out["mmgbsa_model"] = d.get("model")
             _panel_scored(rundir, j, seq, out, mmdir, folders, kept, good,
                           log=log)
         else:
@@ -575,6 +577,31 @@ def energy_terms(rundir, r):
     return out
 
 
+def cluster_counts(rundir, r):
+    """How many of ADCP's clustered solutions fall in the top pose's cluster,
+    read from the docking output a run keeps.
+
+    Runs docked before 0.1.17 parsed these and threw them away, but ADCP's own
+    log, which every run keeps, still holds the whole mode table. Text only,
+    like energy_terms, so the web page can call it on any run it shows.
+    """
+    seq = r.get("peptide")
+    if not seq:
+        return {}
+    wd = os.path.join(rundir, "docking", jobmod.key(seq))
+    if not os.path.isdir(wd):
+        return {}
+    try:
+        modes = adcp11.read_modes(wd)
+    except Exception:                                           # noqa: BLE001
+        return {}
+    sizes = [m.get("cluster") or 0 for m in modes or []]
+    if not any(sizes):
+        return {}
+    return {"cluster_top": sizes[0], "cluster_total": sum(sizes),
+            "cluster_modes": len(sizes)}
+
+
 def measurable(rundir, r):
     """Whether the interface panel could still be measured for this peptide:
     its topologies and scored coordinates are on disk."""
@@ -694,7 +721,11 @@ def stage_report(rundir, j=None, log=print):
                                      # disk, and they cost nothing to read.
                                      panel=(r.get("panel")
                                             or energy_terms(rundir, r)),
-                                     clusters=r))
+                                     # From ADCP's log for a run docked before
+                                     # the dock stage recorded them.
+                                     clusters=(r if r.get("cluster_total")
+                                               else cluster_counts(rundir,
+                                                                   r))))
     if not rows:
         log("no results to report yet")
         return None
@@ -732,11 +763,30 @@ def stage_report(rundir, j=None, log=print):
     except Exception as exc:                                    # noqa: BLE001
         log("  could not write the citation list: %s" % exc)
     tsv = report.write(rows, rundir, top_n=int(j.get("top_n", 5)),
-                       constants=_constants(j))
+                       constants=_constants(j, rundir))
     log(report.table(rows, top_n=int(j.get("top_n", 5))))
     j["state"] = "done"
     jobmod.save(rundir, j)
     return tsv
+
+
+def _model_text(rundir):
+    """The generalised Born model and radii a run's MM-GBSA actually used.
+
+    Read from the run's own record, not from the setting: a run keeps the
+    model it started with, so the setting can say one thing and the energies
+    another.
+    """
+    radii = ""
+    if rundir:
+        try:
+            radii = open(os.path.join(rundir, "mmgbsa", "RADII")).read().strip()
+        except OSError:
+            radii = ""
+    radii = radii or mmgbsa.RADII
+    name, igb = mmgbsa.model_of(radii)
+    return "%s (igb=%d) with %s radii" % (mmgbsa.MODELS[name]["label"], igb,
+                                          radii)
 
 
 def _openmm_used_for(j):
@@ -764,7 +814,7 @@ def _openmm_used_for(j):
     return used or ["nothing in this run: no number here came from OpenMM"]
 
 
-def _constants(j):
+def _constants(j, rundir=None):
     """Everything the panel's numbers depend on, written into results.json.
 
     A buried area without its probe radius, or a hydrogen bond count without
@@ -785,10 +835,10 @@ def _constants(j):
               "mmgbsa": "AmberTools only: tleap builds the topologies, sander "
                         "minimises the complex with the receptor restrained, "
                         "and MMPBSA.py computes the energy and its per residue "
-                        "decomposition. ff14SB, GB-OBC(II) igb=5 with mbondi2 "
-                        "radii, 0.150 M salt, interior dielectric 1, one "
-                        "minimised frame. No OpenMM is involved in any "
-                        "reported energy or in any panel column",
+                        "decomposition. ff14SB, %s, 0.150 M salt, interior "
+                        "dielectric 1, one minimised frame. No OpenMM is "
+                        "involved in any reported energy or in any panel "
+                        "column" % _model_text(rundir),
               "openmm_used_for": _openmm_used_for(j),
               "decomposition": "MMPBSA.py idecomp=2 on the same frame, "
                                "topologies and GB model. The pairwise terms "

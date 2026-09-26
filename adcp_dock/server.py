@@ -161,13 +161,19 @@ def fill_terms(results, rundir):
         stamp = None
     got = _TERMS_CACHE.get(rundir)
     if got is None or got[0] != stamp:
-        extra, missing, can = {}, 0, 0
+        extra, clusters, missing, can = {}, {}, 0, 0
         for f in sorted(glob.glob(os.path.join(rundir, "results", "*.json"))):
             try:
                 r = json.load(open(f))
             except (OSError, ValueError):
                 continue
             seq = r.get("peptide")
+            if seq and not r.get("cluster_total"):
+                # A run docked before the dock stage kept the cluster sizes
+                # still has them in ADCP's log.
+                cc = pipeline.cluster_counts(rundir, r)
+                if cc:
+                    clusters[seq] = cc
             if not seq or not r.get("mmgbsa"):
                 continue
             panel = r.get("panel") or {}
@@ -182,11 +188,19 @@ def fill_terms(results, rundir):
                 missing += 1
                 if pipeline.measurable(rundir, r):
                     can += 1
-        got = (stamp, extra, missing, can)
+        got = (stamp, extra, clusters, missing, can)
         _TERMS_CACHE[rundir] = got
-    _stamp, extra, missing, can = got
+    _stamp, extra, clusters, missing, can = got
     for r in rows:
-        t = extra.get(r.get("peptide")) if isinstance(r, dict) else None
+        if not isinstance(r, dict):
+            continue
+        cc = clusters.get(r.get("peptide"))
+        if cc and r.get("cluster_top") is None:
+            r["cluster_top"] = cc["cluster_top"]
+            r["cluster_modes"] = cc["cluster_modes"]
+            r["cluster_frac"] = round(cc["cluster_top"]
+                                      / float(cc["cluster_total"]), 3)
+        t = extra.get(r.get("peptide"))
         if not t:
             continue
         if r.get("panel_pose") is None:

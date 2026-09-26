@@ -438,8 +438,8 @@ import json                                                   # noqa: E402
 doc = json.load(open(os.path.join(out, "results.json")))
 check("results.json records the probe radius",
       doc.get("constants", {}).get("probe_radius_A") == M.PROBE)
-check("and says the contact rules are ours, not PLIP's",
-      "PLIP" in (doc.get("constants", {}).get("contact_rules") or ""))
+check("and states the contact rules it measured with",
+      "3.5 A" in (doc.get("constants", {}).get("contact_rules") or ""))
 txt = open(os.path.join(out, "results.txt")).read()
 check("the printed table has the panel block", "Interface and sequence" in txt)
 check("and says a site energy does not add up exactly",
@@ -457,9 +457,58 @@ print("one engine per number, and it is named")
 for _mod in ("metrics.py", "mmgbsa.py"):
     _src = open(os.path.join(ROOT, "adcp_dock", "_vendor", _mod),
                 encoding="utf-8").read().lower()
-    check("%s names no OpenMM force field" % _mod,
-          "openmm" not in _src and "gbn2" not in _src and "amber14" not in _src,
+    # GBn2 is allowed by name: it is also Amber's own igb=8, and that is the
+    # only GBn2 this path may run. OpenMM and its force field files are not.
+    check("%s imports no OpenMM and loads none of its force fields" % _mod,
+          "import openmm" not in _src and "from openmm" not in _src
+          and "amber14" not in _src,
           "the energy path must be AmberTools only")
+
+print("the solvation model, a choice inside AmberTools")
+from adcp_dock._vendor import mmgbsa as _mm                     # noqa: E402
+check("OBC(II) is the default", _mm.DEFAULT_MODEL == "obc2")
+check("OBC(II) is igb 5 with mbondi2",
+      (_mm.MODELS["obc2"]["igb"], _mm.MODELS["obc2"]["radii"]) == (5, "mbondi2"))
+check("GBn2 is Amber's igb 8, with its own mbondi3 radii",
+      (_mm.MODELS["gbn2"]["igb"], _mm.MODELS["gbn2"]["radii"]) == (8, "mbondi3"))
+# The model is read from the radii, so a run keeps it as it keeps its radii.
+check("mbondi3 radii mean GBn2", _mm.model_of("mbondi3") == ("gbn2", 8))
+check("every other set means OBC(II)",
+      _mm.model_of("mbondi2") == ("obc2", 5)
+      and _mm.model_of("mbondi") == ("obc2", 5))
+check("the minimisation and the energy both take the run's igb",
+      "igb={igb}" in _mm.MIN_IN and "igb={igb}" in _mm.MMPBSA_IN)
+_new = tempfile.mkdtemp()
+check("a new run asked for GBn2 starts with mbondi3",
+      _mm.radii_for(os.path.join(_new, "mmgbsa"), default="mbondi3")
+      == "mbondi3")
+check("and keeps it when resumed with the default",
+      _mm.radii_for(os.path.join(_new, "mmgbsa")) == "mbondi3")
+# The decomposition reads the model from the pose it decomposes.
+_pin = os.path.join(_new, "x_mmpbsa.in")
+open(_pin, "w").write("&gb\n   igb=8, saltcon=0.150,\n/\n")
+check("a decomposition uses the igb its pose was scored with",
+      M.igb_of(_pin) == 8 and "igb={igb}" in M.DECOMP_IN)
+from adcp_dock import job as _job                               # noqa: E402
+check("a run's settings default to OBC(II)",
+      _job.default()["mmgbsa_model"] == "obc2")
+check("and refuse a model that is not offered",
+      any("obc2" in x for x in _job.validate(dict(_job.default(),
+                                                   mmgbsa_model="gbn9"))))
+from adcp_dock import cite as _cite                             # noqa: E402
+# Receptor minimisation off, so GBn2 can only be cited because the MM-GBSA
+# used it: the receptor's own minimisation is GBn2 too and would hide a miss.
+_k = _cite.used_by(dict(_job.default(), mmgbsa=True, mmgbsa_model="gbn2",
+                        minimise=False, peptides=[{"sequence": "LLKWHY"}]))
+check("a GBn2 run cites GBn2's paper, not OBC(II)'s",
+      "gbn2" in _k and "gbmodel" not in _k)
+_k = _cite.used_by(dict(_job.default(), mmgbsa=True, minimise=False,
+                        peptides=[{"sequence": "LLKWHY"}]))
+check("an OBC(II) run with no receptor minimisation cites no GBn2 at all",
+      "gbn2" not in _k)
+_k = _cite.used_by(dict(_job.default(), mmgbsa=True, minimise=False,
+                        peptides=[{"sequence": "LLKWHY"}]))
+check("an OBC(II) run cites OBC(II)'s paper", "gbmodel" in _k)
 # And the run says so in its own output, naming OpenMM only for the stages it
 # actually used.
 from adcp_dock import pipeline as _pl                          # noqa: E402
@@ -548,6 +597,18 @@ check("the page can ask the server to measure them",
 check("through an endpoint of its own",
       '"/api/panel"' in open(os.path.join(ROOT, "adcp_dock", "server.py"),
                              encoding="utf-8").read())
+
+print("an older run shows its cluster populations too")
+# Runs docked before 0.1.17 parsed ADCP's cluster sizes and threw them away,
+# but ADCP's own log, which every run keeps, still holds the whole table.
+_ex = os.path.join(ROOT, "adcp_dock", "example_run")
+_cc = _pl.cluster_counts(_ex, {"peptide": "RFMDYWEGL"})
+check("the example run's log gives its top cluster", _cc.get("cluster_top") == 47,
+      "%s" % _cc)
+check("and how many solutions were clustered, over how many modes",
+      _cc.get("cluster_total") == 949 and _cc.get("cluster_modes") == 100)
+check("a peptide with no docking folder gets nothing rather than an error",
+      _pl.cluster_counts(_ex, {"peptide": "NOSUCHPEPTIDE"}) == {})
 
 print("the web table reads only fields the report writes")
 # The GUI builds its columns from a spec in app.js. Every r.<field> in that

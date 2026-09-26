@@ -184,22 +184,6 @@ def table(rows, top_n=TOP_N):
         out.append("Unranked (no %s): %s. Peptides with non-standard or D "
                    "residues have no MM-GBSA value." % (key, ", ".join(
                        str(r.get("name") or r["peptide"]) for r in unranked)))
-    if mm:
-        widest = max((r.get("mmgbsa_spread") or 0) for r in rows)
-        out.append("")
-        out.append("MM-GBSA is an ordering within this run against this "
-                   "receptor.")
-        out.append("It is not a Kd and not a binding free energy: there is "
-                   "no entropy term")
-        out.append("in it. The whole picomolar-to-nanomolar range is 4.1 "
-                   "kcal/mol; the widest")
-        out.append("pose spread")
-        if widest:
-            out[-1] += (" in this run is %.1f. `adcp-dock affinity` prints "
-                        "the ruler." % widest)
-        else:
-            out[-1] += (" is what the spread column would show. "
-                        "`adcp-dock affinity` prints the ruler.")
     return "\n".join(out)
 
 

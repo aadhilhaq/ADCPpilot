@@ -38,7 +38,7 @@ the partner molecule, and a single-point energy on the raw complex is dominated 
 those clashes rather than by the interaction.
 &cntrl
   imin=1, maxcyc=1000, ncyc=500,
-  igb=5, cut=999.0, ntb=0,
+  igb={igb}, cut=999.0, ntb=0,
   ntr=1, restraintmask='{rec_mask}&!@H=', restraint_wt=5.0,
 /
 """
@@ -77,13 +77,36 @@ INTDIEL = 1.0
 RADII = "mbondi2"
 LEGACY_RADII = "mbondi"
 
+# The generalised Born models on offer, each with the radii it was fitted
+# with. OBC(II) is the default and what every earlier run used. GBn2 (Nguyen,
+# Roe and Simmerling, J Chem Theory Comput 9:2020, 2013) is Amber's igb=8 and
+# only means anything with its own mbondi3 radii, which tleap also provides,
+# so it runs here in AmberTools with the per residue decomposition intact.
+#
+# The model is read FROM the radii, never stored beside them: mbondi3 means
+# GBn2 and every other set means OBC(II). A run already records its radii and
+# keeps them when it is resumed (radii_for), so it keeps its model the same
+# way, and one run can never hold energies from two models.
+MODELS = {
+    "obc2": {"igb": 5, "radii": "mbondi2", "label": "GB-OBC(II)"},
+    "gbn2": {"igb": 8, "radii": "mbondi3", "label": "GBn2"},
+}
+DEFAULT_MODEL = "obc2"
+
+
+def model_of(radii):
+    """(model name, igb) for a set of radii."""
+    if (radii or "").strip() == MODELS["gbn2"]["radii"]:
+        return "gbn2", MODELS["gbn2"]["igb"]
+    return "obc2", MODELS["obc2"]["igb"]
+
 MMPBSA_IN = """Single-structure MM-GBSA rescoring of a docked pose
 &general
    startframe=1, endframe=1, interval=1, verbose=2, keep_files=0,
    receptor_mask="{rec_mask}", ligand_mask="{lig_mask}",
 /
 &gb
-   igb=5, saltcon=0.150,
+   igb={igb}, saltcon=0.150,
 /
 """
 
@@ -455,7 +478,7 @@ def run_amber(rec, pose_mol, workdir: str, prefix: str, log=print,
     # geometry while the added hydrogens and the peptide relax.
     mininp = os.path.join(workdir, f"{prefix}_min.in")
     with open(mininp, "w") as fh:
-        fh.write(MIN_IN.format(rec_mask=rec_mask))
+        fh.write(MIN_IN.format(rec_mask=rec_mask, igb=model_of(radii)[1]))
     log(f"    {prefix}: minimising the complex")
     minrst = os.path.join(workdir, f"{prefix}_min.rst7")
     sander = os.path.join(home, "bin", "sander")
@@ -503,7 +526,8 @@ def run_amber(rec, pose_mol, workdir: str, prefix: str, log=print,
 
     inp = os.path.join(workdir, f"{prefix}_mmpbsa.in")
     with open(inp, "w") as fh:
-        fh.write(MMPBSA_IN.format(rec_mask=rec_mask, lig_mask=lig_mask))
+        fh.write(MMPBSA_IN.format(rec_mask=rec_mask, lig_mask=lig_mask,
+                                  igb=model_of(radii)[1]))
     cmd = [prep.find_tool("MMPBSA.py"), "-O", "-i", os.path.basename(inp),
            "-cp", f"{prefix}_com.parm7", "-rp", f"{prefix}_rec.parm7",
            "-lp", f"{prefix}_lig.parm7", "-y", traj,
@@ -603,8 +627,8 @@ def _write_cache(path, values, intdiel=None, radii=None):
     try:
         with open(path, "w") as fh:
             if intdiel is not None:
-                fh.write("# igb 5 saltcon 0.150 intdiel %g%s\n"
-                         % (float(intdiel),
+                fh.write("# igb %d saltcon 0.150 intdiel %g%s\n"
+                         % (model_of(radii)[1], float(intdiel),
                             (" radii %s" % radii) if radii else ""))
             for rank in sorted(values):
                 fh.write("%d %.6f\n" % (rank, values[rank]))
@@ -612,7 +636,7 @@ def _write_cache(path, values, intdiel=None, radii=None):
         pass
 
 
-def radii_for(workdir):
+def radii_for(workdir, default=RADII):
     """The radii a run's MM-GBSA uses: the ones it started with.
 
     They are recorded in a RADII file in the working directory. Without one,
@@ -627,7 +651,7 @@ def radii_for(workdir):
         got = ""
     if got:
         return got
-    radii = RADII
+    radii = default
     here = os.path.abspath(workdir)
     parent = os.path.dirname(here)
     for d in [here] + [x for x in sorted(glob.glob(os.path.join(parent, "mmgbsa*")))
@@ -791,8 +815,14 @@ def summarise(values, aggregate="median"):
 def run(constructs: list[dict], rec, poses: dict, workdir: str, log=print,
         prep_ph: float | None = 7.4, n_poses: int = 1, workers: int = 1,
         aggregate: str = "best", details: dict | None = None,
-        intdiel: float = INTDIEL, radii: str | None = None) -> dict:
+        intdiel: float = INTDIEL, radii: str | None = None,
+        model: str | None = None) -> dict:
     """Rescore each construct. Returns sequence -> dG, missing where it failed.
+
+    `model` ("obc2" or "gbn2") picks the generalised Born model for a run whose
+    MM-GBSA has not started. A run that has started keeps the model it began
+    with, whatever is asked for, because its model is its radii and a run
+    keeps those; see MODELS.
 
     `poses` maps a sequence to one pose or a list of poses, best first. With
     more than one, every pose is scored and `summarise` reduces them;
@@ -820,9 +850,16 @@ def run(constructs: list[dict], rec, poses: dict, workdir: str, log=print,
         with open(os.path.join(workdir, "RADII"), "w") as fh:
             fh.write(radii + "\n")
     else:
-        radii = radii_for(workdir)
-    log(f"  MM-GBSA backend: {b}, GB-OBC(II) with {radii} radii and an "
-        f"interior dielectric of {float(intdiel):g}")
+        want = MODELS.get(model or DEFAULT_MODEL, MODELS[DEFAULT_MODEL])
+        radii = radii_for(workdir, default=want["radii"])
+        if model and model_of(radii)[0] != model:
+            log(f"  this run's MM-GBSA started with "
+                f"{MODELS[model_of(radii)[0]]['label']} and keeps it, so its "
+                f"energies stay comparable with each other; start a new run "
+                f"for {MODELS[model]['label']}")
+    mname, igb = model_of(radii)
+    log(f"  MM-GBSA backend: {b}, {MODELS[mname]['label']} (igb={igb}) with "
+        f"{radii} radii and an interior dielectric of {float(intdiel):g}")
     os.makedirs(workdir, exist_ok=True)
     n_poses = max(1, int(n_poses))
 
@@ -902,7 +939,7 @@ def run(constructs: list[dict], rec, poses: dict, workdir: str, log=print,
             details[seq] = dict(values=[vals[r] for r in sorted(vals)],
                                 ranks=sorted(vals),
                                 n=n, spread=spread, aggregate=aggregate,
-                                radii=radii)
+                                radii=radii, model=model_of(radii)[0])
         if n > 1:
             log(f"    {seq}: dG = {dg:.2f} kcal/mol "
                 f"({aggregate} of {n} pose(s), spread {spread:.1f})")
