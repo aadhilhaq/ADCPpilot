@@ -571,6 +571,31 @@ def stage_report(rundir, j=None, log=print):
     return tsv
 
 
+def _openmm_used_for(j):
+    """The stages of THIS run that used OpenMM, and nothing else.
+
+    OpenMM does two jobs here and neither is an energy anyone is ranked by:
+    it minimises the receptor during preparation, and ADCP 1.1 minimises its
+    top poses with it when asked. Every reported energy comes from
+    AmberTools. Listing only the stages a given run actually used keeps the
+    record from implying an engine that never ran.
+    """
+    used = []
+    if not str(j.get("target_file") or "").strip() and j.get("minimise", True):
+        used.append("the receptor's restrained minimisation during "
+                    "preparation, with amber14-all (ff14SB) and GBn2. It "
+                    "settles the prepared structure and is not an energy "
+                    "anything is ranked by")
+    if int(j.get("omm_minimize") or 0):
+        used.append("ADCP 1.1's minimisation of its top %d pose(s), with "
+                    "ff99SB and %s, reported in the omm_best column beside "
+                    "the scores and not ranked by"
+                    % (int(j["omm_minimize"]),
+                       "GBn2" if (j.get("omm_env") or "implicit") == "implicit"
+                       else "no solvent"))
+    return used or ["nothing in this run: no number here came from OpenMM"]
+
+
 def _constants(j):
     """Everything the panel's numbers depend on, written into results.json.
 
@@ -585,8 +610,18 @@ def _constants(j):
               "steps": int(j.get("steps", 2_500_000)),
               "poses_kept": int(j.get("poses", 10)),
               "mmgbsa_poses": int(j.get("mmgbsa_poses", 5)),
-              "mmgbsa": "ff14SB, GB-OBC(II) igb=5, 0.150 M salt, interior "
-                        "dielectric 1, single minimised frame",
+              # WHICH PROGRAM produced the energies, written down because
+              # this tool runs two force field engines at different stages and
+              # a reader cannot otherwise tell which one a number came from.
+              # Every reported energy is AmberTools; see openmm_used_for.
+              "mmgbsa": "AmberTools only: tleap builds the topologies, sander "
+                        "minimises the complex with the receptor restrained, "
+                        "and MMPBSA.py computes the energy and its per residue "
+                        "decomposition. ff14SB, GB-OBC(II) igb=5 with mbondi2 "
+                        "radii, 0.150 M salt, interior dielectric 1, one "
+                        "minimised frame. No OpenMM is involved in any "
+                        "reported energy or in any panel column",
+              "openmm_used_for": _openmm_used_for(j),
               "decomposition": "MMPBSA.py idecomp=2 on the same frame, "
                                "topologies and GB model. The pairwise terms "
                                "sum exactly and are split half to each "

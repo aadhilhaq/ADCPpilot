@@ -1,4 +1,4 @@
-rank	name	peptide	length	poses	adcp_best	adcp_top5	adcp_sd	mmgbsa_n	mmgbsa_best	mmgbsa_top5	mmgbsa_median	mmgbsa_sd	mmgbsa_spread
-1	p53	ETFSDLWKLLPEN	13	10	-21.1	-20.44	0.64	5	-74.6	-61.22	-64.36	9.72	27.04
-2	PMI	TSFAEYWNLLS	11	10	-18.7	-18.24	0.54	5	-56.41	-49.48	-51.43	4.98	14.04
-3	12/1 core	RFMDYWEGL	9	10	-17.8	-17.22	0.45	5	-55.21	-43.28	-42.58	7.22	22.31
+rank	name	peptide	length	poses	adcp_best	adcp_top5	adcp_sd	mmgbsa_n	mmgbsa_best	mmgbsa_top5	mmgbsa_median	mmgbsa_sd	mmgbsa_spread	panel_pose	mm_vdw	mm_eel	mm_egb	mm_esurf	gravy	charge_ph7	apolar_run	pe_score	pe_verdict	pe_flags	panel_geometry	panel_n
+1	p53	ETFSDLWKLLPEN	13	10	-21.1	-20.44	0.64	5	-74.6	-61.22	-64.36	9.72	27.04	4	-92.5285	-374.8465	405.0059	-12.2312	-0.592	-2.06	2	3	FLAG	instability index > 40: predicted unstable in vitro; 1 tryptic site	not kept with this run, so only the energy terms were read	5
+2	PMI	TSFAEYWNLLS	11	10	-18.7	-18.24	0.54	5	-56.41	-49.48	-51.43	4.98	14.04	3	-76.7152	-167.0538	197.4926	-10.1302	0.064	-1.06	2	1	PASS	3 chymotryptic sites	not kept with this run, so only the energy terms were read	5
+3	12/1 core	RFMDYWEGL	9	10	-17.8	-17.22	0.45	5	-55.21	-43.28	-42.58	7.22	22.31	5	-72.3681	-126.4195	154.1135	-10.5353	-0.622	-1.06	2	3	FLAG	1 tryptic site; 3 chymotryptic sites; destabilising N-terminal residue (N-end rule): cap or reorder	not kept with this run, so only the energy terms were read	5

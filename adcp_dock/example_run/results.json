@@ -17,6 +17,41 @@
    "mmgbsa_median": -64.36,
    "mmgbsa_sd": 9.72,
    "mmgbsa_spread": 27.04,
+   "panel_pose": 4,
+   "mm_vdw": -92.5285,
+   "mm_eel": -374.8465,
+   "mm_egb": 405.0059,
+   "mm_esurf": -12.2312,
+   "site_n": null,
+   "site_touched": null,
+   "site_coverage": null,
+   "site_dg": null,
+   "site_dg_mean": null,
+   "bsa": null,
+   "bsa_per_res": null,
+   "bsa_sd": null,
+   "bsa_basis": null,
+   "f_pep_buried": null,
+   "f_hydrophobic": null,
+   "n_hbond": null,
+   "n_ionic": null,
+   "n_stack": null,
+   "n_contact": null,
+   "n_clash": null,
+   "gravy": -0.592,
+   "charge_ph7": -2.06,
+   "apolar_run": 2,
+   "pe_score": 3,
+   "pe_verdict": "FLAG",
+   "pe_flags": [
+    "instability index > 40: predicted unstable in vitro",
+    "1 tryptic site"
+   ],
+   "panel_geometry": "not kept with this run, so only the energy terms were read",
+   "panel_n": 5,
+   "min_cycles": null,
+   "min_rms_grad": null,
+   "min_stopped_at_maxcyc": null,
    "rank": 1
   },
   {
@@ -34,6 +69,40 @@
    "mmgbsa_median": -51.43,
    "mmgbsa_sd": 4.98,
    "mmgbsa_spread": 14.04,
+   "panel_pose": 3,
+   "mm_vdw": -76.7152,
+   "mm_eel": -167.0538,
+   "mm_egb": 197.4926,
+   "mm_esurf": -10.1302,
+   "site_n": null,
+   "site_touched": null,
+   "site_coverage": null,
+   "site_dg": null,
+   "site_dg_mean": null,
+   "bsa": null,
+   "bsa_per_res": null,
+   "bsa_sd": null,
+   "bsa_basis": null,
+   "f_pep_buried": null,
+   "f_hydrophobic": null,
+   "n_hbond": null,
+   "n_ionic": null,
+   "n_stack": null,
+   "n_contact": null,
+   "n_clash": null,
+   "gravy": 0.064,
+   "charge_ph7": -1.06,
+   "apolar_run": 2,
+   "pe_score": 1,
+   "pe_verdict": "PASS",
+   "pe_flags": [
+    "3 chymotryptic sites"
+   ],
+   "panel_geometry": "not kept with this run, so only the energy terms were read",
+   "panel_n": 5,
+   "min_cycles": null,
+   "min_rms_grad": null,
+   "min_stopped_at_maxcyc": null,
    "rank": 2
   },
   {
@@ -51,7 +120,160 @@
    "mmgbsa_median": -42.58,
    "mmgbsa_sd": 7.22,
    "mmgbsa_spread": 22.31,
+   "panel_pose": 5,
+   "mm_vdw": -72.3681,
+   "mm_eel": -126.4195,
+   "mm_egb": 154.1135,
+   "mm_esurf": -10.5353,
+   "site_n": null,
+   "site_touched": null,
+   "site_coverage": null,
+   "site_dg": null,
+   "site_dg_mean": null,
+   "bsa": null,
+   "bsa_per_res": null,
+   "bsa_sd": null,
+   "bsa_basis": null,
+   "f_pep_buried": null,
+   "f_hydrophobic": null,
+   "n_hbond": null,
+   "n_ionic": null,
+   "n_stack": null,
+   "n_contact": null,
+   "n_clash": null,
+   "gravy": -0.622,
+   "charge_ph7": -1.06,
+   "apolar_run": 2,
+   "pe_score": 3,
+   "pe_verdict": "FLAG",
+   "pe_flags": [
+    "1 tryptic site",
+    "3 chymotryptic sites",
+    "destabilising N-terminal residue (N-end rule): cap or reorder"
+   ],
+   "panel_geometry": "not kept with this run, so only the energy terms were read",
+   "panel_n": 5,
+   "min_cycles": null,
+   "min_rms_grad": null,
+   "min_stopped_at_maxcyc": null,
    "rank": 3
   }
- ]
+ ],
+ "constants": {
+  "radii_set": "Bondi",
+  "probe_radius_A": 1.4,
+  "sphere_points": 1024,
+  "hbond_A": 3.5,
+  "ionic_A": 4.0,
+  "stack_A": 5.0,
+  "contact_A": 4.0,
+  "clash_fraction": 0.8,
+  "apolar_elements": [
+   "C",
+   "S"
+  ],
+  "surften_kcal_per_A2": 0.0072,
+  "contact_rules": "this tool's own geometric definitions, not PLIP's: proximity only, no hydrogen positions and no ring orientation are tested",
+  "histidine": "a residue named HIS is taken as protonated; HID and HIE are read as the neutral forms they are",
+  "replicas": 25,
+  "steps": 2000000,
+  "poses_kept": 10,
+  "mmgbsa_poses": 5,
+  "mmgbsa": "AmberTools only: tleap builds the topologies, sander minimises the complex with the receptor restrained, and MMPBSA.py computes the energy and its per residue decomposition. ff14SB, GB-OBC(II) igb=5 with mbondi2 radii, 0.150 M salt, interior dielectric 1, one minimised frame. No OpenMM is involved in any reported energy or in any panel column",
+  "openmm_used_for": [
+   "the receptor's restrained minimisation during preparation, with amber14-all (ff14SB) and GBn2. It settles the prepared structure and is not an energy anything is ranked by"
+  ],
+  "decomposition": "MMPBSA.py idecomp=2 on the same frame, topologies and GB model. The pairwise terms sum exactly and are split half to each residue by convention; the GB polar and surface terms are apportioned per atom. A decomposition is forced to gbsa=2, a per atom surface, where the total keeps LCPO, so the per residue column sums to a few per cent more negative than the reported total and not to it exactly; the pairwise terms agree",
+  "ph": 7.4,
+  "site": [
+   [
+    "A",
+    25
+   ],
+   [
+    "A",
+    26
+   ],
+   [
+    "A",
+    50
+   ],
+   [
+    "A",
+    51
+   ],
+   [
+    "A",
+    54
+   ],
+   [
+    "A",
+    57
+   ],
+   [
+    "A",
+    58
+   ],
+   [
+    "A",
+    61
+   ],
+   [
+    "A",
+    62
+   ],
+   [
+    "A",
+    67
+   ],
+   [
+    "A",
+    70
+   ],
+   [
+    "A",
+    71
+   ],
+   [
+    "A",
+    72
+   ],
+   [
+    "A",
+    73
+   ],
+   [
+    "A",
+    75
+   ],
+   [
+    "A",
+    91
+   ],
+   [
+    "A",
+    93
+   ],
+   [
+    "A",
+    94
+   ],
+   [
+    "A",
+    96
+   ],
+   [
+    "A",
+    99
+   ],
+   [
+    "A",
+    100
+   ],
+   [
+    "A",
+    104
+   ]
+  ]
+ }
 }

@@ -1451,7 +1451,7 @@ function colgroups(rows, tn, mm, omm){
         + 'convergence; how much the poses differ from each other is not.',
        f: r => (r.cluster_top == null ? '-' : r.cluster_top + ' / '
                 + pc(r.cluster_frac * 100, 0) + '%')});
-  if(mm) G.push({key: 'mm', label: 'MM-GBSA', on: true, cols: [
+  if(mm) G.push({key: 'mm', label: 'MM-GBSA (AmberTools)', on: true, cols: [
     {h: 'best', cls: 'c', f: r => fmt(r.mmgbsa_best, 2)},
     {h: 'top' + tn, cls: 'c', f: r => fmt(r['mmgbsa_top' + tn], 2)},
     {h: 'median', cls: 'c', f: r => fmt(r.mmgbsa_median, 2)},
@@ -1460,7 +1460,7 @@ function colgroups(rows, tn, mm, omm){
       + 'much the poses disagree; it is not a statistical test of the ranking.',
      f: r => (r.mmgbsa_n || '-') + ' / ' + fmt(r.mmgbsa_spread, 1)},
   ]});
-  if(any(rows, 'mm_vdw')) G.push({key: 'terms', label: 'energy terms',
+  if(any(rows, 'mm_vdw')) G.push({key: 'terms', label: 'energy terms (AmberTools)',
     on: true, cols: [
     {h: 'vdW', cls: 'c', t: 'VDWAALS, from the same MMPBSA.py output as the '
       + 'total.', f: r => fmt(r.mm_vdw, 1)},
@@ -1621,7 +1621,12 @@ function resultsTable(rows, tn, mm, omm){
     }).join('') + '</tr>').join('');
   return pick + '<div class=rtable><table>' + groupRow + headRow + body
     + '</table></div>'
-    + (mm ? '<div class=why style="margin-top:6px">MM-GBSA is an ordering '
+    + (mm ? '<div class=why style="margin-top:6px">Every energy here is '
+        + 'AmberTools: tleap, sander and MMPBSA.py. OpenMM appears in this '
+        + 'tool only in the receptor\u2019s preparation and in ADCP 1.1\u2019s '
+        + 'own pose minimisation, and <code>results.json</code> names which of '
+        + 'those this run used.</div>'
+        + '<div class=why style="margin-top:4px">MM-GBSA is an ordering '
         + 'within this run against this receptor. It is not a K<sub>D</sub> '
         + 'and not a binding free energy: there is no entropy term in it. The '
         + 'whole picomolar-to-nanomolar range is 4.1 kcal/mol, which is '

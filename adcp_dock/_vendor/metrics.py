@@ -1082,20 +1082,33 @@ def for_pose(posedir, prefix, hotspots=None, lig_chain="B", log=print,
     tmap = tleap_map(os.path.join(posedir, "%s_com_forleap.pdb" % prefix))
     if not tmap:
         tmap = tleap_map(os.path.join(posedir, "%s_com.pdb" % prefix))
+    dat = os.path.join(posedir, "%s_mmgbsa.dat" % prefix)
+    mmin = os.path.join(posedir, "%s_mmpbsa.in" % prefix)
     mp, what = minimised_pdb(posedir, prefix, log=log)
     if not mp or not tmap:
-        return None, []
+        # The energies without a geometry. This is what a run looks like once
+        # someone has deleted the topologies and restart files to save space:
+        # the MM-GBSA output is small and usually kept, and its four terms can
+        # still be read. They are worth reporting, and the geometry columns
+        # stay empty rather than being guessed at.
+        t = terms(dat, mmin) if os.path.isfile(dat) else {}
+        if not t:
+            return None, []
+        m = {("bsa_lcpo" if k == "bsa_lcpo" else "mm_" + k): v
+             for k, v in t.items()}
+        m.update(minimisation(os.path.join(posedir, "%s_min.out" % prefix)))
+        m["geometry"] = ("not kept with this run, so only the energy terms "
+                         "were read")
+        m["decomposed"] = False
+        return m, []
     st = read_minimised(mp, tmap)
     # The ligand is whichever chain the complex was split on, which
     # _write_pdbs stamped as B.
-    dat = os.path.join(posedir, "%s_mmgbsa.dat" % prefix)
     dec = decomposition(decomp_file(posedir, prefix, log=log,
                                     make=make_decomp), tmap)
     m, per_res = for_structure(st, hotspots=hotspots, lig_chain=lig_chain,
                                dat=dat if os.path.isfile(dat) else None,
-                               decomp=dec,
-                               mmpbsa_in=os.path.join(
-                                   posedir, "%s_mmpbsa.in" % prefix))
+                               decomp=dec, mmpbsa_in=mmin)
     # Which coordinates these numbers describe, and what the minimisation
     # that produced them did. Recorded rather than assumed: run_amber falls
     # back to the unminimised pose when sander writes no restart file, and

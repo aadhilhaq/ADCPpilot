@@ -423,6 +423,35 @@ check("the printed table has the panel block", "Interface and sequence" in txt)
 check("and warns that a site energy does not close on the total",
       "rather than exactly" in txt)
 
+print("one engine per number, and it is named")
+# Every reported energy is AmberTools. OpenMM runs in this tool too, at the
+# receptor's preparation and in ADCP 1.1's pose minimisation, and mixing the
+# two under one label would put GBn2 (igb=8) numbers beside OBC(II) (igb=5)
+# ones. This guards the energy path against a second engine being wired in.
+for _mod in ("metrics.py", "mmgbsa.py"):
+    _src = open(os.path.join(ROOT, "adcp_dock", "_vendor", _mod),
+                encoding="utf-8").read().lower()
+    check("%s names no OpenMM force field" % _mod,
+          "openmm" not in _src and "gbn2" not in _src and "amber14" not in _src,
+          "the energy path must be AmberTools only")
+# And the run says so in its own output, naming OpenMM only for the stages it
+# actually used.
+from adcp_dock import pipeline as _pl                          # noqa: E402
+_c = _pl._constants({"ph": 7.4})
+check("the constants say the energies are AmberTools",
+      "AmberTools" in _c["mmgbsa"] and "tleap" in _c["mmgbsa"]
+      and "MMPBSA.py" in _c["mmgbsa"])
+check("and that no reported energy came from OpenMM",
+      "No OpenMM" in _c["mmgbsa"])
+check("a run that minimised its receptor says OpenMM did that",
+      any("receptor" in u for u in _c["openmm_used_for"]))
+check("a run that did not minimise claims no OpenMM at all",
+      _pl._openmm_used_for({"minimise": False})
+      == ["nothing in this run: no number here came from OpenMM"])
+check("a run with ADCP 1.1 pose minimisation names that too",
+      any("ADCP 1.1" in u for u in
+          _pl._openmm_used_for({"omm_minimize": 3})))
+
 print("the web table reads only fields the report writes")
 # The GUI builds its columns from a spec in app.js. Every r.<field> in that
 # spec has to be a field report.summarise actually emits, or the column shows

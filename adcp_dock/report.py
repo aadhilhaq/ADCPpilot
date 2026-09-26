@@ -172,8 +172,12 @@ def table(rows, top_n=TOP_N):
             vals += [("%.1f (pose %s)" % (r["omm_best"], r["omm_best_pose"]))
                      if r.get("omm_n") else "-"]
         out.append(fmt % tuple(vals))
-    if any(r.get("panel_pose") is not None for r in rows):
+    # An interface, not merely a pose: a run whose geometry was not kept still
+    # has its energy terms, and they belong in the file rather than in a
+    # printed block of dashes.
+    if any(r.get("bsa") is not None for r in rows):
         out += [""] + panel_table(rows)
+    out += _geometry_notes(rows)
     unranked = [r for r in rows if r.get("rank") is None]
     if unranked:
         out.append("")
@@ -182,6 +186,13 @@ def table(rows, top_n=TOP_N):
                        str(r.get("name") or r["peptide"]) for r in unranked)))
     if mm:
         widest = max((r.get("mmgbsa_spread") or 0) for r in rows)
+        out.append("")
+        out.append("Every energy in this table, and every energy in the "
+                   "panel, is AmberTools: tleap, sander and MMPBSA.py.")
+        out.append("OpenMM appears in this tool only in the receptor's "
+                   "preparation and in ADCP 1.1's own")
+        out.append("pose minimisation, and results.json says which of those "
+                   "this run used.")
         out.append("")
         out.append("MM-GBSA is an ordering within this run against this "
                    "receptor.")
@@ -197,6 +208,32 @@ def table(rows, top_n=TOP_N):
             out[-1] += (" is what the spread column would show. "
                         "`adcp-dock affinity` prints the ruler.")
     return "\n".join(out)
+
+
+def _geometry_notes(rows):
+    """Two different cautions, which it is tempting to write as one.
+
+    A pose scored without minimising is a caution about its ENERGY: that
+    number is a single point on a complex the docking left where it was, and
+    it does not belong in a column beside the others. A geometry that was not
+    kept is a caution about the PANEL only, and says nothing at all about the
+    energy beside it.
+    """
+    out = []
+    raw = [r for r in rows
+           if "without minimisation" in (r.get("panel_geometry") or "")]
+    gone = [r for r in rows if "not kept" in (r.get("panel_geometry") or "")]
+    if raw:
+        out += ["", "Scored on a complex that was not minimised, so these "
+                    "energies are not comparable with the",
+                "others: %s." % ", ".join(str(r.get("name") or r["peptide"])
+                                          for r in raw[:6])]
+    if gone:
+        out += ["", "The geometry these energies were computed on is not kept "
+                    "with this run, so only the",
+                "energy terms could be read and the interface columns are "
+                "empty."]
+    return out
 
 
 def _tsv(v):
@@ -245,13 +282,6 @@ def panel_table(rows):
                           c(r.get("site_dg"), 1), c(r.get("gravy"), 2),
                           c(r.get("charge_ph7"), 1),
                           c(r.get("pe_verdict"))))
-    odd = [r for r in rows if (r.get("panel_geometry") or "minimised complex")
-           != "minimised complex"]
-    if odd:
-        out.append("")
-        out.append("Measured on something other than a minimised complex: %s. "
-                   "The geometry column says which." % ", ".join(
-                       str(r.get("name") or r["peptide"]) for r in odd[:6]))
     if any(r.get("site_dg") is not None for r in rows):
         out.append("")
         out.append("A site energy is MMPBSA.py's decomposition of that pose. "
