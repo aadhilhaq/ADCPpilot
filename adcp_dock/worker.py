@@ -5,6 +5,7 @@ By Aadhil Haq
     python -m adcp_dock.worker /path/to/job.json prepare
     python -m adcp_dock.worker /path/to/job.json 7        (peptide index)
     python -m adcp_dock.worker /path/to/job.json report
+    python -m adcp_dock.worker /path/to/job.json panel   (an older run)
 """
 import os
 import sys
@@ -28,6 +29,8 @@ def main(argv=None):
         pipeline.stage_prepare(rundir, j, log=log)
     elif stage == "report":
         pipeline.stage_report(rundir, j, log=log)
+    elif stage == "panel":
+        pipeline.stage_panel(rundir, j, log=log)
     else:
         pipeline.stage_dock(rundir, int(stage), j, log=log)
     return 0

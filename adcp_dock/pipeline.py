@@ -521,6 +521,94 @@ def _save_result(rundir, seq, out):
         json.dump(out, fh, indent=1)
 
 
+def _pose_dirs(mmdir, seq):
+    """The pose folders MM-GBSA left for one peptide, in numerical order."""
+    import glob
+    out = []
+    for d in glob.glob(os.path.join(mmdir, seq, "pose*")):
+        tail = os.path.basename(d)[4:]
+        if os.path.isdir(d) and tail.isdigit():
+            out.append((int(tail), d))
+    return [n for n, _d in sorted(out)]
+
+
+def stage_panel(rundir, j=None, log=print):
+    """Measure the panel for a run that was docked before the panel existed.
+
+    Nothing is docked or rescored again. Every number comes from the files the
+    MM-GBSA already left: the topologies, the minimised frame and the output
+    the energy was read from. The per residue decomposition is the only thing
+    computed here, and it is seconds against the minutes each pose cost.
+
+    This exists because the panel is measured in the dock stage, so an old
+    run's result files hold no panel and rebuilding the report alone would
+    show nothing new. Running this and then the report brings an old run up to
+    date in place.
+    """
+    import glob
+    import json
+    j = j or jobmod.load(rundir)
+    mmdir = os.path.join(rundir, "mmgbsa")
+    files = sorted(glob.glob(os.path.join(rundir, "results", "*.json")))
+    if not files:
+        log("no results in this run yet")
+        return 0
+    if not os.path.isdir(mmdir):
+        log("this run has no MM-GBSA output, so there is no geometry to "
+            "measure and no energy to decompose")
+        return 0
+    todo = []
+    for f in files:
+        r = json.load(open(f))
+        if r.get("panel"):
+            continue
+        if not r.get("mmgbsa"):
+            continue
+        todo.append((f, r))
+    if not todo:
+        log("every peptide in this run already has a panel")
+        return 0
+    log("measuring the panel for %d peptide(s) already docked and rescored. "
+        "Nothing is docked again." % len(todo))
+    done = 0
+    for f, r in todo:
+        seq = r["peptide"]
+        folders = _pose_dirs(mmdir, seq)
+        if not folders:
+            log("  %s: no pose folders on disk" % seq)
+            continue
+        # Each pose's own energy, read from its own output, so a value can
+        # never be attached to the wrong pose.
+        vals, keep = [], []
+        for n in folders:
+            d = os.path.join(mmdir, seq, "pose%d" % n)
+            t = metrics.terms(os.path.join(d, "%s_mmgbsa.dat" % seq),
+                              os.path.join(d, "%s_mmpbsa.in" % seq))
+            if t.get("total") is not None:
+                keep.append(n)
+                vals.append(t["total"])
+        if not keep:
+            log("  %s: no energy could be read from its pose folders" % seq)
+            continue
+        # Which ADCP pose each folder is. The result file records it for runs
+        # docked after that was added; older ones are numbered as MM-GBSA saw
+        # them, which is what the tool assumed at the time.
+        stored = r.get("mmgbsa_ranks") or []
+        ranks = stored if len(stored) == len(keep) else keep
+        out = {}
+        log("  %s" % seq)
+        _panel_scored(rundir, j, seq, out, mmdir, keep, ranks, vals, log=log)
+        if not out.get("panel"):
+            continue
+        r["panel"] = out["panel"]
+        r["panel_poses"] = out["panel_poses"]
+        with open(f, "w") as fh:
+            json.dump(r, fh, indent=1)
+        done += 1
+    log("%d peptide(s) measured" % done)
+    return done
+
+
 def stage_report(rundir, j=None, log=print):
     import glob
     import json
@@ -546,6 +634,22 @@ def stage_report(rundir, j=None, log=print):
     if not rows:
         log("no results to report yet")
         return None
+    # A run docked before the panel existed has no panel in its result files.
+    # Measuring it is real work, so it happens here only when this is already
+    # running on a compute node; otherwise the run is told how to ask for it.
+    stale = [r for r in rows if r.get("mmgbsa_n") and r.get("panel_pose")
+             is None]
+    if stale:
+        if os.environ.get("SLURM_JOB_ID") or slurm.local_mode():
+            log("%d peptide(s) were docked before the interface panel existed"
+                % len(stale))
+            if stage_panel(rundir, j, log=log):
+                return stage_report(rundir, j, log=log)
+        else:
+            log("%d peptide(s) have no interface panel: they were docked "
+                "before it existed. `adcp-dock panel %s` measures it from the "
+                "files already on disk, without docking anything again."
+                % (len(stale), rundir))
     # The citation list is written into the run, since a method section
     # is usually written later from the output directory. It names only
     # what this run used, so a run without MM-GBSA is not given an Amber
@@ -758,6 +862,39 @@ def submit(rundir, j=None, python=None, log=print):
     j["state"] = "submitted"
     jobmod.save(rundir, j)
     return j["jobs"]
+
+
+def submit_panel(rundir, j=None, python=None, log=print):
+    """Send the panel measurement to SLURM, then rebuild the report.
+
+    Submitted rather than run here for the same reason every other stage is:
+    it reads topologies, runs MMPBSA.py once per pose and rolls a probe over
+    three states of each complex, which is not work for the machine someone is
+    sitting on.
+    """
+    j = j or jobmod.load(rundir)
+    if slurm.local_mode():
+        return _submit_local(rundir, j, [("panel", ["panel"]),
+                                         ("report", ["report"])], python, log)
+    if not slurm.available():
+        raise SystemExit("sbatch was not found. This tool submits its work to "
+                         "SLURM rather than running it where you are sitting.")
+    common = _scripts(rundir, j, python)
+    s1 = slurm.write_script(os.path.join(rundir, "04_panel.sbatch"),
+                            name=job_name(rundir, j, "panel"),
+                            cpus=min(16, int(j.get("cpus", 48))),
+                            time=j.get("panel_time", "04:00:00"),
+                            stage="panel", **common)
+    id1 = slurm.submit(s1)
+    log("panel: %s" % id1)
+    s2 = slurm.write_script(os.path.join(rundir, "03_report.sbatch"),
+                            name=job_name(rundir, j, "report"), cpus=2,
+                            time="01:00:00", stage="report", **common)
+    id2 = slurm.submit(s2, depends_on=id1, kind="afterany")
+    log("report: %s" % id2)
+    j.setdefault("jobs", {}).update({"panel": id1, "report": id2})
+    jobmod.save(rundir, j)
+    return {"panel": id1, "report": id2}
 
 
 def resume(rundir, j=None, python=None, log=print):

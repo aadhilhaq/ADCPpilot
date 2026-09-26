@@ -58,9 +58,12 @@ adcp-dock new runs/trial -r 1YCR --chain A \
 adcp-dock run runs/trial
 adcp-dock status runs/trial
 adcp-dock report runs/trial
+adcp-dock panel runs/trial      # only for a run docked before 0.1.17
 ```
 
 `-r` takes a structure file or a PDB ID, `-s` the residues the docking box covers, `-p` a peptide (repeat it for more) or `-f` a peptide file. Running `adcp-dock run` again docks only the peptides that have no result yet.
+
+A run docked before version 0.1.17 has no interface panel in its results, because the panel is measured while each peptide is rescored. `adcp-dock panel` measures it from the files the MM-GBSA already left, submits that to Slurm, and rebuilds the report when it finishes. Nothing is docked or rescored again; the only new calculation is the per residue decomposition, which takes seconds per pose. A run whose intermediate files were deleted keeps its four energy terms and gets no interface columns, and the report says so.
 
 ## Peptides
 

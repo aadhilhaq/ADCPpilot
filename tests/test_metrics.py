@@ -452,6 +452,36 @@ check("a run with ADCP 1.1 pose minimisation names that too",
       any("ADCP 1.1" in u for u in
           _pl._openmm_used_for({"omm_minimize": 3})))
 
+print("a run docked before the panel existed can be brought up to date")
+# The panel is measured while each peptide is rescored, so an old run's result
+# files hold none and rebuilding the report alone would show nothing new.
+# stage_panel measures it from the files the MM-GBSA already left.
+check("there is a stage for it", callable(getattr(_pl, "stage_panel", None)))
+check("and a way to submit that stage",
+      callable(getattr(_pl, "submit_panel", None)))
+_wk = open(os.path.join(ROOT, "adcp_dock", "worker.py"),
+           encoding="utf-8").read()
+check("the worker knows the stage", '"panel"' in _wk)
+_cli = open(os.path.join(ROOT, "adcp_dock", "cli.py"), encoding="utf-8").read()
+check("and the command line offers it", '"panel"' in _cli)
+# It must dock nothing: no docking or rescoring call in the stage.
+_ps = _pl.stage_panel.__doc__ or ""
+check("its own documentation says nothing is docked again",
+      "docked" in _ps and "again" in _ps)
+import inspect                                                 # noqa: E402
+_src = inspect.getsource(_pl.stage_panel)
+check("it calls no docking or rescoring",
+      "adcp.dock" not in _src and "mmgbsa.run" not in _src
+      and "adcp11.dock" not in _src)
+# On an empty or panel-less directory it reports rather than raising.
+_tmp = tempfile.mkdtemp()
+os.makedirs(os.path.join(_tmp, "results"))
+_said = []
+check("a run with no results says so, and does not raise",
+      _pl.stage_panel(_tmp, {"ph": 7.4}, log=_said.append) == 0)
+check("a run with no MM-GBSA says so too",
+      _pl.stage_panel(_tmp, {"ph": 7.4}, log=_said.append) == 0)
+
 print("the web table reads only fields the report writes")
 # The GUI builds its columns from a spec in app.js. Every r.<field> in that
 # spec has to be a field report.summarise actually emits, or the column shows
