@@ -1746,6 +1746,10 @@ check(_before("loadReceptor", "$(\'hotspots\').value"),
       "reuse sets the hotspots before loadReceptor, which clears them")
 # Every setting, or the next one added would be dropped from reuse.
 _uionly = {"reccode", "pastetext", "issuenote", "issuemail", "showbox",
+           # The folder picker's filter box. It narrows what the dialog is
+           # showing while it is open and is cleared on every navigation, so
+           # there is nothing about it a run could restore.
+           "pickfind",
            "rccol", "rlcol", "rbcol", "rlabel", "rengine", "rposepick",
            "box_chains",
            # the details shown in the feedback dialog, filled in when it opens

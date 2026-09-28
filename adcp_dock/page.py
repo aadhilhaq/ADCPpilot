@@ -37,6 +37,9 @@ try { const t = localStorage.getItem("adcp.theme");
   --good:#1a7f5a; --soft:#f2f4fa;
   /* the heading band across the top of a card, and the ink on it */
   --ribbon:#eef1f9; --ribbonfg:#2b3550;
+  /* A pill's own border, which has to read against --card in both themes,
+     and the ink that goes on a filled one. */
+  --pill-line:#c3cbdd; --on-accent:#ffffff;
 }
 /* Dark: the system's setting, unless the switch in the header chose light;
    and always when the switch chose dark. */
@@ -162,6 +165,9 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 @media (prefers-color-scheme:dark){
   :root:not([data-theme=light]) #themebtn .moon{display:inline}
   :root:not([data-theme=light]) #themebtn .sun{display:none}}
+.pickfilter{display:flex;align-items:center;gap:9px;padding:8px 14px;
+  border-bottom:1px solid var(--line)}
+.pickfilter input{flex:1 1 auto;min-width:0}
 .missing,.missing:focus{border-color:var(--warn) !important;
   outline:2px solid var(--warn)}
 /* A container is not an input. #peps has no border for a border colour to
@@ -498,8 +504,27 @@ td.nm{text-align:left;white-space:nowrap}
 #issuebox textarea,#issuebox input{width:100%}
 tr.pick{cursor:pointer} tr.pick:hover{background:var(--soft)}
 tr.on{background:var(--accent2)}
+/* A pill is a control, so it needs a surface to sit on. With only a border
+   and no background it had nothing to show on a dark card, where the line
+   colour is close to the card's own, and a selected one had no style at all
+   outside the viewer bar: .pill.on was written as .vbar .pill.on, so the
+   contact pills could be clicked but never looked clicked. */
 .pill{display:inline-block;font-size:11px;padding:2px 9px;border-radius:999px;
-  border:1px solid var(--line);color:var(--dim)}
+  border:1px solid var(--pill-line);background:var(--card);color:var(--fg);
+  cursor:pointer}
+.pill:hover{border-color:var(--dim)}
+/* Selected: filled, and outlined as well, so it reads as chosen without
+   relying on the fill alone. */
+.pill.on{background:var(--accent);border-color:var(--accent);
+  color:var(--on-accent);font-weight:650;
+  box-shadow:0 0 0 2px var(--accent2)}
+.pill.on:hover{border-color:var(--accent)}
+/* The interaction types carry their colour as a dot rather than as the
+   text colour. Yellow and mid grey on a dark card are unreadable, and the
+   dot keeps the colour that matches the drawing without spending it on the
+   label. */
+.kdot{display:inline-block;width:9px;height:9px;border-radius:50%;
+  margin-right:5px;vertical-align:-1px;border:1px solid rgba(0,0,0,.25)}
 .list{max-height:240px;overflow:auto;border:1px solid var(--line);
   border-radius:10px}
 .list button{display:block;width:100%;text-align:left;border:0;border-radius:0;
@@ -769,7 +794,12 @@ __STALE__
         <span>Keep heteroatoms</span></label>
       <label class=chk><input type=checkbox id=fill_loops>
         <span>Rebuild missing loops</span></label>
-      <label class=chk><input type=checkbox id=mmgbsa>
+      <!-- On by default. The docking score orders poses of the same
+           peptide well and is a poor way to compare different peptides,
+           which is what a screen is for, so a run without the rescoring
+           produces a table that cannot be ranked on. It is switched off
+           and disabled below if AmberTools is not installed. -->
+      <label class=chk><input type=checkbox id=mmgbsa checked>
         <span>Rescore with MM-GBSA</span></label>
     </div>
     <div id=mmopts class="row hide" style="flex:1 1 auto">
@@ -842,6 +872,10 @@ the queue for twice that plus half an hour">Estimate &amp; fill</button></div>
   <h2>Runs</h2>
   <div class=bar style="margin-top:0;margin-bottom:10px">
     <button class=ghost id=refresh>Refresh</button>
+    <!-- Runs made elsewhere, or by someone else, are reached by pointing this
+         at their folder. Without it the only runs visible were the ones this
+         session happened to write. -->
+    <button class=ghost id=runsbrowse>Browse&hellip;</button>
     <span class=why id=runsroot></span>
   </div>
   <div id=runs></div>
@@ -1004,6 +1038,16 @@ larger of the two and takes a moment the first time.">
 <dialog id=picker>
   <div class=dlg-h><b id=pickertitle>Choose a file</b>
     <div class=crumbs id=crumbs></div></div>
+  <!-- A scratch directory holds hundreds of folders and scrolling to one by
+       eye is the slow part of this dialog. Typing filters what is listed,
+       here rather than on the server, because the listing is already in the
+       page and a round trip per keystroke would be slower than the scroll. -->
+  <div class=pickfilter>
+    <input type=search id=pickfind autocomplete=off
+           placeholder="Type to filter this folder…"
+           aria-label="Filter the list below">
+    <span class=why id=pickfindnote></span>
+  </div>
   <div class=listing id=listing></div>
   <div class=dlg-f>
     <span class=why id=pickernote></span>
@@ -1048,6 +1092,9 @@ DARK_VARS = """
   --hydro:#e0996a; --polar:#8fb3e8; --bad:#e2796a; --warn:#e0a06a;
   --good:#4cbf94; --soft:#141a24;
   --ribbon:#1b2231; --ribbonfg:#cdd8ec;
+  /* The dark accent is light enough that white on it is about 3:1, under
+     what small text needs, so a filled pill takes dark ink instead. */
+  --pill-line:#3d4757; --on-accent:#0f1219;
 """
 PAGE = PAGE.replace("__DARK_VARS__", DARK_VARS)
 

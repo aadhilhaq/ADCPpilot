@@ -47,12 +47,19 @@ api('/api/tools').then(d => {
     $('omm_minimize').disabled = true;
   }
   // Without AmberTools the rescoring cannot run, so it cannot be chosen.
+  // The box arrives ticked, because that is the right default wherever it
+  // can run. Here it is unticked and locked, and a submission with it on
+  // would be refused by the server anyway.
   if (d.mmgbsa === false) {
     const box = $('mmgbsa');
     box.checked = false;
     box.disabled = true;
     box.parentNode.title = 'MM-GBSA needs AmberTools (tleap, sander, MMPBSA.py)';
     $('mmopts').classList.add('hide');
+  } else {
+    // The panel of MM-GBSA settings is revealed by the box's change event,
+    // which never fires for a box that starts ticked.
+    $('mmopts').classList.toggle('hide', !$('mmgbsa').checked);
   }
 });
 
@@ -163,6 +170,17 @@ function closePicker(){
 }
 $('pickerclose').onclick = closePicker;
 $('picker').addEventListener('cancel', closePicker);
+if($('pickfind')){
+  $('pickfind').addEventListener('input', applyPickFilter);
+  /* Escape clears the filter before it closes the dialog, so a mistyped
+     filter does not cost the whole navigation. */
+  $('pickfind').addEventListener('keydown', ev => {
+    if(ev.key === 'Escape' && $('pickfind').value){
+      ev.stopPropagation(); ev.preventDefault();
+      $('pickfind').value = ''; applyPickFilter();
+    }
+  });
+}
 
 async function showPlaces(){
   await roots();
@@ -196,6 +214,9 @@ async function showDir(path){
     return;
   }
   PICK.at = d.path;
+  /* A filter belongs to the folder it was typed in. Carrying it into the
+     next one hides most of what is there and reads as an empty folder. */
+  if($('pickfind')) $('pickfind').value = '';
   $('crumbs').innerHTML = crumbsFor(d.path);
   $('pickernote').innerHTML = d.writable ? ''
     : '<span class=bad>not writable by you</span>';
@@ -209,19 +230,50 @@ async function showDir(path){
                                  : n + ' B';
   $('listing').innerHTML =
       '<button data-go="' + esc(d.parent) + '">\u2191 up</button>'
-    + fs.map(x => '<button data-pick="' + esc(x.path)
-        + '">\u{1F4C4} ' + esc(x.name) + '<span class=sz>'
+    + fs.map(x => '<button data-name="' + esc(x.name) + '" data-pick="'
+        + esc(x.path) + '">\u{1F4C4} ' + esc(x.name) + '<span class=sz>'
         + size(x.size) + '</span></button>').join('')
     + (fs.length && d.dirs.length
        ? '<div class=why style="padding:7px 16px 4px">folders</div>' : '')
-    + d.dirs.map(x => '<button data-go="' + esc(x.path) + '">\u{1F4C1} '
-        + esc(x.name) + '</button>').join('')
+    + d.dirs.map(x => '<button data-name="' + esc(x.name) + '" data-go="'
+        + esc(x.path) + '">\u{1F4C1} ' + esc(x.name) + '</button>').join('')
     + ((d.dirs.length || fs.length) ? ''
        : '<div class=why style="padding:12px 16px">nothing here</div>');
   wireListing();
 }
 
+/* Filter the listing that is already on screen.
+ *
+ * Done in the page rather than on the server: the folder's contents are
+ * already here, so a request per keystroke would be slower than the
+ * scrolling it replaces. The crumbs and the up button are left alone, so a
+ * filter that matches nothing still lets you leave. */
+function applyPickFilter(){
+  const box = $('pickfind');
+  if(!box) return;
+  const q = box.value.trim().toLowerCase();
+  let shown = 0, total = 0;
+  $('listing').querySelectorAll('button').forEach(b => {
+    /* the up button is navigation, not a result */
+    if(b.textContent.indexOf('\u2191 up') === 0){ b.style.display = ''; return; }
+    total++;
+    const name = (b.getAttribute('data-name') || b.textContent).toLowerCase();
+    const hit = !q || name.indexOf(q) >= 0;
+    b.style.display = hit ? '' : 'none';
+    if(hit) shown++;
+  });
+  /* the "folders" divider is noise when everything under it is hidden */
+  $('listing').querySelectorAll('div.why').forEach(d => {
+    if(/^folders$/.test(d.textContent.trim())) d.style.display = q ? 'none' : '';
+  });
+  const note = $('pickfindnote');
+  if(note) note.textContent = q
+    ? (shown ? shown + ' of ' + total : 'nothing here matches "' + q + '"')
+    : '';
+}
+
 function wireListing(){
+  applyPickFilter();
   $('listing').querySelectorAll('button[data-go]').forEach(x =>
     x.onclick = () => showDir(x.getAttribute('data-go')));
   $('listing').querySelectorAll('button[data-pick]').forEach(x =>
@@ -260,6 +312,13 @@ $('recbrowse').onclick = () => openPicker({
   start: $('recpath').value.trim(),
   onPick: v => { $('recpath').value = v; clearMissingOn('recpath');
                  loadReceptor(); }});
+
+/* The Runs panel lists whatever RUNS_ROOT points at. This is how you point
+   it somewhere else: at runs made in another folder, or by a colleague. */
+$('runsbrowse').onclick = () => openPicker({
+  dirs: true, title: 'Choose a folder of runs',
+  start: RUNS_ROOT,
+  onPick: v => useRuns(v)});
 
 $('outbrowse').onclick = () => openPicker({
   dirs: true, title: 'Choose where runs go',
