@@ -131,6 +131,10 @@ jobs:
         with:
           name: ADCP-Docking-launcher-windows
           path: dist/ADCP-Docking-launcher/
+          # Kept a week, not the default ninety days. These are built
+          # for someone to download now; the account's Actions
+          # storage is 2 GB and three desktop bundles fill it.
+          retention-days: 7
 
       - name: zip the folder for the release page
         # A release asset is one file. The folder is zipped whole, because
@@ -141,6 +145,10 @@ jobs:
         with:
           name: release-windows
           path: ADCP-Docking-launcher-windows.zip
+          # Kept a week, not the default ninety days. These are built
+          # for someone to download now; the account's Actions
+          # storage is 2 GB and three desktop bundles fill it.
+          retention-days: 7
 
   macos:
     runs-on: macos-14
@@ -262,6 +270,10 @@ jobs:
         with:
           name: ADCP-Docking-launcher-mac-apple-silicon
           path: dist/ADCP-Docking-launcher-mac-apple-silicon.zip
+          # Kept a week, not the default ninety days. These are built
+          # for someone to download now; the account's Actions
+          # storage is 2 GB and three desktop bundles fill it.
+          retention-days: 7
 
   # A release page for a tag. An Actions artifact requires a GitHub account to
   # download and is removed after ninety days; a release asset is permanent

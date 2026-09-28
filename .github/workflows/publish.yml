@@ -59,6 +59,10 @@ jobs:
         with:
           name: distributions
           path: dist/
+          # Kept a week, not the default ninety days. These are built
+          # for someone to download now; the account's Actions
+          # storage is 2 GB and three desktop bundles fill it.
+          retention-days: 7
 
   publish:
     needs: build
