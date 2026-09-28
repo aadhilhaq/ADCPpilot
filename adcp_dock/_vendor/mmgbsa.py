@@ -148,13 +148,56 @@ def amber_home() -> str | None:
     return None
 
 
+#: What backend() calls an engine, against what gbengines calls it. Kept
+#: because older configs say "prime".
+BACKEND_ENGINE = {"amber": "amber", "prime": "schrodinger",
+                  "openmm": "openmm"}
+
+
 def backend() -> str | None:
+    """The engine used when a run does not name one. None if none can run.
+
+    Order matters: AmberTools first, because every number this project has
+    published came from it and a run that asks for nothing else should stay
+    comparable with those. OpenMM second, since it reads the same topologies.
+    Prime last, because its numbers are on their own scale.
+
+    This used to return "prime" whenever $SCHRODINGER was set, while the code
+    below it ran the AmberTools path regardless. On a machine with Schrodinger
+    and no AmberTools it logged Amber's solvent model and then failed inside
+    tleap, which reads as a chemistry problem rather than a missing program.
+    Every name it returns now has an engine behind it.
+    """
     if amber_home() and prep.find_tool("MMPBSA.py"):
         return "amber"
+    try:
+        import openmm                                          # noqa: F401
+        if amber_home():
+            return "openmm"
+    except Exception:                                          # noqa: BLE001
+        pass
     schro = os.environ.get("SCHRODINGER")
     if schro and os.path.isfile(os.path.join(schro, "prime_mmgbsa")):
         return "prime"
     return None
+
+
+def engine_runner(engine: str):
+    """The function that computes one pose's energy for this engine."""
+    return {"amber": run_amber, "openmm": run_openmm,
+            "schrodinger": run_prime}.get(engine, run_amber)
+
+
+def cache_name(seq: str, engine: str = "amber") -> str:
+    """The cache file for this construct under this engine.
+
+    AmberTools keeps the bare name it has always had, so every cache on disk
+    from every previous run is still read. A second engine writing the same
+    file would have its numbers read back as AmberTools': different force
+    field, different scale, and nothing in the file to tell them apart. The
+    others are suffixed.
+    """
+    return seq + (".dg" if engine == "amber" else ".%s.dg" % engine)
 
 
 def _write_pdbs(rec, pose_mol, workdir: str, prefix: str):
@@ -386,10 +429,34 @@ def _parm_atoms(parm7: str):
     return None
 
 
-def run_amber(rec, pose_mol, workdir: str, prefix: str, log=print,
-              prep_ph: float | None = 7.4,
-              intdiel: float = INTDIEL,
-              radii: str = RADII) -> float | None:
+class _Topo:
+    """The tleap built topologies one pose's energy is computed from.
+
+    Built once and handed to whichever engine computes the energy. That is
+    the point of it: the engines then provably read the same atoms, the same
+    force field and the same protonation, so when their numbers differ the
+    topology is not a candidate explanation.
+    """
+
+    def __init__(self, workdir, prefix, com_pdb, rec_mask, lig_mask,
+                 n_rec_res, n_lig_res, asl, home, env, radii=RADII):
+        self.workdir, self.prefix, self.com_pdb = workdir, prefix, com_pdb
+        self.rec_mask, self.lig_mask, self.asl = rec_mask, lig_mask, asl
+        self.n_rec_res, self.n_lig_res = n_rec_res, n_lig_res
+        self.home, self.env, self.radii = home, env, radii
+
+    def path(self, kind, ext):
+        return os.path.join(self.workdir, "%s_%s.%s" % (self.prefix, kind, ext))
+
+
+def _topologies(rec, pose_mol, workdir, prefix, log=print,
+                prep_ph: float | None = 7.4, radii: str = RADII):
+    """Build the complex, receptor and ligand topologies. None if it failed.
+
+    Every check here guards one thing: that the molecule the energy is
+    computed on is the molecule that was docked. They run once per pose
+    rather than once per engine, so two engines cannot disagree about it.
+    """
     # tleap and sander run with cwd=workdir, so every path given to them
     # must be absolute or a bare basename: a relative path resolves
     # inside the working directory.
@@ -474,21 +541,62 @@ def run_amber(rec, pose_mol, workdir: str, prefix: str, log=print,
         log(f"    {prefix}: could not split the complex topology, skipped")
         return None
 
-    # Minimise first, with the receptor restrained so it keeps the prepared
-    # geometry while the added hydrogens and the peptide relax.
+    return _Topo(workdir, prefix, com_pdb, rec_mask, lig_mask,
+                 n_rec_res, n_lig_res, asl, home, env, radii)
+
+
+def _minimise(topo, log=print):
+    """Relax the pose with sander. Returns the trajectory to score.
+
+    The restraint holds the receptor so the added hydrogens and the peptide
+    relax while the prepared geometry stays put, and the generalised Born
+    model is the one the radii select. On failure the raw pose is returned,
+    so a caller always has something to score.
+
+    Extracted so every engine relaxes the pose the SAME way, which turned out
+    to matter more than the energy model. On sander's own minimum OpenMM
+    lands within 1.3 kcal/mol of MMPBSA.py; OpenMM minimising the same pose
+    itself lands about 30 out. sander's 1000 cycles is a shallow relaxation
+    and OpenMM's L-BFGS converges well inside 1000 iterations, so matching
+    the step count does not match the amount of relaxation, and the extra
+    relaxation loosens the interface. The geometry is produced once, here.
+    """
+    workdir, prefix = topo.workdir, topo.prefix
+    radii = getattr(topo, "radii", RADII)
     mininp = os.path.join(workdir, f"{prefix}_min.in")
     with open(mininp, "w") as fh:
-        fh.write(MIN_IN.format(rec_mask=rec_mask, igb=model_of(radii)[1]))
+        fh.write(MIN_IN.format(rec_mask=topo.rec_mask,
+                               igb=model_of(radii)[1]))
     log(f"    {prefix}: minimising the complex")
     minrst = os.path.join(workdir, f"{prefix}_min.rst7")
-    sander = os.path.join(home, "bin", "sander")
+    sander = os.path.join(topo.home, "bin", "sander")
     subprocess.run([sander, "-O", "-i", mininp,
                     "-p", f"{prefix}_com.parm7", "-c", f"{prefix}_com.rst7",
                     "-ref", f"{prefix}_com.rst7",
                     "-r", os.path.basename(minrst),
                     "-o", f"{prefix}_min.out"],
-                   cwd=workdir, capture_output=True, text=True, env=env)
-    traj = os.path.basename(minrst) if os.path.isfile(minrst) else f"{prefix}_com.rst7"
+                   cwd=workdir, capture_output=True, text=True,
+                   env=topo.env)
+    return (os.path.basename(minrst) if os.path.isfile(minrst)
+            else f"{prefix}_com.rst7")
+
+
+def run_amber(rec, pose_mol, workdir: str, prefix: str, log=print,
+              prep_ph: float | None = 7.4,
+              intdiel: float = INTDIEL,
+              radii: str = RADII) -> float | None:
+    """The reference engine: sander minimises, MMPBSA.py decomposes.
+
+    ff14SB with whichever generalised Born model the radii select. Every
+    MM-GBSA number this project has published came from here.
+    """
+    topo = _topologies(rec, pose_mol, workdir, prefix, log, prep_ph, radii)
+    if topo is None:
+        return None
+    workdir, home, env = topo.workdir, topo.home, topo.env
+    rec_mask, lig_mask = topo.rec_mask, topo.lig_mask
+    minrst = os.path.join(workdir, f"{prefix}_min.rst7")
+    traj = _minimise(topo, log)
     # Which coordinates MMPBSA.py is about to be given, written down beside the
     # pose. The metric panel measures the geometry the energy belongs to, and
     # it cannot work that out afterwards from the files alone.
@@ -555,8 +663,264 @@ def run_amber(rec, pose_mol, workdir: str, prefix: str, log=print,
     return None
 
 
+# The restraint weight sander applies through restraint_wt, kept here only so
+# the two protocols can be compared in one place. The minimisation is
+# sander's.
+OMM_RESTRAINT_KCAL_A2 = 5.0
+
+
+def _omm_model(radii):
+    """The OpenMM implicit solvent matching the model these radii select.
+
+    The model follows the radii exactly as it does for AmberTools, so a run
+    that chose GBn2 is scored under GBn2 by either engine. Hardcoding OBC(II)
+    would score a GBn2 run under a different model and still return a number.
+    """
+    import openmm.app as app
+    name, _igb = model_of(radii)
+    return (app.GBn2 if name == "gbn2" else app.OBC2), name
+
+
+def run_openmm(rec, pose_mol, workdir: str, prefix: str, log=print,
+               prep_ph: float | None = 7.4,
+               intdiel: float = INTDIEL,
+               radii: str = RADII) -> float | None:
+    """The same topology and the same geometry as AmberTools, scored again.
+
+    What this replaces is MMPBSA.py, not sander. The pose is relaxed by
+    sander, exactly as run_amber relaxes it, and OpenMM then computes that
+    geometry's energy with its own generalised Born code.
+
+    WHY IT DOES NOT MINIMISE FOR ITSELF. It was written that way first and
+    came out 24 to 32 kcal/mol from AmberTools on a 5 residue peptide and 52
+    to 65 on a 19 residue one, with the pose order reversed on the longer one.
+    Measured back to its cause: on sander's own minimum OpenMM agrees with
+    MMPBSA.py to 1.3 kcal/mol across five poses with the order unchanged, so
+    the energy models agree and the minimisation was the whole difference.
+    Minimising further made the answer worse, so it is not offered.
+    """
+    try:
+        import openmm                                          # noqa: F401
+    except Exception as exc:                                   # noqa: BLE001
+        log(f"    {prefix}: openmm is not installed ({exc}), skipped")
+        return None
+    if amber_home() is None:
+        log(f"    {prefix}: the OpenMM engine scores the geometry sander "
+            f"minimises, and AmberTools was not found, so there is no "
+            f"calibrated geometry to score. Skipped rather than minimised "
+            f"here, which would put the energy about 30 kcal/mol out.")
+        return None
+    topo = _topologies(rec, pose_mol, workdir, prefix, log, prep_ph, radii)
+    if topo is None:
+        return None
+    traj = _minimise(topo, log)
+    if traj != f"{prefix}_min.rst7":
+        log(f"    {prefix}: minimisation did not converge, using the raw pose")
+    return openmm_dg(topo, log, intdiel, traj)
+
+
+def openmm_dg(topo, log=print, intdiel: float = INTDIEL,
+              rst: str | None = None) -> float | None:
+    """OpenMM's MM-GBSA energy for one already built, already relaxed pose.
+
+    `rst` is the coordinate file to score; without one the minimised
+    coordinates are used if present and the raw pose otherwise. Nothing is
+    minimised here.
+
+    Single trajectory, like MMPBSA.py: the receptor and ligand energies come
+    from the SAME frame as the complex by slicing its coordinates, so the
+    difference is a binding energy and not a folding one.
+    """
+    import openmm as mm
+    import openmm.app as app
+    import openmm.unit as u
+
+    prefix = topo.prefix
+    kcal = u.kilocalorie_per_mole
+    gb, model = _omm_model(getattr(topo, "radii", RADII))
+
+    def energy(parm7, coords):
+        prm = app.AmberPrmtopFile(parm7)
+        system = prm.createSystem(
+            implicitSolvent=gb, soluteDielectric=float(intdiel),
+            solventDielectric=78.5,
+            implicitSolventSaltConc=0.15 * u.molar,
+            nonbondedMethod=app.NoCutoff, constraints=None)
+        integ = mm.VerletIntegrator(1.0 * u.femtosecond)
+        try:
+            sim = app.Simulation(prm.topology, system, integ,
+                                 mm.Platform.getPlatformByName("CPU"))
+        except Exception:                                      # noqa: BLE001
+            sim = app.Simulation(prm.topology, system, integ)
+        sim.context.setPositions(coords)
+        return sim.context.getState(getEnergy=True
+                                    ).getPotentialEnergy().value_in_unit(kcal)
+
+    com7 = topo.path("com", "parm7")
+    rec7, lig7 = topo.path("rec", "parm7"), topo.path("lig", "parm7")
+    if rst:
+        start = rst if os.path.isabs(rst) else os.path.join(topo.workdir, rst)
+    else:
+        start = topo.path("min", "rst7")
+        if not os.path.isfile(start):
+            start = topo.path("com", "rst7")
+    if not all(os.path.isfile(f) for f in (com7, rec7, lig7, start)):
+        log(f"    {prefix}: the topologies are incomplete, skipped")
+        return None
+
+    pos = app.AmberInpcrdFile(start).positions
+    n_rec = app.AmberPrmtopFile(rec7).topology.getNumAtoms()
+    n_lig = app.AmberPrmtopFile(lig7).topology.getNumAtoms()
+    if n_rec + n_lig != len(pos):
+        # The split topologies must account for every atom of the complex, or
+        # the slice takes the wrong atoms and still returns a number.
+        log(f"    {prefix}: the split topologies hold {n_rec} + {n_lig} atoms "
+            f"against {len(pos)} in the complex, so the frame cannot be "
+            f"sliced, skipped")
+        return None
+
+    dg = (energy(com7, pos) - energy(rec7, pos[:n_rec])
+          - energy(lig7, pos[n_rec:]))
+    log(f"    {prefix}: dG {dg:.2f} kcal/mol "
+        f"({os.path.basename(start)}, OpenMM {model})")
+    if abs(dg) > 500:
+        log(f"    {prefix}: dG {dg:.0f} kcal/mol is not physical "
+            "(unrelieved clashes), discarded")
+        return None
+    return dg
+
+
+# Prime's own column name for the binding energy in its output table.
+_PRIME_DG = "r_psp_MMGBSA_dG_Bind"
+
+
+def prime_forcefield(log=print, timeout=30):
+    """Which OPLS version a Prime job started now would actually get.
+
+    Returns (flags, name). The force field licence is a separate pool from
+    the rescoring one and it has a single seat here, so a job started while
+    that seat is taken falls back to OPLS_2005 on its own. Asking first means
+    the result can say which force field produced it, instead of the table
+    implying every value came from the same one.
+    """
+    from . import gbengines
+    eng = gbengines.SCHRODINGER
+    free, total = eng.forcefield_licences(timeout)
+    if free is None:
+        # Unreadable is not the same as absent. Let Prime pick its own
+        # default and record that the choice was not verified.
+        return [], eng.FF_MODERN + " (assumed; the licence was not readable)"
+    if free > 0:
+        return [], eng.FF_MODERN
+    log(f"    the {eng.FF_FEATURE} licence is fully in use "
+        f"({total} seat(s)), so this runs on {eng.FF_LEGACY}")
+    return ["-prime_opt", "OPLS_VERSION=" + eng.FF_LEGACY], eng.FF_LEGACY
+
+
+def run_prime(rec, pose_mol, workdir: str, prefix: str, log=print,
+              prep_ph: float | None = 7.4,
+              intdiel: float = INTDIEL,
+              radii: str = RADII) -> float | None:
+    """Schrodinger Prime MM-GBSA: OPLS with VSGB 2.0.
+
+    A different force field and a different solvent model from the other two
+    engines, so its numbers belong in their own column and are never averaged
+    or compared by value with them. It is here because groups holding the
+    licence often need it for comparability with their existing work.
+
+    The topologies are still built by tleap, for one reason: the protonation
+    and the atoms are then identical to what the other engines read, so a
+    difference in the answer belongs to the force field and not to the
+    preparation. Prime is given the prepared complex, not the raw pose.
+    """
+    schro = os.environ.get("SCHRODINGER", "")
+    if not schro or not os.path.isfile(os.path.join(schro, "prime_mmgbsa")):
+        log(f"    {prefix}: $SCHRODINGER is not set, so prime_mmgbsa cannot "
+            f"be found. Load the module first (module load Schrodinger), "
+            f"skipped")
+        return None
+
+    from . import gbengines
+    plan = gbengines.SCHRODINGER.plan()
+    if plan.get("readable") and not plan.get("jobs"):
+        log(f"    {prefix}: every {gbengines.SCHRODINGER.FEATURE} licence is "
+            f"in use, and one job needs "
+            f"{gbengines.SCHRODINGER.TOKENS_PER_JOB}, skipped")
+        return None
+
+    topo = _topologies(rec, pose_mol, workdir, prefix, log, prep_ph, radii)
+    if topo is None:
+        return None
+
+    # Prime reads Maestro formats, so the prepared complex is converted
+    # rather than rebuilt.
+    mae = os.path.join(topo.workdir, prefix + "_com.mae")
+    conv = os.path.join(schro, "utilities", "structconvert")
+    if not os.path.isfile(conv):
+        log(f"    {prefix}: structconvert not found under $SCHRODINGER, "
+            f"skipped")
+        return None
+    c = subprocess.run([conv, topo.com_pdb, mae], cwd=topo.workdir,
+                       capture_output=True, text=True)
+    if not os.path.isfile(mae):
+        err = (c.stderr or c.stdout or "").strip().splitlines()
+        log(f"    {prefix}: the complex could not be converted for Prime"
+            f"{(' (' + err[-1][:80] + ')') if err else ''}, skipped")
+        return None
+
+    flags, ff = prime_forcefield(log)
+    log(f"    {prefix}: Prime MM-GBSA on {ff} with VSGB 2.0")
+    cmd = [os.path.join(schro, "prime_mmgbsa"), os.path.basename(mae),
+           "-ligand", "chain.name " + LIGAND_CHAIN,
+           "-jobname", prefix, "-WAIT", "-NOJOBID", "-OVERWRITE"] + flags
+    r = subprocess.run(cmd, cwd=topo.workdir, capture_output=True, text=True)
+
+    csv = os.path.join(topo.workdir, prefix + "-out.csv")
+    if not os.path.isfile(csv):
+        err = (r.stderr or r.stdout or "").strip().splitlines()
+        log(f"    {prefix}: Prime produced no output table"
+            f"{(' (' + err[-1][:110] + ')') if err else ''}, skipped")
+        return None
+
+    dg = _read_prime_csv(csv)
+    if dg is None:
+        log(f"    {prefix}: {_PRIME_DG} was not in Prime's output, skipped")
+        return None
+    if abs(dg) > 500:
+        log(f"    {prefix}: dG {dg:.0f} kcal/mol is not physical "
+            "(unrelieved clashes), discarded")
+        return None
+    log(f"    {prefix}: dG {dg:.2f} kcal/mol ({ff})")
+    # Which force field this number came from, beside the number itself. The
+    # column holds two different quantities otherwise, with nothing saying so.
+    try:
+        with open(os.path.join(topo.workdir,
+                               prefix + ".forcefield"), "w") as fh:
+            fh.write(ff + "\n")
+    except OSError:
+        pass
+    return dg
+
+
+def _read_prime_csv(path):
+    """The binding energy from Prime's output table, or None."""
+    import csv as _csv
+    try:
+        with open(path, newline="") as fh:
+            for row in _csv.DictReader(fh):
+                v = row.get(_PRIME_DG)
+                if v not in (None, ""):
+                    try:
+                        return float(v)
+                    except ValueError:
+                        return None
+    except OSError:
+        return None
+    return None
+
+
 def _one_pose(rec, mol, workdir, seq, rank, prep_ph, log,
-              intdiel=INTDIEL, radii=RADII):
+              intdiel=INTDIEL, radii=RADII, engine="amber"):
     """One (construct, pose) unit, in a directory of its own.
 
     Its own directory because tleap always writes leap.log into the working
@@ -566,7 +930,8 @@ def _one_pose(rec, mol, workdir, seq, rank, prep_ph, log,
     than a collision.
     """
     wd = os.path.join(workdir, seq, "pose%d" % rank)
-    return run_amber(rec, mol, wd, seq, log, prep_ph, intdiel, radii)
+    return engine_runner(engine)(rec, mol, wd, seq, log, prep_ph, intdiel,
+                                 radii)
 
 
 def _read_cache(path, intdiel=None, radii=None):
@@ -816,7 +1181,7 @@ def run(constructs: list[dict], rec, poses: dict, workdir: str, log=print,
         prep_ph: float | None = 7.4, n_poses: int = 1, workers: int = 1,
         aggregate: str = "best", details: dict | None = None,
         intdiel: float = INTDIEL, radii: str | None = None,
-        model: str | None = None) -> dict:
+        model: str | None = None, engine: str = "") -> dict:
     """Rescore each construct. Returns sequence -> dG, missing where it failed.
 
     `model` ("obc2" or "gbn2") picks the generalised Born model for a run whose
@@ -841,7 +1206,20 @@ def run(constructs: list[dict], rec, poses: dict, workdir: str, log=print,
         return {}
     b = backend()
     if b is None:
-        log("  SKIPPING MM-GBSA: neither AmberTools nor Schrodinger Prime found")
+        log("  SKIPPING MM-GBSA: no MM-GBSA engine is installed. AmberTools "
+            "needs tleap and MMPBSA.py on PATH; Prime needs $SCHRODINGER set, "
+            "which on a cluster usually means module load Schrodinger.")
+        return {}
+    # An engine named by the caller is honoured; otherwise the default above.
+    from . import gbengines
+    engine = (engine or "").strip().lower() or BACKEND_ENGINE.get(b, b)
+    eng = gbengines.get(engine)
+    engine = eng.name
+    if not eng.available():
+        usable = gbengines.installed()
+        log(f"  SKIPPING MM-GBSA: the {eng.label} engine was asked for and is "
+            f"not installed here. Available: "
+            f"{', '.join(usable) if usable else 'none'}.")
         return {}
     if radii:
         # Asked for by name: the folder's energies are recomputed under it,
@@ -858,8 +1236,17 @@ def run(constructs: list[dict], rec, poses: dict, workdir: str, log=print,
                 f"energies stay comparable with each other; start a new run "
                 f"for {MODELS[model]['label']}")
     mname, igb = model_of(radii)
-    log(f"  MM-GBSA backend: {b}, {MODELS[mname]['label']} (igb={igb}) with "
-        f"{radii} radii and an interior dielectric of {float(intdiel):g}")
+    if engine == "schrodinger":
+        log(f"  MM-GBSA engine: {eng.label}, {eng.solvation}. Its numbers are "
+            f"on their own scale and go in the {eng.column} column.")
+    elif engine == "openmm":
+        log(f"  MM-GBSA engine: {eng.label}, {eng.forcefield} with "
+            f"{MODELS[mname]['label']}, {radii} radii and an interior "
+            f"dielectric of {float(intdiel):g}, minimised to a gradient")
+    else:
+        log(f"  MM-GBSA engine: {eng.label}, {MODELS[mname]['label']} "
+            f"(igb={igb}) with {radii} radii and an interior dielectric of "
+            f"{float(intdiel):g}")
     os.makedirs(workdir, exist_ok=True)
     n_poses = max(1, int(n_poses))
 
@@ -875,7 +1262,8 @@ def run(constructs: list[dict], rec, poses: dict, workdir: str, log=print,
         if not mols:
             continue
         wanted[seq] = len(mols)
-        have = _read_cache(os.path.join(workdir, seq + ".dg"), intdiel,
+        have = _read_cache(os.path.join(workdir, cache_name(seq, engine)),
+                           intdiel,
                            radii)
         cached[seq] = {r: v for r, v in have.items() if r <= len(mols)}
         for i, m in enumerate(mols, 1):
@@ -900,7 +1288,7 @@ def run(constructs: list[dict], rec, poses: dict, workdir: str, log=print,
             seq, rank, mol = unit
             quiet = (lambda *a: None) if workers > 1 else log
             dg = _one_pose(rec, mol, workdir, seq, rank, prep_ph, quiet,
-                           intdiel, radii)
+                           intdiel, radii, engine)
             with lock:
                 done[0] += 1
                 if workers > 1:
@@ -922,7 +1310,8 @@ def run(constructs: list[dict], rec, poses: dict, workdir: str, log=print,
                 results.setdefault(seq, {})[rank] = dg
         for seq in wanted:
             if results.get(seq):
-                _write_cache(os.path.join(workdir, seq + ".dg"), results[seq],
+                _write_cache(os.path.join(workdir, cache_name(seq, engine)),
+                             results[seq],
                              intdiel, radii)
 
     out = {}

@@ -84,6 +84,10 @@ def default(**kw):
         # before it used, or "gbn2", Amber's GBn2 with its own radii. Both
         # run in AmberTools. A run keeps the model its MM-GBSA started with.
         "mmgbsa_model": "obc2",
+        # Which program computes the energy. AmberTools is the default
+        # because every number this project has published came from it, so a
+        # run that does not ask for anything else stays comparable with them.
+        "mmgbsa_engine": "amber",
         "mmgbsa_poses": 5,
         # How the poses of one peptide become a single number. The
         # table reports the mean of the top few either way, with the
@@ -154,6 +158,19 @@ def key(sequence):
     import re
     return sequence if sequence.isalpha() else re.sub(r"[^A-Za-z0-9]+", "_",
                                                       sequence).strip("_")
+
+
+#: The engine names the registry knows. Read from it rather than written out
+#: again, so this cannot drift from what can actually run.
+def _gb_engine_names():
+    try:
+        from ._vendor import gbengines
+        return tuple(gbengines.ORDER)
+    except Exception:                                          # noqa: BLE001
+        return ("amber", "openmm", "schrodinger")
+
+
+GB_ENGINES = _gb_engine_names()
 
 
 def validate(j):
@@ -233,6 +250,9 @@ def validate(j):
     if j.get("mmgbsa_model", "obc2") not in ("obc2", "gbn2"):
         out.append("The MM-GBSA model must be obc2 (GB-OBC(II)) or gbn2 "
                    "(GBn2), not %r." % j.get("mmgbsa_model"))
+    if j.get("mmgbsa_engine", "amber") not in GB_ENGINES:
+        out.append("The MM-GBSA engine must be one of %s, not %r."
+                   % (", ".join(GB_ENGINES), j.get("mmgbsa_engine")))
     if j.get("mmgbsa") and int(j.get("mmgbsa_poses", 0)) < 1:
         out.append("MM-GBSA is on but no poses were chosen to rescore.")
     if j.get("mmgbsa") and int(j.get("mmgbsa_poses", 0)) > int(j.get("poses", 0)):

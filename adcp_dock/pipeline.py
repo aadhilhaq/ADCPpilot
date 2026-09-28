@@ -298,7 +298,8 @@ def stage_dock(rundir, index, j=None, log=print):
                        workers=workers,
                        aggregate=j.get("mmgbsa_aggregate", "mean"),
                        details=detail,
-                       model=j.get("mmgbsa_model") or "obc2")
+                       model=j.get("mmgbsa_model") or "obc2",
+                       engine=j.get("mmgbsa_engine") or "amber")
             d = detail.get(seq) or {}
             vals = list(d.get("values") or [])
             got = list(d.get("ranks") or [])
@@ -326,6 +327,9 @@ def stage_dock(rundir, index, j=None, log=print):
             # a new run; a run scored before they were set keeps mbondi).
             out["mmgbsa_radii"] = d.get("radii")
             out["mmgbsa_model"] = d.get("model")
+            # Which engine produced these numbers. Without it the column is
+            # three different quantities with nothing to tell them apart.
+            out["mmgbsa_engine"] = j.get("mmgbsa_engine") or "amber"
             _panel_scored(rundir, j, seq, out, mmdir, folders, kept, good,
                           log=log)
         else:

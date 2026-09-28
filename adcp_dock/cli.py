@@ -191,6 +191,15 @@ def main(argv=None):
                         "GB-OBC(II), the default; or gbn2, GBn2 with its own "
                         "radii. Both run in AmberTools. Compare peptides only "
                         "within one model")
+    n.add_argument("--mmgbsa-engine",
+                   choices=("amber", "openmm", "schrodinger"),
+                   default="amber",
+                   help="which program computes the MM-GBSA energy: amber, "
+                        "AmberTools, the default and the reference; openmm, "
+                        "the same force field and topology solved again; or "
+                        "schrodinger, Prime with OPLS and VSGB 2.0. Each "
+                        "writes its own column. They are not comparable by "
+                        "value, only by rank within one column")
     n.add_argument("--top-n", type=int, default=5)
     n.add_argument("--max-length", type=int, default=peptide.MAX_LENGTH)
     # No default partition. "cpu" is one cluster's name for it and not
@@ -369,6 +378,7 @@ def main(argv=None):
             chains=a.chain, ph=a.ph, minimise=a.minimise, poses=a.poses,
             replicas=a.replicas, steps=a.steps, mmgbsa=a.mmgbsa,
             mmgbsa_poses=a.mmgbsa_poses, mmgbsa_model=a.mmgbsa_model,
+            mmgbsa_engine=a.mmgbsa_engine,
             top_n=a.top_n,
             max_length=a.max_length, partition=a.partition, cpus=a.cpus,
             time=a.time, throttle=a.throttle,

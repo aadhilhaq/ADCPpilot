@@ -810,8 +810,15 @@ __STALE__
           <option value="obc2" selected>GB-OBC(II), the default</option>
           <option value="gbn2">GBn2</option>
         </select></div>
+      <div><label for=mmengine title="Which program computes the MM-GBSA energy. AmberTools is the reference and every earlier number came from it. OpenMM scores the same pose, on the same geometry sander minimised, with its own generalised Born code: it lands within about 1.3 kcal/mol of AmberTools and is a check on the solver rather than a different estimate. Schrodinger Prime uses OPLS with VSGB 2.0, a different model entirely, on its own scale. Each writes its own column and none is compared with another by value.">MM-GBSA engine</label>
+        <select id=mmengine>
+          <option value="amber" selected>AmberTools, the reference</option>
+          <option value="openmm">OpenMM, a second opinion on the same pose</option>
+          <option value="schrodinger">Schrodinger Prime, OPLS</option>
+        </select></div>
       <div><label for=topn>Report the mean of the top</label>
         <input type=number id=topn value="5" min="1" max="50"></div>
+      <div style="flex:1 1 100%"><span class=note id=mmenginenote></span></div>
     </div>
   </div>
   <div class=row style="margin-top:12px">

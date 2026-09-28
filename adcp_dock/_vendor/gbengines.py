@@ -7,18 +7,40 @@ beside an absolute value from another:
 
     AmberTools   ff14SB + OBC(II), igb=5, mbondi2 radii
     OpenMM       ff14SB + OBC(II), the same model on the same topology
-    Schrodinger  OPLS_2005 + VSGB 2.0, a different force field entirely
+    Schrodinger  S-OPLS + VSGB 2.0, or OPLS_2005 when the single force
+                 field licence is taken, which is a different answer again
 
 AmberTools and OpenMM at least share a force field and a topology, so the
-difference between them is the solver and the minimisation. Schrodinger
-shares neither. On this project's own poses, AmberTools and OpenMM agreed on
-the ORDER of five poses exactly while differing by about 32 kcal/mol on the
-value, which is the shape of the problem: these engines are comparable by
-rank and not by number.
+difference between them is the solver, the minimisation and the generalised
+Born implementation. Schrodinger shares none of it.
 
-So each engine writes its own column, none of them is merged into another,
-and the table says which force field and which solvent model produced each
-one. A run may carry all three.
+What was measured, on topologies that were byte for byte the same. The
+variable is how far the pose is relaxed before the energy is taken:
+
+    OpenMM on the geometry sander minimised      1.3 kcal/mol from
+                                                 MMPBSA.py, order unchanged
+    OpenMM given 1000 more steps from there      8.7 out
+    OpenMM minimising the raw pose itself,       29.5 out
+    1000 steps
+    OpenMM minimising the raw pose to            29.6 out, and on a 19
+    convergence                                  residue peptide the pose
+                                                 order reversed
+
+So the two energy models agree and the MINIMISATION was the entire
+difference. sander's maxcyc=1000 is a shallow relaxation while OpenMM's
+L-BFGS converges well inside 1000 iterations: capping it at 1000 steps and
+letting it run to convergence land 29.5 and 29.6 out, which is the same
+answer, so matching the step count cannot recover the reference. The extra
+relaxation loosens the interface and weakens the energy.
+
+The OpenMM engine therefore scores sander's geometry rather than making its
+own, and declines to run at all where sander is absent. Schrodinger is a
+different matter: a different force field and a different solvent model, on
+its own scale, and nothing calibrates it against these two.
+
+Each engine writes its own column, none is merged into another, none is
+compared with another by value, and the table says which force field and
+which solvent model produced each one. A run may carry all three.
 
 WHAT SWAPPING THE ENGINE DOES NOT FIX. On 1BE9, five docked poses of one
 peptide span 21.7 kcal/mol, against a 37.6 kcal/mol range across all twenty
@@ -40,7 +62,9 @@ class Engine:
 
     `column` is where its numbers land, so two engines never overwrite each
     other. `comparable` names the engines whose ABSOLUTE values can sit in
-    the same sentence as this one's; rank is comparable across all of them.
+    the same sentence as this one's. On the measurements below no engine
+    passes that test against any other, so each one's list holds only
+    itself; what the engines share is the RANK, and only within one target.
     """
 
     def __init__(self, name, label, forcefield, solvation, radii,
@@ -86,31 +110,45 @@ class _OpenMM(Engine):
             import openmm.app                                # noqa: F401
         except Exception:                                    # noqa: BLE001
             return False
-        # OpenMM reads the topology AmberTools built, so tleap has to be
-        # there even though sander and MMPBSA.py do not.
-        return bool(shutil.which("tleap") or _in_amberhome("tleap"))
+        # tleap builds the topology and sander produces the geometry, and
+        # this engine needs both. It used to require only tleap, on the
+        # assumption that OpenMM would minimise for itself; that was measured
+        # to put the energy about 30 kcal/mol out, so the geometry is sander's
+        # and sander is a requirement. MMPBSA.py is the part not needed.
+        return all(shutil.which(x) or _in_amberhome(x)
+                   for x in ("tleap", "sander"))
 
 
 class _Schrodinger(Engine):
-    # One MM-GBSA job takes 8 PSP_PLOP tokens out of a pool of 25, so three
-    # is the most that can run at once and a Glide job elsewhere takes five
-    # more. The count is read before a job is dispatched rather than when it
-    # is queued, because the pool moves while a run waits.
+    """Prime MM-GBSA, which needs two different licences to do its best work.
+
+    The rescoring itself takes 8 PSP_PLOP tokens out of 25, so three jobs
+    fit and fewer while Glide is running. But the force field is a separate
+    licence: prime_mmgbsa's own help says the default is S-OPLS "if the
+    proper license is present", and OPLS_VERSION=OPLS_2005 is how you step
+    down from it deliberately.
+
+    On this site FFLD_OPLS_MAIN has ONE seat. So the honest capacity is
+    three jobs on OPLS_2005, or one job on S-OPLS, and a run that assumed
+    three of the modern force field would queue two that quietly fall back
+    to a twenty year old one without saying so.
+
+    Both pools are therefore read, and the force field a job will actually
+    get is reported rather than assumed.
+    """
+
     TOKENS_PER_JOB = 8
     FEATURE = "PSP_PLOP"
+    FF_FEATURE = "FFLD_OPLS_MAIN"
+    FF_MODERN = "S-OPLS"
+    FF_LEGACY = "OPLS_2005"
 
     def available(self):
         root = os.environ.get("SCHRODINGER", "")
         return bool(root and os.path.isfile(os.path.join(root, "prime_mmgbsa")))
 
-    def licences(self, timeout=30):
-        """(free, total) PSP_PLOP tokens, or (None, None) if unreadable.
-
-        license_status is tried first because it is what answers on this
-        site; licadmin is the fallback for installations that only have it.
-        Either way an unreadable pool returns None rather than a guess, and
-        the caller treats that as "do not dispatch" rather than "plenty".
-        """
+    def _status(self, timeout=30):
+        """The licence server's report, or "" if it cannot be read."""
         root = os.environ.get("SCHRODINGER", "")
         tries = [["license_status", "-v", "Schrodinger"]]
         if root:
@@ -121,17 +159,49 @@ class _Schrodinger(Engine):
                                      timeout=timeout).stdout
             except Exception:                                # noqa: BLE001
                 continue
-            free, total = _parse_tokens(out, self.FEATURE)
-            if free is not None:
-                return free, total
-        return None, None
+            if out and "Users of" in out:
+                return out
+        return ""
 
-    def slots(self):
-        """How many MM-GBSA jobs the licence pool can take right now."""
-        free, _total = self.licences()
+    def licences(self, timeout=30):
+        """(free, total) PSP_PLOP tokens, or (None, None) if unreadable."""
+        return _parse_tokens(self._status(timeout), self.FEATURE)
+
+    def forcefield_licences(self, timeout=30):
+        """(free, total) seats for the modern force field."""
+        return _parse_tokens(self._status(timeout), self.FF_FEATURE)
+
+    def slots(self, timeout=30):
+        """How many MM-GBSA jobs the rescoring pool can take right now."""
+        free, _total = self.licences(timeout)
         if free is None:
             return None
         return max(0, free // self.TOKENS_PER_JOB)
+
+    def plan(self, timeout=30):
+        """What can actually run, and with which force field.
+
+        Returned rather than decided here, because a caller may reasonably
+        prefer three OPLS_2005 jobs to one S-OPLS job or the other way
+        round, and that is not this module's choice to make.
+        """
+        out = self._status(timeout)
+        free, total = _parse_tokens(out, self.FEATURE)
+        ff_free, ff_total = _parse_tokens(out, self.FF_FEATURE)
+        if free is None:
+            return {"readable": False, "jobs": None, "modern_jobs": None,
+                    "forcefield": None, "why": "the licence pool could not "
+                                               "be read"}
+        jobs = max(0, free // self.TOKENS_PER_JOB)
+        modern = 0 if ff_free is None else min(jobs, ff_free)
+        return {"readable": True,
+                "jobs": jobs, "tokens_free": free, "tokens_total": total,
+                "modern_jobs": modern,
+                "ff_free": ff_free, "ff_total": ff_total,
+                "forcefield": self.FF_MODERN if modern else self.FF_LEGACY,
+                "why": ("%d job(s) fit; %d of them can use %s, the rest fall "
+                        "back to %s"
+                        % (jobs, modern, self.FF_MODERN, self.FF_LEGACY))}
 
 
 def _in_amberhome(exe):
@@ -173,29 +243,40 @@ def _parse_tokens(text, feature):
 AMBER = _Amber(
     name="amber", label="AmberTools",
     forcefield="ff14SB", solvation="OBC(II), igb=5", radii="mbondi2",
-    column="mmgbsa", comparable=("amber", "openmm"),
+    column="mmgbsa", comparable=("amber",),
     note="The reference. Every number this project has published so far "
          "came from here, so it is the one an older run can be compared "
-         "with.")
+         "with. Its dG includes the surface term (ESURF), which is part of "
+         "what the SA in MM-GBSA means.")
 
 OPENMM = _OpenMM(
     name="openmm", label="OpenMM",
     forcefield="ff14SB", solvation="OBC(II)", radii="mbondi2",
-    column="mmgbsa_openmm", comparable=("amber", "openmm"),
-    note="The same force field and the same topology as AmberTools, "
-         "minimised to a gradient rather than to a step count. Roughly 30 "
-         "times faster. Its values sit about 30 kcal/mol above AmberTools' "
-         "on this project's poses while giving the same order, so read the "
-         "rank and not the number.")
+    column="mmgbsa_openmm", comparable=("openmm",),
+    note="A second opinion on the same pose. It replaces MMPBSA.py and not "
+         "sander: the geometry is the one sander minimised, and OpenMM "
+         "computes that geometry's energy with its own generalised Born "
+         "code. On this project's poses it lands within 1.3 kcal/mol of "
+         "AmberTools with the pose order unchanged, so it is a check on the "
+         "solver rather than a different estimate. Letting it minimise for "
+         "itself was tried and put the energy about 30 kcal/mol out, so it "
+         "does not.")
 
 SCHRODINGER = _Schrodinger(
     name="schrodinger", label="Schrodinger Prime",
-    forcefield="OPLS_2005", solvation="VSGB 2.0", radii="n/a",
+    # S-OPLS when the single FFLD_OPLS_MAIN seat is free, OPLS_2005 when it
+    # is not. Which one a job got is recorded with the result rather than
+    # assumed from here.
+    forcefield="S-OPLS, or OPLS_2005 without the licence",
+    solvation="VSGB 2.0", radii="n/a",
     column="mmgbsa_schrodinger", comparable=("schrodinger",),
     note="A different force field and a different solvent model, so its "
          "numbers are not on the same scale as the other two and are never "
-         "merged with them. One job takes 8 of the 25 PSP_PLOP tokens, so "
-         "at most three run at once, and fewer while Glide is running.")
+         "merged with them. Two licences are needed and they do not have "
+         "the same depth: the rescoring takes 8 of 25 PSP_PLOP tokens, so "
+         "three jobs fit, while the modern force field has a single seat. "
+         "Three jobs on OPLS_2005 or one on S-OPLS, and which one a result "
+         "came from is recorded with it.")
 
 ENGINES = {e.name: e for e in (AMBER, OPENMM, SCHRODINGER)}
 ORDER = ["amber", "openmm", "schrodinger"]

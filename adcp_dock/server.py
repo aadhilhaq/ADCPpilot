@@ -252,10 +252,36 @@ class App:
                 "optional_missing": [n for n, p in T.report()
                                      if not p and n not in toolmod.REQUIRED],
                 "mmgbsa": T.can_rescore(),
+                # Which MM-GBSA engines this machine can actually run, with
+                # what each one computes. The page offers only these: an
+                # engine offered but not installed produces a run that
+                # rescores nothing and a table that cannot be ranked on.
+                "gb_engines": self._gb_engines(),
                 # ADCP 1.1, when it is installed: the page offers it, its
                 # non-standard residue syntax and OpenMM minimization.
                 "adcp11": self._adcp11()[0],
                 "adcp11_version": self._adcp11()[1]}
+
+    def _gb_engines(self):
+        """Every MM-GBSA engine, described, with whether it is installed.
+
+        Described rather than just named, because the three do not compute
+        the same quantity and the person choosing has to be told so before
+        they choose rather than after they compare two columns.
+        """
+        from ._vendor import gbengines
+        out = []
+        for row in gbengines.catalogue():
+            if row["name"] == "schrodinger":
+                # The licence, not just the program: Prime needs 8 of the 25
+                # rescoring tokens and the modern force field has one seat,
+                # so what is free decides what a run would actually get.
+                try:
+                    row["licence"] = gbengines.SCHRODINGER.plan(timeout=5)
+                except Exception:                              # noqa: BLE001
+                    row["licence"] = {"readable": False}
+            out.append(row)
+        return out
 
     def _adcp11(self):
         """(executable or None, version), looked up once per server."""

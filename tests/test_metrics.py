@@ -450,19 +450,61 @@ check("the printed table does not lecture about engines",
 check("nor about minimisation cycle limits", "cycle limit" not in txt)
 
 print("one engine per number, and it is named")
-# Every reported energy is AmberTools. OpenMM runs in this tool too, at the
-# receptor's preparation and in ADCP 1.1's pose minimisation, and mixing the
-# two under one label would put GBn2 (igb=8) numbers beside OBC(II) (igb=5)
-# ones. This guards the energy path against a second engine being wired in.
+# This used to forbid the energy path from importing OpenMM at all, on the
+# grounds that mixing two engines under one label would put GBn2 (igb=8)
+# numbers beside OBC(II) (igb=5) ones. Three engines are wired in now, so the
+# proxy no longer fits, but the thing it protected still holds and is checked
+# directly below instead: no engine's number may reach another engine's
+# column or another engine's cache.
+#
+# One half of the old rule survives as written. Whichever engine computes the
+# energy, the TOPOLOGY comes from tleap, so the atoms, the protonation and the
+# radii are the ones AmberTools built. An engine that built its own topology
+# from OpenMM's bundled force field files would be reading a different
+# molecule while writing into the same table, and amber14-all.xml is how that
+# would happen.
 for _mod in ("metrics.py", "mmgbsa.py"):
     _src = open(os.path.join(ROOT, "adcp_dock", "_vendor", _mod),
                 encoding="utf-8").read().lower()
-    # GBn2 is allowed by name: it is also Amber's own igb=8, and that is the
-    # only GBn2 this path may run. OpenMM and its force field files are not.
-    check("%s imports no OpenMM and loads none of its force fields" % _mod,
-          "import openmm" not in _src and "from openmm" not in _src
-          and "amber14" not in _src,
-          "the energy path must be AmberTools only")
+    check("%s loads none of OpenMM's own force fields" % _mod,
+          "amber14" not in _src and "app.forcefield(" not in _src
+          and "openmm.app.forcefield" not in _src and ".xml" not in _src,
+          "every engine must read the topology tleap built")
+# metrics.py is a different matter: it reads energies, it does not compute
+# them, so it has no business touching any engine.
+_msrc = open(os.path.join(ROOT, "adcp_dock", "_vendor", "metrics.py"),
+             encoding="utf-8").read().lower()
+check("metrics.py runs no MM-GBSA engine of its own",
+      "import openmm" not in _msrc and "from openmm" not in _msrc)
+
+from adcp_dock._vendor import gbengines as _gb                  # noqa: E402
+from adcp_dock._vendor import mmgbsa as _mmg                    # noqa: E402
+_cols = [_gb.ENGINES[n].column for n in _gb.ORDER]
+check("each engine writes its own column", len(_cols) == len(set(_cols)),
+      str(_cols))
+_caches = [_mmg.cache_name("SEQ", n) for n in _gb.ORDER]
+check("each engine writes its own cache", len(_caches) == len(set(_caches)),
+      str(_caches))
+# The expensive one: every run on disk wrote the bare name with AmberTools.
+check("AmberTools keeps the cache name every existing run used",
+      _mmg.cache_name("SEQ") == "SEQ.dg", _mmg.cache_name("SEQ"))
+for _n in _gb.ORDER:
+    if _n == "amber":
+        continue
+    check("%s cannot overwrite AmberTools' cache" % _n,
+          _mmg.cache_name("SEQ", _n) != "SEQ.dg")
+    check("%s cannot write AmberTools' column" % _n,
+          _gb.ENGINES[_n].column != _gb.AMBER.column)
+    check("%s resolves to its own runner, not AmberTools'" % _n,
+          _mmg.engine_runner(_n) is not _mmg.run_amber)
+# And no engine claims its absolute values compare with another's. They do
+# not: on identical topologies OpenMM came out 24 to 32 kcal/mol from
+# AmberTools on a 5 residue peptide and 52 to 65 on a 19 residue one.
+for _a in _gb.ORDER:
+    for _b in _gb.ORDER:
+        if _a != _b:
+            check("%s and %s are not comparable by value" % (_a, _b),
+                  not _gb.comparable(_a, _b))
 
 print("the solvation model, a choice inside AmberTools")
 from adcp_dock._vendor import mmgbsa as _mm                     # noqa: E402

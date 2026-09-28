@@ -25,6 +25,45 @@ let ADCP11 = false;
 api('/api/tools').then(d => {
   if(d.error) return;
   const miss = d.missing || [];
+// Offer only the MM-GBSA engines this machine can run, and say what the
+// chosen one computes. Three engines that do not compute the same quantity
+// is only safe while the person is told which one they picked: the numbers
+// look alike and land in columns a reader will put side by side.
+function gbEngines(rows){
+  const sel = $('mmengine'), note = $('mmenginenote');
+  if(!sel) return;
+  const have = {};
+  (rows || []).forEach(function(r){ have[r.name] = r; });
+  let first = '';
+  Array.prototype.forEach.call(sel.options, function(o){
+    const r = have[o.value];
+    o.disabled = !(r && r.available);
+    if(r && r.available && !first) first = o.value;
+    if(r && !r.available) o.textContent = o.textContent.replace(
+      /( \(not installed\))?$/, ' (not installed)');
+  });
+  // Never leave a disabled engine selected: the run would rescore nothing.
+  if(sel.selectedOptions[0] && sel.selectedOptions[0].disabled && first)
+    sel.value = first;
+  function say(){
+    const r = have[sel.value];
+    if(!r){ note.textContent = ''; return; }
+    let t = r.forcefield + ', ' + r.solvation;
+    if(r.radii && r.radii !== 'n/a') t += ', ' + r.radii + ' radii';
+    t += '. ' + (r.note || '');
+    const L = r.licence;
+    if(L && L.readable){
+      t += ' Right now ' + L.jobs + ' job' + (L.jobs === 1 ? '' : 's')
+         + ' fit, ' + L.modern_jobs + ' of them on ' + 'S-OPLS.';
+    } else if(L){
+      t += ' The licence pool could not be read from here.';
+    }
+    note.textContent = t;
+  }
+  sel.addEventListener('change', say);
+  say();
+}
+
   const cores = d.cores || 1;
   $('toolnote').innerHTML = miss.length
     ? '<span class=bad>missing: ' + miss.map(esc).join(', ') + '</span>'
@@ -46,6 +85,7 @@ api('/api/tools').then(d => {
     $('adcp_engine').querySelector('option[value="1.1"]').disabled = true;
     $('omm_minimize').disabled = true;
   }
+  gbEngines(d.gb_engines);
   // Without AmberTools the rescoring cannot run, so it cannot be chosen.
   // The box arrives ticked, because that is the right default wherever it
   // can run. Here it is unticked and locked, and a submission with it on
@@ -1211,6 +1251,7 @@ $('submit').onclick = async () => {
     poses:+$('poses').value, replicas:+$('replicas').value, steps:+$('steps').value,
     mmgbsa: $('mmgbsa').checked, mmgbsa_poses:+$('mmposes').value,
     mmgbsa_model: $('mmmodel').value,
+    mmgbsa_engine: $('mmengine').value,
     top_n:+$('topn').value,
     cpus:+$('cpus').value, time: $('walltime').value,
     throttle:+$('throttle').value,
@@ -1510,7 +1551,8 @@ const REUSE_FIELDS = {
   pad:'box_padding', bmin:'box_min', bmax:'box_max',
   ph:'ph', poses:'poses', replicas:'replicas', steps:'steps',
   cpus:'cpus', walltime:'time', throttle:'throttle',
-  mmposes:'mmgbsa_poses', mmmodel:'mmgbsa_model', topn:'top_n',
+  mmposes:'mmgbsa_poses', mmmodel:'mmgbsa_model',
+  mmengine:'mmgbsa_engine', topn:'top_n',
   adcp_engine:'adcp_engine',
   omm_minimize:'omm_minimize', targetfile:'target_file',
   account:'account', sbatch_extra:'sbatch_extra'
