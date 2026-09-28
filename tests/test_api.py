@@ -1754,7 +1754,10 @@ _uionly = {"reccode", "pastetext", "issuenote", "issuemail", "showbox",
            # will let a page put a value back into it, for the obvious
            # reason. What the upload PRODUCES is a path in recpath, and
            # that is what reuse restores.
-           "recfile"}
+           "recfile",
+           # The same for the peptide list. What it produces is the peptide
+           # rows, and reuse restores those from the job's own peptides.
+           "pepfile"}
 _ids = set(_re2.findall(
     r'<(?:input|select|textarea)[^>]*id=([A-Za-z_0-9]+)', _html)) - _uionly
 _a = appjs.find("const REUSE_FIELDS")

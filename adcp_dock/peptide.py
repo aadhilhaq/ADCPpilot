@@ -213,8 +213,63 @@ def looks_like_a_name(line):
             and all(w.isupper() and w.isalpha() for w in rest))
 
 
+# Column names a header row might use, so a CSV that says which way round it
+# is does not have to be guessed at.
+_NAME_WORDS = ("name", "label", "id", "peptide_name", "construct")
+_SEQ_WORDS = ("sequence", "seq", "peptide", "aa", "residues")
+
+
+def _reads_as_sequence(text, **kw):
+    """True when this field is a usable sequence on its own.
+
+    Used to work out which half of a two column row is the sequence, so both
+    `SEQUENCE,name` and `name,SEQUENCE` work without being told which.
+    """
+    t = (text or "").strip()
+    if not t:
+        return False
+    seq, probs = check(t, **kw)
+    return bool(seq) and not probs
+
+
+def _split_pair(line):
+    """A line split on a tab, a comma or a semicolon, if it is in two parts.
+
+    A colon is handled separately and earlier, because `name: SEQUENCE` is
+    the documented one line form. Only a clean two field split counts: three
+    or more fields is a spreadsheet row this function should not guess at.
+    """
+    for sep in ("\t", ",", ";"):
+        if sep in line:
+            parts = [x.strip() for x in line.split(sep)]
+            parts = [x for x in parts if x != ""]
+            if len(parts) == 2:
+                return parts
+            return None
+    return None
+
+
+def _header_order(line):
+    """(sequence index, name index) if this line names its columns."""
+    parts = _split_pair(line)
+    if not parts:
+        return None
+    low = [x.strip().lower() for x in parts]
+    if low[0] in _SEQ_WORDS and low[1] in _NAME_WORDS:
+        return 0, 1
+    if low[0] in _NAME_WORDS and low[1] in _SEQ_WORDS:
+        return 1, 0
+    return None
+
+
 def parse_many(text, **kw):
-    """One sequence per line, `name: SEQUENCE`, or a multi-record FASTA.
+    """One sequence per line, `name: SEQUENCE`, a two column row, or FASTA.
+
+    A two column row separated by a tab, a comma or a semicolon works in
+    either order: the field that reads as a sequence is taken as the
+    sequence and the other as the name. A header row naming the columns
+    settles it for the whole list, which is what a spreadsheet export
+    carries anyway.
 
     Returns [(name, seq, problems)]. Blank lines and `#` comments are dropped;
     duplicates are kept, since two identical peptides in a list is a mistake
@@ -226,6 +281,7 @@ def parse_many(text, **kw):
     out = []
     name = None
     buf = []
+    order = None
 
     def flush():
         if buf or name:
@@ -246,6 +302,56 @@ def parse_many(text, **kw):
             flush()
             name, buf[:] = None, []
             continue
+        # A header row fixes the order for everything after it, so a list
+        # whose names happen to be spellable in amino acid letters is not
+        # guessed at row by row.
+        if name is None and not out and order is None:
+            got = _header_order(line)
+            if got:
+                order = got
+                continue
+        if name is None:
+            pair = _split_pair(line)
+            if pair:
+                if order is not None:
+                    si, ni = order
+                    seq, probs = check(pair[si], **kw)
+                    out.append((pair[ni].strip() or seq[:12], seq, probs))
+                    continue
+                first = _reads_as_sequence(pair[0], **kw)
+                second = _reads_as_sequence(pair[1], **kw)
+                if first != second:
+                    # exactly one of them is a sequence, so there is nothing
+                    # to decide
+                    si, ni = (0, 1) if first else (1, 0)
+                    seq, probs = check(pair[si], **kw)
+                    out.append((pair[ni].strip() or seq[:12], seq, probs))
+                    continue
+                if first and second:
+                    # Both spell out in amino acid letters, which ordinary
+                    # words do: "native" is N A T I V E. Case settles most
+                    # of them, because a sequence is written in capitals and
+                    # a label usually is not.
+                    up = [x.isupper() for x in pair]
+                    if up[0] != up[1]:
+                        si, ni = (0, 1) if up[0] else (1, 0)
+                        seq, probs = check(pair[si], **kw)
+                        out.append((pair[ni].strip() or seq[:12], seq, probs))
+                        continue
+                    # Still tied, so the first column is taken as the
+                    # sequence and the row says so rather than choosing
+                    # silently.
+                    seq, probs = check(pair[0], **kw)
+                    probs = list(probs) + [Problem(
+                        "ambiguous_columns",
+                        "Both columns read as sequences, so the first was "
+                        "taken as the sequence and '%s' as the name. Put a "
+                        "header row, 'sequence,name' or 'name,sequence', to "
+                        "say which is which." % pair[1])]
+                    out.append((pair[1].strip(), seq, probs))
+                    continue
+                # neither is a sequence: fall through and report on the line
+                # as a whole rather than inventing a split
         if name is None and ":" in line:
             label, _c, rest = line.partition(":")
             if label.strip() and rest.strip():

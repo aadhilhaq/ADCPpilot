@@ -152,8 +152,23 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .jobrow .jst{flex:1 1 auto}
 /* A required box left empty is marked where it is, because a message at the
    bottom of the form is often out of sight of the box. */
+/* The theme button, matching the launcher's: an icon that says which way
+   the switch goes, and a one word label. */
+#themebtn{display:inline-flex;align-items:center;gap:6px}
+#themebtn svg{width:13px;height:13px;fill:currentColor;flex:0 0 auto}
+#themebtn .moon{display:none}
+:root[data-theme=dark] #themebtn .moon{display:inline}
+:root[data-theme=dark] #themebtn .sun{display:none}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme=light]) #themebtn .moon{display:inline}
+  :root:not([data-theme=light]) #themebtn .sun{display:none}}
 .missing,.missing:focus{border-color:var(--warn) !important;
   outline:2px solid var(--warn)}
+/* A container is not an input. #peps has no border for a border colour to
+   change and no height when it is empty, so an outline traced nothing and
+   the page said something was missing while showing nothing in red. */
+.missingbox{border:1px dashed var(--warn);border-radius:6px;
+  min-height:34px;padding:6px 9px;outline:none !important}
 /* The note must not move anything. In flow it would make its row taller and
    shift every control beside it, so it is taken out of flow and placed under
    its box. */
@@ -561,7 +576,7 @@ __STALE__
       <button class=ghost id=citebtn>How to cite</button>
       <button class=ghost id=feedback>Send feedback</button>
       <button class=ghost id=themebtn aria-pressed=false
-              title="Switch between light and dark">Dark mode</button>
+              title="Switch between light and dark"><svg class=sun viewBox="0 0 24 24" aria-hidden=true><path d="M12 17a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-13a1 1 0 0 1-1-1V2a1 1 0 0 1 2 0v1a1 1 0 0 1-1 1zm0 18a1 1 0 0 1-1-1v-1a1 1 0 0 1 2 0v1a1 1 0 0 1-1 1zM4 13H3a1 1 0 0 1 0-2h1a1 1 0 0 1 0 2zm17 0h-1a1 1 0 0 1 0-2h1a1 1 0 0 1 0 2zM6.3 7.7 5.6 7a1 1 0 0 1 1.4-1.4l.7.7a1 1 0 0 1-1.4 1.4zm11 11-.7-.7a1 1 0 0 1 1.4-1.4l.7.7a1 1 0 0 1-1.4 1.4zm.7-11a1 1 0 0 1-.7-1.7l.7-.7A1 1 0 0 1 19.4 7l-.7.7a1 1 0 0 1-.7.3zm-11 11a1 1 0 0 1-.7-1.7l.7-.7a1 1 0 0 1 1.4 1.4l-.7.7a1 1 0 0 1-.7.3z"/></svg><svg class=moon viewBox="0 0 24 24" aria-hidden=true><path d="M12.3 22a10 10 0 0 1-1.4-19.9 1 1 0 0 1 1 1.6 7.5 7.5 0 0 0 9.4 11.3 1 1 0 0 1 1.3 1.4A10 10 0 0 1 12.3 22z"/></svg><span id=themelab>Dark</span></button>
       <span class=sub id=toolnote></span>
     </div>
   </div>
@@ -661,7 +676,18 @@ __STALE__
   <div class=bar>
     <button id=addpep>+ Add peptide</button>
     <button class=ghost id=pastepep>Paste a list&hellip;</button>
+    <!-- The server has always accepted .txt, .csv, .fasta, .fa and .seq
+         peptide lists; there was simply no control to send one, so a list
+         could only be pasted. The file is read in the browser, the same way
+         the receptor is, because the page is served through a tunnel and the
+         cluster cannot see the machine the browser runs on. -->
+    <button class=ghost id=pepfilebtn>Upload a list&hellip;</button>
+    <input type=file id=pepfile style="display:none"
+           accept=".txt,.csv,.fasta,.fa,.seq,text/plain">
     <span style="flex:1"></span>
+    <!-- Its own element. #pepcount is rewritten by the validation debounce
+         160 ms after any change, so a message put there disappears. -->
+    <span class=why id=pepmsg></span>
     <span class=why id=pepcount></span>
   </div>
   <div id=pastebox class="hide" style="margin-top:11px">

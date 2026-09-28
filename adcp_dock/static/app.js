@@ -302,6 +302,9 @@ function toggleHot(k){
   HOT.sort((a, b) => a.split(':')[0].localeCompare(b.split(':')[0])
                      || (+a.split(':')[1]) - (+b.split(':')[1]));
   $('hotspots').value = HOT.join(', ');
+  /* Assigning to .value fires no input event, so the mark has to be cleared
+     here rather than by the listener. */
+  if(typeof refreshMissing === 'function') refreshMissing();
   drawChips(); markSeq(); stylePicker(); siteSoon();
 }
 function drawChips(){
@@ -314,6 +317,7 @@ function drawChips(){
     c.onclick = () => toggleHot(c.getAttribute('data-k')));
   const cl = $('hotclear');
   if(cl) cl.onclick = () => { HOT = []; $('hotspots').value = '';
+    if(typeof refreshMissing === 'function') refreshMissing();
     drawChips(); markSeq(); stylePicker(); siteSoon(); };
 }
 /* Typing in the box stays authoritative: a list of residue numbers pasted in
@@ -589,6 +593,9 @@ function setCaret(el, off){
 }
 
 function drawPeps(){
+  /* Adding or removing a peptide changes whether "add at least one peptide"
+     is still true, and nothing else was telling the submit panel that. */
+  if(typeof refreshMissing === 'function') setTimeout(refreshMissing, 0);
   $('peps').innerHTML = PEPS.map((p, i) =>
     '<div class=ent data-i="' + i + '">'
     /* The entry number, which is what a user looks for when a message names
@@ -907,6 +914,48 @@ $('pasteadd').onclick = async () => {
   $('pastebox').classList.add('hide');
   drawPeps();
 };
+/* A peptide list from a file, read in the browser and sent through the same
+ * parser a paste uses. The server has always accepted these; there was no
+ * control to send one, so a list could only be pasted. */
+$('pepfilebtn').onclick = () => $('pepfile').click();
+$('pepfile').onchange = async () => {
+  const f = $('pepfile').files && $('pepfile').files[0];
+  if(!f) return;
+  const MB = 4;
+  if(f.size > MB * 1024 * 1024){
+    pepmsg('That list is ' + (f.size / 1e6).toFixed(1) + ' MB; the limit is '
+           + MB + ' MB.', true);
+    $('pepfile').value = '';
+    return;
+  }
+  let text;
+  try { text = await f.text(); }
+  catch(e){ pepmsg('could not read that file: ' + e, true);
+            $('pepfile').value = ''; return; }
+  /* Cleared either way, so the same file can be chosen again after a fix. */
+  $('pepfile').value = '';
+  const d = await api('/api/paste', {text: text, max_length: MAXLEN,
+                                     adcp_engine: $('adcp_engine').value});
+  if(d.error){ pepmsg(d.error, true); return; }
+  if(!d.peptides || !d.peptides.length){
+    pepmsg('no peptides were found in ' + f.name +
+           '. One per line, or two columns: sequence and name, either way '
+           + 'round.', true);
+    return;
+  }
+  if(PEPS.length === 1 && !PEPS[0].sequence) PEPS = [];
+  d.peptides.forEach(p => PEPS.push({name: p.name, sequence: p.sequence}));
+  const bad = d.peptides.filter(p => p.problems && p.problems.length).length;
+  drawPeps();
+  pepmsg(d.peptides.length + ' peptide(s) read from ' + f.name +
+         (bad ? ', ' + bad + ' with something to check' : ''), !!bad);
+};
+function pepmsg(text, bad){
+  const e = $('pepmsg');
+  if(!e) return;
+  e.innerHTML = bad ? '<span class=bad>' + esc(text) + '</span>' : esc(text);
+}
+
 $('mmgbsa').onchange = () =>
   $('mmopts').classList.toggle('hide', !$('mmgbsa').checked);
 
@@ -973,6 +1022,8 @@ function minToHhmm(m){
 function clearMissing(){
   document.querySelectorAll('.missing').forEach(e =>
     e.classList.remove('missing'));
+  document.querySelectorAll('.missingbox').forEach(e =>
+    e.classList.remove('missingbox'));
   document.querySelectorAll('.missingnote').forEach(e => e.remove());
   document.querySelectorAll('.row.hasnotes').forEach(e =>
     e.classList.remove('hasnotes'));
@@ -981,6 +1032,7 @@ function clearMissingOn(id){
   const e = $(id);
   if(!e) return;
   e.classList.remove('missing');
+  e.classList.remove('missingbox');
   const w = e.closest('.fieldwrap') || e.parentNode;
   const n = w && w.querySelector('.missingnote');
   if(n) n.remove();
@@ -988,6 +1040,10 @@ function clearMissingOn(id){
 function markMissing(id, why){
   const e = $(id);
   if(!e) return;
+  /* A container with no border shows nothing when only its border colour is
+     set, and an empty one has no height for an outline to trace. The peptide
+     list is such a container, so it is given something to draw. */
+  if(e.tagName === 'DIV') e.classList.add('missingbox');
   e.classList.add('missing');
   // The note is placed out of flow, under the box it belongs to. In flow it
   // would make its row taller and shift every control beside it; the row keeps
@@ -1016,13 +1072,38 @@ function missingFields(){
     out.push(['outdir', 'Choose where the run directory goes.']);
   return out;
 }
-/* Clear the complaint as soon as the box is filled, rather than at the next
-   submit. */
+/* Clear a complaint as soon as it stops being true.
+ *
+ * This used to listen for input events on four of the five required fields.
+ * That missed two cases and both of them left a message on screen that the
+ * page could no longer explain:
+ *
+ *   peptides are not a field at all. #peps is a div, so nothing types into
+ *   it, and adding a peptide never cleared the mark. The outline stayed on a
+ *   container with no border, so the count said one thing was missing while
+ *   nothing on the page was red.
+ *
+ *   hotspots are normally picked by clicking residues in the viewer, which
+ *   writes the box's value directly. Assigning to .value fires no input
+ *   event, so that mark never cleared either.
+ *
+ * So the check is re-run against the data instead of being hung off
+ * keystrokes, and everything that is no longer missing is cleared. */
+function refreshMissing(){
+  const still = new Set(missingFields().map(m => m[0]));
+  ['recpath','hotspots','peps','label','outdir'].forEach(id => {
+    if(!still.has(id)) clearMissingOn(id);
+  });
+  const msg = $('submsg');
+  if(msg && /still needed/.test(msg.textContent || '')){
+    if(!still.size) msg.textContent = '';
+    else msg.innerHTML = '<span class=bad>' + still.size
+      + (still.size === 1 ? ' thing is' : ' things are') + ' still needed</span>';
+  }
+}
 ['recpath','hotspots','label','outdir'].forEach(id => {
   const e = $(id);
-  if(e) e.addEventListener('input', () => {
-    if(e.value.trim()) clearMissingOn(id);
-  });
+  if(e) e.addEventListener('input', refreshMissing);
 });
 
 $('submit').onclick = async () => {
@@ -1116,7 +1197,10 @@ function isDark(){
 }
 function themeButton(){
   const dark = isDark();
-  $('themebtn').textContent = dark ? 'Light mode' : 'Dark mode';
+  /* Only the label is rewritten. Setting textContent would remove the two
+     icons, which are markup rather than something this redraws. */
+  const lab = $('themelab');
+  if(lab) lab.textContent = dark ? 'Light' : 'Dark';
   $('themebtn').setAttribute('aria-pressed', dark ? 'true' : 'false');
 }
 /* The 3D canvases paint their own background over the page's, so they have to
