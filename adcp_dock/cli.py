@@ -241,6 +241,20 @@ def main(argv=None):
                          "once per pose, so this is for a workstation, not a "
                          "cluster login node.")
 
+    rs = sub.add_parser("rescore",
+                        help="score a finished run's poses again with another "
+                             "MM-GBSA engine, then rebuild its report")
+    rs.add_argument("rundir")
+    rs.add_argument("--engine", required=True,
+                    choices=("amber", "openmm", "schrodinger"),
+                    help="the engine to score with. The run's own MM-GBSA "
+                         "values, which it is ranked on, are left as they "
+                         "are; this one's numbers appear beside them as "
+                         "their own columns")
+    rs.add_argument("--here", action="store_true",
+                    help="run it on this machine instead of submitting it to "
+                         "SLURM. It minimises every pose, so this is for a "
+                         "workstation, not a cluster login node.")
     p = sub.add_parser("affinity",
                        help="what a target Kd is worth in kcal/mol")
     p.add_argument("rundir", nargs="?",
@@ -420,6 +434,15 @@ def main(argv=None):
         pipeline.stage_report(a.rundir)
         return 0
 
+    if a.cmd == "rescore":
+        if a.here:
+            pipeline.stage_rescore(a.rundir, a.engine)
+            pipeline.stage_report(a.rundir)
+        else:
+            got = pipeline.submit_rescore(a.rundir, a.engine)
+            print("submitted: rescore %s, report %s"
+                  % (got.get("rescore"), got.get("report")))
+        return 0
     if a.cmd == "panel":
         if a.here:
             pipeline.stage_panel(a.rundir)

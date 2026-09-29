@@ -5,6 +5,13 @@
    By Aadhil Haq */
 'use strict';
 const T = new URLSearchParams(location.search).get('t') || '';
+// The MM-GBSA engines the server reported, filled in by the tools call and
+// read by the results view's rescore control and per engine columns. At the
+// top level on purpose: declared inside the tools callback, as they first
+// were, the results view could not see them and threw on every open.
+let GBAVAIL = [];
+const GBLABEL = {amber: 'AmberTools', openmm: 'OpenMM',
+                 schrodinger: 'Prime'};
 const $ = i => document.getElementById(i);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g,
   c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -29,6 +36,7 @@ api('/api/tools').then(d => {
 // chosen one computes. Three engines that do not compute the same quantity
 // is only safe while the person is told which one they picked: the numbers
 // look alike and land in columns a reader will put side by side.
+
 function gbEngines(rows){
   const sel = $('mmengine'), note = $('mmenginenote');
   if(!sel) return;
@@ -44,6 +52,7 @@ function gbEngines(rows){
   }
   const have = {};
   rows.forEach(function(r){ have[r.name] = r; });
+  GBAVAIL = rows;
   let first = '';
   Array.prototype.forEach.call(sel.options, function(o){
     const r = have[o.value];
@@ -72,6 +81,12 @@ function gbEngines(rows){
            + (L.jobs === 1 ? '' : 's') + ' can use it') : 'no licence free now');
     } else if(L){
       t += '. Licences unreadable from here';
+    }
+    // Not installed on a machine that has the suite means the install is
+    // somewhere this does not know to look. Say where it looked.
+    if(r.available === false && r.search && r.search.looked){
+      t += ' Not found here. Looked at: '
+         + r.search.looked.join('; ') + '.';
     }
     note.textContent = t + '.';
     sel.title = (r.note || '');
@@ -1687,7 +1702,15 @@ function colgroups(rows, tn, mm, omm){
         + 'so the share is an upper bound.',
        f: r => (r.cluster_top == null ? '-' : r.cluster_top + ' ('
                 + pc(r.cluster_frac * 100, 0) + '%)')});
-  if(mm) G.push({key: 'mm', label: 'MM-GBSA', on: true, cols: [
+  // Which engine the run was ranked on, in the group's own heading. Three
+  // engines on three scales means a bare "MM-GBSA" no longer says which
+  // number it is.
+  const mmEng = (rows.find(r => r.mmgbsa_engine) || {}).mmgbsa_engine;
+  const engs = ['amber', 'openmm', 'schrodinger']
+    .filter(e => rows.some(r => r['mmgbsa_' + e + '_n']));
+  if(mm) G.push({key: 'mm', label: 'MM-GBSA'
+      + (mmEng && GBLABEL[mmEng] ? ' (' + GBLABEL[mmEng] + ')' : ''),
+    on: true, cols: [
     {h: 'best', cls: 'c', f: r => fmt(r.mmgbsa_best, 2)},
     {h: 'top' + tn, cls: 'c', f: r => fmt(r['mmgbsa_top' + tn], 2)},
     {h: 'median', cls: 'c', f: r => fmt(r.mmgbsa_median, 2)},
@@ -1696,6 +1719,19 @@ function colgroups(rows, tn, mm, omm){
       + 'much the poses disagree; it is not a statistical test of the ranking.',
      f: r => (r.mmgbsa_n || '-') + ' / ' + fmt(r.mmgbsa_spread, 1)},
   ]});
+  // One pair of columns per engine, once more than one has scored the run.
+  // Each is on its own scale (on one 1BE9 pose AmberTools gave -48.07 and
+  // Prime -72.88), so they are read down a column, never across a row.
+  if(engs.length > 1) G.push({key: 'mmeng', label: 'MM-GBSA by engine',
+    on: true, cols: [].concat.apply([], engs.map(e => [
+      {h: GBLABEL[e] + ' best', cls: 'c',
+       t: 'The best pose energy from ' + GBLABEL[e] + ', in kcal/mol. The '
+         + 'engines are on different scales: compare peptides down this '
+         + 'column, not this number with another engine’s.',
+       f: r => fmt(r['mmgbsa_' + e + '_best'], 2)},
+      {h: GBLABEL[e] + ' top' + tn, cls: 'c',
+       t: 'The mean over the top ' + tn + ' poses from ' + GBLABEL[e] + '.',
+       f: r => fmt(r['mmgbsa_' + e + '_top' + tn], 2)}]))});
   if(any(rows, 'mm_vdw')) G.push({key: 'terms', label: 'MM-GBSA breakdown',
     on: true, cols: [
     {h: 'pose', cls: 'c', t: 'Which ADCP pose these parts, and every '
@@ -1882,7 +1918,33 @@ function resultsTable(rows, tn, mm, omm, res){
     + (any(rows, 'bsa')
       ? '<div class=why style="margin-top:4px">The interface columns describe '
         + 'one pose per peptide, the one with the lowest MM-GBSA energy. Hover '
-        + 'over a heading to see what it measures.</div>' : '');
+        + 'over a heading to see what it measures.</div>' : '')
+    + rescoreControl(rows);
+}
+
+/* Score a finished run again with another MM-GBSA engine. Offered only for
+   engines that are installed and have not already scored this run, since
+   rescoring with one that has adds nothing. The run stays ranked on the
+   engine it was run with; the new numbers arrive as their own columns. */
+function rescoreControl(rows){
+  if(!rows.some(r => r.mmgbsa_n)) return '';
+  const done = ['amber', 'openmm', 'schrodinger']
+    .filter(e => rows.some(r => r['mmgbsa_' + e + '_n']));
+  const base = (rows.find(r => r.mmgbsa_engine) || {}).mmgbsa_engine;
+  if(base && done.indexOf(base) < 0) done.push(base);
+  const can = (GBAVAIL || []).filter(e => e.available
+                                          && done.indexOf(e.name) < 0);
+  if(!can.length) return '';
+  return '<div class=panelnote>Score this run with another engine: '
+    + '<select id=rescoreeng style="width:auto;margin:0 6px">'
+    + can.map(e => '<option value="' + esc(e.name) + '">'
+        + esc(GBLABEL[e.name] || e.label) + '</option>').join('')
+    + '</select><button class="ghost sm" id=rescorego>Rescore</button> '
+    + '<span class=why>Nothing is docked again. The same poses are scored '
+    + 'with the other engine and appear beside the existing numbers; the '
+    + 'table stays ranked on ' + esc(GBLABEL[base] || 'the original engine')
+    + '.</span><div class=why id=rescoremsg style="margin-top:6px"></div>'
+    + '</div>';
 }
 
 /* The pinned columns have to be told where to stop, and the second heading
@@ -2013,6 +2075,23 @@ async function openRun(dir){
         if(tr.getAttribute('data-pep') === picked.pep) tr.classList.add('on');
       });
     }
+    const rg = $('rescorego');
+    if(rg) rg.onclick = async () => {
+      const engine = $('rescoreeng').value;
+      rg.disabled = true;
+      $('rescoremsg').textContent = 'submitting...';
+      const r = await api('/api/rescore', {rundir: dir, engine: engine});
+      if(r.error){
+        $('rescoremsg').innerHTML = '<span class=bad>' + esc(r.error)
+          + '</span>';
+        rg.disabled = false;
+        return;
+      }
+      $('rescoremsg').innerHTML = '<span class=good>Submitted.</span> The '
+        + esc(GBLABEL[engine] || engine) + ' columns appear here when it '
+        + 'finishes.';
+      show();
+    };
     const pg = $('panelgo');
     if(pg) pg.onclick = async () => {
       pg.disabled = true;
@@ -2164,10 +2243,15 @@ async function showResidues(dir, pep){
     + '<th class=c title="This residue\u2019s share of the MM-GBSA energy, in '
     + 'kcal/mol. Negative helps binding. The shares add up to within a few '
     + 'per cent of the MM-GBSA value, not exactly.">energy</th></tr></thead>'
-    + '<tbody>' + list.map(r => '<tr' + (r.site === '1' ? ' class=site' : '')
-      + '><td class=resnm>' + esc(r.resname) + ' ' + esc(r.chain) + esc(r.resnum)
+    + '<tbody>' + list.map((r, i) => '<tr class="resgo'
+      + (r.site === '1' ? ' site' : '') + '" data-side="'
+      + (r.side === 'peptide' ? 'peptide' : 'receptor') + '" data-chain="'
+      + esc(r.chain) + '" data-resi="' + esc(r.resnum) + '" data-i="' + i
+      + '" title="Show this residue and what it touches in the 3D view">'
+      + '<td class=resnm>' + esc(r.resname) + ' ' + esc(r.chain) + esc(r.resnum)
       + (r.site === '1' ? ' <span class=pill title="One of the residues the '
-         + 'docking box was built around">site</span>' : '') + '</td>'
+         + 'docking box was built around. Click the row to see its '
+         + 'contacts in the 3D view.">site</span>' : '') + '</td>'
       + '<td>' + esc(kindText(r.kinds)) + '</td>'
       + '<td class=c>' + (r.d_min == null ? '-' : fmt(r.d_min, 1) + ' \u00c5')
       + '</td><td class=c>' + (r.dg == null ? '-' : fmt(r.dg, 2)) + '</td></tr>')
@@ -2190,8 +2274,67 @@ async function showResidues(dir, pep){
        + 'again adds them.</div>' : '')
     + '<div class=why style="margin-top:6px">Energy is each residue\u2019s '
     + 'share of the MM-GBSA value; negative helps binding. The shares add up '
-    + 'to within a few per cent of the MM-GBSA value, not exactly. The full '
+    + 'to within a few per cent of the MM-GBSA value, not exactly. Click a '
+    + 'residue to see it and what it touches in the 3D view. The full '
     + 'map is in <code>metrics/</code>.</div>';
+  box.querySelectorAll('tr.resgo').forEach(tr => tr.onclick = () =>
+    focusResidue(tr, d.pose, pepRows));
+}
+
+/* A residue in the table, shown in the 3D view with what it touches.
+
+   The table describes one particular pose, so the viewer is moved to that
+   pose first: focusing a residue on a different pose would show contacts the
+   table does not describe.
+
+   Receptor residues match by chain and number, which both sides take from
+   the prepared receptor. Peptide residues do NOT: the table comes from the
+   MM-GBSA complex, where the peptide is chain B numbered on from the
+   receptor's last residue (B252 and so on), while the viewer labels it
+   chain Z and keeps ADCP's numbering. So a peptide residue is matched by its
+   position in the peptide, which both agree on. */
+async function focusResidue(tr, pose, pepRows){
+  const side = tr.getAttribute('data-side');
+  const chain = tr.getAttribute('data-chain');
+  const resi = +tr.getAttribute('data-resi');
+  if(pose != null && +$('rposepick').value !== +pose){
+    $('rposepick').value = String(pose);
+    await loadPose(+pose);
+  }
+  if(!VR || MODEL === null || !CONTACTS){ return; }
+  let want = [];
+  if(side === 'peptide'){
+    // The i-th peptide residue in the table is the i-th in the viewer.
+    const order = pepRows.map(r => +r.resnum);
+    const at = order.indexOf(resi);
+    const inView = [...new Set(MODEL.selectedAtoms({chain: PEPCHAIN})
+      .map(a => a.resi))].sort((a, b) => a - b);
+    const vr = at >= 0 ? inView[at] : undefined;
+    const seen = {};
+    CONTACTS.pairs.forEach(pp => {
+      if(pp.bchain === PEPCHAIN && pp.bresi === vr){
+        const k = focusKey(pp.chain, pp.resi);
+        if(!seen[k]){ seen[k] = 1; want.push({chain: pp.chain, resi: pp.resi}); }
+      }
+    });
+  } else {
+    if(CONTACTS.pairs.some(pp => pp.chain === chain && pp.resi === resi))
+      want = [{chain: chain, resi: resi}];
+  }
+  document.querySelectorAll('tr.resgo.on').forEach(x => x.classList.remove('on'));
+  if(!want.length){
+    $('viewmsg').textContent = tr.querySelector('.resnm').textContent.trim()
+      + ' makes no contact in this pose';
+    return;
+  }
+  tr.classList.add('on');
+  RFOCUS = want; RFOCUSFRAMED = false;
+  draw(false);
+  $('viewmsg').textContent = tr.querySelector('.resnm').textContent
+    .replace(/\s*site\s*$/, '').trim() + ' and what it touches';
+  const v = $('viewR');
+  if(v && v.scrollIntoView) v.scrollIntoView({behavior: 'smooth',
+                                               block: 'center'});
 }
 $('rposepick').onchange = () => loadPose(+$('rposepick').value);
 

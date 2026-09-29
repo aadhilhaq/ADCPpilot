@@ -755,6 +755,55 @@ for _p in ("poseviewer/*.pdb", "poseviewer/*.mae", "poseviewer/*.maegz",
     check(_p in _bundle.RESULTS, "a results download carries %s" % _p)
 
 
+# --------------------------------------------------------------------------
+# More than one MM-GBSA engine on a run, and rescoring a finished one.
+print("several MM-GBSA engines on one run")
+from adcp_dock import report as _rep                            # noqa: E402
+_r = _rep.summarise("LLKWHY", [{"score": -14.0}], mm=[-25.0], name="P1",
+                    engine="ADCP 1.1.21", mmgbsa_engine="amber",
+                    mm_by_engine={"amber": [-25.0], "openmm": [-26.3]})
+# The docking engine and the MM-GBSA engine are different questions. Reading
+# one for the other labelled every energy in the .mae files "ADCP 1.1.21".
+check(_r["engine"] == "ADCP 1.1.21" and _r["mmgbsa_engine"] == "amber",
+      "a row keeps the docking engine and the MM-GBSA engine apart")
+check(_r.get("mmgbsa_openmm_best") == -26.3 and _r.get("mmgbsa_amber_best") == -25.0,
+      "each engine that scored a peptide has its own columns")
+_old = _rep.summarise("LLKWHY", [{"score": -14.0}], mm=[-25.0])
+check(_old["mmgbsa_engine"] == "amber",
+      "a run from before engines were selectable reads as AmberTools")
+_pv = _inspect.getsource(_pl.stage_poseviewer)
+check('r.get("mmgbsa_engine")' in _pv and 'props["MMGBSA_engine"] = str(r["engine"])' not in _pv,
+      "the pose viewer labels the MM-GBSA engine from mmgbsa_engine, not engine")
+
+# Rescoring leaves the numbers a run is RANKED on exactly as they were: the
+# engines are on different scales, so re-ranking on another would change a
+# finished table's order on a number that was never its basis.
+_rs = _inspect.getsource(_pl.stage_rescore)
+check('open(f, "w")' not in _rs and "json.dump(" not in _rs,
+      "a rescoring does not rewrite the run's result files")
+check('engine=eng.name' in _rs, "a rescoring runs the engine it was asked for")
+check('1 if eng.name == "schrodinger"' in _rs,
+      "Prime rescores one pose at a time, so one column is one force field")
+check(callable(getattr(_pl, "submit_rescore", None)),
+      "a rescoring can be sent to the queue")
+from adcp_dock import worker as _wk                              # noqa: E402
+check('startswith("rescore:")' in _inspect.getsource(_wk.main),
+      "the worker runs a rescore stage")
+
+# The page's shared engine values must be at the top level of app.js. They
+# were first declared inside the tools callback, where the results view could
+# not see them, and every run threw on opening. A syntax check passes that.
+_js = open(os.path.join(os.path.dirname(HERE), "adcp_dock", "static",
+                        "app.js"), encoding="utf-8").read()
+for _name in ("let GBAVAIL", "const GBLABEL"):
+    _line = [l for l in _js.splitlines() if l.startswith(_name)]
+    check(bool(_line), "%s is declared at the top level of app.js" % _name)
+# Peptide residues are matched by position: the residue map numbers the
+# peptide on from the receptor (B252 ...), the viewer keeps ADCP's numbers.
+check("inView[at]" in _js and "focusResidue" in _js,
+      "a peptide residue is found in the viewer by its position, not its label")
+
+
 if fails:
     print("test_engine FAILED (%d)" % len(fails))
     for f in fails:

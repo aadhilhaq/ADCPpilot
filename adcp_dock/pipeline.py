@@ -775,9 +775,12 @@ def stage_poseviewer(rundir, j=None, rows=None, log=print):
             props["MMGBSA"] = float(r["mmgbsa_best"])
         # Which engine produced that number, beside the number. The three are
         # on different scales, so a value with no engine against it cannot be
-        # read.
+        # read. mmgbsa_engine, not engine: "engine" is the DOCKING program,
+        # and reading it here labelled every energy "ADCP 1.1.21".
+        if r.get("mmgbsa_engine"):
+            props["MMGBSA_engine"] = str(r["mmgbsa_engine"])
         if r.get("engine"):
-            props["MMGBSA_engine"] = str(r["engine"])
+            props["Docking_engine"] = str(r["engine"])
         # The sequence is in the file name whatever the peptide is called:
         # names default to "peptide 1", which identifies nothing once the
         # folder is opened a week later, and two peptides may share a name
@@ -846,6 +849,14 @@ def stage_report(rundir, j=None, log=print):
                                      top_n=int(j.get("top_n", 5)),
                                      openmm=r.get("openmm"),
                                      engine=r.get("engine", ""),
+                                     mmgbsa_engine=r.get("mmgbsa_engine", ""),
+                                     # Every engine that has scored this
+                                     # peptide, read from its own cache, so
+                                     # an engine run on this job afterwards
+                                     # shows up as its own columns.
+                                     mm_by_engine=mmgbsa.engines_on_disk(
+                                         os.path.join(rundir, "mmgbsa"),
+                                         r["peptide"]),
                                      name=(r.get("name")
                                            or by_seq.get(r["peptide"], "")),
                                      # A peptide rescored before the panel
@@ -1115,6 +1126,131 @@ def submit(rundir, j=None, python=None, log=print):
     j["state"] = "submitted"
     jobmod.save(rundir, j)
     return j["jobs"]
+
+
+def stage_rescore(rundir, engine, j=None, log=print):
+    """Score a finished run's poses again with another MM-GBSA engine.
+
+    Nothing is docked again and nothing already computed is touched. The same
+    poses the run scored are read back from the docking folders, handed to
+    the chosen engine, and its numbers are written into that engine's own
+    cache beside the existing ones. The report then reads every engine that
+    has scored the run, so the new numbers appear as their own columns.
+
+    The run's own MM-GBSA values, the ones it is RANKED on, are left exactly
+    as they were. Ranking a finished table on a different engine would change
+    its order after the fact on a number that was never its basis, and the
+    engines are not on one scale: on the same 1BE9 pose AmberTools gave
+    -48.07 and Prime -72.88.
+
+    The same poses as the original scoring, by construction: the count comes
+    from the run's own mmgbsa_poses and the poses are read in ADCP's rank
+    order, so a comparison between two engines is always pose for pose.
+    """
+    import glob
+    import json
+    from ._vendor import gbengines
+    j = j or jobmod.load(rundir)
+    eng = gbengines.get(engine)
+    if eng.name != str(engine).strip().lower():
+        raise SystemExit("unknown MM-GBSA engine %r; choose one of %s"
+                         % (engine, ", ".join(gbengines.ORDER)))
+    if not eng.available():
+        raise SystemExit("the %s engine is not installed where this is "
+                         "running" % eng.label)
+
+    results = sorted(glob.glob(os.path.join(rundir, "results", "*.json")))
+    if not results:
+        log("no results to rescore")
+        return 0
+    rec = _rec_for_mmgbsa(j, log)
+    mmdir = os.path.join(rundir, "mmgbsa")
+    n_want = int(j.get("mmgbsa_poses", 5))
+    ph = float(j.get("ph", 7.4))
+    # Prime runs one job at a time. Its force field is a separate licence
+    # with a single seat here, so several jobs at once would put some poses
+    # on S-OPLS and the rest on OPLS_2005 in one column, which is two
+    # different quantities with nothing to tell them apart.
+    workers = 1 if eng.name == "schrodinger" else max(
+        1, min(int(j.get("mm_workers", 8)), int(j.get("cpus", 8) or 8)))
+
+    log("rescoring %d peptide(s) with %s, %d pose(s) each"
+        % (len(results), eng.label, n_want))
+    done = 0
+    for f in results:
+        r = json.load(open(f))
+        seq = r.get("peptide") or ""
+        if not seq:
+            continue
+        if peptide.is_extended(seq):
+            log("  %s: non-standard or D residues, which no MM-GBSA "
+                "engine here has parameters for; skipped" % seq)
+            continue
+        pdir = os.path.join(rundir, "docking", jobmod.key(seq))
+        mols = []
+        for k in range(1, n_want + 1):
+            pose = adcp.read_pose(pdir, k)
+            if pose is None:
+                break
+            mol = poseviewer.transplant(seq, pose, ph=ph)
+            if mol is not None:
+                mols.append(mol)
+        if not mols:
+            log("  %s: no pose could be rebuilt; skipped" % seq)
+            continue
+        log("  %s: %d pose(s)" % (seq, len(mols)))
+        mmgbsa.run([{"sequence": seq}], rec, {seq: mols}, mmdir, log=log,
+                   prep_ph=ph, n_poses=len(mols), workers=workers,
+                   aggregate=j.get("mmgbsa_aggregate", "mean"),
+                   model=j.get("mmgbsa_model") or "obc2",
+                   engine=eng.name)
+        done += 1
+
+    # Which engines have scored this run, so the page can say so without
+    # reading every cache.
+    have = set(j.get("mmgbsa_engines_run") or
+               [j.get("mmgbsa_engine") or "amber"])
+    have.add(eng.name)
+    j["mmgbsa_engines_run"] = [e for e in gbengines.ORDER if e in have]
+    jobmod.save(rundir, j)
+    log("rescored %d peptide(s) with %s" % (done, eng.label))
+    return done
+
+
+def submit_rescore(rundir, engine, j=None, python=None, log=print):
+    """Send a rescoring to SLURM, then rebuild the report behind it.
+
+    Submitted rather than run here: it minimises every pose with sander and
+    scores it, or runs Prime, which is not work for the machine serving the
+    page. The report is chained behind it so the new columns appear when it
+    finishes, and afterany so a partial rescoring still shows what it got.
+    """
+    from ._vendor import gbengines
+    j = j or jobmod.load(rundir)
+    eng = gbengines.get(engine)
+    stage = "rescore:%s" % eng.name
+    if slurm.local_mode():
+        return _submit_local(rundir, j, [("rescore", [stage]),
+                                         ("report", ["report"])], python, log)
+    if not slurm.available():
+        raise SystemExit("sbatch was not found. This tool submits its work to "
+                         "SLURM rather than running it where you are sitting.")
+    common = _scripts(rundir, j, python)
+    s1 = slurm.write_script(
+        os.path.join(rundir, "05_rescore_%s.sbatch" % eng.name),
+        name=job_name(rundir, j, "rescore"),
+        cpus=1 if eng.name == "schrodinger" else min(16, int(j.get("cpus", 48))),
+        time=j.get("rescore_time", "06:00:00"), stage=stage, **common)
+    id1 = slurm.submit(s1)
+    log("rescore (%s): %s" % (eng.label, id1))
+    s2 = slurm.write_script(os.path.join(rundir, "03_report.sbatch"),
+                            name=job_name(rundir, j, "report"), cpus=2,
+                            time="01:00:00", stage="report", **common)
+    id2 = slurm.submit(s2, depends_on=id1, kind="afterany")
+    log("report: %s" % id2)
+    j.setdefault("jobs", {}).update({"rescore": id1, "report": id2})
+    jobmod.save(rundir, j)
+    return {"rescore": id1, "report": id2, "engine": eng.name}
 
 
 def submit_panel(rundir, j=None, python=None, log=print):

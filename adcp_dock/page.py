@@ -496,6 +496,14 @@ td.nm{text-align:left;white-space:nowrap}
   border-bottom:1px solid var(--line)}
 .restbl td.resnm{text-align:left}
 .restbl tr.site td{background:var(--soft)}
+/* Every residue opens the 3D view on itself and what it touches. The
+   pointer and the hover say so; the chosen one stays marked, so it is clear
+   which residue the view is showing. */
+.restbl tr.resgo{cursor:pointer}
+.restbl tr.resgo:hover td{background:var(--soft)}
+.restbl tr.resgo.on td{background:var(--soft);
+  box-shadow:inset 3px 0 0 var(--accent)}
+.restbl tr.resgo.on td+td{box-shadow:none}
 .panelnote{margin:9px 0 2px;padding:10px 12px;border:1px solid var(--line);
   border-radius:10px;font-size:13px}
 /* Row actions have to fit on one line beside the run. */

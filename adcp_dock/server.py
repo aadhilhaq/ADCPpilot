@@ -280,6 +280,15 @@ class App:
                     row["licence"] = gbengines.SCHRODINGER.plan(timeout=3)
                 except Exception:                              # noqa: BLE001
                     row["licence"] = {"readable": False}
+                # Where it looked, when it did not find it. "Not installed"
+                # on a cluster that has the suite means a path this code
+                # does not know, and saying what was tried is the only way
+                # to learn which one.
+                if not row.get("available"):
+                    try:
+                        row["search"] = gbengines.schrodinger_search_report()
+                    except Exception:                          # noqa: BLE001
+                        row["search"] = None
             out.append(row)
         return out
 
@@ -752,6 +761,33 @@ class App:
             return {"error": str(exc)}
         except Exception as exc:                                # noqa: BLE001
             return {"error": "could not submit the measurement: %s" % exc}
+
+    def rescore_run(self, rundir, engine):
+        """Score a finished run's poses again with another MM-GBSA engine.
+
+        Submitted to the scheduler, like the panel: it minimises every pose,
+        which is not work for the machine serving this page. The run's own
+        values, the ones it is ranked on, are left alone; the new engine's
+        numbers appear beside them as their own columns once the report
+        chained behind it has run.
+        """
+        from ._vendor import gbengines
+        if not rundir or not os.path.isfile(jobmod.path_of(rundir)):
+            return {"error": "no such run"}
+        engine = str(engine or "").strip().lower()
+        if engine not in gbengines.ORDER:
+            return {"error": "choose an engine: %s"
+                             % ", ".join(gbengines.ORDER)}
+        eng = gbengines.get(engine)
+        if not eng.available():
+            return {"error": "%s is not installed here" % eng.label}
+        try:
+            return {"jobs": pipeline.submit_rescore(rundir, engine,
+                                                    log=lambda *a: None)}
+        except SystemExit as exc:
+            return {"error": str(exc)}
+        except Exception as exc:                                # noqa: BLE001
+            return {"error": "could not submit the rescoring: %s" % exc}
 
     def resume_run(self, rundir):
         if not rundir or not os.path.isfile(jobmod.path_of(rundir)):
@@ -1363,6 +1399,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(app.resume_run(body.get("rundir")))
         if u.path == "/api/panel":
             return self._send(app.panel_run(body.get("rundir")))
+        if u.path == "/api/rescore":
+            return self._send(app.rescore_run(body.get("rundir"),
+                                              body.get("engine")))
         return self._send({"error": "no such endpoint"}, 404)
 
 

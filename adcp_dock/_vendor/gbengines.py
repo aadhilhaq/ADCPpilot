@@ -66,10 +66,25 @@ import time
 #: module that exports $SCHRODINGER is not loaded inside a batch job unless
 #: the job loads it. So the install is looked for as well as asked for.
 SCHRODINGER_ROOTS = (
-    "/sw/restricted/Schrodinger",      # TAMU HPRC, ACES and Grace
+    "/sw/restricted/Schrodinger",      # TAMU HPRC ACES, verified
+    "/sw/restricted/schrodinger",
     "/sw/eb/sw/Schrodinger",
+    "/sw/software/Schrodinger",
+    "/software/Schrodinger",
     "/opt/schrodinger",
+    "/opt/Schrodinger",
     "/usr/local/schrodinger",
+    "/usr/local/Schrodinger",
+)
+
+#: Directories that hold one installation each, searched one level down as
+#: well: /sw/restricted/Schrodinger/2025-3 is the shape on ACES, and a
+#: cluster that keeps releases under a vendor directory is the same shape one
+#: level further in.
+SCHRODINGER_GLOBS = (
+    "/sw/restricted/*/Schrodinger*",
+    "/sw/restricted/*/schrodinger*",
+    "/sw/eb/sw/*/Schrodinger*",
 )
 
 
@@ -85,27 +100,102 @@ def _version_key(path):
     return (int(m.group(1)), int(m.group(2))) if m else (0, 0)
 
 
-def find_schrodinger():
+def _from_module_system():
+    """Where an LMOD module would point, without loading it.
+
+    Clusters install this as a module, and the module is what sets
+    $SCHRODINGER. Inside a batch job nothing has loaded it, so the modulefile
+    is read for the prefix it would export rather than the variable being
+    relied on. This is what makes the search work on a cluster whose install
+    path nobody wrote down here.
+    """
+    out = []
+    mp = os.environ.get("MODULEPATH", "")
+    for base in [d for d in mp.split(":") if d]:
+        for f in glob.glob(os.path.join(base, "**", "[Ss]chrodinger*"),
+                           recursive=True)[:40]:
+            if os.path.isdir(f):
+                continue
+            try:
+                text = open(f, errors="replace").read()
+            except OSError:
+                continue
+            # setenv("SCHRODINGER","/path"), setenv SCHRODINGER /path, and
+            # the prefix a Lua modulefile builds its paths from.
+            for m in re.finditer(
+                    r'(?:SCHRODINGER["\'\s,]+|prefix\s*=\s*")(/[^"\'\s,)]+)',
+                    text):
+                out.append(m.group(1))
+    return out
+
+
+def find_schrodinger(trail=None):
     """The newest Schrodinger install this account can actually run, or None.
 
+    `trail`, if a list is passed, is filled with what was tried, so a page
+    that reports "not installed" can say where it looked instead of leaving
+    somebody to guess. That matters here: the suite is present on both
+    clusters this runs on, under a path only one of which was known when
+    this was written.
+
     Executability is part of the question, not an afterthought: the suite is
-    restricted software on these clusters, so a directory can be there and
-    readable while this account is not in the group that may run it. Offering
-    the engine in that case produces a run that fails at the first pose.
+    restricted software, so a directory can be there and readable while this
+    account is not in the group that may run it. Offering the engine in that
+    case produces a run that fails at the first pose.
     """
-    root = os.environ.get("SCHRODINGER", "")
-    if root and os.access(os.path.join(root, "prime_mmgbsa"), os.X_OK):
-        return root
+    def note(what, ok=False):
+        if trail is not None:
+            trail.append(("found " if ok else "looked at ") + what)
+
     found = []
-    for base in SCHRODINGER_ROOTS:
+
+    root = os.environ.get("SCHRODINGER", "")
+    if root:
+        note("$SCHRODINGER=%s" % root,
+             os.access(os.path.join(root, "prime_mmgbsa"), os.X_OK))
+        if os.access(os.path.join(root, "prime_mmgbsa"), os.X_OK):
+            return root
+    else:
+        note("$SCHRODINGER (not set)")
+
+    # Already on PATH, which is the case once the module is loaded.
+    exe = shutil.which("prime_mmgbsa")
+    if exe:
+        cand = os.path.dirname(os.path.realpath(exe))
+        note("prime_mmgbsa on PATH at %s" % cand, True)
+        return cand
+    note("prime_mmgbsa on PATH (not there)")
+
+    bases = list(SCHRODINGER_ROOTS)
+    for pat in SCHRODINGER_GLOBS:
+        bases.extend(sorted(glob.glob(pat)))
+    for cand in _from_module_system():
+        if cand not in bases:
+            bases.append(cand)
+            note("the module system suggests %s" % cand)
+
+    for base in bases:
+        if not os.path.isdir(base):
+            continue
+        hits = []
         if os.access(os.path.join(base, "prime_mmgbsa"), os.X_OK):
-            found.append(base)
+            hits.append(base)
         for d in glob.glob(os.path.join(base, "*")):
             if os.access(os.path.join(d, "prime_mmgbsa"), os.X_OK):
-                found.append(d)
+                hits.append(d)
+        note("%s (%d usable install(s))" % (base, len(hits)), bool(hits))
+        found.extend(hits)
+
     if not found:
         return None
     return sorted(found, key=_version_key)[-1]
+
+
+def schrodinger_search_report():
+    """Where find_schrodinger looked, for a page that has to explain itself."""
+    trail = []
+    got = find_schrodinger(trail)
+    return {"found": got, "looked": trail}
 
 
 class Engine:

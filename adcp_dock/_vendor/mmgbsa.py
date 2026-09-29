@@ -1025,6 +1025,31 @@ def _write_cache(path, values, intdiel=None, radii=None):
         pass
 
 
+def engines_on_disk(workdir, seq, intdiel=None, radii=None):
+    """{engine: [dG, best first]} for every engine that has scored this
+    construct in this folder.
+
+    Read from the caches rather than from a result file, so a rescoring done
+    later with another engine shows up without anything having to remember
+    to record it. That is what makes a second engine visible in the table
+    after the fact: the numbers are already on disk under their own name.
+    """
+    from . import gbengines
+    out = {}
+    for name in gbengines.ORDER:
+        path = os.path.join(workdir, cache_name(seq, name))
+        if not os.path.isfile(path):
+            continue
+        # Settings are not checked here. A cache written under different
+        # radii is still that engine's answer for this construct, and the
+        # per engine column is a comparison, not the ranking key.
+        got = _read_cache(path)
+        vals = [got[r] for r in sorted(got)]
+        if vals:
+            out[name] = vals
+    return out
+
+
 def radii_for(workdir, default=RADII):
     """The radii a run's MM-GBSA uses: the ones it started with.
 
@@ -1266,7 +1291,8 @@ def run(constructs: list[dict], rec, poses: dict, workdir: str, log=print,
     elif engine == "openmm":
         log(f"  MM-GBSA engine: {eng.label}, {eng.forcefield} with "
             f"{MODELS[mname]['label']}, {radii} radii and an interior "
-            f"dielectric of {float(intdiel):g}, minimised to a gradient")
+            f"dielectric of {float(intdiel):g}, scoring the geometry sander "
+            f"minimised")
     else:
         log(f"  MM-GBSA engine: {eng.label}, {MODELS[mname]['label']} "
             f"(igb={igb}) with {radii} radii and an interior dielectric of "

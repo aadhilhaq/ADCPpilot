@@ -15,8 +15,18 @@ import statistics as st
 TOP_N = 5
 
 
+#: The MM-GBSA engines a row can carry values from, in column order. Each
+#: gets its own columns so their numbers are never read against one another:
+#: they are on different scales, AmberTools and Prime 25 kcal/mol apart on the
+#: same pose.
+GB_ENGINES = ("amber", "openmm", "schrodinger")
+GB_LABELS = {"amber": "AmberTools", "openmm": "OpenMM",
+             "schrodinger": "Prime"}
+
+
 def summarise(peptide, modes, mm=None, top_n=TOP_N, name="", openmm=None,
-              engine="", panel=None, clusters=None):
+              engine="", panel=None, clusters=None, mmgbsa_engine="",
+              mm_by_engine=None):
     """One row. `mm` is [dG] for the poses that were rescored, best-first.
 
     The name is carried from the result file rather than derived from the
@@ -32,6 +42,12 @@ def summarise(peptide, modes, mm=None, top_n=TOP_N, name="", openmm=None,
         # is seven residues.
         "length": len(_residues(peptide)),
         "engine": engine or "",
+        # The DOCKING engine is "engine" above. This is the program that
+        # computed the MM-GBSA numbers, which is a different question with a
+        # different answer, and reading one for the other labels an energy
+        # with the name of a docking program. Runs from before engines were
+        # selectable all used AmberTools.
+        "mmgbsa_engine": (mmgbsa_engine or ("amber" if mm else "")),
         "poses": len(scores),
         "adcp_best": scores[0] if scores else None,
         "adcp_top%d" % top_n: round(st.mean(top), 2) if top else None,
@@ -52,6 +68,18 @@ def summarise(peptide, modes, mm=None, top_n=TOP_N, name="", openmm=None,
             "mmgbsa_spread": (round(max(vals) - min(vals), 2)
                               if len(vals) > 1 else None),
         })
+    # Every engine that has scored this peptide, each in its own columns.
+    # These come from the caches on disk, so an engine run on a past job
+    # afterwards appears here without the result file having to change.
+    for eng in GB_ENGINES:
+        vals = [v for v in ((mm_by_engine or {}).get(eng) or [])
+                if v is not None]
+        if not vals:
+            continue
+        mtop = vals[:top_n]
+        row["mmgbsa_%s_n" % eng] = len(vals)
+        row["mmgbsa_%s_best" % eng] = round(min(vals), 2)
+        row["mmgbsa_%s_top%d" % (eng, top_n)] = round(st.mean(mtop), 2)
     if openmm:
         # ADCP 1.1's OpenMM minimization: E(complex) minus E(receptor) after
         # minimizing, per pose. Reported beside the scores, not ranked by.
@@ -277,6 +305,17 @@ def write(rows, outdir, top_n=TOP_N, constants=None):
     if any(r.get("mmgbsa_n") for r in rows):
         cols += ["mmgbsa_n", "mmgbsa_best", "mmgbsa_top%d" % top_n,
                  "mmgbsa_median", "mmgbsa_sd", "mmgbsa_spread"]
+    # One block per engine that has values anywhere in the run. Shown only
+    # when more than one engine is present: with one, these repeat the
+    # mmgbsa columns above under another name.
+    present = [e for e in GB_ENGINES
+               if any(r.get("mmgbsa_%s_n" % e) for r in rows)]
+    if len(present) > 1:
+        for e in present:
+            cols += ["mmgbsa_%s_n" % e, "mmgbsa_%s_best" % e,
+                     "mmgbsa_%s_top%d" % (e, top_n)]
+    if any(r.get("mmgbsa_engine") for r in rows):
+        cols += ["mmgbsa_engine"]
     if any(r.get("omm_n") for r in rows):
         cols += ["omm_n", "omm_best", "omm_best_pose"]
     if any(r.get("cluster_top") is not None for r in rows):
