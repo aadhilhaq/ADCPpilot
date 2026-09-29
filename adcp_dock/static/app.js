@@ -32,8 +32,18 @@ api('/api/tools').then(d => {
 function gbEngines(rows){
   const sel = $('mmengine'), note = $('mmenginenote');
   if(!sel) return;
+  // No payload means the server could not be asked, NOT that nothing is
+  // installed. Disabling all three on that basis leaves a control nobody can
+  // use and no reason given, so the options are left alone and the note says
+  // the availability is unknown.
+  if(!rows || !rows.length){
+    if(note) note.textContent = 'Which engines are installed could not be '
+      + 'read from the server, so all of them are still offered. A run will '
+      + 'say so if the one you pick is missing.';
+    return;
+  }
   const have = {};
-  (rows || []).forEach(function(r){ have[r.name] = r; });
+  rows.forEach(function(r){ have[r.name] = r; });
   let first = '';
   Array.prototype.forEach.call(sel.options, function(o){
     const r = have[o.value];
