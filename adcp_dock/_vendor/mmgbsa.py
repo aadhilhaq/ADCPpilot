@@ -833,14 +833,18 @@ def run_prime(rec, pose_mol, workdir: str, prefix: str, log=print,
     difference in the answer belongs to the force field and not to the
     preparation. Prime is given the prepared complex, not the raw pose.
     """
-    schro = os.environ.get("SCHRODINGER", "")
-    if not schro or not os.path.isfile(os.path.join(schro, "prime_mmgbsa")):
-        log(f"    {prefix}: $SCHRODINGER is not set, so prime_mmgbsa cannot "
-            f"be found. Load the module first (module load Schrodinger), "
-            f"skipped")
-        return None
-
     from . import gbengines
+    schro = gbengines.find_schrodinger()
+    if not schro:
+        log(f"    {prefix}: no Schrodinger install with prime_mmgbsa was "
+            f"found. Looked at $SCHRODINGER and "
+            f"{', '.join(gbengines.SCHRODINGER_ROOTS)}. Skipped.")
+        return None
+    # The suite's own tools read $SCHRODINGER, so it is exported to them
+    # whether or not the module was loaded in this shell. Inside a batch job
+    # nothing has loaded it, and the engine used to report itself missing on
+    # a machine that has the whole suite.
+    env = dict(os.environ, SCHRODINGER=schro)
     plan = gbengines.SCHRODINGER.plan()
     if plan.get("readable") and not plan.get("jobs"):
         log(f"    {prefix}: every {gbengines.SCHRODINGER.FEATURE} licence is "
@@ -851,6 +855,25 @@ def run_prime(rec, pose_mol, workdir: str, prefix: str, log=print,
     topo = _topologies(rec, pose_mol, workdir, prefix, log, prep_ph, radii)
     if topo is None:
         return None
+    return prime_dg(topo, log, schro, env)
+
+
+def prime_dg(topo, log=print, schro=None, env=None) -> float | None:
+    """The Prime half of run_prime, on a complex that is already prepared.
+
+    Separate for the same reason openmm_dg is: it can then run against a
+    complex an earlier AmberTools run left on disk, which is how this engine
+    was exercised without repeating the preparation. On 1BE9 pose 1 it
+    returned -72.88 kcal/mol on S-OPLS where AmberTools gave -48.07, which is
+    the scale difference the separate column exists for.
+    """
+    from . import gbengines
+    prefix = topo.prefix
+    schro = schro or gbengines.find_schrodinger()
+    if not schro:
+        log(f"    {prefix}: no Schrodinger install found, skipped")
+        return None
+    env = env or dict(os.environ, SCHRODINGER=schro)
 
     # Prime reads Maestro formats, so the prepared complex is converted
     # rather than rebuilt.
@@ -861,7 +884,7 @@ def run_prime(rec, pose_mol, workdir: str, prefix: str, log=print,
             f"skipped")
         return None
     c = subprocess.run([conv, topo.com_pdb, mae], cwd=topo.workdir,
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, env=env)
     if not os.path.isfile(mae):
         err = (c.stderr or c.stdout or "").strip().splitlines()
         log(f"    {prefix}: the complex could not be converted for Prime"
@@ -873,7 +896,8 @@ def run_prime(rec, pose_mol, workdir: str, prefix: str, log=print,
     cmd = [os.path.join(schro, "prime_mmgbsa"), os.path.basename(mae),
            "-ligand", "chain.name " + LIGAND_CHAIN,
            "-jobname", prefix, "-WAIT", "-NOJOBID", "-OVERWRITE"] + flags
-    r = subprocess.run(cmd, cwd=topo.workdir, capture_output=True, text=True)
+    r = subprocess.run(cmd, cwd=topo.workdir, capture_output=True, text=True,
+                       env=env)
 
     csv = os.path.join(topo.workdir, prefix + "-out.csv")
     if not os.path.isfile(csv):

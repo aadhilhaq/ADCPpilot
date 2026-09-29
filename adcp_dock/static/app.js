@@ -55,20 +55,26 @@ function gbEngines(rows){
   // Never leave a disabled engine selected: the run would rescore nothing.
   if(sel.selectedOptions[0] && sel.selectedOptions[0].disabled && first)
     sel.value = first;
+  // One short line on screen. What the engine is and why it matters runs to
+  // a paragraph, and a paragraph sitting in the middle of a form is read
+  // once and then read past, so the long form lives on hover.
   function say(){
     const r = have[sel.value];
-    if(!r){ note.textContent = ''; return; }
-    let t = r.forcefield + ', ' + r.solvation;
-    if(r.radii && r.radii !== 'n/a') t += ', ' + r.radii + ' radii';
-    t += '. ' + (r.note || '');
+    if(!r){ note.textContent = ''; sel.title = ''; return; }
     const L = r.licence;
+    // With the licence readable, name the force field a job would ACTUALLY
+    // get rather than the registry's "one or the other" wording.
+    const ff = (L && L.readable && L.forcefield) ? L.forcefield : r.forcefield;
+    let t = ff + ', ' + r.solvation;
+    if(r.radii && r.radii !== 'n/a') t += ', ' + r.radii + ' radii';
     if(L && L.readable){
-      t += ' Right now ' + L.jobs + ' job' + (L.jobs === 1 ? '' : 's')
-         + ' fit, ' + L.modern_jobs + ' of them on ' + 'S-OPLS.';
+      t += '. ' + (L.jobs ? (L.modern_jobs + ' of ' + L.jobs + ' job'
+           + (L.jobs === 1 ? '' : 's') + ' can use it') : 'no licence free now');
     } else if(L){
-      t += ' The licence pool could not be read from here.';
+      t += '. Licences unreadable from here';
     }
-    note.textContent = t;
+    note.textContent = t + '.';
+    sel.title = (r.note || '');
   }
   sel.addEventListener('change', say);
   say();
@@ -86,11 +92,19 @@ function gbEngines(rows){
                             + 'which is not installed here' : '');
   // ADCP 1.1, when it is installed; without it the 1.1 choices are off.
   ADCP11 = !!d.adcp11;
-  $('enginenote').textContent = d.adcp11
-    ? 'ADCP ' + (d.adcp11_version || '1.1') + ' is installed: non-standard '
-      + 'residues (N<BHD>), D residues (&D) and OpenMM minimization work.'
-    : 'ADCP 1.1 is not installed here, so runs use ADCP 1.0. INSTALL.md says '
-      + 'how to add it.';
+  // Short on screen, full explanation on hover. This sits between two
+  // fields it is explaining, and at paragraph length it pushed them apart.
+  const en = $('enginenote');
+  en.textContent = d.adcp11
+    ? 'ADCP ' + (d.adcp11_version || '1.1') + ' installed.'
+    : 'ADCP 1.0 only.';
+  en.title = d.adcp11
+    ? 'ADCP ' + (d.adcp11_version || '1.1') + ' is installed, so non-standard '
+      + 'residues (N<BHD>), D residues (&D) and OpenMM pose minimization are '
+      + 'available.'
+    : 'ADCP 1.1 is not installed here, so runs use ADCP 1.0. Non-standard '
+      + 'residues, D residues and OpenMM pose minimization need 1.1; '
+      + 'INSTALL.md says how to add it.';
   if(!d.adcp11){
     $('adcp_engine').querySelector('option[value="1.1"]').disabled = true;
     $('omm_minimize').disabled = true;

@@ -51,10 +51,60 @@ does not.
 """
 from __future__ import annotations
 
+import glob
 import os
 import re
 import shutil
 import subprocess
+
+
+#: Where the Schrodinger suite lives when $SCHRODINGER is not set.
+#:
+#: Requiring the variable reported "not installed" on machines that have the
+#: whole suite: it is site-installed on both clusters this runs on, and the
+#: module that exports $SCHRODINGER is not loaded inside a batch job unless
+#: the job loads it. So the install is looked for as well as asked for.
+SCHRODINGER_ROOTS = (
+    "/sw/restricted/Schrodinger",      # TAMU HPRC, ACES and Grace
+    "/sw/eb/sw/Schrodinger",
+    "/opt/schrodinger",
+    "/usr/local/schrodinger",
+)
+
+
+def _version_key(path):
+    """Sort key for a release directory, newest last.
+
+    Parsed rather than sorted as text: 2025-10 sorts BEFORE 2025-3 as a
+    string, which would quietly pick an older suite once a tenth release
+    exists.
+    """
+    name = os.path.basename(path.rstrip("/"))
+    m = re.match(r"(\d{4})-(\d+)", name)
+    return (int(m.group(1)), int(m.group(2))) if m else (0, 0)
+
+
+def find_schrodinger():
+    """The newest Schrodinger install this account can actually run, or None.
+
+    Executability is part of the question, not an afterthought: the suite is
+    restricted software on these clusters, so a directory can be there and
+    readable while this account is not in the group that may run it. Offering
+    the engine in that case produces a run that fails at the first pose.
+    """
+    root = os.environ.get("SCHRODINGER", "")
+    if root and os.access(os.path.join(root, "prime_mmgbsa"), os.X_OK):
+        return root
+    found = []
+    for base in SCHRODINGER_ROOTS:
+        if os.access(os.path.join(base, "prime_mmgbsa"), os.X_OK):
+            found.append(base)
+        for d in glob.glob(os.path.join(base, "*")):
+            if os.access(os.path.join(d, "prime_mmgbsa"), os.X_OK):
+                found.append(d)
+    if not found:
+        return None
+    return sorted(found, key=_version_key)[-1]
 
 
 class Engine:
@@ -144,12 +194,15 @@ class _Schrodinger(Engine):
     FF_LEGACY = "OPLS_2005"
 
     def available(self):
-        root = os.environ.get("SCHRODINGER", "")
-        return bool(root and os.path.isfile(os.path.join(root, "prime_mmgbsa")))
+        return find_schrodinger() is not None
+
+    def root(self):
+        """Where prime_mmgbsa is, whether or not $SCHRODINGER was set."""
+        return find_schrodinger()
 
     def _status(self, timeout=30):
         """The licence server's report, or "" if it cannot be read."""
-        root = os.environ.get("SCHRODINGER", "")
+        root = find_schrodinger() or ""
         tries = [["license_status", "-v", "Schrodinger"]]
         if root:
             tries.append([os.path.join(root, "licadmin"), "STAT"])
@@ -272,7 +325,8 @@ SCHRODINGER = _Schrodinger(
     column="mmgbsa_schrodinger", comparable=("schrodinger",),
     note="A different force field and a different solvent model, so its "
          "numbers are not on the same scale as the other two and are never "
-         "merged with them. Two licences are needed and they do not have "
+         "merged with them: on the same 1BE9 pose it gave -72.88 kcal/mol "
+         "against AmberTools' -48.07. Two licences are needed and they do not have "
          "the same depth: the rescoring takes 8 of 25 PSP_PLOP tokens, so "
          "three jobs fit, while the modern force field has a single seat. "
          "Three jobs on OPLS_2005 or one on S-OPLS, and which one a result "
