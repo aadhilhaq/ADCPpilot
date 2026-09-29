@@ -172,8 +172,14 @@ def write_sdf(entries: list[tuple[str, Chem.Mol]], path: str) -> int:
 
 def write_maegz(entries, path: str, rec_pdb: str | None = None,
                 props: dict | None = None) -> bool:
-    """Maestro pose viewer, if $SCHRODINGER is available. Optional."""
-    schro = os.environ.get("SCHRODINGER")
+    """Maestro pose viewer, if a Schrodinger install can be found. Optional.
+
+    Found rather than demanded: requiring $SCHRODINGER meant this quietly
+    wrote nothing inside a batch job, where nothing has loaded the module,
+    on clusters that have the whole suite installed.
+    """
+    from . import gbengines
+    schro = gbengines.find_schrodinger()
     if not schro or not os.path.isfile(os.path.join(schro, "run")):
         return False
     with tempfile.TemporaryDirectory() as td:

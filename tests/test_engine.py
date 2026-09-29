@@ -716,6 +716,45 @@ check("kept.append(ranks[r - 1]" in dock_src,
 check('out["mmgbsa_radii"]' in dock_src,
       "a peptide's result does not record the radii its MM-GBSA used")
 
+# --------------------------------------------------------------------------
+# Pose viewer files. A finished run produced tables and nothing anybody could
+# open: the poses were on disk only as ADCP's own out_ranked_*.pdb inside
+# each peptide's docking directory, with no receptor beside them.
+print("the pose viewer stage")
+from adcp_dock import pipeline as _pl                          # noqa: E402
+from adcp_dock import bundle as _bundle                        # noqa: E402
+import inspect as _inspect                                     # noqa: E402
+
+check(callable(getattr(_pl, "stage_poseviewer", None)),
+      "there is a pose viewer stage")
+_pvsrc = _inspect.getsource(_pl.stage_poseviewer)
+# Poses are rebuilt, never copied: ADCP writes the peptide alone, ordered for
+# docking rather than for reading.
+check("transplant(" in _pvsrc,
+      "poses are transplanted onto a freshly built peptide, not copied")
+check("with_hydrogens(" in _pvsrc, "and carry their hydrogens")
+# The receptor written beside them must be the one the poses were docked
+# into, or the complex shows a pose against the wrong protonation.
+check("prepared_pdb" in _pvsrc and "write_view_pdb(" in _pvsrc,
+      "the receptor written beside them is the prepared structure")
+check('"L"' in _pvsrc and '"A"' in _pvsrc,
+      "receptor and peptide land on separate chains")
+for _w in ("write_pdb(", "write_sdf(", "write_mae(", "write_maegz("):
+    check(_w in _pvsrc, "the stage writes %s" % _w.rstrip("("))
+# The sequence identifies the file. Names default to "peptide 1".
+check("stem" in _pvsrc, "file names carry the sequence, not just the name")
+# A run that produced a table must not be failed by a viewer file.
+_rpt = _inspect.getsource(_pl.stage_report)
+check("stage_poseviewer(" in _rpt, "the report stage calls it")
+check("could not be written" in _rpt,
+      "and a failure there does not fail the run")
+# And they have to reach the person: a results download that omits them
+# leaves the run as tables and logs again.
+for _p in ("poseviewer/*.pdb", "poseviewer/*.mae", "poseviewer/*.maegz",
+           "poseviewer/*.sdf"):
+    check(_p in _bundle.RESULTS, "a results download carries %s" % _p)
+
+
 if fails:
     print("test_engine FAILED (%d)" % len(fails))
     for f in fails:
@@ -724,3 +763,4 @@ if fails:
 print("ok  targets are checked by content, the complex is split by chain, "
       "the stages call the vendored pipeline, and the ruler runs one "
       "way, %d checks" % ran)
+

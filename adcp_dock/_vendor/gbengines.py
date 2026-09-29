@@ -56,6 +56,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 
 
 #: Where the Schrodinger suite lives when $SCHRODINGER is not set.
@@ -201,17 +202,29 @@ class _Schrodinger(Engine):
         return find_schrodinger()
 
     def _status(self, timeout=30):
-        """The licence server's report, or "" if it cannot be read."""
+        """The licence server's report, or "" if it cannot be read.
+
+        `timeout` is the TOTAL budget, shared between the commands tried,
+        not a budget each. It used to be per command, so two attempts at 5
+        seconds could block a caller for 10: the page asks for this while it
+        loads, and on a compute node that cannot reach the licence server
+        both attempts ran to the full timeout and the whole request stalled.
+        """
         root = find_schrodinger() or ""
         tries = [["license_status", "-v", "Schrodinger"]]
         if root:
             tries.append([os.path.join(root, "licadmin"), "STAT"])
+        left = float(timeout)
         for cmd in tries:
+            if left <= 0:
+                break
+            started = time.monotonic()
             try:
                 out = subprocess.run(cmd, capture_output=True, text=True,
-                                     timeout=timeout).stdout
+                                     timeout=left).stdout
             except Exception:                                # noqa: BLE001
-                continue
+                out = ""
+            left -= time.monotonic() - started
             if out and "Users of" in out:
                 return out
         return ""
@@ -231,30 +244,46 @@ class _Schrodinger(Engine):
             return None
         return max(0, free // self.TOKENS_PER_JOB)
 
-    def plan(self, timeout=30):
+    #: The last licence reading, and when it was taken. Reading it means
+    #: talking to a licence server, which is fast when that works and a
+    #: multi-second stall when it does not, so a page that asks on every
+    #: load asks this instead.
+    _CACHE = {"at": 0.0, "value": None}
+    CACHE_SECONDS = 60.0
+
+    def plan(self, timeout=30, max_age=None):
         """What can actually run, and with which force field.
 
         Returned rather than decided here, because a caller may reasonably
         prefer three OPLS_2005 jobs to one S-OPLS job or the other way
         round, and that is not this module's choice to make.
         """
+        age = self.CACHE_SECONDS if max_age is None else max_age
+        now = time.monotonic()
+        cached = self._CACHE["value"]
+        if cached is not None and (now - self._CACHE["at"]) < age:
+            return cached
         out = self._status(timeout)
         free, total = _parse_tokens(out, self.FEATURE)
         ff_free, ff_total = _parse_tokens(out, self.FF_FEATURE)
+        def remember(value):
+            self._CACHE["at"], self._CACHE["value"] = now, value
+            return value
         if free is None:
-            return {"readable": False, "jobs": None, "modern_jobs": None,
-                    "forcefield": None, "why": "the licence pool could not "
-                                               "be read"}
+            return remember({"readable": False, "jobs": None,
+                             "modern_jobs": None, "forcefield": None,
+                             "why": "the licence pool could not be read"})
         jobs = max(0, free // self.TOKENS_PER_JOB)
         modern = 0 if ff_free is None else min(jobs, ff_free)
-        return {"readable": True,
+        return remember({
+                "readable": True,
                 "jobs": jobs, "tokens_free": free, "tokens_total": total,
                 "modern_jobs": modern,
                 "ff_free": ff_free, "ff_total": ff_total,
                 "forcefield": self.FF_MODERN if modern else self.FF_LEGACY,
                 "why": ("%d job(s) fit; %d of them can use %s, the rest fall "
                         "back to %s"
-                        % (jobs, modern, self.FF_MODERN, self.FF_LEGACY))}
+                        % (jobs, modern, self.FF_MODERN, self.FF_LEGACY))})
 
 
 def _in_amberhome(exe):

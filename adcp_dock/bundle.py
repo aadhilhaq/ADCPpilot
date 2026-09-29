@@ -30,6 +30,11 @@ RESULTS = (
     "metrics/*.json", "metrics/*_residues.tsv",
     "report/*",
     "receptor/prepared.pdb", "receptor/preparation.log",
+    # The structures somebody opens. Without these a download is tables and
+    # logs, and the poses are only ADCP's own out_ranked_*.pdb with no
+    # receptor beside them.
+    "poseviewer/*.pdb", "poseviewer/*.sdf",
+    "poseviewer/*.mae", "poseviewer/*.maegz",
     "docking/*/out_ranked_*.pdb", "docking/*/out_*.pdb",
     "docking/*/adcp.log",
     "mmgbsa/*/*/FINAL_RESULTS*", "mmgbsa/*/*.csv",

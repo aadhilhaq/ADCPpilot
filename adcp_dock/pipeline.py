@@ -699,6 +699,134 @@ def stage_panel(rundir, j=None, log=print):
     return done
 
 
+def stage_poseviewer(rundir, j=None, rows=None, log=print):
+    """Structure files for the ranked peptides, as HOPE-pipelines writes.
+
+    A finished run produced tables and nothing anybody could open. The poses
+    were on disk the whole time, but only as ADCP's own out_ranked_*.pdb
+    inside each peptide's docking directory, which is not where somebody
+    looking at a result goes, and carries no receptor beside it.
+
+    Poses are not copied straight out. ADCP writes the peptide alone, and a
+    viewer given that has no protein to show it against; the file is also
+    built for docking rather than for reading. Each pose is transplanted onto
+    a freshly built peptide of the same sequence, so the bonding and the atom
+    order are right and the coordinates are the docked ones, and the receptor
+    written beside it is the PREPARED structure, which is what the poses were
+    docked into and what the energies were computed against.
+
+    Written into <rundir>/poseviewer:
+
+        receptor.pdb          the prepared receptor, hydrogens and all
+        complex_<name>.pdb    one per peptide, chain A receptor, chain L
+                              peptide, for a viewer to colour by chain
+        ranked.pdb / .sdf     every peptide in one file, best first
+        ranked.mae            the same with the scores attached as
+                              properties, plus the receptor
+        ranked.maegz          when a Schrodinger install is present
+    """
+    j = j or jobmod.load(rundir)
+    if not rows:
+        return None
+    pvdir = os.path.join(rundir, "poseviewer")
+    os.makedirs(pvdir, exist_ok=True)
+    log("\npose viewer files")
+
+    prepared = (j.get("receptor_info") or {}).get("prepared_pdb") or ""
+    try:
+        rec = receptor.load(_reccfg(j, prepared if
+                                    os.path.isfile(prepared) else None))
+    except Exception as exc:                                    # noqa: BLE001
+        log("  could not read the receptor (%s); no viewer files" % exc)
+        return None
+
+    recpdb = os.path.join(pvdir, "receptor.pdb")
+    n_rec = receptor.write_view_pdb(recpdb, prepared or None, rec, "A")
+    reclines = [l for l in open(recpdb) if l.startswith(("ATOM", "HETATM"))]
+    log("  receptor.pdb (%d atoms, %s)"
+        % (n_rec, "prepared structure" if prepared and os.path.isfile(prepared)
+           else "input structure; no prepared one was found"))
+
+    ph = float(j.get("ph", 7.4))
+    entries, missing = [], 0
+    for r in rows:
+        seq = r.get("peptide") or ""
+        if not seq:
+            continue
+        wd = os.path.join(rundir, "docking", jobmod.key(seq))
+        pose = adcp.read_pose(wd, 1)
+        if pose is None:
+            missing += 1
+            continue
+        mol = poseviewer.transplant(seq, pose, ph=ph)
+        if mol is None:
+            missing += 1
+            continue
+        mol = poseviewer.with_hydrogens(mol)
+        if mol is None:
+            missing += 1
+            continue
+        props = {"Sequence": seq, "Length": len(seq)}
+        if r.get("name"):
+            props["Name"] = str(r["name"])
+        if r.get("adcp_best") is not None:
+            props["ADCP_score"] = float(r["adcp_best"])
+        if r.get("mmgbsa_best") is not None:
+            props["MMGBSA"] = float(r["mmgbsa_best"])
+        # Which engine produced that number, beside the number. The three are
+        # on different scales, so a value with no engine against it cannot be
+        # read.
+        if r.get("engine"):
+            props["MMGBSA_engine"] = str(r["engine"])
+        # The sequence is in the file name whatever the peptide is called:
+        # names default to "peptide 1", which identifies nothing once the
+        # folder is opened a week later, and two peptides may share a name
+        # while the sequence is unique.
+        label = str(r.get("name") or "").strip()
+        stem = ("%s_%s" % (label, seq)) if label and label != seq else seq
+        entries.append((label or seq, mol, props, stem))
+
+    if missing:
+        log("  %d peptide(s) had no pose that could be rebuilt" % missing)
+    if not entries:
+        log("  no poses could be rebuilt; nothing else written")
+        return pvdir
+
+    # One receptor plus peptide complex each: a single file a viewer can
+    # colour by chain and pick the contacting residues out of.
+    for _label, mol, _props, stem in entries:
+        safe = re.sub(r"[^A-Za-z0-9_.-]", "_", stem)[:80] or "peptide"
+        conf = mol.GetConformer()
+        with open(os.path.join(pvdir, "complex_%s.pdb" % safe), "w") as fh:
+            fh.writelines(reclines)
+            n = len(reclines)
+            fh.write("TER\n")
+            for i, at in enumerate(mol.GetAtoms()):
+                pi = at.GetPDBResidueInfo()
+                pos = conf.GetAtomPosition(i)
+                n += 1
+                fh.write(receptor.pdb_line(n, receptor.Atom(
+                    int(pi.GetResidueNumber()) if pi else 1,
+                    (pi.GetResidueName() if pi else "LIG").strip(),
+                    (pi.GetName() if pi else at.GetSymbol()).strip(),
+                    at.GetSymbol(), (pos.x, pos.y, pos.z)), "L"))
+            fh.write("TER\nEND\n")
+    log("  %d complex_<name>.pdb (chain A receptor, chain L peptide)"
+        % len(entries))
+
+    base = os.path.join(pvdir, "ranked")
+    pairs = [(e[0], e[1]) for e in entries]
+    triples = [(e[0], e[1], e[2]) for e in entries]
+    poseviewer.write_pdb(pairs, base + ".pdb")
+    poseviewer.write_sdf(pairs, base + ".sdf")
+    n_mae = poseviewer.write_mae(triples, base + ".mae", recpdb)
+    log("  ranked.pdb, ranked.sdf, ranked.mae (%d entries incl. receptor), "
+        "best first" % n_mae)
+    if poseviewer.write_maegz(pairs, base + ".maegz", recpdb):
+        log("  ranked.maegz as well (a Schrodinger install was found)")
+    return pvdir
+
+
 def stage_report(rundir, j=None, log=print):
     import glob
     import json
@@ -769,6 +897,13 @@ def stage_report(rundir, j=None, log=print):
     tsv = report.write(rows, rundir, top_n=int(j.get("top_n", 5)),
                        constants=_constants(j, rundir))
     log(report.table(rows, top_n=int(j.get("top_n", 5))))
+    # Structures last, and never fatal: the table is the result, and a run
+    # that has produced one should not be marked failed because a pose could
+    # not be rebuilt into something a viewer can open.
+    try:
+        stage_poseviewer(rundir, j, rows, log=log)
+    except Exception as exc:                                    # noqa: BLE001
+        log("  pose viewer files could not be written: %s" % exc)
     j["state"] = "done"
     jobmod.save(rundir, j)
     return tsv

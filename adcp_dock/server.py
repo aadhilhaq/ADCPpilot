@@ -277,7 +277,7 @@ class App:
                 # rescoring tokens and the modern force field has one seat,
                 # so what is free decides what a run would actually get.
                 try:
-                    row["licence"] = gbengines.SCHRODINGER.plan(timeout=5)
+                    row["licence"] = gbengines.SCHRODINGER.plan(timeout=3)
                 except Exception:                              # noqa: BLE001
                     row["licence"] = {"readable": False}
             out.append(row)
