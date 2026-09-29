@@ -56,6 +56,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import time
 
 
@@ -84,8 +85,11 @@ SCHRODINGER_ROOTS = (
 SCHRODINGER_GLOBS = (
     "/sw/restricted/*/Schrodinger*",
     "/sw/restricted/*/schrodinger*",
-    "/sw/eb/sw/*/Schrodinger*",
 )
+# Not "/sw/eb/sw/*/Schrodinger*": EasyBuild keeps a package at
+# /sw/eb/sw/<Name>/<version>, which SCHRODINGER_ROOTS already names, and
+# listing every package directory under /sw/eb/sw to look one level inside
+# each took long enough on a cold compute node to time out the page.
 
 
 def _version_key(path):
@@ -112,8 +116,10 @@ def _from_module_system():
     out = []
     mp = os.environ.get("MODULEPATH", "")
     for base in [d for d in mp.split(":") if d]:
-        for f in glob.glob(os.path.join(base, "**", "[Ss]chrodinger*"),
-                           recursive=True)[:40]:
+        # One level in, where LMOD keeps a package's module files
+        # (<modulepath>/<Name>/<version>.lua). A recursive search here walked
+        # whole module trees on every call.
+        for f in glob.glob(os.path.join(base, "[Ss]chrodinger*", "*"))[:40]:
             if os.path.isdir(f):
                 continue
             try:
@@ -127,6 +133,9 @@ def _from_module_system():
                     text):
                 out.append(m.group(1))
     return out
+
+
+_FOUND = {}          # $SCHRODINGER at the time -> what the search found
 
 
 def find_schrodinger(trail=None):
@@ -147,14 +156,36 @@ def find_schrodinger(trail=None):
         if trail is not None:
             trail.append(("found " if ok else "looked at ") + what)
 
-    found = []
+    # Remembered for the life of the process: an install does not move while
+    # a server runs, and the page asks on every load. The report function
+    # passes a trail to get a fresh search it can show.
+    key = os.environ.get("SCHRODINGER", "")
+    if trail is None and key in _FOUND:
+        return _FOUND[key]
 
-    root = os.environ.get("SCHRODINGER", "")
+    def usable(d):
+        return os.access(os.path.join(d, "prime_mmgbsa"), os.X_OK)
+
+    def newest_under(base):
+        hits = [base] if usable(base) else []
+        try:
+            names = os.listdir(base)
+        except OSError:
+            names = []
+        hits += [os.path.join(base, n) for n in names
+                 if usable(os.path.join(base, n))]
+        return sorted(hits, key=_version_key)[-1] if hits else None
+
+    def done(value):
+        if trail is None:
+            _FOUND[key] = value
+        return value
+
+    root = key
     if root:
-        note("$SCHRODINGER=%s" % root,
-             os.access(os.path.join(root, "prime_mmgbsa"), os.X_OK))
-        if os.access(os.path.join(root, "prime_mmgbsa"), os.X_OK):
-            return root
+        note("$SCHRODINGER=%s" % root, usable(root))
+        if usable(root):
+            return done(root)
     else:
         note("$SCHRODINGER (not set)")
 
@@ -163,32 +194,31 @@ def find_schrodinger(trail=None):
     if exe:
         cand = os.path.dirname(os.path.realpath(exe))
         note("prime_mmgbsa on PATH at %s" % cand, True)
-        return cand
+        return done(cand)
     note("prime_mmgbsa on PATH (not there)")
 
-    bases = list(SCHRODINGER_ROOTS)
-    for pat in SCHRODINGER_GLOBS:
-        bases.extend(sorted(glob.glob(pat)))
-    for cand in _from_module_system():
-        if cand not in bases:
-            bases.append(cand)
-            note("the module system suggests %s" % cand)
-
-    for base in bases:
+    # Cheapest first, and stop at the first place that has one: the known
+    # roots, then what the module system would set, then the wider patterns.
+    for base in SCHRODINGER_ROOTS:
         if not os.path.isdir(base):
             continue
-        hits = []
-        if os.access(os.path.join(base, "prime_mmgbsa"), os.X_OK):
-            hits.append(base)
-        for d in glob.glob(os.path.join(base, "*")):
-            if os.access(os.path.join(d, "prime_mmgbsa"), os.X_OK):
-                hits.append(d)
-        note("%s (%d usable install(s))" % (base, len(hits)), bool(hits))
-        found.extend(hits)
-
-    if not found:
-        return None
-    return sorted(found, key=_version_key)[-1]
+        got = newest_under(base)
+        note("%s%s" % (base, "" if got else " (no usable install)"), bool(got))
+        if got:
+            return done(got)
+    for cand in _from_module_system():
+        got = newest_under(cand)
+        note("%s, from the module system" % cand, bool(got))
+        if got:
+            return done(got)
+    for pat in SCHRODINGER_GLOBS:
+        for base in sorted(glob.glob(pat)):
+            got = newest_under(base)
+            note("%s%s" % (base, "" if got else " (no usable install)"),
+                 bool(got))
+            if got:
+                return done(got)
+    return done(None)
 
 
 def schrodinger_search_report():
@@ -238,10 +268,29 @@ class Engine:
         return ", ".join(bits)
 
 
+def _have(tool):
+    """Whether an executable can be found the way the engines will look.
+
+    PATH, then the running interpreter's own bin, then $AMBERHOME/bin: the
+    same order as prepare.find_tool, which is what mmgbsa uses to run them.
+    shutil.which alone said AmberTools and OpenMM were missing whenever the
+    environment's python was run without its bin on PATH, which is an
+    ordinary way to start a job or a monitor. mmgbsa then asked this module
+    whether the engine it had just found was installed, was told no, and
+    skipped the rescoring altogether.
+    """
+    if shutil.which(tool):
+        return True
+    here = os.path.dirname(os.path.abspath(sys.executable))
+    cand = os.path.join(here, tool)
+    if os.path.isfile(cand) and os.access(cand, os.X_OK):
+        return True
+    return _in_amberhome(tool)
+
+
 class _Amber(Engine):
     def available(self):
-        return all(shutil.which(x) or _in_amberhome(x)
-                   for x in ("tleap", "sander", "MMPBSA.py"))
+        return all(_have(x) for x in ("tleap", "sander", "MMPBSA.py"))
 
 
 class _OpenMM(Engine):
@@ -256,8 +305,7 @@ class _OpenMM(Engine):
         # assumption that OpenMM would minimise for itself; that was measured
         # to put the energy about 30 kcal/mol out, so the geometry is sander's
         # and sander is a requirement. MMPBSA.py is the part not needed.
-        return all(shutil.which(x) or _in_amberhome(x)
-                   for x in ("tleap", "sander"))
+        return all(_have(x) for x in ("tleap", "sander"))
 
 
 class _Schrodinger(Engine):
@@ -444,8 +492,12 @@ SCHRODINGER = _Schrodinger(
     column="mmgbsa_schrodinger", comparable=("schrodinger",),
     note="A different force field and a different solvent model, so its "
          "numbers are not on the same scale as the other two and are never "
-         "merged with them: on the same 1BE9 pose it gave -72.88 kcal/mol "
-         "against AmberTools' -48.07. Two licences are needed and they do not have "
+         "merged with them: on the same 1BE9 pose it gave -81.79 kcal/mol "
+         "against AmberTools' -48.07. The value is Prime's no-strain binding "
+         "energy, taken like the others from the complex's own geometry; its "
+         "headline figure also subtracts the strain of a separately relaxed "
+         "free peptide, which grew from 9 to 59 kcal/mol between a 5 and a "
+         "15 residue peptide. Two licences are needed and they do not have "
          "the same depth: the rescoring takes 8 of 25 PSP_PLOP tokens, so "
          "three jobs fit, while the modern force field has a single seat. "
          "Three jobs on OPLS_2005 or one on S-OPLS, and which one a result "

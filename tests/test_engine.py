@@ -804,6 +804,29 @@ check("inView[at]" in _js and "focusResidue" in _js,
       "a peptide residue is found in the viewer by its position, not its label")
 
 
+# Prime's headline dG_Bind subtracts the strain of a separately relaxed free
+# peptide, which grew from 9 to 59 kcal/mol between a 5 and a 15 residue
+# peptide and turned -62.2 into -2.9. The column must read the no-strain
+# value, the quantity the single-trajectory engines report, and never fall
+# back to the headline one when it is absent.
+import csv as _csv, tempfile as _tf                              # noqa: E402
+_d = _tf.mkdtemp()
+_p = os.path.join(_d, "x-out.csv")
+with open(_p, "w", newline="") as _fh:
+    _w = _csv.writer(_fh)
+    _w.writerow(["title", "r_psp_MMGBSA_dG_Bind", "r_psp_MMGBSA_dG_Bind(NS)",
+                 "r_psp_Lig_Strain_Energy"])
+    _w.writerow(["x", "-2.89", "-62.22", "59.32"])
+_got = VMM._read_prime_csv(_p)
+check(_got == -62.22, "Prime is read as its no-strain binding energy")
+with open(_p, "w", newline="") as _fh:
+    _w = _csv.writer(_fh)
+    _w.writerow(["title", "r_psp_MMGBSA_dG_Bind"])
+    _w.writerow(["x", "-2.89"])
+_got2 = VMM._read_prime_csv(_p)
+check(_got2 is None, "and gives nothing rather than the headline value when that is absent")
+
+
 if fails:
     print("test_engine FAILED (%d)" % len(fails))
     for f in fails:

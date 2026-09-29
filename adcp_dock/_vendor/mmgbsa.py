@@ -790,8 +790,15 @@ def openmm_dg(topo, log=print, intdiel: float = INTDIEL,
     return dg
 
 
-# Prime's own column name for the binding energy in its output table.
-_PRIME_DG = "r_psp_MMGBSA_dG_Bind"
+# The binding energy Prime reports that means what the other two engines'
+# numbers mean: dG_Bind(NS), "no strain", taken with ligand and receptor in
+# their complex geometry, which is how single-trajectory MM-GBSA is defined.
+# Prime's headline dG_Bind adds a ligand strain term from minimising the free
+# peptide separately, and for a flexible peptide the free peptide collapses in
+# implicit solvent into a shape it does not hold: the strain was +8.9 kcal/mol
+# on a 5 residue peptide and +59.3 on a 15 residue one, turning -62.2 into
+# -2.9 and ranking longer peptides down for reasons unrelated to binding.
+_PRIME_DG = "r_psp_MMGBSA_dG_Bind(NS)"
 
 
 def prime_forcefield(log=print, timeout=30):
@@ -864,8 +871,8 @@ def prime_dg(topo, log=print, schro=None, env=None) -> float | None:
     Separate for the same reason openmm_dg is: it can then run against a
     complex an earlier AmberTools run left on disk, which is how this engine
     was exercised without repeating the preparation. On 1BE9 pose 1 it
-    returned -72.88 kcal/mol on S-OPLS where AmberTools gave -48.07, which is
-    the scale difference the separate column exists for.
+    returned -81.79 kcal/mol (no strain) on S-OPLS where AmberTools gave
+    -48.07, which is the scale difference the separate column exists for.
     """
     from . import gbengines
     prefix = topo.prefix
@@ -876,14 +883,20 @@ def prime_dg(topo, log=print, schro=None, env=None) -> float | None:
     env = env or dict(os.environ, SCHRODINGER=schro)
 
     # Prime reads Maestro formats, so the prepared complex is converted
-    # rather than rebuilt.
+    # rather than rebuilt. It is given the PDB2PQR output, which has standard
+    # residue names and the run's protonation: the file tleap reads carries
+    # Amber's own names (CYX, HID, HIE, LYN), which are not Schrodinger's,
+    # and the one Prime run that has been checked end to end used this file.
+    src = os.path.join(topo.workdir, prefix + "_com_prepped.pdb")
+    if not os.path.isfile(src):
+        src = topo.com_pdb
     mae = os.path.join(topo.workdir, prefix + "_com.mae")
     conv = os.path.join(schro, "utilities", "structconvert")
     if not os.path.isfile(conv):
         log(f"    {prefix}: structconvert not found under $SCHRODINGER, "
             f"skipped")
         return None
-    c = subprocess.run([conv, topo.com_pdb, mae], cwd=topo.workdir,
+    c = subprocess.run([conv, src, mae], cwd=topo.workdir,
                        capture_output=True, text=True, env=env)
     if not os.path.isfile(mae):
         err = (c.stderr or c.stdout or "").strip().splitlines()
@@ -908,6 +921,8 @@ def prime_dg(topo, log=print, schro=None, env=None) -> float | None:
 
     dg = _read_prime_csv(csv)
     if dg is None:
+        # Not the headline dG_Bind in its place: that is a different
+        # quantity, and a column mixing the two would be read as one.
         log(f"    {prefix}: {_PRIME_DG} was not in Prime's output, skipped")
         return None
     if abs(dg) > 500:
