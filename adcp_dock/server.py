@@ -298,7 +298,12 @@ class App:
                 home, adcp11.home_of(exe), os.path.join(self.runs, "adapt_sessions"))
         except (OSError, RuntimeError) as exc:
             return {"error": str(exc)}
-        return {"url": url}
+        # The address is the machine's own, so a browser somewhere else needs
+        # that port forwarded. The page says so, and it can only name the
+        # machine and the port if they are sent with the address.
+        import socket
+        return {"url": url, "host": socket.getfqdn(), "port": adaptmod.address(url),
+                "pinned": bool(adaptmod.wanted_port()), "port_env": adaptmod.PORT_ENV}
 
     def adapt_stop(self):
         runner = getattr(self, "_adapt_runner", None)

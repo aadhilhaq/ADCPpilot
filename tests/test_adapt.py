@@ -94,6 +94,25 @@ r.stop()
 check(proc.poll() is not None, "stopping it ends the process")
 check(not r.running(), "and it no longer counts as running")
 
+# --- the port a tunnel can name -------------------------------------------
+# Anyone reaching the interface through ssh forwards one port by name, so a
+# port that changes at every start cannot be forwarded in advance.
+check(adapt.wanted_port() == 0, "with nothing set, the system picks the port")
+check(adapt.address("http://127.0.0.1:40805/?t=x") == 40805, "the port is read back from the address")
+check(adapt.address("not an address") is None, "and nothing is read from a line that has none")
+os.environ[adapt.PORT_ENV] = "40805"
+check(adapt.wanted_port() == 40805, "%s pins it" % adapt.PORT_ENV)
+os.environ[adapt.PORT_ENV] = "not a port"
+check(adapt.wanted_port() == 0, "a setting that is not a port is ignored, not refused")
+os.environ[adapt.PORT_ENV] = "40806"
+pinned_out = os.path.join(tmp, "pinned_out")
+pr = adapt.Runner()
+pr.start(home, "/envs/adcpsuite", pinned_out, timeout=20)
+check("--port 40806" in open(os.path.join(pinned_out, "started_with.txt")).read(),
+      "and the pinned port is the one ADapt is asked for")
+pr.stop()
+del os.environ[adapt.PORT_ENV]
+
 # --- a start that fails says why ------------------------------------------
 bad = fake_adapt(os.path.join(tmp, "bad", "adapt"), speaks=False)
 try:
@@ -134,6 +153,10 @@ check(res.get("url") == "http://127.0.0.1:45678/?t=abc123", "and opening it retu
 env_root = open(os.path.join(tmp, "runs", "adapt_sessions", "started_with.txt")).read().split("|")[0]
 check(os.path.realpath(env_root) == os.path.realpath(suite),
       "the interface hands ADapt the ADCP 1.1 environment it found (%s)" % env_root)
+check(res.get("port") == 45678 and res.get("host"),
+      "with the machine and the port, so the page can say what to forward (%s)" % res)
+check(res.get("pinned") is False and res.get("port_env") == adapt.PORT_ENV,
+      "and whether that port will be the same next time")
 check(not any(os.path.basename(x["rundir"]) == "adapt_sessions" for x in app.list_runs()["runs"]),
       "ADapt's sessions folder is not listed as a run")
 app.adapt_stop()
@@ -149,6 +172,11 @@ check("d.adapt && d.adapt.available" in appjs, "the row is shown only when the s
 check("api('/api/adapt'" in appjs, "the button asks the server to start it")
 check("window.open('', '_blank')" in appjs,
       "the tab is opened inside the click, where a browser allows it")
+check("ssh -L ' + esc(port) + ':127.0.0.1:' + esc(port)" in appjs,
+      "the note gives the forwarding command with the real port")
+check("esc(host)" in appjs and "r.host" in appjs,
+      "and names the machine, rather than leaving the user to guess it")
+check("r.port_env" in appjs, "and says how to keep the same port next time")
 
 if fails:
     print("test_adapt FAILED (%d)" % len(fails))

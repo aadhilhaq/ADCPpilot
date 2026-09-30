@@ -166,12 +166,23 @@ $('adaptopen').onclick = async () => {
     return;
   }
   if(tab) tab.location.href = r.url;
-  const port = (/:(\d+)\//.exec(r.url) || [])[1] || '';
+  /* ADapt serves on its own port on this machine. The browser is usually
+     somewhere else, reaching this page through a tunnel that names only this
+     interface's port, so that second port has to be forwarded too, to the
+     same login node. The exact line is spelled out because guessing the host
+     name is the part people get wrong. */
+  const port = r.port || (/:(\d+)\//.exec(r.url) || [])[1] || '';
+  const host = r.host || 'your login node';
   note.innerHTML = 'ADapt is open in a new tab (<a href="' + esc(r.url)
     + '" target=_blank rel=noopener>open it again</a>). Load the receptor there '
-    + 'with Open PDB or Fetch. If the tab stays blank, this browser cannot reach '
-    + 'port ' + esc(port) + ' on the machine running this interface; forward it with <code>ssh -L '
-    + esc(port) + ':127.0.0.1:' + esc(port) + ' &lt;your login node&gt;</code>.';
+    + 'with Open PDB or Fetch.<br>If that tab is blank or says it cannot reach the '
+    + 'site, your browser cannot reach port ' + esc(port) + ' on ' + esc(host)
+    + '. Forward it from your own computer, in a second terminal, then reload the tab:'
+    + '<br><code>ssh -L ' + esc(port) + ':127.0.0.1:' + esc(port) + ' &lt;your account&gt;@'
+    + esc(host) + '</code>'
+    + (r.pinned ? '' : '<br>The port changes each time ADapt starts. To keep this one, '
+       + 'set <code>' + esc(r.port_env || 'ADCP_ADAPT_PORT') + '=' + esc(port)
+       + '</code> before starting this interface.');
 };
 $('recpath').onkeydown = e => { if(e.key === 'Enter') loadReceptor(); };
 

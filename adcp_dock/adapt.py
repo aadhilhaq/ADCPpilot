@@ -23,6 +23,11 @@ import subprocess
 import threading
 
 REPO = "https://github.com/michelsanner/adapt"
+# The port ADapt listens on. Zero means the operating system picks a free one,
+# which is right on a shared login node. Anyone reaching this interface through
+# an ssh tunnel wants the same port every time instead, since the tunnel names
+# it: ADCP_ADAPT_PORT=40805 pins it.
+PORT_ENV = "ADCP_ADAPT_PORT"
 
 # The line ADapt prints once it is serving: its address with its token.
 _URL = re.compile(r"(https?://\S+/\?t=\S+)")
@@ -59,6 +64,26 @@ def find(roots=()):
     return None
 
 
+def wanted_port():
+    """The port asked for in the environment, or 0 to let the system choose.
+
+    A value that is not a port number is ignored rather than refused: a bad
+    setting should not stop ADapt from opening at all.
+    """
+    raw = (os.environ.get(PORT_ENV) or "").strip()
+    try:
+        n = int(raw)
+    except ValueError:
+        return 0
+    return n if 0 <= n <= 65535 else 0
+
+
+def address(url):
+    """The port in an ADapt address, as an integer, or None."""
+    m = re.search(r"://[^/]*:(\d+)", url or "")
+    return int(m.group(1)) if m else None
+
+
 class Runner:
     """One ADapt server for this interface: started on request, then reused,
     and stopped when the interface stops."""
@@ -75,7 +100,7 @@ class Runner:
     def running(self):
         return bool(self.url) and self.proc is not None and self.proc.poll() is None
 
-    def start(self, home, env_root, outdir, timeout=None):
+    def start(self, home, env_root, outdir, timeout=None, port=None):
         """ADapt's address with its token, starting it if it is not running.
 
         Raises RuntimeError with ADapt's own last lines when it does not come
@@ -85,6 +110,7 @@ class Runner:
             if self.running():
                 return self.url
             os.makedirs(outdir, exist_ok=True)
+            want = wanted_port() if port is None else port
             log_path = os.path.join(outdir, "adapt_server.log")
             env = dict(os.environ, ADCPSUITE=env_root, ADAPT_OUTDIR=outdir,
                        # Its address is read from its output, which Python
@@ -92,7 +118,7 @@ class Runner:
                        PYTHONUNBUFFERED="1")
             proc = subprocess.Popen(
                 ["sh", os.path.join(home, "bin", "adapt"), "serve",
-                 "--host", "127.0.0.1", "--port", "0", "--outdir", outdir],
+                 "--host", "127.0.0.1", "--port", str(want), "--outdir", outdir],
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 stdin=subprocess.DEVNULL, env=env, text=True,
                 start_new_session=True)
