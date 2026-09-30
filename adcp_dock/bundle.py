@@ -1,7 +1,5 @@
 """Packaging a run: as a zip to download, or as mail when it failed.
 
-By Aadhil Haq
-
 A run finishes on a cluster and its results stay there. This produces a zip
 of what is worth keeping, and a much smaller bundle of logs and settings
 for a problem report.

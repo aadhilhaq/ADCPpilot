@@ -1,7 +1,5 @@
 """The computational stages, and how a run is assembled from them.
 
-By Aadhil Haq
-
     prepare   receptor -> prepared PDB -> PDBQT -> grid maps (.trg)
     dock      one peptide per array task, then MM-GBSA on its kept poses
     report    gather the scores into a table
@@ -700,7 +698,7 @@ def stage_panel(rundir, j=None, log=print):
 
 
 def stage_poseviewer(rundir, j=None, rows=None, log=print):
-    """Structure files for the ranked peptides, as HOPE-pipelines writes.
+    """Structure files for the ranked peptides.
 
     A finished run produced tables and nothing anybody could open. The poses
     were on disk the whole time, but only as ADCP's own out_ranked_*.pdb
@@ -1140,8 +1138,8 @@ def stage_rescore(rundir, engine, j=None, log=print):
     The run's own MM-GBSA values, the ones it is RANKED on, are left exactly
     as they were. Ranking a finished table on a different engine would change
     its order after the fact on a number that was never its basis, and the
-    engines are not on one scale: on the same 1BE9 pose AmberTools gave
-    -48.07 and Prime -72.88.
+    engines are not on one scale: on one test pose AmberTools gave -48.07
+    kcal/mol and Prime -81.79.
 
     The same poses as the original scoring, by construction: the count comes
     from the run's own mmgbsa_poses and the poses are read in ADCP's rank
@@ -1167,8 +1165,8 @@ def stage_rescore(rundir, engine, j=None, log=print):
     mmdir = os.path.join(rundir, "mmgbsa")
     n_want = int(j.get("mmgbsa_poses", 5))
     ph = float(j.get("ph", 7.4))
-    # Prime runs one job at a time. Its force field is a separate licence
-    # with a single seat here, so several jobs at once would put some poses
+    # Prime runs one job at a time. Its force field is a separate licence,
+    # often with a single seat, so several jobs at once would put some poses
     # on S-OPLS and the rest on OPLS_2005 in one column, which is two
     # different quantities with nothing to tell them apart.
     workers = 1 if eng.name == "schrodinger" else max(

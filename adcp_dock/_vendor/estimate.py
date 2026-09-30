@@ -1,7 +1,5 @@
 """How ADCP dockings share an allocation: how many run at once, and with
 how many cores each.
-
-By Aadhil Haq
 """
 
 # ADCP runs each Monte Carlo replica as its own process, as many at a time as

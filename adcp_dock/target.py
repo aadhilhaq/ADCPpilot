@@ -1,7 +1,5 @@
 """Building the grid maps ADCP docks into, and verifying they are usable.
 
-By Aadhil Haq
-
 A .trg file is a zip archive: one grid map per atom type, plus the receptor
 it was built from and the box it was built over. agfr writes it, and every
 later stage trusts it.

@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # The whole test suite, in one command.
 #
-# By Aadhil Haq
-#
 # Run it on a compute node, adding the account and partition your cluster
 # requires:
 #
@@ -29,7 +27,7 @@ if [ -z "${SLURM_JOB_ID:-}" ] && [ "${ALLOW_LOGIN:-0}" != "1" ]; then
 fi
 
 PY="${ADCP_PYTHON:-}"
-for c in "$PY" "$REPO/../envs/hope/bin/python" "$(command -v python3)"; do
+for c in "$PY" "$REPO/../envs/adcp/bin/python" "$(command -v python3)"; do
   [ -n "${c:-}" ] && [ -x "${c:-}" ] && { PY="$c"; break; }
 done
 [ -x "${PY:-}" ] || { echo "no python found"; exit 2; }

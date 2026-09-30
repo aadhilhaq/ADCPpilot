@@ -1,7 +1,5 @@
 """update.sh against a history rewritten upstream.
 
-By Aadhil Haq
-
 The case that matters is an https remote whose credential works: the fetch
 succeeds and only the fast-forward fails. That is a rewrite, not a sign-in
 problem, and the checkout must end up on the new history. A checkout with
@@ -62,7 +60,8 @@ git(work, "commit", "-q", "-m", "two")
 git(work, "push", "-q", "--force", "origin", "rewritten:main")
 new_head = git(work, "rev-parse", "--short", "HEAD")
 
-# the remote reports itself as https, as Grace's does; nothing else changes
+# the remote reports itself as https, as a clone made over https does;
+# nothing else changes
 shim = os.path.join(tmp, "bin")
 os.makedirs(shim)
 with open(os.path.join(shim, "git"), "w") as fh:

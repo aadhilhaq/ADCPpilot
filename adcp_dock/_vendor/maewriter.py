@@ -1,7 +1,5 @@
 """Write Maestro .mae files directly.
 
-By Aadhil Haq
-
 Neither PDB nor SDF can carry everything a pose viewer needs:
 
   PDB   has residues and atom names, but no per-entry title that Maestro reads

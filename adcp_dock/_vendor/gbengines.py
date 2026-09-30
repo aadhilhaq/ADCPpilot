@@ -42,16 +42,17 @@ Each engine writes its own column, none is merged into another, none is
 compared with another by value, and the table says which force field and
 which solvent model produced each one. A run may carry all three.
 
-WHAT SWAPPING THE ENGINE DOES NOT FIX. On 1BE9, five docked poses of one
-peptide span 21.7 kcal/mol, against a 37.6 kcal/mol range across all twenty
-constructs: the noise within a construct is 58 per cent of the signal
+WHAT SWAPPING THE ENGINE DOES NOT FIX. The docked poses of one peptide can
+differ from each other by more than half the range across the peptides being
+compared, so the noise within a construct is a large share of the signal
 between constructs. That is a property of the poses, not of the rescoring,
-and every engine here inherits it. More poses would help; a different solver
-does not.
+and every engine here inherits it. More poses help; a different solver does
+not.
 """
 from __future__ import annotations
 
 import glob
+import importlib.util
 import os
 import re
 import shutil
@@ -63,11 +64,11 @@ import time
 #: Where the Schrodinger suite lives when $SCHRODINGER is not set.
 #:
 #: Requiring the variable reported "not installed" on machines that have the
-#: whole suite: it is site-installed on both clusters this runs on, and the
+#: whole suite: clusters commonly install it site wide as a module, and the
 #: module that exports $SCHRODINGER is not loaded inside a batch job unless
 #: the job loads it. So the install is looked for as well as asked for.
 SCHRODINGER_ROOTS = (
-    "/sw/restricted/Schrodinger",      # TAMU HPRC ACES, verified
+    "/sw/restricted/Schrodinger",      # a site install, one folder a release
     "/sw/restricted/schrodinger",
     "/sw/eb/sw/Schrodinger",
     "/sw/software/Schrodinger",
@@ -79,7 +80,7 @@ SCHRODINGER_ROOTS = (
 )
 
 #: Directories that hold one installation each, searched one level down as
-#: well: /sw/restricted/Schrodinger/2025-3 is the shape on ACES, and a
+#: well: <root>/<release> is the usual shape of a site install, and a
 #: cluster that keeps releases under a vendor directory is the same shape one
 #: level further in.
 SCHRODINGER_GLOBS = (
@@ -143,9 +144,8 @@ def find_schrodinger(trail=None):
 
     `trail`, if a list is passed, is filled with what was tried, so a page
     that reports "not installed" can say where it looked instead of leaving
-    somebody to guess. That matters here: the suite is present on both
-    clusters this runs on, under a path only one of which was known when
-    this was written.
+    somebody to guess. That matters because clusters install the suite in
+    different places, and no list of paths can know them all.
 
     Executability is part of the question, not an afterthought: the suite is
     restricted software, so a directory can be there and readable while this
@@ -295,10 +295,13 @@ class _Amber(Engine):
 
 class _OpenMM(Engine):
     def available(self):
+        # Found, not imported. Importing OpenMM reads hundreds of files, and
+        # on a busy shared filesystem that took longer than the page waits
+        # for its first answer, which asks this of every engine.
         try:
-            import openmm                                    # noqa: F401
-            import openmm.app                                # noqa: F401
-        except Exception:                                    # noqa: BLE001
+            if importlib.util.find_spec("openmm") is None:
+                return False
+        except (ImportError, ValueError):
             return False
         # tleap builds the topology and sander produces the geometry, and
         # this engine needs both. It used to require only tleap, on the
@@ -311,16 +314,16 @@ class _OpenMM(Engine):
 class _Schrodinger(Engine):
     """Prime MM-GBSA, which needs two different licences to do its best work.
 
-    The rescoring itself takes 8 PSP_PLOP tokens out of 25, so three jobs
-    fit and fewer while Glide is running. But the force field is a separate
-    licence: prime_mmgbsa's own help says the default is S-OPLS "if the
-    proper license is present", and OPLS_VERSION=OPLS_2005 is how you step
-    down from it deliberately.
+    The rescoring itself takes 8 PSP_PLOP tokens a job, so the size of that
+    pool, less what other Schrodinger jobs hold, sets how many run at once.
+    But the force field is a separate licence: prime_mmgbsa's own help says
+    the default is S-OPLS "if the proper license is present", and
+    OPLS_VERSION=OPLS_2005 is how you step down from it deliberately.
 
-    On this site FFLD_OPLS_MAIN has ONE seat. So the honest capacity is
-    three jobs on OPLS_2005, or one job on S-OPLS, and a run that assumed
-    three of the modern force field would queue two that quietly fall back
-    to a twenty year old one without saying so.
+    FFLD_OPLS_MAIN can have fewer seats than the rescoring pool has room
+    for jobs, often just one. A run that assumed every job would get the
+    modern force field would then queue jobs that quietly fall back to a
+    twenty year old one without saying so.
 
     Both pools are therefore read, and the force field a job will actually
     get is reported rather than assumed.
@@ -464,10 +467,10 @@ AMBER = _Amber(
     name="amber", label="AmberTools",
     forcefield="ff14SB", solvation="OBC(II), igb=5", radii="mbondi2",
     column="mmgbsa", comparable=("amber",),
-    note="The reference. Every number this project has published so far "
-         "came from here, so it is the one an older run can be compared "
-         "with. Its dG includes the surface term (ESURF), which is part of "
-         "what the SA in MM-GBSA means.")
+    note="The reference, and the default. Runs made before other engines "
+         "could be chosen used it, so it is the one an older run can be "
+         "compared with. Its dG includes the surface term (ESURF), which "
+         "is part of what the SA in MM-GBSA means.")
 
 OPENMM = _OpenMM(
     name="openmm", label="OpenMM",
@@ -476,7 +479,7 @@ OPENMM = _OpenMM(
     note="A second opinion on the same pose. It replaces MMPBSA.py and not "
          "sander: the geometry is the one sander minimised, and OpenMM "
          "computes that geometry's energy with its own generalised Born "
-         "code. On this project's poses it lands within 1.3 kcal/mol of "
+         "code. In testing it lands within about 1.3 kcal/mol of "
          "AmberTools with the pose order unchanged, so it is a check on the "
          "solver rather than a different estimate. Letting it minimise for "
          "itself was tried and put the energy about 30 kcal/mol out, so it "
@@ -492,16 +495,15 @@ SCHRODINGER = _Schrodinger(
     column="mmgbsa_schrodinger", comparable=("schrodinger",),
     note="A different force field and a different solvent model, so its "
          "numbers are not on the same scale as the other two and are never "
-         "merged with them: on the same 1BE9 pose it gave -81.79 kcal/mol "
-         "against AmberTools' -48.07. The value is Prime's no-strain binding "
+         "merged with them: on one test pose it gave -81.79 kcal/mol where "
+         "AmberTools gave -48.07. The value is Prime's no-strain binding "
          "energy, taken like the others from the complex's own geometry; its "
          "headline figure also subtracts the strain of a separately relaxed "
-         "free peptide, which grew from 9 to 59 kcal/mol between a 5 and a "
-         "15 residue peptide. Two licences are needed and they do not have "
-         "the same depth: the rescoring takes 8 of 25 PSP_PLOP tokens, so "
-         "three jobs fit, while the modern force field has a single seat. "
-         "Three jobs on OPLS_2005 or one on S-OPLS, and which one a result "
-         "came from is recorded with it.")
+         "free peptide, which grew from 9 to 59 kcal/mol between a 5 and a 15 "
+         "residue peptide. Two licences are needed: each job takes 8 PSP_PLOP "
+         "tokens, and S-OPLS also needs a seat of its own, which a site often "
+         "has fewer of. A job that finds no seat free runs on OPLS_2005, and "
+         "which force field a result came from is recorded with it.")
 
 ENGINES = {e.name: e for e in (AMBER, OPENMM, SCHRODINGER)}
 ORDER = ["amber", "openmm", "schrodinger"]

@@ -1,7 +1,5 @@
 """Starting the tool on the cluster and getting a URL back.
 
-By Aadhil Haq
-
 The server prints one line holding both the port it got and the token that
 gates it. That line is the whole handshake: nothing is guessed, nothing is
 assumed about which port was free, and a server that failed to start says so

@@ -1,7 +1,5 @@
 """What a pose is, beside what it scores.
 
-By Aadhil Haq
-
 A docking score orders poses. It does not say why one pose is better than
 another, whether it sits on the site that was asked for, or whether the
 number came from a large greasy contact or from two salt bridges. This
@@ -59,10 +57,9 @@ PROBE = 1.4
 # areas are reported to the nearest A^2.
 POINTS = 1024
 
-# The contact rules, identical to the ones the pose viewer paints with. See
-# hope_monitor/interactions_kind.py in the pipelines, which holds the same
-# constants and the symmetry tests for them: a rule written one way round
-# reports half of the interactions it should.
+# The contact rules, identical to the ones the pose viewer paints with. Each
+# must hold whichever side of the interface an atom is on: a rule written
+# one way round reports half of the interactions it should.
 HBOND_A = 3.5
 IONIC_A = 4.0
 STACK_A = 5.0
@@ -830,8 +827,7 @@ def apolar_run(seq):
 def developability(seq, ph=7.4):
     """The sequence panel, from HOPE-PE.
 
-    Vendored unchanged from the pipelines' hope_core so the two tools report
-    the same numbers for the same peptide. Sequence only: nothing here
+    Sequence only: nothing here
     depends on the pose, and nothing here is defined for a non-standard or D
     residue, so a peptide holding one gets no developability row rather than
     a wrong one.

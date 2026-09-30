@@ -1,7 +1,5 @@
 """The launcher window builds, and the site table fills it in.
 
-By Aadhil Haq
-
 Where there is a display (the Windows and macOS build runners have one)
 the real window is constructed and driven. Where there is not, the checks
 that need no display still run and this file says which half was skipped.
@@ -52,7 +50,7 @@ check(".adcp" in os.path.basename(appmod.CONFIG),
 
 # The port band is this tool's own, and a sibling's formula is the one to
 # stay clear of: 8000 + (sum of the account's characters mod 1000).
-for user in ("aadhil.haq", "sandun", "a", "zzzzzzzz"):
+for user in ("j.doe", "asmith", "a", "zzzzzzzz"):
     mine = clusters.suggested_port(user)
     theirs = 8000 + (sum(ord(c) for c in user) % 1000)
     check(mine != theirs,

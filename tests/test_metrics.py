@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """The metric panel: the parsers, the geometry and what reaches the table.
 
-By Aadhil Haq
-
 The panel reads numbers out of Amber's own output and measures a geometry.
 Both are easy to get subtly wrong in ways that still produce a plausible
 column, so each check here is against something known: an analytic sphere, a
@@ -405,8 +403,6 @@ check("a peptide with a D residue gets none",
       M.developability("&AVLKWHY").get("gravy") is None)
 check("the longest apolar run is the longest run",
       M.apolar_run("KKAVILKK") == 4 and M.apolar_run("KKKK") == 0)
-check("HOPE-PE is the pipelines' own module, unchanged",
-      "practicality" in M.developability.__doc__ or True)
 
 print("what reaches the results table")
 panel = {"pose": 3, "mm_vdw": -60.0, "mm_eel": -5.0, "mm_egb": 40.0,
@@ -686,20 +682,31 @@ check("every panel column reaches the web table",
       % ", ".join(_unshown))
 
 # ------------------------------------------- a real pose, where there is one
-print("a real scored pose, if this machine has one")
-POSE = os.environ.get("ADCP_TEST_POSE") or (
-    "/scratch/group/p.agr250019.000/test_runs/pipelines_e2e_20260925/"
-    "hope-trimer-loop/run/mmgbsa/WVGGGSYW/pose1")
-if os.path.isfile(os.path.join(POSE, "WVGGGSYW_com_forleap.pdb")):
-    tm = M.tleap_map(os.path.join(POSE, "WVGGGSYW_com_forleap.pdb"))
-    check("the tleap map covers every residue of the complex", len(tm) == 93)
+print("a real scored pose, if one is given")
+# Set ADCP_TEST_POSE to the folder of one scored pose of a finished run
+# (mmgbsa/<sequence>/pose<k>) to check the energy terms against a real
+# complex. The sequence and the residue counts are read from the folder.
+POSE = os.environ.get("ADCP_TEST_POSE", "").rstrip("/")
+SEQ = os.path.basename(os.path.dirname(POSE)) if POSE else ""
+FORLEAP = os.path.join(POSE, SEQ + "_com_forleap.pdb") if POSE else ""
+if FORLEAP and os.path.isfile(FORLEAP):
+    tm = M.tleap_map(FORLEAP)
+    _res = []
+    for _l in open(FORLEAP):
+        if _l.startswith(("ATOM", "HETATM")):
+            _k = (_l[21], int(_l[22:26]), _l[26])
+            if not _res or _res[-1] != _k:
+                _res.append(_k)
+    check("the tleap map covers every residue of the complex",
+          len(tm) == len(_res), "%d against %d" % (len(tm), len(_res)))
     check("it starts at the receptor's own first residue",
-          tm[1][0] == "A" and tm[1][1] == 25)
-    check("and the ligand is chain B", tm[93][0] == "B")
-    rst, what = M.scored_rst(POSE, "WVGGGSYW")
+          (tm[1][0], tm[1][1]) == _res[0][:2],
+          "%s against %s" % ((tm[1][0], tm[1][1]), _res[0][:2]))
+    check("and the ligand is chain B", tm[len(tm)][0] == "B")
+    rst, what = M.scored_rst(POSE, SEQ)
     check("the coordinates that were scored are identified",
           what == "minimised complex", "%s" % what)
-    rt = M.terms(os.path.join(POSE, "WVGGGSYW_mmgbsa.dat"))
+    rt = M.terms(os.path.join(POSE, SEQ + "_mmgbsa.dat"))
     check("the real output's four terms close on its total",
           abs(rt["vdw"] + rt["eel"] + rt["egb"] + rt["esurf"] - rt["total"])
           < 0.001)
@@ -707,7 +714,7 @@ if os.path.isfile(os.path.join(POSE, "WVGGGSYW_com_forleap.pdb")):
     # against the decomposition rather than repeated. Where a run has one on
     # disk: the pairwise terms must agree closely, the surface term must not,
     # and the total must come out a few per cent more negative.
-    dfile = os.path.join(POSE, "WVGGGSYW_decomp.dat")
+    dfile = os.path.join(POSE, SEQ + "_decomp.dat")
     if os.path.isfile(dfile):
         dg = M.decomposition(dfile, tm)
         tot = sum(v["total"] for v in dg.values())
@@ -729,8 +736,21 @@ if os.path.isfile(os.path.join(POSE, "WVGGGSYW_com_forleap.pdb")):
         print("  . no decomposition on disk for this pose, so the closure "
               "check is skipped")
 else:
-    skips.append("no full MM-GBSA pose directory on this machine")
+    skips.append("no scored pose given; set ADCP_TEST_POSE to one")
     print("  . %s" % skips[-1])
+
+# The run shipped with the package has real MM-GBSA output too, so the part
+# of the check that needs only that runs everywhere.
+print("the example run's own MM-GBSA output")
+import glob as _glob                                          # noqa: E402
+_ex = sorted(_glob.glob(os.path.join(ROOT, "adcp_dock", "example_run",
+                                     "mmgbsa", "*", "pose*", "*_mmgbsa.dat")))
+check("the example run carries MM-GBSA output", len(_ex) > 0)
+_open = [d for d in _ex
+         if abs(sum(M.terms(d)[k] for k in ("vdw", "eel", "egb", "esurf"))
+                - M.terms(d)["total"]) >= 0.001]
+check("every example pose's four terms close on its total", not _open,
+      ", ".join(os.path.relpath(d, ROOT) for d in _open))
 
 if fails:
     print("\ntest_metrics FAILED (%d)" % len(fails))

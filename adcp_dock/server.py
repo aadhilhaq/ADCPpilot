@@ -1,7 +1,5 @@
 """The web front end: a local page that sets a run up and watches it.
 
-By Aadhil Haq
-
 Standard library only, and bound to localhost by default. A tool people run
 on a login node should not open a port to the rest of the cluster, and the
 token in the URL means a second person on the same node cannot drive a user
@@ -273,9 +271,9 @@ class App:
         out = []
         for row in gbengines.catalogue():
             if row["name"] == "schrodinger":
-                # The licence, not just the program: Prime needs 8 of the 25
-                # rescoring tokens and the modern force field has one seat,
-                # so what is free decides what a run would actually get.
+                # The licence, not just the program: Prime needs 8 rescoring
+                # tokens a job and the modern force field has seats of its
+                # own, so what is free decides what a run would actually get.
                 try:
                     row["licence"] = gbengines.SCHRODINGER.plan(timeout=3)
                 except Exception:                              # noqa: BLE001

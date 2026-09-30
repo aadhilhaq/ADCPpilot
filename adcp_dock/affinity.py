@@ -1,8 +1,6 @@
 """`adcp-dock affinity`: what a target affinity corresponds to, in the units
 this tool reports.
 
-By Aadhil Haq
-
 This prints a scale rather than a Kd column in the results table, because
 an MM-GBSA score cannot be converted into a Kd:
 

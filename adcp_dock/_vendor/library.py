@@ -1,7 +1,5 @@
 """Capped peptide library: ACE-X1..Xn-NME, built with RDKit.
 
-By Aadhil Haq
-
 Length is a parameter throughout, and every caller passes it from the config,
 so nothing here is specific to one pipeline: 2 gives the 400 dipeptides, 3 the
 8,000 tripeptides, 4 the 160,000 tetrapeptides."""

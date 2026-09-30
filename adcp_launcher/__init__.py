@@ -1,7 +1,5 @@
 """The desktop launcher: open the docking tool from a laptop.
 
-By Aadhil Haq
-
 It makes an SSH connection to the cluster, starts the tool's own web server
 there, forwards a local port to it and opens a browser. Nothing about the
 tool has to be installed on the laptop except this launcher and paramiko.

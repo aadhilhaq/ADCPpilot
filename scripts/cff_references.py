@@ -1,8 +1,6 @@
 """Rewrite the references section of CITATION.cff from the tool's own
 citation list (adcp_dock/cite.py), with full metadata from Crossref.
 
-By Aadhil Haq
-
     python scripts/cff_references.py
 
 Run it after adding a reference to cite.py; tests/test_api.py checks that

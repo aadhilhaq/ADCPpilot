@@ -1,7 +1,5 @@
 """What a normal `pip install` puts on disk.
 
-By Aadhil Haq
-
 An editable install (`pip install -e`) reads the source tree directly, so a
 package missing from pyproject.toml goes unnoticed there. This checks the
 package list against the tree, and builds a real wheel and looks inside it

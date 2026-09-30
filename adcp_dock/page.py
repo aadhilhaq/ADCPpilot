@@ -1,7 +1,5 @@
 """The web page: one file, no build step, no network access at run time.
 
-By Aadhil Haq
-
 The peptide list is laid out as a row per sequence, with the entry number,
 the type, and a sequence box that numbers its own residues.
 
@@ -856,7 +854,7 @@ the queue for twice that plus half an hour">Estimate &amp; fill</button></div>
        fails on any cluster that does not have it. -->
   <div class=row style="margin-top:12px">
     <div class=fieldwrap style="flex:1 1 220px"><label for=label>Name this run *</label>
-      <input type=text id=label placeholder="e.g. SIRPa_screen"></div>
+      <input type=text id=label placeholder="e.g. p53_screen"></div>
     <div class=fieldwrap style="flex:2 1 320px"><label for=outdir>Output folder *</label>
       <input type=text id=outdir placeholder="where the run directory goes">
       </div>

@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # Update this checkout to the latest version, and say what it now has.
 #
-# By Aadhil Haq
-#
 #     cd /path/to/ADCP_docking && git pull && ./update.sh
 #
 # The pull in front is not redundant: it is what brings in a newer copy of
@@ -78,7 +76,7 @@ say "reinstalling adcp-dock into the environment it was installed in"
 PY=""
 # shellcheck disable=SC1091
 [ -f "$HERE/activate.sh" ] && . "$HERE/activate.sh" >/dev/null 2>&1
-for c in "${ADCP_PYTHON:-}" "$HERE/../envs/hope/bin/python" \
+for c in "${ADCP_PYTHON:-}" "$HERE/../envs/adcp/bin/python" \
          "$(command -v python3 2>/dev/null)"; do
   [ -n "${c:-}" ] && [ -x "${c:-}" ] && { PY="$c"; break; }
 done

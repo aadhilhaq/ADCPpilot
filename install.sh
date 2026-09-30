@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # Install GUI to ADCP Docking on a cluster, reusing whatever is already there.
 #
-# By Aadhil Haq
-#
 # The tools it needs (ADFRsuite for the docking, AmberTools and pdb2pqr for
 # the rescoring, numpy and RDKit for everything else) are often already
 # present in a shared scientific environment. Another copy of AmberTools is
@@ -36,7 +34,7 @@ head_() { printf '\n== %s ==\n' "$*"; }
 # Ordered by how likely they are to be the right answer on a given machine.
 ENV_CANDIDATES=(
   "${ADCP_ENV:-}"
-  ${ADCP_SHARED:-/opt/shared}/envs/hope
+  ${ADCP_SHARED:-/opt/shared}/envs/adcp
 )
 ADFR_CANDIDATES=(
   "${ADFRSUITE_HOME:-}"

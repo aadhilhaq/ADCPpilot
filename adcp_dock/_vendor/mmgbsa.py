@@ -1,7 +1,5 @@
 """MM-GBSA rescoring of the final ADCP poses.
 
-By Aadhil Haq
-
 ADCP's score is a docking score: fast, and tuned for ranking within one search
 rather than for comparing across constructs of different length and composition.
 MM-GBSA computes an interaction energy from a force field with an implicit-solvent
@@ -157,8 +155,8 @@ BACKEND_ENGINE = {"amber": "amber", "prime": "schrodinger",
 def backend() -> str | None:
     """The engine used when a run does not name one. None if none can run.
 
-    Order matters: AmberTools first, because every number this project has
-    published came from it and a run that asks for nothing else should stay
+    Order matters: AmberTools first, because runs made before other engines
+    could be chosen used it, and a run that asks for nothing else should stay
     comparable with those. OpenMM second, since it reads the same topologies.
     Prime last, because its numbers are on their own scale.
 
@@ -587,8 +585,9 @@ def run_amber(rec, pose_mol, workdir: str, prefix: str, log=print,
               radii: str = RADII) -> float | None:
     """The reference engine: sander minimises, MMPBSA.py decomposes.
 
-    ff14SB with whichever generalised Born model the radii select. Every
-    MM-GBSA number this project has published came from here.
+    ff14SB with whichever generalised Born model the radii select. It is
+    the default, and the engine every run used before others could be
+    chosen.
     """
     topo = _topologies(rec, pose_mol, workdir, prefix, log, prep_ph, radii)
     if topo is None:
@@ -805,8 +804,8 @@ def prime_forcefield(log=print, timeout=30):
     """Which OPLS version a Prime job started now would actually get.
 
     Returns (flags, name). The force field licence is a separate pool from
-    the rescoring one and it has a single seat here, so a job started while
-    that seat is taken falls back to OPLS_2005 on its own. Asking first means
+    the rescoring one, often with a single seat, so a job started while no
+    seat is free falls back to OPLS_2005 on its own. Asking first means
     the result can say which force field produced it, instead of the table
     implying every value came from the same one.
     """
@@ -870,7 +869,7 @@ def prime_dg(topo, log=print, schro=None, env=None) -> float | None:
 
     Separate for the same reason openmm_dg is: it can then run against a
     complex an earlier AmberTools run left on disk, which is how this engine
-    was exercised without repeating the preparation. On 1BE9 pose 1 it
+    was exercised without repeating the preparation. On one test pose it
     returned -81.79 kcal/mol (no strain) on S-OPLS where AmberTools gave
     -48.07, which is the scale difference the separate column exists for.
     """

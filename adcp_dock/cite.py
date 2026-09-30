@@ -1,7 +1,5 @@
 """`adcp-dock cite`: what to cite, for this tool and everything it runs.
 
-By Aadhil Haq
-
 A method section is usually written months after the run, from the output
 directory rather than the repository, so the citation list is generated
 into each run alongside the results. It is scoped to what that run actually

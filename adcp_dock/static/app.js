@@ -1,8 +1,6 @@
 /* The page's behaviour. Plain JavaScript, no framework and no build step.
    Served by the same process that does the work, so it always matches the
-   server it talks to.
-
-   By Aadhil Haq */
+   server it talks to. */
 'use strict';
 const T = new URLSearchParams(location.search).get('t') || '';
 // The MM-GBSA engines the server reported, filled in by the tools call and
@@ -1720,8 +1718,8 @@ function colgroups(rows, tn, mm, omm){
      f: r => (r.mmgbsa_n || '-') + ' / ' + fmt(r.mmgbsa_spread, 1)},
   ]});
   // One pair of columns per engine, once more than one has scored the run.
-  // Each is on its own scale (on one 1BE9 pose AmberTools gave -48.07 and
-  // Prime -72.88), so they are read down a column, never across a row.
+  // Each is on its own scale (on one test pose AmberTools gave -48.07 and
+  // Prime -81.79), so they are read down a column, never across a row.
   if(engs.length > 1) G.push({key: 'mmeng', label: 'MM-GBSA by engine',
     on: true, cols: [].concat.apply([], engs.map(e => [
       {h: GBLABEL[e] + ' best', cls: 'c',

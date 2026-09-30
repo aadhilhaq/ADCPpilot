@@ -1,8 +1,6 @@
 """Install ADCP 1.1 the way the Scripps Research Institute's own script does
 (adcpsuite_micromamba.sh, October 2024), into one folder.
 
-By Aadhil Haq
-
     python -m adcp_dock.adcp11_install [--dest DIR]      (or adcp-dock install-adcp11)
 
 ADCP 1.1 is a separate Python 3.7 environment with its own OpenMM, Open Babel

@@ -1,7 +1,5 @@
 """GUI to ADCP Docking: peptide docking with ADCP, on a SLURM cluster or locally.
 
-By Aadhil Haq
-
 A receptor structure and a list of peptide sequences go in; prepared
 structures, docked poses, scores and optional MM-GBSA energies come out.
 Computational stages run as batch jobs, or in order on the local machine

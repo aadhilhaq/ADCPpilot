@@ -2,8 +2,6 @@
 that needs a toolkit installed before it can ask for a password is not a
 launcher.
 
-By Aadhil Haq
-
 The shape is deliberately one screen: where to connect, who you are, where
 the tool lives, and a button. Everything else is a log, because the useful
 thing when a connection fails is what the far end said, not a spinner.

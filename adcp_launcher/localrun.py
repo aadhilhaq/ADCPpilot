@@ -1,7 +1,5 @@
 """Run the interface on THIS computer instead of on a cluster.
 
-By Aadhil Haq
-
 The launcher is a small SSH client; it does not carry the docking stack
 itself (RDKit, OpenMM, ADFRsuite are far too large to bundle). So "This
 computer" starts `adcp-dock local` (installed separately, once) reads the

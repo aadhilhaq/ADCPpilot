@@ -1,7 +1,5 @@
 """Name, tagline and palette, defined once.
 
-By Aadhil Haq
-
 The launcher, the page, the CLI and the README read these rather than
 carrying their own copies.
 

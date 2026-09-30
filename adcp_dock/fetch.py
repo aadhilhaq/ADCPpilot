@@ -1,7 +1,5 @@
 """Fetching a structure from the RCSB, and caching it.
 
-By Aadhil Haq
-
 Cached under the runs directory rather than re-downloaded, because compute
 nodes frequently have no outbound network: a run that succeeded on the
 login node would otherwise fail on the node that executes it.

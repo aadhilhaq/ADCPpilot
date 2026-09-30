@@ -1,7 +1,5 @@
 """Locate the external executables, without hard-coding any one installation.
 
-By Aadhil Haq
-
 ADCP and agfr ship inside ADFRsuite, which is unpacked wherever the
 installer chose. Search order: this interpreter's own environment, the
 environment variables ADFRSUITE_HOME, AMBERHOME and ADCP_DOCK_TOOLS,

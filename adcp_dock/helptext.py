@@ -1,7 +1,5 @@
 """What each setting on the page means, in one place.
 
-By Aadhil Haq
-
 Written for a reader who has not seen the code: each entry says what the
 setting does, what changes if it is moved, and where published guidance
 exists, what that guidance is.

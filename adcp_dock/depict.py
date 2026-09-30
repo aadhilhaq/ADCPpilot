@@ -1,8 +1,6 @@
 """Drawings for the Modifications dialog: one residue as it sits in a
 peptide, as an SVG, with wavy bonds where the chain continues.
 
-By Aadhil Haq
-
 The twenty standard residues are written here; the non-standard ones come
 from static/modifications.json, whose structures were taken from ADCP 1.1's
 own templates and rotamers (scripts/modifications_table.py). Charged side

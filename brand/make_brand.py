@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """The mark: one SVG, every raster size, and the .ico.
 
-By Aadhil Haq
-
 Drawn in code rather than committed as an image, so the mark can be
 changed by editing code.
 

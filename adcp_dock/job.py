@@ -1,7 +1,5 @@
 """A run, on disk: one directory, one job.json, everything else beside it.
 
-By Aadhil Haq
-
 A plain file rather than a database, so that a run survives the web app
 being closed, can be read by anyone asked to look at it later, and can be
 resumed by re-running the same command.
@@ -85,7 +83,7 @@ def default(**kw):
         # run in AmberTools. A run keeps the model its MM-GBSA started with.
         "mmgbsa_model": "obc2",
         # Which program computes the energy. AmberTools is the default
-        # because every number this project has published came from it, so a
+        # because runs made before other engines could be chosen used it, so a
         # run that does not ask for anything else stays comparable with them.
         "mmgbsa_engine": "amber",
         "mmgbsa_poses": 5,

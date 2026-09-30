@@ -1,7 +1,5 @@
 """The parts that fail silently: target contents and the MM-GBSA split.
 
-By Aadhil Haq
-
 Both produce numbers when they are wrong. A stage that crashes announces
 itself; a stage that returns a plausible energy computed on the wrong
 molecules does not.
@@ -757,6 +755,20 @@ for _p in ("poseviewer/*.pdb", "poseviewer/*.mae", "poseviewer/*.maegz",
 
 # --------------------------------------------------------------------------
 # More than one MM-GBSA engine on a run, and rescoring a finished one.
+print("listing the engines does not import OpenMM")
+# The page's first request lists every engine. Importing OpenMM to learn
+# whether it is installed reads hundreds of files, and on a busy shared
+# filesystem that outlasted the API test's 30 second limit. Finding the
+# package answers the question without loading it.
+import subprocess as _sp3                                       # noqa: E402
+_code = ("import sys; sys.path.insert(0, %r); "
+         "from adcp_dock._vendor import gbengines as G; G.catalogue(); "
+         "print('openmm' in sys.modules)" % os.path.dirname(HERE))
+_out = _sp3.run([sys.executable, "-c", _code], capture_output=True,
+                text=True).stdout.split()
+check(_out == ["False"],
+      "listing the engines imported OpenMM (%s)" % _out)
+
 print("several MM-GBSA engines on one run")
 from adcp_dock import report as _rep                            # noqa: E402
 _r = _rep.summarise("LLKWHY", [{"score": -14.0}], mm=[-25.0], name="P1",

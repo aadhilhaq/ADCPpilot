@@ -1,7 +1,5 @@
 # Builds the desktop launcher, for Windows and for macOS.
 #
-# By Aadhil Haq
-#
 # PyInstaller does not cross-compile: a Windows .exe has to be built on
 # Windows and a Mac .app on a Mac. Rather than ask anyone who wants one to
 # install a build environment, this runs on both runners and leaves each
