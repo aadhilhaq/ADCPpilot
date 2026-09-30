@@ -267,6 +267,20 @@ A run can also start from a target file made in AGFR or AGFRGUI: give its path u
 
 Scripps' ADCP 1.1 environment includes the MSMS library (mslib) and the UT packages, which are free for academic use only; check their terms before commercial use.
 
+### ADapt (optional)
+
+ADapt, by Michel Sanner, shows what a PDB file holds before you dock into it: each biological assembly, alternate locations, side chains with missing atoms, missing residues, ligands, cofactors and metals, in a browser page. It writes receptor and ligand PDBQT files the way AGFR does. It runs on the ADCP 1.1 environment above, and it is a separate project, not included in this package. Get it from <https://github.com/michelsanner/adapt> (while that repository is private, ask its author for access):
+
+```bash
+git clone https://github.com/michelsanner/adapt
+```
+
+The interface finds it at `$ADAPT_HOME`, in a folder named `adapt` beside ADFRsuite, beside this checkout or in a tools folder given with `--tools-root`, or at `~/.adcp-dock/adapt`. When it finds ADapt and ADCP 1.1, the Receptor card shows **Open ADapt**. That starts ADapt with the ADCP 1.1 environment and opens it in a new tab, where you load the structure with *Open PDB* or *Fetch*. The first start takes about 15 seconds. ADapt keeps its sessions in `adapt_sessions` inside the runs folder, and it stops when the interface stops.
+
+ADapt listens on its own port on the machine running the interface. When the page is reached through the launcher or an SSH tunnel, forward that port as well; the page shows the command. To run ADapt on its own: `ADCPSUITE=/path/to/adcpsuite ADAPT_OUTDIR=/path/to/folder adapt/bin/adapt serve`.
+
+ADapt protonates the receptor with reduce, as AGFR does, while this interface's preparation uses pdb2pqr with PROPKA at the run's pH, and the two often place histidine hydrogens differently. Use ADapt to look at a structure and decide what to keep, then let this interface prepare the receptor, so that docking and rescoring use the same hydrogens.
+
 ---
 
 ## 5. The desktop launcher

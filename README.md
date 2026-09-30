@@ -46,7 +46,7 @@ python3 -m venv ~/.adcp-dock/venv
 ~/.adcp-dock/venv/bin/adcp-dock local
 ```
 
-ADCP 1.1 is an optional extra install: `adcp-dock install-adcp11` ([INSTALL.md, section 4](INSTALL.md#4-adcp-11-optional)).
+ADCP 1.1 is an optional extra install: `adcp-dock install-adcp11` ([INSTALL.md, section 4](INSTALL.md#4-adcp-11-optional)). On top of it, ADapt, a separate tool by Michel Sanner that shows what a structure file holds before you dock into it, can be opened from the Receptor card once it is installed ([INSTALL.md, ADapt](INSTALL.md#adapt-optional)).
 
 `adcp-dock example` adds a finished run, MDM2 with three peptides, to open before docking anything. The Colab notebook includes it.
 

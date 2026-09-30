@@ -125,6 +125,8 @@ function gbEngines(rows){
     $('omm_minimize').disabled = true;
   }
   gbEngines(d.gb_engines);
+  // ADapt, a separate tool, when the server can find it.
+  if(d.adapt && d.adapt.available) $('adaptrow').classList.remove('hide');
   // Without AmberTools the rescoring cannot run, so it cannot be chosen.
   // The box arrives ticked, because that is the right default wherever it
   // can run. Here it is unticked and locked, and a submission with it on
@@ -145,6 +147,32 @@ function gbEngines(rows){
 /* ===================== receptor ====================================== */
 let RECEPTOR = null;
 $('recload').onclick = loadReceptor;
+
+/* ADapt runs as its own program, started by the server on request. The tab is
+   opened inside the click, where a browser allows it, and pointed at ADapt
+   once the server has it running. Its address is on the machine running this
+   interface, so a browser reaching this page through a forwarded port needs
+   ADapt's port forwarded too. */
+$('adaptopen').onclick = async () => {
+  const note = $('adaptnote'), btn = $('adaptopen');
+  const tab = window.open('', '_blank');
+  btn.disabled = true;
+  note.textContent = 'Starting ADapt. The first start takes about 15 seconds.';
+  const r = await api('/api/adapt', {});
+  btn.disabled = false;
+  if(r.error || !r.url){
+    if(tab) tab.close();
+    note.innerHTML = '<span class=bad>' + esc(r.error || 'ADapt did not start.') + '</span>';
+    return;
+  }
+  if(tab) tab.location.href = r.url;
+  const port = (/:(\d+)\//.exec(r.url) || [])[1] || '';
+  note.innerHTML = 'ADapt is open in a new tab (<a href="' + esc(r.url)
+    + '" target=_blank rel=noopener>open it again</a>). Load the receptor there '
+    + 'with Open PDB or Fetch. If the tab stays blank, this browser cannot reach '
+    + 'port ' + esc(port) + ' on the machine running this interface; forward it with <code>ssh -L '
+    + esc(port) + ':127.0.0.1:' + esc(port) + ' &lt;your login node&gt;</code>.';
+};
 $('recpath').onkeydown = e => { if(e.key === 'Enter') loadReceptor(); };
 
 /* From the user's own computer. The page is served from the cluster and

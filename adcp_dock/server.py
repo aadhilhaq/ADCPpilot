@@ -260,7 +260,50 @@ class App:
                 # ADCP 1.1, when it is installed: the page offers it, its
                 # non-standard residue syntax and OpenMM minimization.
                 "adcp11": self._adcp11()[0],
-                "adcp11_version": self._adcp11()[1]}
+                "adcp11_version": self._adcp11()[1],
+                # ADapt, a separate tool for looking inside a structure,
+                # when it is installed where this can find it.
+                "adapt": self._adapt()}
+
+    def _adapt(self):
+        """Whether ADapt can be opened from here, and if not, why."""
+        from . import adapt as adaptmod
+        home = adaptmod.find(self.tools_roots)
+        if not home:
+            return {"available": False, "repo": adaptmod.REPO,
+                    "why": "ADapt is not installed here."}
+        if not self._adcp11()[0]:
+            return {"available": False, "repo": adaptmod.REPO,
+                    "why": "ADapt runs on ADCP 1.1, which is not installed here."}
+        return {"available": True, "repo": adaptmod.REPO, "why": ""}
+
+    def adapt_open(self):
+        """Start ADapt if it is not running, and return its address.
+
+        Its sessions go into the runs folder, not the home directory, which
+        is where ADapt keeps them by default.
+        """
+        from . import adapt as adaptmod
+        from . import adcp11
+        home = adaptmod.find(self.tools_roots)
+        exe = self._adcp11()[0]
+        if not home or not exe:
+            return {"error": self._adapt()["why"]}
+        if getattr(self, "_adapt_runner", None) is None:
+            import atexit
+            self._adapt_runner = adaptmod.Runner()
+            atexit.register(self._adapt_runner.stop)
+        try:
+            url = self._adapt_runner.start(
+                home, adcp11.home_of(exe), os.path.join(self.runs, "adapt_sessions"))
+        except (OSError, RuntimeError) as exc:
+            return {"error": str(exc)}
+        return {"url": url}
+
+    def adapt_stop(self):
+        runner = getattr(self, "_adapt_runner", None)
+        if runner is not None:
+            runner.stop()
 
     def _gb_engines(self):
         """Every MM-GBSA engine, described, with whether it is installed.
@@ -1402,6 +1445,8 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/api/rescore":
             return self._send(app.rescore_run(body.get("rundir"),
                                               body.get("engine")))
+        if u.path == "/api/adapt":
+            return self._send(app.adapt_open())
         return self._send({"error": "no such endpoint"}, 404)
 
 
@@ -1431,3 +1476,5 @@ def serve(host="127.0.0.1", port=8765, runs="~/adcp_runs", tools_roots=()):
         httpd.serve_forever()
     except KeyboardInterrupt:
         print("\nstopped")
+    finally:
+        httpd.app.adapt_stop()

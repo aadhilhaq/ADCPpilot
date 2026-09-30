@@ -651,6 +651,14 @@ __STALE__
       <input type=text id=targetfile
              placeholder="/path/to/target.trg  (optional: its receptor, maps and box are used)"></div>
   </div>
+  <!-- ADapt, a separate tool, shown only when the server can find it. It
+       shows what a structure file holds before anything is docked into it. -->
+  <div id=adaptrow class="row hide" style="margin-top:10px;align-items:center">
+    <div style="flex:0 0 auto"><button class=ghost id=adaptopen type=button>Open ADapt</button></div>
+    <div class=why id=adaptnote style="flex:1 1 280px">ADapt, a separate tool by
+      Michel Sanner, shows what a structure file holds before you dock into it:
+      its assemblies, alternate locations, missing residues, ligands and metals.</div>
+  </div>
 </div>
 
 <div class=card>
