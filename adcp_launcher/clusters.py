@@ -1,5 +1,7 @@
 """What differs between one cluster and the next, as a table rather than in code.
 
+By Aadhil Haq
+
 Selecting a site fills in the rest: a user should need to know their
 account and password, not a group allocation path.
 

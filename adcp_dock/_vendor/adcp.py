@@ -1,5 +1,7 @@
 """ADCP re-docking of stitched constructs.
 
+By Aadhil Haq
+
 AutoDock CrankPep folds the peptide inside the receptor field instead of docking a
 fixed conformer, so a construct is not required to reproduce the poses of the two
 anchors it was built from. This is why a pair whose parent poses overlap can still

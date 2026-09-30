@@ -1,5 +1,7 @@
 """What a pose is, beside what it scores.
 
+By Aadhil Haq
+
 A docking score orders poses. It does not say why one pose is better than
 another, whether it sits on the site that was asked for, or whether the
 number came from a large greasy contact or from two salt bridges. This

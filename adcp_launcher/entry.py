@@ -1,5 +1,7 @@
 """What the launcher does when started, however it was started.
 
+By Aadhil Haq
+
 Kept out of __main__.py so there is one implementation whether it is reached
 by `python -m adcp_launcher`, by the console script, or by a bundled
 executable running a script that imports it.

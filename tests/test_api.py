@@ -1,5 +1,7 @@
 """The web API, driven the way the page drives it.
 
+By Aadhil Haq
+
 A form that validates on the server has to be tested against the server: the
 page's own checks can agree with themselves perfectly while the thing that
 decides whether a run starts disagrees.

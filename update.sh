@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Update this checkout to the latest version, and say what it now has.
 #
+# By Aadhil Haq
+#
 #     cd /path/to/ADCP_docking && git pull && ./update.sh
 #
 # The pull in front is not redundant: it is what brings in a newer copy of

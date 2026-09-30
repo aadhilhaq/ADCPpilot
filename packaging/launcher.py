@@ -1,5 +1,7 @@
 """The script PyInstaller bundles.
 
+By Aadhil Haq
+
 A bundled executable runs its entry script as a top-level script with no
 package around it, so this imports ABSOLUTELY and does nothing else.
 Pointing PyInstaller at adcp_launcher/__main__.py instead produces a build

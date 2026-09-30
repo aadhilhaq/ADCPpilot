@@ -1,5 +1,7 @@
 """What one SLURM task runs. Not meant to be called by hand.
 
+By Aadhil Haq
+
     python -m adcp_dock.worker /path/to/job.json prepare
     python -m adcp_dock.worker /path/to/job.json 7        (peptide index)
     python -m adcp_dock.worker /path/to/job.json report

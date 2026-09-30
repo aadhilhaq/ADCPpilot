@@ -1,5 +1,7 @@
 """The launcher window builds, and the site table fills it in.
 
+By Aadhil Haq
+
 Where there is a display (the Windows and macOS build runners have one)
 the real window is constructed and driven. Where there is not, the checks
 that need no display still run and this file says which half was skipped.

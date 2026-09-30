@@ -1,6 +1,8 @@
 """Download, verify and install ADFRsuite, the Scripps Research Institute's
 docking suite, which provides adcp, agfr and prepare_receptor.
 
+By Aadhil Haq
+
     python -m adcp_dock.adfr --dest ~/tools/ADFRsuite
 
 Standard library only: this runs before anything else is installed, on a

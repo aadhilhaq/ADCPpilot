@@ -1,5 +1,7 @@
 # Publish adcp-dock to PyPI, so that it installs with `pip install adcp-dock`.
 #
+# By Aadhil Haq
+#
 # MANUAL ONLY, and deliberately so. A publish to PyPI cannot be undone: a
 # version number, once uploaded, can be yanked but never replaced. It is
 # therefore not attached to a tag, which would publish on every release

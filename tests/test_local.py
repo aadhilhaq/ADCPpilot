@@ -1,5 +1,7 @@
 """Running here instead of on Slurm: for Colab and for workstations.
 
+By Aadhil Haq
+
 Two halves. The first needs nothing: local mode is opt-in, a cluster
 without sbatch still refuses, a dead runner is reported as dead, and the
 peptide parser reads the forms the page says it reads.

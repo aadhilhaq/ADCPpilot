@@ -1,5 +1,7 @@
 """The computational stages, and how a run is assembled from them.
 
+By Aadhil Haq
+
     prepare   receptor -> prepared PDB -> PDBQT -> grid maps (.trg)
     dock      one peptide per array task, then MM-GBSA on its kept poses
     report    gather the scores into a table

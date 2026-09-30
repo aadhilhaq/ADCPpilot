@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # The whole test suite, in one command.
 #
+# By Aadhil Haq
+#
 # Run it on a compute node, adding the account and partition your cluster
 # requires:
 #

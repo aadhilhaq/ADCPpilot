@@ -1,6 +1,8 @@
 /* The page's behaviour. Plain JavaScript, no framework and no build step.
    Served by the same process that does the work, so it always matches the
-   server it talks to. */
+   server it talks to.
+
+   By Aadhil Haq */
 'use strict';
 const T = new URLSearchParams(location.search).get('t') || '';
 // The MM-GBSA engines the server reported, filled in by the tools call and

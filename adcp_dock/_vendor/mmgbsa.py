@@ -1,5 +1,7 @@
 """MM-GBSA rescoring of the final ADCP poses.
 
+By Aadhil Haq
+
 ADCP's score is a docking score: fast, and tuned for ranking within one search
 rather than for comparing across constructs of different length and composition.
 MM-GBSA computes an interaction energy from a force field with an implicit-solvent

@@ -1,6 +1,8 @@
 """ADCP 1.1: finding it, running it, and writing what it produces in the
 layout the rest of this package reads.
 
+By Aadhil Haq
+
 ADCP 1.1 is installed by the Scripps Research Institute's own recipe as a
 separate conda environment (called adcpsuite), with its own Python. It adds
 non-standard and D amino acids, all-atom poses in one multi-model file, and

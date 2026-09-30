@@ -1,5 +1,7 @@
 # The tests that need nothing but Python.
 #
+# By Aadhil Haq
+#
 # Not the whole suite as it is run in practice: the real checks happen on a
 # compute node with ADFRsuite and Amber present, and this is what a clone
 # can prove about itself. Its job is to stop an obviously broken commit, not

@@ -1,5 +1,7 @@
 """Reading MMPBSA.py's output back to check that the complex was split correctly.
 
+By Aadhil Haq
+
 A single-trajectory MM-GBSA takes the complex, the receptor and the ligand
 from the same frame. Every bonded term (bond, angle, dihedral, 1-4 van der
 Waals and 1-4 electrostatic) therefore appears identically in the complex

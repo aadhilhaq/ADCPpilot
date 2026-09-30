@@ -1,5 +1,7 @@
 """The icon is one Windows will draw.
 
+By Aadhil Haq
+
 PIL's ICO writer compresses every size as PNG, and Explorer falls back to
 the generic executable icon rather than read a PNG-compressed 16x16 image.
 The small sizes are therefore written as uncompressed BMP, and this fails

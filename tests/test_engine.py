@@ -1,5 +1,7 @@
 """The parts that fail silently: target contents and the MM-GBSA split.
 
+By Aadhil Haq
+
 Both produce numbers when they are wrong. A stage that crashes announces
 itself; a stage that returns a plausible energy computed on the wrong
 molecules does not.

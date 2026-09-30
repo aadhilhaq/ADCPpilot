@@ -1,5 +1,7 @@
 """Protein preparation, in the sense of Schrodinger's Protein Preparation Wizard.
 
+By Aadhil Haq
+
 pdb2pqr alone adds hydrogens and assigns titration states. A crystal
 structure needs more before it can be docked against:
 

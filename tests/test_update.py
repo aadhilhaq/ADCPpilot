@@ -1,5 +1,7 @@
 """update.sh against a history rewritten upstream.
 
+By Aadhil Haq
+
 The case that matters is an https remote whose credential works: the fetch
 succeeds and only the fast-forward fails. That is a rewrite, not a sign-in
 problem, and the checkout must end up on the new history. A checkout with

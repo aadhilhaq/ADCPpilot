@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """The metric panel: the parsers, the geometry and what reaches the table.
 
+By Aadhil Haq
+
 The panel reads numbers out of Amber's own output and measures a geometry.
 Both are easy to get subtly wrong in ways that still produce a plausible
 column, so each check here is against something known: an analytic sphere, a

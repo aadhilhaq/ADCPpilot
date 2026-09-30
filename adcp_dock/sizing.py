@@ -1,5 +1,7 @@
 """Estimating how long a run will take, and what to request from the queue.
 
+By Aadhil Haq
+
 Calibrated against measured runs: an 11-residue peptide at 100 replicas by
 5 million steps took about eight minutes on 48 cores, and a 15-residue one
 at the same settings about twelve.

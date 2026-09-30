@@ -1,5 +1,7 @@
 """SSH to the cluster, through two-factor authentication, with a forwarded port.
 
+By Aadhil Haq
+
 Three things here differ from paramiko's defaults:
 
 Two-factor approval needs more than thirty seconds. paramiko's

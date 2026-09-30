@@ -1,5 +1,7 @@
 """Turning a run into readable, sortable numbers.
 
+By Aadhil Haq
+
 The headline figure for a peptide is the mean of its top few poses rather
 than its single best. A best score is the tail of a distribution the search
 drew many times and rewards the luckiest replica; the mean of the top few

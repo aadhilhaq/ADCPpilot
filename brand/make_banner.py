@@ -1,5 +1,7 @@
 """Draw the README banner from the same palette as the application mark.
 
+By Aadhil Haq
+
 Committed as a script and not only as a PNG so the banner can be redrawn
 when the wording changes. `python brand/make_banner.py` rewrites
 brand/banner.png in place.

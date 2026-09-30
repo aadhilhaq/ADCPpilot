@@ -1,6 +1,8 @@
 """Build adcp_dock/static/modifications.json, the list the Modifications
 dialog offers, from an ADCP 1.1 installation.
 
+By Aadhil Haq
+
     OPSIN_JAR=/path/to/opsin.jar python scripts/modifications_table.py /path/to/adcpsuite
 
 For each non-standard side chain in ADCP's Swiss library it records the code,

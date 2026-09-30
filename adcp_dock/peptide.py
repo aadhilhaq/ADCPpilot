@@ -1,5 +1,7 @@
 """What ADCP accepts as a peptide, and why a given string does not qualify.
 
+By Aadhil Haq
+
 Problems are returned as structured objects (which characters, at which
 positions, and what is wrong with the length) so a form can highlight the
 offending letters rather than printing "invalid sequence".

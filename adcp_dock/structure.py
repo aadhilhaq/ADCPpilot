@@ -1,5 +1,7 @@
 """Reading a receptor, and turning chosen residues into a docking box.
 
+By Aadhil Haq
+
 Deliberately small: enough PDB and mmCIF to list the chains, name the
 residues, and find where a set of them sits in space. Anything more belongs
 to a structure library, and a tool people install on a cluster is better off

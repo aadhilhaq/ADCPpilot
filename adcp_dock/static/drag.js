@@ -1,6 +1,8 @@
 /* Label dragging for the 3Dmol viewer. It keeps a dragged label inside
    the canvas and draws its leader line into a saved PNG, which 3Dmol
-   does not do itself. */
+   does not do itself.
+
+   By Aadhil Haq */
 
 /* ===== DRAGGABLE LABELS ====================================
    3Dmol labels carry a per-label screenOffset that the render
