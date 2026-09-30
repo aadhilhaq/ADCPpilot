@@ -3,10 +3,13 @@
 #
 # By Aadhil Haq
 #
-#     cd /path/to/ADCP_docking && git pull && ./update.sh
+#     cd /path/to/ADCP_docking && git pull; ./update.sh
 #
 # The pull in front is not redundant: it is what brings in a newer copy of
 # THIS script. Running it afterwards is what applies whatever that copy does.
+# The two are joined with ";", not "&&": when the published history has been
+# rewritten, a plain pull refuses, and this script is what moves the checkout
+# onto the new history.
 #
 # What it does NOT do: build an environment. install.sh owns that, it only
 # has to run once, and it is the thing that needs a login node and a network.
