@@ -279,7 +279,7 @@ The interface finds it at `$ADAPT_HOME`, in a folder named `adapt` beside ADFRsu
 
 ADapt listens on its own port on the machine running the interface. When the page is reached through the launcher or an SSH tunnel, forward that port as well; the page shows the command. To run ADapt on its own: `ADCPSUITE=/path/to/adcpsuite ADAPT_OUTDIR=/path/to/folder adapt/bin/adapt serve`.
 
-ADapt protonates the receptor with reduce, as AGFR does, while this interface's preparation uses pdb2pqr with PROPKA at the run's pH, and the two often place histidine hydrogens differently. Use ADapt to look at a structure and decide what to keep, then let this interface prepare the receptor, so that docking and rescoring use the same hydrogens.
+ADapt protonates the receptor with reduce, as AGFR does, while this interface's preparation uses pdb2pqr with PROPKA at the run's pH, and the two often place histidine hydrogens differently. Checked against the protein structures in the PDB solved by neutron diffraction, where the hydrogens are placed from the data, reduce matched the deposited histidines more often than pdb2pqr (55% against 31% of 1,457 histidines) and turned fewer rings, and fewer Asn and Gln amides, the wrong way. What reduce does not do is pH: it never protonates an Asp or Glu and rarely puts hydrogens on both nitrogens of a histidine, whatever the pH, while PROPKA chooses charges at the pH you set. The preparation here still uses pdb2pqr, so use ADapt to look at a structure and decide what to keep, then let this interface prepare the receptor, so that docking and rescoring use the same hydrogens, and look at the histidines at your site.
 
 ---
 
