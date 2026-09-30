@@ -126,7 +126,12 @@ function gbEngines(rows){
   }
   gbEngines(d.gb_engines);
   // ADapt, a separate tool, when the server can find it.
-  if(d.adapt && d.adapt.available) $('adaptrow').classList.remove('hide');
+  if(d.adapt && d.adapt.available){
+    $('adaptrow').classList.remove('hide');
+    // Started now, so the button finds ADapt ready rather than waiting on a
+    // first start, which takes a minute or more on a busy login node.
+    api('/api/adapt/warm', {});
+  }
   // Without AmberTools the rescoring cannot run, so it cannot be chosen.
   // The box arrives ticked, because that is the right default wherever it
   // can run. Here it is unticked and locked, and a submission with it on
@@ -155,34 +160,43 @@ $('recload').onclick = loadReceptor;
    ADapt's port forwarded too. */
 $('adaptopen').onclick = async () => {
   const note = $('adaptnote'), btn = $('adaptopen');
+  /* The tab is opened inside the click, where a browser allows it, and says
+     what is happening: a first start on a busy login node takes a minute or
+     more, and a blank tab for that long reads as broken. */
   const tab = window.open('', '_blank');
+  if(tab){
+    try {
+      tab.document.title = 'Starting ADapt';
+      tab.document.body.innerHTML = '<p style="font:16px/1.5 system-ui,sans-serif;'
+        + 'margin:48px auto;max-width:36em;padding:0 16px">Starting ADapt on the cluster. '
+        + 'The first start can take a minute or two on a busy login node. This tab '
+        + 'opens it as soon as it is ready.</p>';
+    } catch(e){ /* a browser that refuses is still fine: the tab opens later */ }
+  }
   btn.disabled = true;
-  note.textContent = 'Starting ADapt. The first start takes about 15 seconds.';
-  const r = await api('/api/adapt', {});
-  btn.disabled = false;
+  const t0 = Date.now();
+  const tick = () => {
+    note.textContent = 'Starting ADapt: ' + Math.round((Date.now() - t0) / 1000)
+      + ' s. The first start can take a minute or two.';
+  };
+  tick();
+  const timer = setInterval(tick, 1000);
+  let r;
+  try { r = await api('/api/adapt', {}); }
+  finally { clearInterval(timer); btn.disabled = false; }
   if(r.error || !r.url){
     if(tab) tab.close();
     note.innerHTML = '<span class=bad>' + esc(r.error || 'ADapt did not start.') + '</span>';
     return;
   }
-  if(tab) tab.location.href = r.url;
-  /* ADapt serves on its own port on this machine. The browser is usually
-     somewhere else, reaching this page through a tunnel that names only this
-     interface's port, so that second port has to be forwarded too, to the
-     same login node. The exact line is spelled out because guessing the host
-     name is the part people get wrong. */
-  const port = r.port || (/:(\d+)\//.exec(r.url) || [])[1] || '';
-  const host = r.host || 'your login node';
-  note.innerHTML = 'ADapt is open in a new tab (<a href="' + esc(r.url)
+  /* A path on this server, so ADapt travels through the same connection as
+     this page and nothing else needs forwarding. Made absolute because the
+     new tab began as about:blank. */
+  const url = new URL(r.url, location.href).href;
+  if(tab) tab.location.href = url;
+  note.innerHTML = 'ADapt is open in a new tab (<a href="' + esc(url)
     + '" target=_blank rel=noopener>open it again</a>). Load the receptor there '
-    + 'with Open PDB or Fetch.<br>If that tab is blank or says it cannot reach the '
-    + 'site, your browser cannot reach port ' + esc(port) + ' on ' + esc(host)
-    + '. Forward it from your own computer, in a second terminal, then reload the tab:'
-    + '<br><code>ssh -L ' + esc(port) + ':127.0.0.1:' + esc(port) + ' &lt;your account&gt;@'
-    + esc(host) + '</code>'
-    + (r.pinned ? '' : '<br>The port changes each time ADapt starts. To keep this one, '
-       + 'set <code>' + esc(r.port_env || 'ADCP_ADAPT_PORT') + '=' + esc(port)
-       + '</code> before starting this interface.');
+    + 'with Open PDB or Fetch.';
 };
 $('recpath').onkeydown = e => { if(e.key === 'Enter') loadReceptor(); };
 

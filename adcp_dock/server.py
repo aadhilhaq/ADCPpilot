@@ -15,8 +15,11 @@ import glob
 import json
 import os
 import secrets
+import re
 import threading
+import urllib.error
 import urllib.parse
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import fetch, job as jobmod, page, peptide, pipeline
@@ -265,6 +268,25 @@ class App:
                 # when it is installed where this can find it.
                 "adapt": self._adapt()}
 
+    def adapt_warm(self):
+        """Start ADapt in the background, once, if it can run here.
+
+        A first start imports AGFR's libraries from a shared filesystem, and
+        on a busy login node that took over a minute: long enough that a
+        person pressing Open ADapt saw a blank tab and gave up. The page asks
+        for this when it shows the button, so the button finds ADapt running.
+        Asked for, rather than done whenever the tools are listed, so nothing
+        that merely lists them starts a server.
+        """
+        if not self._adapt().get("available"):
+            return {"warming": False}
+        with _ADAPT_LOCK:
+            if getattr(self, "_adapt_warming", False):
+                return {"warming": True}
+            self._adapt_warming = True
+        threading.Thread(target=self.adapt_open, daemon=True).start()
+        return {"warming": True}
+
     def _adapt(self):
         """Whether ADapt can be opened from here, and if not, why."""
         from . import adapt as adaptmod
@@ -289,21 +311,24 @@ class App:
         exe = self._adcp11()[0]
         if not home or not exe:
             return {"error": self._adapt()["why"]}
-        if getattr(self, "_adapt_runner", None) is None:
-            import atexit
-            self._adapt_runner = adaptmod.Runner()
-            atexit.register(self._adapt_runner.stop)
+        with _ADAPT_LOCK:
+            if getattr(self, "_adapt_runner", None) is None:
+                import atexit
+                self._adapt_runner = adaptmod.Runner()
+                atexit.register(self._adapt_runner.stop)
         try:
             url = self._adapt_runner.start(
                 home, adcp11.home_of(exe), os.path.join(self.runs, "adapt_sessions"))
         except (OSError, RuntimeError) as exc:
             return {"error": str(exc)}
-        # The address is the machine's own, so a browser somewhere else needs
-        # that port forwarded. The page says so, and it can only name the
-        # machine and the port if they are sent with the address.
-        import socket
-        return {"url": url, "host": socket.getfqdn(), "port": adaptmod.address(url),
-                "pinned": bool(adaptmod.wanted_port()), "port_env": adaptmod.PORT_ENV}
+        # ADapt listens on a port of its own on this machine, which a browser
+        # elsewhere cannot reach through the one port the launcher or an ssh
+        # tunnel forwards. So the page is sent to /adapt/ on THIS server,
+        # which passes each request on (Handler._adapt_proxy). ADapt's own
+        # token travels with it and ADapt checks it, as it always did.
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+        return {"url": "/adapt/?t=" + urllib.parse.quote(q.get("t", [""])[0]),
+                "direct": url}
 
     def adapt_stop(self):
         runner = getattr(self, "_adapt_runner", None)
@@ -1207,6 +1232,38 @@ def _tail(logdir, n=40):
     return "%s\n%s" % (os.path.basename(newest), "\n".join(lines[-n:]))
 
 
+_ADAPT_LOCK = threading.Lock()
+
+#: ADapt's page asks for /api/..., /static/... and /docs/... from the root of
+#: the server it came from. Served under /adapt/ on this server, those have
+#: to say /adapt/ too, or they would reach this tool's own /api/ instead.
+#: Only these three prefixes exist in ADapt's page and script, and a path
+#: starting // is another host, so it is left alone.
+_ADAPT_ATTR = re.compile(rb"""((?:href|src|action)=["'])/(?!/)""")
+_ADAPT_JS = re.compile(rb"""(['"`])/(api|static|docs)/""")
+_ADAPT_CSS = re.compile(rb"""url\((["']?)/(?!/)""")
+#: How long one request to ADapt may take. Reading a large structure runs
+#: AGFR's own processing and is not quick.
+ADAPT_PROXY_SECONDS = 600
+#: No proxy for a connection to this same machine. A cluster that sets
+#: http_proxy for the outside world would otherwise send 127.0.0.1 there.
+_ADAPT_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
+def _rebase_adapt(body, ctype, path=""):
+    """ADapt's own absolute paths, moved under /adapt/."""
+    c = (ctype or "").lower()
+    if "html" in c:
+        body = _ADAPT_ATTR.sub(rb"\1/adapt/", body)
+        return _ADAPT_JS.sub(rb"\1/adapt/\2/", body)
+    if "javascript" in c and "3dmol" not in path.lower():
+        # 3Dmol is a library: its strings are its own business.
+        return _ADAPT_JS.sub(rb"\1/adapt/\2/", body)
+    if "css" in c:
+        return _ADAPT_CSS.sub(rb"url(\1/adapt/", body)
+    return body
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "adcp_dock"
 
@@ -1229,6 +1286,50 @@ class Handler(BaseHTTPRequestHandler):
         return (q.get("t", [""])[0] or
                 self.headers.get("X-Token", "")) == self.server.app.token
 
+    def _adapt_proxy(self, method, u):
+        """Pass a request under /adapt/ to ADapt, and its answer back.
+
+        This tool's own token is not asked for here: ADapt's pages carry
+        ADapt's token, and ADapt checks it on everything but its static
+        files, exactly as when it is reached directly.
+        """
+        runner = getattr(self.server.app, "_adapt_runner", None)
+        if runner is None or not runner.running():
+            return self._send("ADapt is not running. Go back to the docking page "
+                              "and press Open ADapt.", 503, "text/plain")
+        base = urllib.parse.urlparse(runner.url)
+        rest = u.path[len("/adapt"):] or "/"
+        target = "%s://%s%s%s" % (base.scheme, base.netloc, rest,
+                                  ("?" + u.query) if u.query else "")
+        data = None
+        if method == "POST":
+            n = int(self.headers.get("Content-Length") or 0)
+            if n > MAX_UPLOAD:
+                return self._send({"error": "that file is too large"}, 413)
+            data = self.rfile.read(n) if n > 0 else b""
+        hdrs = {k: self.headers[k] for k in ("Content-Type", "Accept", "X-Token")
+                if self.headers.get(k)}
+        req = urllib.request.Request(target, data=data, method=method, headers=hdrs)
+        try:
+            r = _ADAPT_OPENER.open(req, timeout=ADAPT_PROXY_SECONDS)
+            code, body, rh = r.status, r.read(), r.headers
+        except urllib.error.HTTPError as exc:
+            code, body, rh = exc.code, exc.read(), exc.headers
+        except (urllib.error.URLError, OSError) as exc:
+            return self._send("ADapt did not answer (%s). Press Open ADapt again."
+                              % getattr(exc, "reason", exc), 502, "text/plain")
+        ctype = rh.get("Content-Type", "application/octet-stream")
+        body = _rebase_adapt(body, ctype, rest)
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        for k in ("Content-Disposition", "Cache-Control", "Last-Modified"):
+            if rh.get(k):
+                self.send_header(k, rh.get(k))
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.end_headers()
+        self.wfile.write(body)
+
     def _body(self, limit=MAX_BODY):
         n = int(self.headers.get("Content-Length") or 0)
         if n <= 0 or n > limit:
@@ -1242,6 +1343,8 @@ class Handler(BaseHTTPRequestHandler):
         u = urllib.parse.urlparse(self.path)
         q = urllib.parse.parse_qs(u.query)
         app = self.server.app
+        if u.path == "/adapt" or u.path.startswith("/adapt/"):
+            return self._adapt_proxy("GET", u)
         if u.path.startswith("/static/"):
             return self._static(u.path)
         if u.path == "/":
@@ -1415,11 +1518,15 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         u = urllib.parse.urlparse(self.path)
         q = urllib.parse.parse_qs(u.query)
+        if u.path == "/adapt" or u.path.startswith("/adapt/"):
+            return self._adapt_proxy("POST", u)
         if not self._auth(q):
             return self._send({"error": "bad or missing token"}, 403)
         app = self.server.app
         body = self._body(MAX_UPLOAD if u.path == "/api/upload"
                           else MAX_BODY)
+        if u.path == "/api/adapt/warm":
+            return self._send(app.adapt_warm())
         if u.path == "/api/site":
             return self._send(app.site(body))
         if u.path == "/api/peptides":

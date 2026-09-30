@@ -275,21 +275,9 @@ ADapt, by Michel Sanner, shows what a PDB file holds before you dock into it: ea
 git clone https://github.com/michelsanner/adapt
 ```
 
-The interface finds it at `$ADAPT_HOME`, in a folder named `adapt` beside ADFRsuite, beside this checkout or in a tools folder given with `--tools-root`, or at `~/.adcp-dock/adapt`. When it finds ADapt and ADCP 1.1, the Receptor card shows **Open ADapt**. That starts ADapt with the ADCP 1.1 environment and opens it in a new tab, where you load the structure with *Open PDB* or *Fetch*. The first start takes about 15 seconds. ADapt keeps its sessions in `adapt_sessions` inside the runs folder, and it stops when the interface stops.
+The interface finds it at `$ADAPT_HOME`, in a folder named `adapt` beside ADFRsuite, beside this checkout or in a tools folder given with `--tools-root`, or at `~/.adcp-dock/adapt`. When it finds ADapt and ADCP 1.1, the Receptor card shows **Open ADapt**, which opens ADapt in a new tab, where you load the structure with *Open PDB* or *Fetch*. ADapt keeps its sessions in `adapt_sessions` inside the runs folder, and it stops when the interface stops.
 
-ADapt listens on a second port on the machine running the interface, and your browser has to reach that port too. The launcher, and your own `ssh -L`, forward only this interface's port, so until ADapt's port is forwarded the new tab shows nothing or says the site cannot be reached. Forward it from a second terminal, to the same login node, then reload the tab:
-
-```bash
-ssh -L 40805:127.0.0.1:40805 <your account>@<the login node running the interface>
-```
-
-The page gives that line with the port and the machine already filled in. The port is picked afresh at every start, so a tunnel set up once stops matching. To keep the same port, set `ADCP_ADAPT_PORT` before starting the interface:
-
-```bash
-ADCP_ADAPT_PORT=40805 adcp-dock serve
-```
-
-Pick a port above 1024 that nobody else on that login node is using. To run ADapt on its own: `ADCPSUITE=/path/to/adcpsuite ADAPT_OUTDIR=/path/to/folder adapt/bin/adapt serve`.
+ADapt runs beside the interface on the same machine, and the interface passes it through under `/adapt/`, so it reaches your browser over the same connection as the interface. Nothing else needs forwarding, whether you use the desktop launcher or your own `ssh -L`. Its first start imports AGFR's libraries and can take a minute or two on a busy login node, so the interface starts it in the background as soon as the page shows the button, and the tab says what it is waiting for. To run ADapt on its own: `ADCPSUITE=/path/to/adcpsuite ADAPT_OUTDIR=/path/to/folder adapt/bin/adapt serve`.
 
 ADapt protonates the receptor with reduce, as AGFR does, while this interface's preparation uses pdb2pqr with PROPKA at the run's pH, and the two often place histidine hydrogens differently. Checked against the protein structures in the PDB solved by neutron diffraction, where the hydrogens are placed from the data, reduce matched the deposited histidines more often than pdb2pqr (55% against 31% of 1,457 histidines) and turned fewer rings, and fewer Asn and Gln amides, the wrong way. What reduce does not do is pH: it never protonates an Asp or Glu and rarely puts hydrogens on both nitrogens of a histidine, whatever the pH, while PROPKA chooses charges at the pH you set. The preparation here still uses pdb2pqr, so use ADapt to look at a structure and decide what to keep, then let this interface prepare the receptor, so that docking and rescoring use the same hydrogens, and look at the histidines at your site.
 

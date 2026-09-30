@@ -88,13 +88,18 @@ class Runner:
     """One ADapt server for this interface: started on request, then reused,
     and stopped when the interface stops."""
 
-    # A first start imports AGFR and its libraries, which took 15 seconds on
-    # a cluster node whose file cache was cold.
-    START_SECONDS = 120
+    # A first start imports AGFR and its libraries: 15 seconds on a quiet
+    # cluster node with a cold file cache, and over a minute on a busy Grace
+    # login node, where a two minute limit was too tight to be safe.
+    START_SECONDS = 300
 
     def __init__(self):
         self.proc = None
         self.url = None
+        # A process still starting, so stop() can end it without waiting for
+        # the start to finish: that can take minutes, and the interface may
+        # be shutting down meanwhile.
+        self.starting = None
         self.lock = threading.Lock()
 
     def running(self):
@@ -122,6 +127,7 @@ class Runner:
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 stdin=subprocess.DEVNULL, env=env, text=True,
                 start_new_session=True)
+            self.starting = proc
             found, ready, tail = {}, threading.Event(), []
 
             def pump():
@@ -140,6 +146,7 @@ class Runner:
                 ready.set()
             threading.Thread(target=pump, daemon=True).start()
             ready.wait(timeout or self.START_SECONDS)
+            self.starting = None
             if "url" not in found:
                 _stop(proc)
                 why = [l for l in tail if l.strip()][-3:]
@@ -149,6 +156,11 @@ class Runner:
             return self.url
 
     def stop(self):
+        # A start in progress is ended first and without the lock, which the
+        # start holds for as long as it waits.
+        starting = self.starting
+        if starting is not None:
+            _stop(starting)
         with self.lock:
             proc, self.proc, self.url = self.proc, None, None
         if proc is not None:

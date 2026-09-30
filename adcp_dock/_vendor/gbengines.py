@@ -86,6 +86,12 @@ SCHRODINGER_ROOTS = (
 SCHRODINGER_GLOBS = (
     "/sw/restricted/*/Schrodinger*",
     "/sw/restricted/*/schrodinger*",
+    # Grace keeps restricted software one level further in, under the group
+    # that licenses it: /sw/restricted/lms/sw/Schrodinger/2025-3. The shape
+    # above stops short of it, so Prime showed as not installed there while
+    # "module load Schrodinger" found it at once.
+    "/sw/restricted/*/sw/Schrodinger*",
+    "/sw/restricted/*/sw/schrodinger*",
 )
 # Not "/sw/eb/sw/*/Schrodinger*": EasyBuild keeps a package at
 # /sw/eb/sw/<Name>/<version>, which SCHRODINGER_ROOTS already names, and
@@ -133,6 +139,14 @@ def _from_module_system():
                     r'(?:SCHRODINGER["\'\s,]+|prefix\s*=\s*")(/[^"\'\s,)]+)',
                     text):
                 out.append(m.group(1))
+            # TAMU's modulefiles name the install in a local variable and
+            # then setenv("SCHRODINGER", root), which the pattern above
+            # cannot follow. Any quoted absolute path that names the suite
+            # is a candidate; newest_under decides which ones are installs.
+            for m in re.finditer(r'["\'](/[^"\'\s]*[Ss]chrodinger[^"\'\s]*)["\']',
+                                 text):
+                if m.group(1) not in out:
+                    out.append(m.group(1))
     return out
 
 
