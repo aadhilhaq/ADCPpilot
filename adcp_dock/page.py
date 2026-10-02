@@ -50,8 +50,11 @@ try { const t = localStorage.getItem("adcp.theme");
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);
   font:14px/1.5 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
-header{background:var(--card);border-bottom:1px solid var(--line);
+header{position:relative;background:var(--card);border-bottom:1px solid var(--line);
   padding:18px 24px 14px;text-align:center}
+/* Docs in the corner, where a documentation link is looked for, and out of
+   the centred block so it keeps its place whatever the title block holds. */
+.docscorner{position:absolute;top:12px;right:16px}
 .brandblock{max-width:760px;margin:0 auto}
 .brandblock h1{margin:0 0 6px}
 .brandblock .sub{display:block;line-height:1.55}
@@ -595,6 +598,8 @@ footer{color:var(--dim);font-size:12px;text-align:center;padding:18px 0 4px;
 
 __STALE__
 <header>
+  <a class="ghost btnlink docscorner" id=docsbtn href="/docs/index.html" target=_blank
+     rel=noopener title="How to use this page, with worked examples">Docs</a>
   <div class=brandblock>
     <h1>GUI to ADCP Docking</h1>
     <!-- What belongs to whom, in the header: ADCP and ADFRsuite are the
@@ -613,8 +618,6 @@ __STALE__
       <!-- How to cite, at the top, where it is looked for when a methods
            section is being written. The engine and the preparation tools are
            the citations most often left out. -->
-      <a class="ghost btnlink" id=docsbtn href="/docs/index.html" target=_blank
-         rel=noopener title="How to use this page, with worked examples">Docs</a>
       <button class=ghost id=citebtn>How to cite</button>
       <button class=ghost id=feedback>Send feedback</button>
       <button class=ghost id=themebtn aria-pressed=false
