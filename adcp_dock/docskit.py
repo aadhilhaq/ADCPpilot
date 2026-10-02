@@ -8,11 +8,11 @@ the shared layout: the sidebar with its sections, previous and next, and the
 footer. Screenshots in img/ are of the interface itself, taken by the
 repository's tools/docs_screenshots.py, so they show the page as it is.
 
-The same file serves the HOPE pipelines, the aptamer pipeline and ADCP
-docking: each interface builds a Site with its own name, colours, pages and
-credit line, and the layout is the same. The three copies are kept
-identical; a test in each repository compares them where the others are
-present.
+The same file serves the HOPE pipelines, the aptamer pipeline, ADCP docking
+and HOPE Labs: each interface builds a Site with its own name, colours, pages
+and credit line, and the layout is the same. The four copies are kept
+identical. This one, in hope_monitor, is the one changed first; a test in each
+of the other three repositories compares its copy with it where it is present.
 """
 import html
 import os
@@ -183,7 +183,7 @@ h2{font-size:23px;margin:40px 0 10px;padding-top:6px;border-top:1px solid var(--
 h3{font-size:18px;margin:26px 0 6px}
 p,li{max-width:78ch}
 code,kbd{font:13.5px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--code);
-  padding:1px 5px;border-radius:4px}
+  padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
 pre{font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--card);
   border:1px solid var(--line);border-radius:8px;padding:12px 14px;overflow:auto}
 pre code{background:none;padding:0}
@@ -213,7 +213,7 @@ ol.legend li::marker{color:var(--mark);font-weight:700}
 .steps{counter-reset:s;list-style:none;padding-left:0}
 .steps>li{counter-increment:s;position:relative;padding-left:38px;margin-bottom:10px}
 .steps>li::before{content:counter(s);position:absolute;left:0;top:1px;width:26px;height:26px;border-radius:13px;
-  background:var(--accent);color:#fff;font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center}
+  background:var(--accent);color:var(--card);font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center}
 footer.page{margin-top:60px;padding-top:14px;border-top:1px solid var(--line);font-size:13px;color:var(--dim)}
 .pn{display:flex;justify-content:space-between;margin-top:40px;font-size:15px}
 @media (max-width:900px){.layout{grid-template-columns:minmax(0,1fr)}nav.side{position:static;height:auto}

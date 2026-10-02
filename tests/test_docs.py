@@ -165,14 +165,14 @@ for k in ("http_proxy", "HTTP_PROXY"):
     os.environ.pop(k, None)
 
 # --- the kit is the same file in every repository ---------------------------
-# Three interfaces share docskit.py and are kept byte identical. The other
+# Four interfaces share docskit.py and are kept byte identical. The other
 # copies are only present in a checkout that has them, so this is skipped
 # rather than failed where they are absent.
 SIBLING = "/scratch/group/p.agr250019.000/HOPE-pipelines/hope_monitor/docskit.py"
 if os.path.isfile(SIBLING):
     mine = open(os.path.join(ROOT, "adcp_dock", "docskit.py"), "rb").read()
     check(mine == open(SIBLING, "rb").read(),
-          "adcp_dock/docskit.py differs from %s; the three copies are kept "
+          "adcp_dock/docskit.py differs from %s; the four copies are kept "
           "identical" % SIBLING)
 else:
     print("note  %s is not here, so the copies were not compared" % SIBLING)
