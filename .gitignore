@@ -21,7 +21,11 @@ dist/
 # conda environment, ADFRsuite and ADCP 1.1, their download caches and the
 # activation script. Kept here rather than in the home directory.
 env/
-tools/
+# Everything an installation unpacks here is ignored; this repository's own
+# script that lives beside it is not, or the documentation would ship with
+# pictures and no way to take them again.
+tools/*
+!tools/docs_screenshots.py
 .conda_pkgs/
 .pip_cache/
 activate.sh

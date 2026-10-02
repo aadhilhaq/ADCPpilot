@@ -51,6 +51,10 @@ packages = ["adcp_dock", "adcp_dock._vendor", "adcp_launcher"]
 
 [tool.setuptools.package-data]
 adcp_dock = ["static/*.js", "static/*.css", "static/*.txt", "static/*.json",
+             # The documentation served at /docs/: its pages and its
+             # pictures. The stylesheet is generated from the interface's own
+             # colours, so there is no file to ship.
+             "docs/pages/*.html", "docs/img/*.png",
              # The example run, one pattern per folder depth: setuptools
              # before 62.3 does not expand "**".
              "example_run/*", "example_run/*/*", "example_run/*/*/*",

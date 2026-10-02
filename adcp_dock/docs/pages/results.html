@@ -1,0 +1,117 @@
+<h1>Reading the results</h1>
+<p class="lead">One row per peptide, ranked, with the poses beside it. The table
+has more columns than it first shows, and several of them come with a limit on
+how far they can be pushed.</p>
+
+<figure>
+<img src="img/results-table.png" alt="The ranked results table for the example run, with its column groups">
+<figcaption><b>The ranked table.</b> Columns come in groups. Where the run
+recorded which engine scored it, the MM-GBSA heading names it. The groups you do
+not want can be switched off, and the choice is remembered in your
+browser.</figcaption>
+</figure>
+
+<h2 id="what-it-is-ranked-on">What the ranking is</h2>
+<p>Peptides are ranked most negative first, on the mean of the top few poses: the
+MM-GBSA mean where the rescoring ran, and ADCP's own mean where it did not. The
+column that decided it is named in the table's heading and in the first line of
+<code>results.txt</code>.</p>
+<p>The mean rather than the best, because a best score is the tail of a
+distribution the search drew many times. Both are there, with the median and the
+spread.</p>
+<div class="note"><b>Neither number is a binding free energy.</b> Both are
+ranking aids within one run against one receptor. A peptide that ranks first here
+is the one to look at next, not the one to quote an affinity for.</div>
+
+<h2 id="the-groups">The groups of columns</h2>
+<p><b>docking</b> carries the length, how many poses ADCP ranked, the best score
+and the mean of the top few. A best score improves simply by scoring more poses, so
+read it beside the pose count. <b>cluster population</b> is how many of ADCP's
+clustered solutions landed in the top pose's cluster, and their share of all it
+clustered: ADCP returns one pose per cluster, so this is the search's own measure of
+its convergence. It lists at most a hundred clusters, so the share is an upper
+bound.</p>
+<p><b>MM-GBSA</b> is the best, the mean, the median, how many poses were rescored
+and their spread, the most positive minus the most negative among them. The spread
+says how much the poses disagree; it is not a test of the ranking.</p>
+<p><b>MM-GBSA breakdown</b> is the four parts of one pose's energy: van der
+Waals, electrostatic, polar solvation and nonpolar solvation. The pose is named in
+the group's first column: the lowest energy one among those measured.</p>
+<p><b>nominated site</b> is how many of the residues you named the pose touches,
+and their own share of the energy from the per residue breakdown. A pose can score
+well and touch almost none of your site, which is what this column exists to
+show.</p>
+<p><b>interface</b> is measured geometry: buried surface area and area per
+residue, the share of the peptide's surface the receptor covers, how much of the
+buried area is apolar, and counts of hydrogen bonds, salt bridges, stacked
+aromatics, contacts and clashes.</p>
+<p><b>sequence</b> is the peptide itself: mean hydropathy, net charge at the
+run's pH, the longest run of apolar residues, and a penalty total with its flags. It
+is sequence liability only, and not independent of the columns above, since the same
+sequence decides both.</p>
+<p><b>how it was measured</b> is off by default and worth turning on before you
+quote anything: how many poses were measured, over which atoms, on which
+coordinates, and how their minimisation ended.</p>
+
+<h2 id="the-limits">The limits on these columns</h2>
+<ul>
+<li><b>Site coverage is quantised by the size of the site.</b> On four residues it
+can only be 0, 1, 2, 3 or 4, and residues the box could not reach still count in the
+denominator.</li>
+<li><b>Contacts are geometric.</b> A hydrogen bond here is a nitrogen or oxygen
+pair within 3.5 &Aring;, with no angle tested; a stack is ring atoms within
+5.0 &Aring;, so an edge to face pair and a parallel stack are not told apart.</li>
+<li><b>The per residue breakdown does not sum to the reported energy.</b> It
+agrees to within a few per cent and is always slightly more negative, because a
+decomposition uses a per atom surface term where the total uses LCPO. The energy
+terms themselves agree to within 0.05 kcal/mol.</li>
+<li><b>Buried area over two different sets of atoms is not comparable.</b> A
+rescored complex has hydrogens and a raw docked pose does not, and the same pose
+measured both ways differs by about 8 per cent. The column says which was
+used.</li>
+<li><b>Clashes should be zero on a minimised complex.</b> The receptor is
+restrained, so an overlap cannot relax out. Any clash is a reason to look at the
+pose.</li>
+<li><b>The engines are on different scales.</b> Read each one down its own column,
+never across a row.</li>
+</ul>
+
+<h2 id="the-poses">The poses</h2>
+<figure>
+<img src="img/pose-viewer.png" alt="The pose viewer with the receptor, the peptide and its contacts drawn">
+<figcaption><b>One pose, drawn.</b> The bar chooses the colouring, the
+representation, surfaces, whether contacts and their distances are drawn, and which
+pose. Under it, the contacts by type and the interaction diagram.</figcaption>
+</figure>
+<p><b>view</b> on a row opens that peptide's poses. The pose chooser steps through
+every pose kept, so you can see whether they agree on where the peptide binds or
+settle in several places.</p>
+<p>Contacts are drawn as dashed lines with the measured heavy atom distance on
+each: a dashed line says two residues touch, and the number says how closely. Under
+the structure they are counted by type, hydrogen bonds, salt bridges, ring stacking
+and van der Waals, and each type can be switched off. Below that, the interaction
+diagram runs the peptide along the middle with each receptor residue over the one it
+is closest to, and it can be saved as an image. Per residue energies appear in it
+once the interface columns have been measured for that run.</p>
+<p><b>figure</b> switches to a view made for a paper: a pale ribbon, the
+contacting residues and the peptide as sticks, bonds as black dashes and labels as
+plain text. Labels can be dragged clear, and the leader lines are drawn into the
+image <b>save image</b> writes. Two viewers are bundled, and a figure from either
+needs its own citation.</p>
+
+<h2 id="the-files">The files the run writes</h2>
+<table>
+<tr><th>File</th><th>What it holds</th></tr>
+<tr><td><code>results.tsv</code></td><td>the table, for a spreadsheet</td></tr>
+<tr><td><code>results.json</code></td><td>the same rows, plus the constants every measured number was computed with</td></tr>
+<tr><td><code>results.txt</code></td><td>the printable table, with its cautions underneath</td></tr>
+<tr><td><code>metrics/</code></td><td>one file per peptide with every pose measured, and the residue map</td></tr>
+<tr><td><code>docking/</code></td><td>the ranked poses, as ADCP wrote them</td></tr>
+<tr><td><code>HOW_TO_CITE.txt</code> and two reference files</td><td>what to cite, scoped to this run</td></tr>
+</table>
+<p><code>results.json</code> carries the constants on purpose: a probe radius, a
+contact cutoff and a clash fraction are what let a number here be compared with one
+from elsewhere.</p>
+<p>A run docked before version 0.1.17 has its energy terms but no interface
+columns, because the panel is measured while each pose is rescored. Its page says so
+and offers to measure them from the files the MM-GBSA already left.</p>

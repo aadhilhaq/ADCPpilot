@@ -1,0 +1,110 @@
+<h1>Resources and submitting</h1>
+<p class="lead">What to ask the queue for, what to call the run, where to put it,
+and the options your own cluster requires. Then press the button.</p>
+
+<h2 id="the-estimate">Let it work the estimate out</h2>
+<p><b>Estimate &amp; fill</b> reads your peptides, your search settings and the
+receptor, works out how long the longest task will take, and fills in the cores
+and the walltime for you. The line beside it says what it assumed: the stages in
+the order they will queue, the longest peptide it sized for, how many waves the
+list runs in, and how long the whole thing should take end to end.</p>
+<p>The booking is deliberately generous. No job is booked for less than two
+hours, and anything larger gets one and a half times its own estimate. A job the
+scheduler stops at its limit has produced nothing and has already spent its time
+in the queue, so an over-booking is the cheaper mistake. Clusters charge for the
+time used, not the time booked.</p>
+
+<figure>
+<img src="img/docking-settings.png" alt="The resources row, the run name, the output folder and the Slurm options">
+<figcaption><b>The bottom of the card.</b> The cores, the walltime and the task
+limit, then the run name and the output folder, then the options your cluster
+requires, and the button.</figcaption>
+</figure>
+
+<h2 id="cores">Cores per task</h2>
+<p>Each peptide runs as one task with this many cores, and ADCP spreads its
+replicas across them. More cores are faster until there are more cores than
+replicas, after which the extra ones have nothing to do.</p>
+<p>Asking for a whole node usually means a longer wait in the queue; half a node
+often starts and finishes sooner. If you set fewer replicas than cores, lower the
+cores to match.</p>
+
+<h2 id="walltime">Walltime</h2>
+<p>The scheduler stops the job at this limit, finished or not. The estimate
+beside the box already includes its margin, so take what the estimate gives you
+unless you know something it does not.</p>
+<p>If your cluster refuses the job because the walltime is longer than the
+partition allows, the Runs card says so in those words rather than leaving the
+job pending forever. Lower it, or name a partition that permits it under
+<a href="#slurm-options">other Slurm options</a>.</p>
+
+<h2 id="throttle">Most tasks at once</h2>
+<p>Limits how many peptides run at the same time, however many are queued. Empty,
+or zero, means no limit.</p>
+<p>Use it on a busy cluster, or to keep a large screen from taking your whole
+allocation. It controls concurrency within the array, not the size of the array:
+a site that refuses an array of 500 tasks still refuses it.</p>
+
+<h2 id="naming">What to call this run</h2>
+<p>The name becomes the run directory and the name of every Slurm job, so it is
+what you see in the queue when several runs are going at once. Use something that
+tells runs apart, such as the receptor and what you are trying, rather than
+<code>test2</code>.</p>
+
+<h2 id="output-folder">Where the run is written</h2>
+<p>Everything the run produces goes here: the prepared receptor, the grid maps,
+the poses, the energies, the report and the logs. On a cluster it has to be
+somewhere the compute nodes can see, which a scratch directory is and your laptop
+is not.</p>
+<p>Runs are never overwritten: the run directory is the name you give followed
+by the date and time, so a second run with the same name sits beside the first
+rather than on top of it. <b>Browse</b> walks the filesystem and can make a
+folder.</p>
+<div class="tip"><b>Keep runs off your home directory.</b> A run holds the grid
+maps and every pose, and clusters usually give home a small file allowance.
+<code>$SCRATCH</code> is the right place, and the default is already there when
+your site sets it.</div>
+
+<h2 id="account">The allocation to charge</h2>
+<p>Leave it empty on clusters that charge your default account. Many clusters
+refuse a job that does not name one, which the page reports as <i>the account on
+the job is not one you can use</i>.</p>
+<p>Enter the account exactly as your cluster gives it. On Slurm,
+<code>sacctmgr show assoc user=$USER</code> lists the ones you may use. It is
+added to every job the run submits.</p>
+
+<h2 id="slurm-options">Anything else this cluster requires</h2>
+<p>Slurm options your site needs that this form does not ask about, each written
+as <code>--name=value</code> and separated by spaces:</p>
+<pre>--qos=normal
+--partition=short
+--constraint=icelake</pre>
+<p>They are added to every job the run submits. The options the tool sets itself,
+the name, the log file, the cores, the memory and the time, cannot be overridden
+here, because the page reads them back afterwards and two of any of them would
+put the log where it does not look. Anything that could end the line or start a
+command is refused rather than escaped, with the offending word named.</p>
+
+<h2 id="what-submitting-does">What submitting does</h2>
+<p>Three jobs are submitted, each waiting on the one before:</p>
+<ol class="steps">
+<li><b>prepare</b>, one job: the receptor preparation, the PDBQT and the grid
+maps over your box.</li>
+<li><b>dock</b>, one array task per peptide: the search, and the MM-GBSA of its
+kept poses if you asked for that. The tasks are independent, so one failing does
+not lose the others.</li>
+<li><b>report</b>, one job: it gathers the scores into the tables.</li>
+</ol>
+<p>Every job writes its log into the run's <code>logs</code> folder, named after
+the stage. The settings you submitted are written as <code>job.json</code> in the
+run, which is what makes a run reproducible and what <b>reuse settings</b> reads
+back into the form.</p>
+<p>Nothing heavy runs in the page itself. The server reads files, checks what you
+typed and hands the work to Slurm, so you can close the browser and come back to
+the Runs card later. On one machine the same three stages run here, in order, one
+at a time.</p>
+<div class="note"><b>Check the site and the box before you submit.</b>
+Preparation and map building take the same time whether the box covers your
+groove or half the protein, and the search costs the same whether or not the
+peptide can fit in the box. Both are a minute's work to check and a wasted
+allocation to get wrong.</div>

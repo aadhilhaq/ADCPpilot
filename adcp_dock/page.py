@@ -10,6 +10,8 @@ version ahead of the server it is talking to.
 """
 import os
 
+from . import docskit
+
 PAGE = r"""<!doctype html><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ADCP peptide docking</title>
@@ -541,6 +543,11 @@ tr.on{background:var(--accent2)}
 pre{background:var(--soft);padding:11px;border-radius:9px;overflow:auto;
   font-size:12px;max-height:240px}
 .hide{display:none}
+/* The bar along the bottom: version, copyright and who does the work. The
+   same style as the documentation's, from the shared kit, so the two match
+   wherever either changes. */
+__CREDITBAR_CSS__
+a.btnlink.ghost{font-size:12.5px;padding:5px 12px;color:var(--dim)}
 footer{color:var(--dim);font-size:12px;text-align:center;padding:18px 0 4px;
   border-top:1px solid var(--line);margin-top:22px}
 /* the viewer's own bar: pills, grouped and labelled */
@@ -606,6 +613,8 @@ __STALE__
       <!-- How to cite, at the top, where it is looked for when a methods
            section is being written. The engine and the preparation tools are
            the citations most often left out. -->
+      <a class="ghost btnlink" id=docsbtn href="/docs/index.html" target=_blank
+         rel=noopener title="How to use this page, with worked examples">Docs</a>
       <button class=ghost id=citebtn>How to cite</button>
       <button class=ghost id=feedback>Send feedback</button>
       <button class=ghost id=themebtn aria-pressed=false
@@ -770,6 +779,8 @@ __STALE__
           style="float:right;margin:-4px -4px 0 8px">close</button>
   <h3 id=helptitle style="margin:0 0 8px"></h3>
   <div id=helpbody class=why style="white-space:pre-wrap;line-height:1.55"></div>
+  <a id=helpdocs class=hide href="#" target=_blank rel=noopener
+     style="display:inline-block;margin-top:10px;font-size:13px">Read more in the Docs</a>
 </div>
 
 <div class=card>
@@ -855,7 +866,7 @@ __STALE__
         <button class=st data-step="throttle:1" type=button>+</button></div></div>
     <div style="flex:0 0 auto"><label>&nbsp;</label>
       <button id=autofill title="Work out how long this will take and ask
-the queue for twice that plus half an hour">Estimate &amp; fill</button></div>
+the queue for one and a half times that, and at least two hours">Estimate &amp; fill</button></div>
   </div>
 
   <!-- Where the run goes: the output folder and the run name are the last
@@ -1093,6 +1104,7 @@ larger of the two and takes a moment the first time.">
   not the commit you just pulled, the server is still running the old code:
   stop it, start it again, then reload with Ctrl-Shift-R.</span></footer>
 </main>
+__CREDITBAR__
 
 <link rel="stylesheet" href="/static/molstar.css">
 <script src="/static/3Dmol-min.js"></script>
@@ -1120,6 +1132,8 @@ DARK_VARS = """
   --pill-line:#3d4757; --on-accent:#0f1219;
 """
 PAGE = PAGE.replace("__DARK_VARS__", DARK_VARS)
+# The credit bar's style, as the documentation defines it.
+PAGE = PAGE.replace("__CREDITBAR_CSS__", docskit.CREDITBAR_CSS.strip())
 
 
 
@@ -1256,8 +1270,13 @@ def render(token):
     from . import credit
     import json
     from . import helptext
-    blob = json.dumps({k: {"title": t, "body": b}
+    from . import docs
+    blob = json.dumps({k: {"title": t, "body": b, "docs": docs.HELP_LINKS.get(k, "")}
                        for k, (t, b) in helptext.HELP.items()})
+    # The bar the documentation draws along the bottom of every page, drawn
+    # along the bottom of this one. Its How to cite opens the citation dialog
+    # rather than a page, so app.js wires it by this id.
+    bar = docskit.creditbar_html(docs.SITE, "/docs/index.html", cite_id="citebar")
     from . import peptide as _pep
     limits = json.dumps({"min_length": _pep.MIN_LENGTH,
                          "max_length": _pep.MAX_LENGTH})
@@ -1268,6 +1287,7 @@ def render(token):
                 .replace("__REPLICA_OPTIONS__",
                          replica_options(**_local_pick("replicas")))
                 .replace("__HELP_JSON__", blob)
+                .replace("__CREDITBAR__", bar)
                 .replace("__BUILD__", _build())
                 .replace("__STALE__", stale_banner())
                 .replace("__FAVICON__", favicon_href())

@@ -1,0 +1,98 @@
+<h1>GUI to ADCP Docking</h1>
+<p class="lead">Dock peptides into a protein with ADCP, from one page in your
+browser: prepare the receptor, place the box, paste the sequences, submit, and
+read the ranked results with the poses.</p>
+
+<figure>
+<img src="img/interface.png" alt="The interface as it opens, with the Receptor and Site cards">
+<figcaption><b>The page as it opens.</b> You work down it, one card at a time.
+The parts are explained <a href="#the-page">below</a>, in the order you meet
+them.</figcaption>
+</figure>
+
+<h2 id="what-it-does">What it does</h2>
+<p>You give it a receptor structure and a list of peptide sequences. It
+prepares the receptor, builds the grid maps around the site you nominate,
+docks every peptide with <b>ADCP</b>, can rescore the poses with MM-GBSA, and
+writes a ranked table with the structures beside it.</p>
+<p>The search itself is ADCP, a product of the Scripps Research Institute,
+with the grid maps and the PDBQT files from ADFRsuite. This page is an
+interface to them: it makes the choices explicit, checks them before anything
+is submitted, and keeps a record of what each run did. The energies come from
+AmberTools.</p>
+<p>The work does not run in the page. On a cluster each stage is a Slurm job,
+so you can close the browser and come back. On one machine the same stages run
+in order, one after another.</p>
+
+<h2 id="the-page">The page</h2>
+<ol class="legend">
+<li><b>The header</b>: what this is an interface to, who wrote it, and the
+addresses to write to.</li>
+<li><b>Docs</b> opens this documentation. <b>How to cite</b> lists every program
+a run used. <b>Send feedback</b> collects the version and the machine for a
+report. <b>Dark</b> switches the colours, in the interface and in these
+pages.</li>
+<li>The word beside those buttons: <b>ready</b> when the programs it needs were
+found, or the names of the ones that are missing.</li>
+<li><b>Receptor</b>: a PDB id to fetch from the RCSB, or a path to a file the
+cluster can already see, or a file sent from your own computer.</li>
+<li>Or <b>a target file made in AGFR or AGFRGUI</b>, which brings its own
+receptor, maps and box, and skips the preparation here.</li>
+<li><b>Open ADapt</b>, shown when ADapt is installed beside this: it shows what a
+structure file holds before you dock into it.</li>
+<li><b>Site</b>: the residues the box must cover, the padding around them, and
+the smallest and largest the box may be.</li>
+<li><b>Check site</b> reports the box it would build, its centre and its size,
+and says if it reaches a chain you did not load.</li>
+<li>The structure, once one is loaded, with the box drawn as a cage. Click a
+residue to add it to the site, click it again to drop it.</li>
+<li>The sequence beside it does the same, residue by residue, for a site you know
+by number rather than by eye.</li>
+<li>The <b>?</b> beside any label opens what that setting does, with a link into
+these pages.</li>
+<li>The bar along the bottom: the version, the copyright, and the programs that
+do the work.</li>
+</ol>
+
+<h2 id="the-path-through-a-run">The path through a run</h2>
+<ol class="steps">
+<li><b>Load the receptor</b> and keep the chains you want to dock against.</li>
+<li><b>Name the site</b>, check the box it builds, and look at the cage.</li>
+<li><b>Add the peptides</b>, one per line or pasted as a list.</li>
+<li><b>Set the search</b>: how many replicas, how many steps each, how many
+poses to keep, and whether to rescore with MM-GBSA.</li>
+<li><b>Ask for resources</b>, name the run, choose where it is written, and
+submit.</li>
+<li><b>Follow it</b> in the Runs card, then open it and read the table.</li>
+</ol>
+<p>Everything a run produces stays in its own folder: the prepared receptor,
+the grid maps, the poses, the energies, the logs and the citation files. You
+can reopen a finished run at any time, or download it.</p>
+<div class="tip"><b>There is a finished run to look at first.</b>
+<code>adcp-dock example</code> adds one: MDM2 with three peptides, docked and
+rescored. Open it and read the table before you dock anything of your own. It
+is the run most of the pictures in this documentation come from.</div>
+
+<h2 id="where-to-go-next">Where to go next</h2>
+<div class="cards">
+<a class="card" href="getting-started.html"><img src="img/interface.png" alt=""><span><b>Getting started</b>Start the page and open it from your own computer.</span></a>
+<a class="card" href="first-run.html"><img src="img/runs.png" alt=""><span><b>Your first run</b>The example, then one of your own.</span></a>
+<a class="card" href="receptor.html"><img src="img/receptor-loaded.png" alt=""><span><b>The receptor</b>Loading it, and what preparation does to it.</span></a>
+<a class="card" href="site.html"><img src="img/site-box.png" alt=""><span><b>The site and the box</b>The residues, the padding and the cage.</span></a>
+<a class="card" href="peptides.html"><img src="img/peptides.png" alt=""><span><b>The peptides</b>What is accepted, and what is refused.</span></a>
+<a class="card" href="docking.html"><img src="img/docking-settings.png" alt=""><span><b>Docking settings</b>Replicas, steps and poses, against the published guidance.</span></a>
+<a class="card" href="rescoring.html"><img src="img/results-table.png" alt=""><span><b>Rescoring with MM-GBSA</b>What it adds, and what it costs.</span></a>
+<a class="card" href="submitting.html"><img src="img/help-box.png" alt=""><span><b>Resources and submitting</b>Cores, walltime and your cluster's own rules.</span></a>
+<a class="card" href="runs.html"><img src="img/runs.png" alt=""><span><b>Following your runs</b>The dots, and what a stuck job means.</span></a>
+<a class="card" href="results.html"><img src="img/pose-viewer.png" alt=""><span><b>Reading the results</b>Every column, and which ones to trust.</span></a>
+</div>
+
+<h2 id="cases">Cases</h2>
+<p>Each page below works through one situation end to end, with the settings
+that go with it.</p>
+<div class="cards">
+<a class="card" href="case-mdm2.html"><img src="img/results-table.png" alt=""><span><b>MDM2 and the p53 peptide</b>1YCR, three known binders, and what the table says about them.</span></a>
+<a class="card" href="case-two-chains.html"><img src="img/site-other-chain.png" alt=""><span><b>A site between two chains</b>When the box reaches the chain you did not load.</span></a>
+<a class="card" href="case-histidines.html"><img src="img/adapt.png" alt=""><span><b>Histidines at the site</b>What pH decides, and what to check.</span></a>
+<a class="card" href="case-modified.html"><img src="img/peptides.png" alt=""><span><b>Modified and D amino acids</b>Phosphoserine, D residues and ADCP 1.1.</span></a>
+</div>

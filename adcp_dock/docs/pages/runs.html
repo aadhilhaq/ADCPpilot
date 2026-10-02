@@ -1,0 +1,85 @@
+<h1>Following your runs</h1>
+<p class="lead">Every run you have made, with a coloured dot for its state, and
+the buttons that open it, resume it, download it or take it away.</p>
+
+<figure>
+<img src="img/runs.png" alt="The Runs card, one row per run, with state dots and row buttons">
+<figcaption><b>The Runs card.</b> One row per run: its name, when it was made,
+how many peptides it holds, whether it was rescored, and its state. The list is
+read from the runs folder named above it, so a run made last month is still
+here.</figcaption>
+</figure>
+
+<h2 id="the-dots">What the dots mean</h2>
+<table>
+<tr><th>Dot</th><th>State</th><th>What is happening</th></tr>
+<tr><td>pulsing green</td><td>running</td><td>a job is working now</td></tr>
+<tr><td>amber</td><td>queued</td><td>submitted, waiting for the scheduler</td></tr>
+<tr><td>green</td><td>finished</td><td>every job completed</td></tr>
+<tr><td>orange</td><td>failed</td><td>a job failed, timed out or ran out of memory</td></tr>
+<tr><td>grey</td><td>cancelled, or not submitted</td><td>the run exists but nothing is in the queue for it</td></tr>
+</table>
+<p>A running dot pulses on purpose: a static green looks the same as a finished
+one. Open a run and each of its jobs gets its own dot and its own line, so you
+can see which stage is where.</p>
+<p>The page asks the scheduler for the state every fifteen seconds while anything
+is live, and stops asking once everything has finished. That is deliberate:
+<code>squeue</code> on a busy login node is not free, and a page left open
+overnight should not keep calling it.</p>
+
+<h2 id="a-job-that-will-not-start">A job that will not start</h2>
+<p>Some pending reasons clear on their own, and some never will. A job held for
+one of the second kind is broken rather than queued, so the page reports it in
+plain words instead of showing it the same amber dot as a waiting job:</p>
+<table>
+<tr><th>Slurm says</th><th>The page says</th></tr>
+<tr><td><code>PartitionTimeLimit</code></td><td>the walltime asked for is longer than this partition allows, so it will wait indefinitely</td></tr>
+<tr><td><code>InvalidAccount</code></td><td>the account on the job is not one you can use</td></tr>
+<tr><td><code>InvalidQOS</code></td><td>the QOS on the job is not one you can use</td></tr>
+<tr><td><code>PartitionDown</code></td><td>that partition is down</td></tr>
+<tr><td><code>ReqNodeNotAvail</code></td><td>no node matching what was asked for is available</td></tr>
+<tr><td><code>BadConstraints</code></td><td>the constraints asked for cannot be satisfied</td></tr>
+</table>
+<p>Any other reason is shown as the scheduler's own word with a note that it will
+not clear on its own. Fix the setting it names and submit again;
+<b>reuse settings</b> loads the run's settings back into the form so the only
+thing you change is the one that was wrong.</p>
+
+<h2 id="the-buttons">The buttons on a row</h2>
+<ul>
+<li><b>open</b> shows the run below the list: its jobs, its table once the report
+has run, and the pose viewer.</li>
+<li><b>reuse settings</b> loads this run's receptor, chains, residues, box,
+peptides and search settings back into the form. A failed run is a settings file,
+and this is the quickest way to try it again with one thing changed.</li>
+<li><b>results</b> downloads the tables, the report, the prepared receptor and
+the ranked poses. <b>all</b> downloads the whole run directory, grid maps
+included, which is much larger. The size of each is shown on the button.</li>
+<li><b>report an issue</b> sends the logs, the settings and what Slurm said. It
+does not send the poses.</li>
+<li><b>folder</b> shows where the run is on disk, to copy.</li>
+<li><b>delete</b> removes the run and everything in its folder.</li>
+</ul>
+<p><b>Browse</b> at the top of the card points the list at another folder, so runs
+made by a colleague, or by the command line somewhere else, can be opened and read
+here. The folder it is reading is printed beside the button.</p>
+
+<h2 id="resuming">Resuming a run</h2>
+<p>An open run offers to resume when some of its peptides have no result. Only
+those peptides are docked again: the preparation, the maps and the peptides that
+finished are kept as they are. It is the right answer to a task that hit the
+walltime, to a node that died, and to a list where one peptide failed.</p>
+<p>From the command line the same thing is <code>adcp-dock run RUNDIR</code> on a
+run that has already been submitted once.</p>
+<div class="note"><b>A run whose preparation failed cannot be resumed into
+usefulness.</b> Nothing was docked, because the dock tasks wait on the prepare
+job and are cancelled when it fails. Read
+<code>logs/</code> and the preparation log, fix what it names, and submit a new
+run.</div>
+
+<h2 id="while-you-wait">While you wait</h2>
+<p>The run's logs are written as it goes, and the preparation log in particular is
+worth reading before the docking finishes: it says what was dropped, what was
+rebuilt, whether the minimisation ran, and whether any of your site residues fell
+outside the box. If something there is not what you intended, you have learned it
+an hour earlier than the table would have told you.</p>

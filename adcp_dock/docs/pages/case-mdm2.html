@@ -1,0 +1,98 @@
+<h1>MDM2 and the p53 peptide</h1>
+<p class="lead">The run that ships with the package, end to end: three known
+binders docked into the p53 groove of MDM2, and what their table does and does
+not tell you.</p>
+
+<h2 id="the-target">The target</h2>
+<p>PDB entry 1YCR is MDM2 with the p53 transactivation peptide bound. Chain A is
+MDM2, chain B is the peptide. For docking, chain A is the receptor and chain B is
+dropped, because it is exactly what the peptides are competing for. The structure
+is a good first target: the site is a well defined hydrophobic groove, and three
+peptides with different sequences are known to bind it.</p>
+<table>
+<tr><th>Setting</th><th>The example's value</th></tr>
+<tr><td>Receptor</td><td>1YCR, chain A kept, chain B dropped</td></tr>
+<tr><td>Site</td><td>22 residues, including Leu54, Gly58, Ile61, Met62, Tyr67, Gln72, His73, Val93, His96 and Ile99</td></tr>
+<tr><td>Box</td><td>8 &Aring; padding, 20 &Aring; minimum, 30 &Aring; maximum, clamped to 30 &Aring; on every axis</td></tr>
+<tr><td>Preparation</td><td>pH 7.4, minimised, heteroatoms dropped, loops left alone</td></tr>
+<tr><td>Search</td><td>25 replicas, 2,000,000 steps, 10 poses kept, 16 cores</td></tr>
+<tr><td>Rescoring</td><td>MM-GBSA on 5 poses, reporting the mean of the top 5</td></tr>
+</table>
+<figure>
+<img src="img/site-residues.png" alt="The 22 site residues typed in, with the box the example built">
+<figcaption><b>The site as the example names it.</b> The note reads <code>22
+residue(s) found, span 34.0 A, box 30.0 x 30.0 x 30.0 A</code>: the residues span
+more than the maximum, so the box is clamped and three of them end up outside
+it.</figcaption>
+</figure>
+
+<h2 id="the-peptides">The peptides</h2>
+<p>Three, each a published binder of this groove:</p>
+<table>
+<tr><th>Name</th><th>Sequence</th><th>Residues</th></tr>
+<tr><td>p53</td><td><code>ETFSDLWKLLPEN</code></td><td>13</td></tr>
+<tr><td>PMI</td><td><code>TSFAEYWNLLS</code></td><td>11</td></tr>
+<tr><td>12/1 core</td><td><code>RFMDYWEGL</code></td><td>9</td></tr>
+</table>
+<p>All three carry the same anchor pattern, a hydrophobic triad that drops into
+the groove, which is why they belong in one run: a ranking is only interesting
+when the peptides are plausible to begin with.</p>
+
+<h2 id="what-came-back">What came back</h2>
+<figure>
+<img src="img/results-table.png" alt="The example run's ranked table, p53 first">
+<figcaption><b>The table.</b> Ranked on the MM-GBSA mean of the top five poses,
+most negative first.</figcaption>
+</figure>
+<table>
+<tr><th>Rank</th><th>Name</th><th>ADCP best</th><th>ADCP top5</th><th>MM best</th><th>MM top5</th><th>MM spread</th></tr>
+<tr><td>1</td><td>p53</td><td>-21.1</td><td>-20.44</td><td>-74.60</td><td>-61.22</td><td>27.04</td></tr>
+<tr><td>2</td><td>PMI</td><td>-18.7</td><td>-18.24</td><td>-56.41</td><td>-49.48</td><td>14.04</td></tr>
+<tr><td>3</td><td>12/1 core</td><td>-17.8</td><td>-17.22</td><td>-55.21</td><td>-43.28</td><td>22.31</td></tr>
+</table>
+<p>Both measures put the three in the same order, which is worth more than either
+alone. The four parts of p53's best pose energy are van der Waals -92.5,
+electrostatic -374.8, polar solvation +405.0 and nonpolar solvation -12.2
+kcal/mol: a large electrostatic attraction almost cancelled by the cost of
+desolvating it, with the van der Waals term carrying the interaction. That is the
+ordinary shape of a hydrophobic groove.</p>
+
+<h2 id="what-to-notice">What to notice before quoting it</h2>
+<div class="note"><b>The spread is as large as the differences.</b> p53's five
+rescored poses span 27.0 kcal/mol, and p53 and PMI are 11.7 apart. The noise
+within one peptide is a large share of the signal between peptides. That is a
+property of the docked poses, not of the rescoring, and no choice of engine
+removes it.</div>
+<p>Three more things this run shows honestly:</p>
+<ul>
+<li><b>The search was small.</b> 25 replicas by 2,000,000 steps is below every
+published setting, because the run ships inside a Python package. The guideline is
+100 to 300 replicas and 1 to 3 million steps per residue, so a 13-mer wants 13 to
+39 million. Do not take this run's settings as a template.</li>
+<li><b>The top cluster is thin.</b> p53's best pose comes from a cluster of 68
+of the solutions ADCP clustered, which the table shows as 6 per cent of them,
+across 100 modes. A converged search puts much more of its weight in one
+place.</li>
+<li><b>Three site residues fall outside the box.</b> Residues 25, 70 and 26 miss
+it by 2.7, 1.3 and 0.6 &Aring;. No pose can reach them, and they still count in
+the site coverage denominator. Naming fewer, better chosen residues would have
+given a tighter box and a cleaner coverage number.</li>
+</ul>
+<p>The example also carries no interface columns. Its intermediate geometry was
+not kept, so only the energy terms could be read back, and
+<code>results.txt</code> says so in as many words. A run of your own, kept whole,
+has the buried area, the contacts and the site coverage as well.</p>
+
+<h2 id="repeating-it">Repeating it properly</h2>
+<ol class="steps">
+<li>Open the example and press <b>reuse settings</b>. The receptor, the chain, the
+22 residues, the box and the three peptides come back into the form.</li>
+<li>Narrow the site to the residues a binder must touch, so the box stops being
+clamped, and check the cage.</li>
+<li>Raise the search to 100 replicas and about 13,000,000 steps for the
+13-mer.</li>
+<li>Press <b>Estimate &amp; fill</b>, give it a new name, and submit.</li>
+</ol>
+<p>Then compare the two tables. If the order holds and the spread narrows, the
+ranking is telling you something about the peptides. If the order moves, it was
+telling you about the search.</p>

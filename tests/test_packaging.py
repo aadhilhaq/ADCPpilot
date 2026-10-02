@@ -97,6 +97,9 @@ if built is not None:
                  "adcp_dock/_vendor/prepare.py", "adcp_dock/adfr.py",
                  "adcp_dock/static/app.js", "adcp_dock/static/3Dmol-min.js",
                  "adcp_launcher/__init__.py",
+                 # the documentation served at /docs/
+                 "adcp_dock/docs.py", "adcp_dock/docskit.py",
+                 "adcp_dock/docs/pages/index.html", "adcp_dock/docs/img/interface.png",
                  # the example run, at its deepest folder as well as its top
                  "adcp_dock/example_run/job.json",
                  "adcp_dock/example_run/docking/ETFSDLWKLLPEN/out_ranked_1.pdb",

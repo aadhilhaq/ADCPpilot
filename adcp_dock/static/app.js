@@ -1098,12 +1098,28 @@ $('pastepep').onclick = () => $('pastebox').classList.toggle('hide');
 $('pasteadd').onclick = async () => {
   const d = await api('/api/paste', {text: $('pastetext').value, max_length: MAXLEN,
                                      adcp_engine: $('adcp_engine').value});
-  if(d.error || !d.peptides) return;
+  if(d.error){ pepmsg(d.error, true); return; }
+  if(!d.peptides || !d.peptides.length){
+    pepmsg('no peptides were found in the text. One per line, or name: sequence.', true);
+    return;
+  }
+  /* The parser's problems arrive here and nowhere else: the stored list
+     keeps only names and sequences, and the re-check of a stored sequence
+     cannot see that a line was two columns read as one sequence. So a paste
+     with a problem adds nothing, keeps the text where it can be fixed, and
+     says what is wrong with each line. */
+  const bad = d.peptides.filter(p => p.problems && p.problems.length);
+  if(bad.length){
+    pepmsg('nothing added. ' + bad.map(p => (p.name || p.sequence.slice(0, 18)) + ': '
+      + p.problems.map(x => x.message).join('; ')).join(' | '), true);
+    return;
+  }
   if(PEPS.length === 1 && !PEPS[0].sequence) PEPS = [];
   d.peptides.forEach(p => PEPS.push({name: p.name, sequence: p.sequence}));
   $('pastetext').value = '';
   $('pastebox').classList.add('hide');
   drawPeps();
+  pepmsg(d.peptides.length + ' peptide(s) added', false);
 };
 /* A peptide list from a file, read in the browser and sent through the same
  * parser a paste uses. The server has always accepted these; there was no
@@ -1430,6 +1446,7 @@ $('themebtn').onclick = () => {
 DARKQ.addEventListener('change', themeChanged);
 themeButton();
 if($('citefoot')) $('citefoot').onclick = e => { e.preventDefault(); showCite(); };
+if($('citebar')) $('citebar').onclick = e => { e.preventDefault(); showCite(); };
 $('citeclose').onclick = () => $('citedlg').close();
 $('citecopy').onclick = () => copyText($('citetext').textContent, $('citetext'),
   $('citenote'));
@@ -2970,6 +2987,12 @@ function showHelp(key){
   if(!h) return;
   $('helptitle').textContent = h.title;
   $('helpbody').textContent = h.body;
+  // The docs say more, with pictures; the section for this setting.
+  const more = $('helpdocs');
+  if(more){
+    more.classList.toggle('hide', !h.docs);
+    if(h.docs) more.href = '/docs/' + h.docs;
+  }
   $('helpbox').classList.remove('hide');
 }
 function hideHelp(){ $('helpbox').classList.add('hide'); }

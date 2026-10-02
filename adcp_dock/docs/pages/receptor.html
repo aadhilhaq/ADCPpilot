@@ -1,0 +1,116 @@
+<h1>The receptor</h1>
+<p class="lead">Load the protein you are docking into, keep the chains you
+want, and let the preparation turn a crystal structure into something a force
+field will accept.</p>
+
+<figure>
+<img src="img/receptor-loaded.png" alt="The Receptor card with 1YCR loaded, its atom count and a tick box per chain">
+<figcaption><b>A loaded receptor.</b> The line under the controls reports the
+atoms read and the chains found. Below it, one tick box per chain: here chain A
+of 1YCR is kept, and chain B, the bound p53 peptide, is not.</figcaption>
+</figure>
+
+<h2 id="loading">Loading a structure</h2>
+<p>There are four ways in, and they end in the same place.</p>
+<ul>
+<li><b>PDB id.</b> Four characters, such as <code>1YCR</code>. The file is
+fetched from the RCSB and cached, so each id is downloaded once per machine.
+This needs the internet, which a compute node usually does not have.</li>
+<li><b>A file already on this machine.</b> A <code>.pdb</code>,
+<code>.cif</code>, <code>.mmcif</code> or <code>.ent</code> file, gzipped or
+not. Nothing is copied: the path is read where it is, so it must be somewhere
+the compute nodes can see too. <b>Browse</b> walks the cluster's folders.</li>
+<li><b>From this computer.</b> Reads a file on the machine your browser is on
+and sends it through the connection that is already open. Use this when the
+cluster cannot see your file.</li>
+<li><b>A target file made in AGFR or AGFRGUI</b> (<code>.trg</code>). Its
+receptor, maps and box are used as they are, and none of the preparation
+below runs. Do not rename the file: ADCP finds the maps by its name.</li>
+</ul>
+<p>An mmCIF is converted to PDB with OpenMM before anything else, because every
+later step reads fixed-column PDB.</p>
+<p>Once a structure is loaded, the chain boxes appear. Tick the chains you want
+to dock against; none ticked keeps them all. A structure solved with its
+partner bound, as 1YCR is, usually wants only the receptor chain: see
+<a href="case-two-chains.html">A site between two chains</a>.</p>
+<div class="note"><b>A backbone trace is not prepared.</b> One atom per residue
+means every side chain is missing, and rebuilding them all is modelling rather
+than preparation. The preparation stops with that message at the start of the
+run.</div>
+
+<h2 id="what-preparation-does">What preparation does</h2>
+<p>The preparation runs as the first job of the run, not while you are typing.
+Every step is logged in <code>receptor/preparation.log</code> inside the run,
+and the results page reads that log back, so a step that was skipped is
+visible afterwards. In order:</p>
+<ol>
+<li>Bibliographic header records are dropped, because later steps trip over
+them.</li>
+<li>The chains you kept are kept and the rest dropped.</li>
+<li>One conformer per atom where there are <b>alternate locations</b>: the
+highest occupancy, ties to the first. Docking against both copies is docking
+against a protein that does not exist.</li>
+<li>Modified residues that stand in for an ordinary one are read as that one:
+selenomethionine as methionine, phosphoserine as serine, and so on.</li>
+<li>Waters are removed.</li>
+<li>Other heteroatoms are removed unless you keep them. See
+<a href="#heteroatoms">heteroatoms</a>.</li>
+<li>Disulphides within 2.5 &Aring; are found and named in the log, so you can
+see which cysteines are paired. pdb2pqr works them out for itself.</li>
+<li>Missing side-chain atoms are rebuilt and the termini capped, so a chain
+break is not read as a charged terminus. Whole missing residues are left alone
+unless you ask for them: see <a href="#loops">loops</a>.</li>
+<li>Hydrogens and titration states at your pH: see
+<a href="#protonation">protonation</a>.</li>
+<li>A restrained minimisation: see <a href="#minimisation">minimisation</a>.</li>
+</ol>
+<p>Then <code>prepare_receptor</code> writes the PDBQT and <code>agfr</code>
+builds the grid maps over your box. The example's log reads, in part,
+<code>kept chain A, dropped B</code>, <code>rebuilt 0 side-chain atom(s),
+completed 1 terminal atom(s); LEFT 24 missing residue(s) alone</code> and
+<code>743 hydrogens added</code>, which is the kind of summary to read before
+trusting a run.</p>
+
+<h2 id="protonation">Protonation and pH</h2>
+<p>Hydrogens are placed by <code>pdb2pqr</code>, and PROPKA decides each
+titratable residue's state at the pH you set. That fixes the charges the
+docking sees: whether a histidine is neutral or positive, whether an aspartate
+is charged.</p>
+<p>7.4 is physiological and is the default. If your assay runs somewhere else,
+use that pH: an endosomal target at 5.5 presents a different surface. There is
+no per-residue control here, and the same pH is used again when a complex is
+built for MM-GBSA, so the docking and the rescoring agree with each other.
+What that means at a site with histidines in it is worth a page of its own:
+<a href="case-histidines.html">Histidines at the site</a>.</p>
+
+<h2 id="minimisation">Minimising after protonation</h2>
+<p><b>Minimise the receptor after protonation</b> runs a restrained
+minimisation: the heavy atoms are held near their measured positions at
+10 kcal/mol/&Aring;&sup2; while the new hydrogens and any clashes relax.</p>
+<p>Leave it on. Hydrogens are placed by geometry and have not been relaxed
+against the force field, so docking without this docks into strain that is not
+really there. It takes under a minute for a few hundred residues. In the
+example it moved the heavy atoms 0.11 &Aring; RMSD and took the energy from
+-2,620 to -3,295 kcal/mol, which is what a working restrained minimisation
+looks like: a large energy change and almost no movement.</p>
+
+<h2 id="heteroatoms">Heteroatoms</h2>
+<p>Cofactors, ligands, metals and everything else that is not protein are
+removed unless you tick <b>Keep heteroatoms</b>.</p>
+<p>Tick it when what is bound there is part of the site: a structural zinc, or
+a haem your peptide has to sit against. Leave it off for a crystallisation
+additive, or for a ligand you intend to displace.</p>
+<div class="note"><b>Keeping heteroatoms skips the minimisation.</b> The force
+field has no parameters for most of what this keeps, metal ions included, so
+the minimisation cannot run and the results page says so. You are choosing
+between a site that is complete and a structure that has been relaxed.</div>
+
+<h2 id="loops">Rebuilding missing loops</h2>
+<p>Missing side-chain atoms are always rebuilt. <b>Rebuild missing loops</b> is
+about whole missing residues, the stretches the structure never resolved. It is
+off by default.</p>
+<p>A rebuilt loop is a model, and once it is written into the file it looks
+exactly like a measured one. Turn it on only when a gap sits against your site
+and leaving a hole there would be worse than filling it. The example leaves 24
+missing residues alone, in two stretches well away from the p53 groove, which
+is the ordinary case.</p>

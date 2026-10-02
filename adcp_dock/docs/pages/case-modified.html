@@ -1,0 +1,90 @@
+<h1>Modified and D amino acids</h1>
+<p class="lead">With ADCP 1.1 installed you can dock a phosphoserine, a
+citrulline, a D residue or any of 197 non-standard side chains, either by typing
+them or by picking them from a list.</p>
+
+<figure>
+<img src="img/peptides.png" alt="The peptide rows, each with a menu button">
+<figcaption><b>Where to find it.</b> Each peptide row has a &#8942; menu, and the
+first item is <b>Non-standard and D amino acids</b>. Nothing has to be typed by
+hand.</figcaption>
+</figure>
+
+<h2 id="the-notation">How a modified residue is written</h2>
+<p>A non-standard residue is written as the one-letter code of the standard
+residue whose coarse model ADCP uses for it, followed by the library name in
+angle brackets. A D residue is written with <code>&amp;</code> before its
+letter.</p>
+<pre>N&lt;BHD&gt;PIS&amp;DVD        seven residues: a modified asparagine
+                       first, and a D-aspartate fifth
+S&lt;SEP&gt;                 phosphoserine, modelled as serine
+Y&lt;PTR&gt;                 phosphotyrosine
+R&lt;CIR&gt;                 citrulline
+&amp;K                     D-lysine</pre>
+<p>Residues are counted as residues, not as characters: <code>N&lt;BHD&gt;PIS&amp;DVD</code>
+is seven, and the 5 to 30 limit applies to that count. The library name is
+matched as written, in capitals; the standard letters are not.</p>
+<p>The library is ADCP 1.1's own, built by the Scripps Research Institute from the
+SwissSidechain database. It holds 209 non-natural side chains, each in an L and a D
+form, among them phosphorylated serine, threonine and tyrosine, oxidised methionine
+and tryptophan, citrulline and nitrotyrosine, and many synthetic residues. The 197
+that ADCP gives a coarse potential can be written in this syntax, and those are the
+ones the page offers.</p>
+<div class="note"><b>Some obvious modifications are not in it.</b> Lysine
+acetylation and lysine methylation are not in the library, so they cannot be docked
+this way. The dialog lists exactly what the installed ADCP 1.1 contains, which is the
+only reliable answer.</div>
+
+<h2 id="choosing-them">Choosing them in the page</h2>
+<ol class="steps">
+<li>Open the peptide's <b>&#8942;</b> menu and choose <b>Non-standard and D amino
+acids</b>.</li>
+<li>Click the residue you want to change. The sequence is shown with every position
+clickable.</li>
+<li>Pick its D form, or one of the non-standard residues ADCP has for that
+position.</li>
+<li>Each choice is drawn below the list as the residue sits in the chain, with the
+charge ADCP models it with. That is how you tell <code>SEP</code> from
+<code>SEP2</code>, phosphoserine at charge -1 and at charge -2.</li>
+<li><b>Save</b> writes the sequence in the notation above. Every residue you
+changed must have a type chosen before it will save.</li>
+</ol>
+<p>A D residue is drawn as the mirror image of the L one, which is how ADCP builds
+it. The list only ever offers what the installed library contains, so a name that
+cannot be docked cannot be chosen. Typing one by hand that is not in the library is
+refused by name.</p>
+
+<h2 id="what-changes-in-the-run">What changes in the run</h2>
+<p>Docking happens as usual, with ADCP 1.1 and its side-chain library. Two things
+are different afterwards.</p>
+<p><b>MM-GBSA is skipped for these peptides.</b> The Amber topology is built from
+standard residues and the force field has no parameters for the others. Those rows
+carry no MM-GBSA value, the table lists them as unranked, and the reason is
+printed. In a list that mixes standard and modified peptides, the standard ones are
+rescored and ranked and the modified ones are not, so the two groups cannot be
+ranked against each other on energy.</p>
+<p><b>Use ADCP 1.1's own minimisation instead.</b> <b>Poses to minimize with
+OpenMM</b> relaxes the top poses with the Amber ff99SB force field and the GBn2
+solvent model, holding the receptor away from the peptide in place, and reports the
+lowest E(complex) minus E(receptor) beside the scores. It is at most five minimiser
+iterations, ADCP's default, so it relaxes each complex rather than refining it. It
+is reported and never ranked on.</p>
+<p>The minimisation covers nearly every residue the dialog offers, with known
+exceptions. ADCP 1.1.21 has no parameters for IYR, PBF, PHI and TYI, and its
+parameters for FVAL, FPG2, FPG3, FTR and FT6 fail in OpenMM. A peptide containing
+one of these is still docked, its poses are left unminimised, and the run's log says
+so.</p>
+
+<h2 id="how-far-to-trust-it">How far to trust it</h2>
+<p>ADCP builds and docks every residue in the library, and its accuracy on peptides
+containing them has not been benchmarked in a publication. Treat such results as
+exploratory: good for choosing which modification to make next, not for a number in
+a table of affinities.</p>
+<p>What is still solid is the comparison between a modified peptide and its own
+parent sequence in the same run, on the same receptor, with the same settings. That
+is the experiment worth doing: dock <code>TSFAEYWNLLS</code> and
+<code>TS&lt;...&gt;</code> variants of it together, look at the poses, and see
+whether the modification keeps the anchor residues in the groove.</p>
+<p>Runs that use these residues also cite SwissSidechain, and GAFF when the poses
+were minimised. <b>How to cite</b> adds them for you, scoped to the run, so the
+methods section says what was actually used.</p>

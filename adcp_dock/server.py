@@ -1345,6 +1345,8 @@ class Handler(BaseHTTPRequestHandler):
         app = self.server.app
         if u.path == "/adapt" or u.path.startswith("/adapt/"):
             return self._adapt_proxy("GET", u)
+        if u.path == "/docs" or u.path.startswith("/docs/"):
+            return self._docs(u.path)
         if u.path.startswith("/static/"):
             return self._static(u.path)
         if u.path == "/":
@@ -1494,6 +1496,25 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send({"error": err}, 404)
             return self._send(text, ctype="text/plain")
         return self._send({"error": "no such endpoint"}, 404)
+
+    def _docs(self, path):
+        """The documentation: its pages, their stylesheet and their pictures.
+
+        No token: it is the same help for everyone, it holds nothing about
+        anybody's runs, and a link to it should just open. What to send is
+        decided by the shared documentation module, which the three
+        interfaces answer the same way; this writes it out.
+        """
+        from . import docs
+        code, ctype, body, location = docs.respond(path)
+        self.send_response(code)
+        if location:
+            self.send_header("Location", location)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.end_headers()
+        self.wfile.write(body)
 
     def _static(self, path):
         """The bundled JavaScript assets, served from this package so the viewer works without network access.

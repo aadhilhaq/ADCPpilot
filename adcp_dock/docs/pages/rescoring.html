@@ -1,0 +1,97 @@
+<h1>Rescoring with MM-GBSA</h1>
+<p class="lead">A second, physics-based estimate of each pose, computed with
+AmberTools. It is what makes different peptides comparable, and it is the
+slowest part of a run.</p>
+
+<h2 id="what-it-does">What it does</h2>
+<p>ADCP's score is a docking score. It orders the poses of one peptide well, and
+it was tuned for that rather than for comparing constructs of different length
+and composition, which is usually what a screen is asking. MM-GBSA computes an
+interaction energy from a force field with an implicit solvent term instead, so
+agreement between the two is worth more than either alone.</p>
+<p>For each pose that is rescored:</p>
+<ol>
+<li>The complex is protonated with the peptide bound, at the run's pH.</li>
+<li><code>tleap</code> builds Amber topologies for the complex, the receptor and
+the peptide, with the ff14SB protein force field.</li>
+<li><code>sander</code> minimises the complex with the receptor's heavy atoms
+restrained, up to 1,000 cycles.</li>
+<li><code>MMPBSA.py</code> computes the interaction energy and its four parts on
+that minimised geometry, with 0.15 M salt.</li>
+</ol>
+<p>It roughly doubles the length of a run. It needs AmberTools; without it the
+option is switched off and the page says why.</p>
+<div class="note"><b>It is a ranking aid, not a binding free energy.</b> One
+conformation, no ensemble average and no entropy term. It gives an ordering
+within one run against one receptor. It does not give a binding constant, and
+values from two different receptors are not comparable.</div>
+<p>Peptides with non-standard or D residues are not rescored: the topology is
+built from standard residues and the force field has no parameters for the
+others. Those rows have no MM-GBSA value, the table says so, and ADCP 1.1's own
+OpenMM minimisation is the number to use for them instead.</p>
+
+<figure>
+<img src="img/docking-settings.png" alt="The Docking and rescoring card, with the MM-GBSA row showing">
+<figcaption><b>The rescoring controls.</b> They appear once <b>Rescore with
+MM-GBSA</b> is ticked, and the line under them states the force field, the solvent
+model and the radii the energies will be computed with.</figcaption>
+</figure>
+
+<h2 id="poses-to-rescore">Poses to rescore</h2>
+<p>MM-GBSA runs on this many of each peptide's poses, best first. The cost grows
+in proportion and it is the largest cost of the run.</p>
+<p>More than one is worth having. A single pose can be lucky, and the spread
+across poses is what shows whether the peptide has settled on one way of binding
+or is still choosing. The results table reports that spread, and for the three
+peptides in the example run it is 27.0, 14.0 and 22.3 kcal/mol across five poses
+each, which is as large as the differences between the peptides themselves. That
+is a property of the poses, not of the rescoring, and it is the single most
+important thing to know before quoting one of these numbers.</p>
+<p>The poses are rescored several at a time, as many as the task has cores up to
+eight, so the wall time is the number of waves rather than the number of
+poses.</p>
+
+<h2 id="averaging">Averaging the best few</h2>
+<p><b>Report the mean of the top</b> decides the headline number: the mean of
+that many best pose energies rather than the single best. The default is 5.</p>
+<p>A best score is the tail of a distribution the search drew many times, and it
+rewards the luckiest pose. The mean of the top few is steadier. Both are written
+out, since comparison with other work often needs the best as well, along with
+the median and the spread. Set it to 1 to report the best pose alone.</p>
+<p>The ranking uses the mean where MM-GBSA ran, and ADCP's own mean where it did
+not. The table says which, in the heading of the column it ranked on.</p>
+
+<h2 id="the-solvation-model">The solvation model</h2>
+<p>Two implicit solvent models are offered. <b>GB-OBC(II)</b> is the default and
+is what every earlier run used; <b>GBn2</b> is a newer model with its own atomic
+radii. Each is run with the radii it was fitted with, and the run records which,
+because an energy computed with one set of radii and labelled with the other is
+wrong in a way nothing downstream can detect.</p>
+<p>The two give different numbers. Compare peptides within one model, never
+across the two.</p>
+
+<h2 id="which-program">Which program computes it</h2>
+<table>
+<tr><th>Engine</th><th>What it computes</th><th>How to read it</th></tr>
+<tr><td><b>AmberTools</b></td><td>ff14SB with GB-OBC(II), through <code>sander</code> and <code>MMPBSA.py</code>. The default.</td><td>The reference. Every earlier number came from it.</td></tr>
+<tr><td><b>OpenMM</b></td><td>The same force field and the same solvent model, on the geometry <code>sander</code> minimised.</td><td>A check on the solver, not a second estimate. It lands within about 1.3 kcal/mol of AmberTools and leaves the order unchanged.</td></tr>
+<tr><td><b>Schrodinger Prime</b></td><td>OPLS with VSGB 2.0, a different force field and a different solvent model.</td><td>Its own scale entirely. Nothing calibrates it against the other two.</td></tr>
+</table>
+<p>Each engine writes its own columns, none is merged into another, and the table
+says which force field and solvent model produced each one. A run may carry all
+three, and they are read down a column rather than across a row.</p>
+<p>A finished run can be scored again with another engine from its own page:
+nothing is docked again, the same poses are scored, the new numbers appear beside
+the old ones, and the table stays ranked on the engine it already used.</p>
+<p>The OpenMM engine deliberately scores <code>sander</code>'s geometry rather
+than making its own, and declines to run where <code>sander</code> is absent.
+Letting it minimise further moves the energy by tens of kcal/mol, because the
+extra relaxation loosens the interface: the two energy models agree, and the
+minimisation was the whole of the difference.</p>
+
+<h2 id="what-else-it-measures">What else it measures</h2>
+<p>While each pose is rescored, the run also measures the interface on the same
+minimised geometry: buried surface area, how much of the peptide is buried,
+typed contacts and clashes, and the per residue breakdown of the energy. Those
+are the interface columns in the results, and they are described in
+<a href="results.html">Reading the results</a>.</p>

@@ -1,0 +1,98 @@
+<h1>Optional tools</h1>
+<p class="lead">Docking needs four programs. Everything on this page is extra:
+each one adds something, and the page tells you which of them it can see.</p>
+
+<h2 id="what-is-installed">What is installed here</h2>
+<p>The line at the top of the page says whether the required programs were found,
+and how many optional ones are missing. For the full answer, ask the installation
+directly:</p>
+<pre>adcp-dock check</pre>
+<p>It prints every program it looks for, the path it found, and what each missing
+one would have been used for. Required are <code>adcp</code>, <code>agfr</code>,
+<code>prepare_receptor</code> and <code>pdb2pqr</code>; the rest of this page is
+optional.</p>
+
+<h2 id="ambertools">AmberTools, for MM-GBSA</h2>
+<p><code>tleap</code>, <code>sander</code>, <code>MMPBSA.py</code> and
+<code>ante-MMPBSA.py</code> are what compute the energies. Without them the
+<b>Rescore with MM-GBSA</b> box is switched off and disabled, and the page says
+why. Docking works normally; the table is then ranked on ADCP's own score.</p>
+<p>AmberTools is not on PyPI, so it comes from conda:</p>
+<pre>conda install -c conda-forge ambertools</pre>
+<p>Point <code>AMBERHOME</code> at the environment that has it, or pass
+<code>--tools-root</code>, and check with <code>adcp-dock check</code>. What the
+rescoring then does is described in
+<a href="rescoring.html">Rescoring with MM-GBSA</a>.</p>
+
+<h2 id="adcp-11">ADCP 1.1</h2>
+<p>ADCP 1.1 is the current version of AutoDock CrankPep. It adds non-standard and D
+amino acids, all-atom poses in one file, and an optional OpenMM minimisation and
+re-ranking of the top poses. Scripps distributes it as its own Python 3.7
+environment:</p>
+<pre>adcp-dock install-adcp11</pre>
+<p>This follows Scripps' own installation recipe: it creates the environment with
+micromamba, installs OpenMM, Open Babel and PDBFixer from conda-forge, and fetches
+the Scripps packages, checking each against a pinned checksum. It takes about ten
+minutes and 3 GB. ADFRsuite 1.0 is still needed, for the receptor preparation and
+the grid maps.</p>
+<p>Once it is installed, <b>Docking engine</b> offers it, and <i>newest
+installed</i> picks it. The interface looks for it at
+<code>$ADCPSUITE_HOME</code>, in a folder named <code>adcpsuite</code> beside
+ADFRsuite or in a tools folder given with <code>--tools-root</code>, at
+<code>~/.adcp-dock/adcpsuite</code>, or at <code>/content/adcpsuite</code> in
+Colab. What it lets you dock is in
+<a href="case-modified.html">Modified and D amino acids</a>.</p>
+<p>Some components of Scripps' ADCP 1.1 environment are free for academic use only.
+The repository's third party notices say which.</p>
+
+<h2 id="adapt">ADapt</h2>
+<figure>
+<img src="img/adapt.png" alt="ADapt open in its own tab, with a structure loaded">
+<figcaption><b>ADapt, reached through this interface.</b> It shows what a structure
+file holds: each biological assembly, alternate locations, side chains with missing
+atoms, missing residues, ligands, cofactors and metals.</figcaption>
+</figure>
+<p>ADapt, by Michel Sanner, is a separate program, not part of this package. It runs
+on the ADCP 1.1 environment above. Get it with:</p>
+<pre>git clone https://github.com/michelsanner/adapt</pre>
+<p>When the interface finds both ADapt and ADCP 1.1, the Receptor card shows
+<b>Open ADapt</b>, which opens it in a new tab. Its first start imports AGFR's
+libraries and can take a minute or two on a busy login node, so the interface starts
+it in the background as soon as the page shows the button, and the tab says what it
+is waiting for. ADapt keeps its sessions in a folder inside your runs folder, and it
+stops when the interface stops.</p>
+<p>It comes through this interface's own connection, under <code>/adapt/</code>, so
+nothing else needs forwarding.</p>
+<div class="note"><b>Use ADapt to look, and this interface to prepare.</b> ADapt
+protonates with <code>reduce</code>, as AGFR does, and the preparation here uses
+<code>pdb2pqr</code> with PROPKA at your pH; the two often place histidine hydrogens
+differently. Decide what to keep in ADapt, then let this interface prepare the
+receptor, so the docking and the rescoring use the same hydrogens. See
+<a href="case-histidines.html">Histidines at the site</a>.</div>
+
+<h2 id="the-receptor-tools">PDBFixer, OpenMM and Biopython</h2>
+<p>These three do the receptor repair work: PDBFixer rebuilds missing side chains
+and loops, OpenMM runs the restrained minimisation, and Biopython reads mmCIF files.
+They install with the package's <code>prep</code> or <code>local</code> extra.</p>
+<p>They are optional in the sense that the run continues without them, but the
+preparation log then says which steps it had to skip, and a receptor that was not
+minimised is a receptor docked with unrelaxed hydrogens. Install them.</p>
+
+<h2 id="schrodinger">Schrodinger Prime</h2>
+<p>If your site licenses the Schrodinger suite, Prime appears as a third MM-GBSA
+engine. It is found at <code>$SCHRODINGER</code> or in the usual places a site
+install lives, including the module system, so a batch job that does not load the
+module can still find it.</p>
+<p>Prime uses OPLS with VSGB 2.0, a different force field and a different solvent
+model from AmberTools, so its numbers are on their own scale: on one test pose
+AmberTools gave -48.07 and Prime -81.79. It writes its own columns and is never
+merged with or compared against the others by value.</p>
+
+<h2 id="target-files">A target file from AGFR</h2>
+<p>A run can start from a target file made in AGFR or AGFRGUI, given under <i>or a
+target file</i> in the Receptor card. Its receptor, maps and box are used as they
+are, and this package's receptor preparation does not run, so every choice about
+chains, protonation and heteroatoms was made in AGFR instead.</p>
+<p>Do not rename the file: ADCP finds the maps by its name. If the target turns out
+to be truncated or built from another structure, the run says the target is unusable
+rather than docking into empty maps.</p>

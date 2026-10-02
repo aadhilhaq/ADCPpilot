@@ -200,7 +200,9 @@ HELP = {
         "Everything the run produces goes here: the prepared receptor, the "
         "poses, the scores and the report. On a cluster it must be visible "
         "to the compute nodes, which a scratch directory is. Runs are never "
-        "overwritten; a name already in use is refused."),
+        "overwritten: the run directory is the name you give followed by the "
+        "date and time, so a second run with the same name sits beside the "
+        "first rather than on top of it."),
     "showbox": (
         "Show the docking box",
         "Draws the box in the structure above, as a cage around the residues "
