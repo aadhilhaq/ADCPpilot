@@ -16,6 +16,7 @@ tests/test_combined.py. This covers only what this repository adds.
 Exit 0 passes, 77 skips, anything else fails.
 """
 import csv
+import json
 import os
 import sys
 import tempfile
@@ -148,6 +149,75 @@ with tempfile.TemporaryDirectory() as d:
     report.write([], d, on_combined=True)
     check("an empty run still writes a table",
           os.path.isfile(os.path.join(d, "results.tsv")))
+
+# ------------------------------------------- the page's own reranking action
+# The button on a finished run. It writes a table beside the run and must
+# never write over the one the run reported, which is the whole reason the
+# feature is a second file rather than a setting that rewrites the first.
+print("\nreranking a finished run from the page")
+REAL = os.environ.get("ADCP_TEST_RUN") or (
+    "/scratch/user/aadhil.haq/adcp_runs/6B88_HOPE_peptides_20260922_154712")
+if not os.path.isdir(REAL):
+    print("  skip  no finished run on this machine (%s)" % REAL)
+    if FAIL:
+        print("\n%d FAILED" % len(FAIL))
+        raise SystemExit(1)
+    raise SystemExit(77)
+
+import shutil                                                   # noqa: E402
+from adcp_dock import server                                    # noqa: E402
+
+with tempfile.TemporaryDirectory() as tmp:
+    # Only what the action reads. A whole run folder is the mmgbsa tree as
+    # well, thousands of files the reranking never opens, and copying it
+    # turns a second into a minute.
+    work = os.path.join(tmp, os.path.basename(REAL))
+    os.makedirs(work)
+    for f in ("job.json", "results.json", "results.tsv"):
+        if os.path.isfile(os.path.join(REAL, f)):
+            shutil.copy(os.path.join(REAL, f), work)
+    if os.path.isdir(os.path.join(REAL, "metrics")):
+        shutil.copytree(os.path.join(REAL, "metrics"),
+                        os.path.join(work, "metrics"))
+    beside = os.path.join(work, "results_combined.tsv")
+    before = open(os.path.join(work, "results.tsv"), "rb").read()
+    app = server.App.__new__(server.App)
+    got = app.rerank_run(work)
+    check("the run is reranked without a scheduler", not got.get("error"),
+          got.get("error"))
+    check("the table is written beside the run", os.path.isfile(beside))
+    after = open(os.path.join(work, "results.tsv"), "rb").read()
+    check("results.tsv is byte for byte unchanged", before == after)
+    check("it reports how many moved", got.get("moved", 0) > 0,
+          "%s" % got.get("moved"))
+    check("it reports what the measurements do not separate",
+          isinstance(got.get("chains"), list))
+    head = open(beside).readline().rstrip("\n").split("\t")
+    check("the written table shows every term",
+          any(c.startswith("z_") for c in head), "%s" % head)
+    check("and where each construct was before",
+          "rank_before" in head and "not_separated" in head, "%s" % head)
+
+    # What the page is handed when it opens a run: the score worked out in
+    # memory, for a run that has never been reranked.
+    res = {"rows": json.load(open(os.path.join(work, "results.json")))["rows"]}
+    res = server.fill_combined(res, work)
+    c = res.get("combined") or {}
+    check("the page is told which terms the order is made of",
+          len(c.get("terms") or []) > 1, "%s" % c.get("terms"))
+    check("every term carries its weight and what it is",
+          all(t.get("what") and "weight" in t for t in c.get("terms") or [])) 
+    check("and the rows carry the score and its components",
+          all(r.get("combined_z") is not None for r in res["rows"])
+          and any(k.startswith("z_") for k in res["rows"][0]))
+
+    # A run with no interface measured must not be offered the control.
+    bare = {"rows": [{"peptide": "P%d" % i, "adcp_top5": -20.0 + i}
+                     for i in range(5)]}
+    bare = server.fill_combined(bare, work)
+    check("a run with nothing to combine is not offered the control",
+          bare.get("combined") is None)
+
 
 print()
 if FAIL:

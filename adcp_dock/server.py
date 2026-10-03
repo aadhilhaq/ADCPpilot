@@ -22,7 +22,7 @@ import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import fetch, job as jobmod, page, peptide, pipeline
+from . import fetch, job as jobmod, page, peptide, pipeline, report
 from . import sizing
 from . import slurm, structure
 from . import tools as toolmod
@@ -213,6 +213,52 @@ def fill_terms(results, rundir):
                 r[k] = t[k]
     results["panel_missing"] = missing
     results["panel_measurable"] = can
+    return results
+
+
+def _combined():
+    from ._vendor import combined
+    return combined
+
+
+def fill_combined(results, rundir):
+    """Give a run's rows the combined score and its components, in memory.
+
+    The same idea as fill_terms, and the reason the page can offer to reorder
+    a run that finished long before this metric existed: the score is
+    arithmetic over columns the run already carries, so it costs nothing to
+    work out when somebody looks. Nothing is written here - a run is not
+    rewritten because a page was opened - and results.tsv keeps the order it
+    was reported in until somebody asks for the other one.
+
+    Also says which terms the run could be scored on, so the page can account
+    for the order instead of showing a number that explains nothing.
+    """
+    rows = results.get("rows") if isinstance(results, dict) else None
+    if not isinstance(rows, list) or not rows:
+        return results
+    info = report.combined_scores([r for r in rows if isinstance(r, dict)])
+    if info is None:
+        return results
+    mod = _combined()
+    terms = []
+    for name in ("energy",) + tuple(t[0] for t in mod.TERMS) + ("clash",):
+        if name not in (info.get("used") or {}):
+            continue
+        what = next((t[4] for t in mod.TERMS if t[0] == name), None)
+        if name == "energy":
+            what = "binding energy (%s)" % " and ".join(info["used"]["energy"])
+        elif name == "clash":
+            what = "steric clashes, as a penalty"
+        terms.append({"name": name, "weight": info["weights"].get(name, 0.0),
+                      "what": what})
+    results["combined"] = {
+        "terms": terms,
+        "constant": info.get("constant") or [],
+        "off": info.get("off") or [],
+        "on_disk": os.path.isfile(os.path.join(rundir,
+                                               "results_combined.tsv")),
+    }
     return results
 
 
@@ -835,6 +881,60 @@ class App:
         except Exception as exc:                                # noqa: BLE001
             return {"error": "could not submit the measurement: %s" % exc}
 
+    def rerank_run(self, rundir):
+        """Write a finished run's combined order into the run folder.
+
+        Unlike the panel and the rescoring this needs no scheduler and no
+        compute: the measurements are already in the run's own files and the
+        score is arithmetic over them, so it is done here and finishes before
+        the page has finished asking.
+
+        results.tsv is NOT touched. Numbers from these runs have been quoted
+        in reports and in conversation, and a table that says something
+        different the next time somebody opens it is worse than no table. The
+        combined order goes in results_combined.tsv beside it, every term in
+        its own column, and the page can show either.
+        """
+        if not rundir or not os.path.isfile(jobmod.path_of(rundir)):
+            return {"error": "no such run"}
+        rj = os.path.join(rundir, "results.json")
+        if not os.path.isfile(rj):
+            return {"error": "this run has no results yet"}
+        try:
+            rows = json.load(open(rj)).get("rows") or []
+        except (OSError, ValueError) as exc:
+            return {"error": "could not read the run's results (%s)" % exc}
+        rows = [r for r in rows if isinstance(r, dict)]
+        if not rows:
+            return {"error": "this run has no results yet"}
+        mod = _combined()
+        was = [r.get("peptide") for r in rows]
+        info = report.combined_scores(rows)
+        if info is None:
+            return {"error": "only one measurement is available for every "
+                             "peptide, so there is nothing to combine - "
+                             "measure the interface first."}
+        done, _i = mod.score(rows)
+        spans = mod.spans(done, mod.poses_from(rundir), info=info)
+        pairs = mod.covers(done, spans) if spans else {}
+        for r in done:
+            r["not_separated"] = ", ".join(
+                pairs.get(r.get("sequence") or r.get("peptide")) or [])
+        out = os.path.join(rundir, "results_combined.tsv")
+        try:
+            mod.write_table(done, out, info, was, spans)
+        except Exception as exc:                                # noqa: BLE001
+            return {"error": "could not write the table: %s" % exc}
+        groups = mod.unseparated(done, spans) if spans else []
+        now = [r.get("peptide") for r in done]
+        # The caution travels with the answer rather than waiting in a file
+        # somebody may never open: on every run measured so far the pose
+        # spread covers most of the order, and a reordered table that does
+        # not say so reads far more settled than it is.
+        return {"wrote": out, "order": now,
+                "moved": sum(1 for a, b in zip(was, now) if a != b),
+                "chains": [[x.get("peptide") for x in g] for g in groups]}
+
     def rescore_run(self, rundir, engine):
         """Score a finished run's poses again with another MM-GBSA engine.
 
@@ -1202,6 +1302,7 @@ class App:
                 results = None
         results = fill_names(results, j)
         results = fill_terms(results, rundir)
+        results = fill_combined(results, rundir)
         done = len([f for f in os.listdir(os.path.join(rundir, "results"))
                     if f.endswith(".json")]) if os.path.isdir(
                         os.path.join(rundir, "results")) else 0
@@ -1575,6 +1676,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(app.resume_run(body.get("rundir")))
         if u.path == "/api/panel":
             return self._send(app.panel_run(body.get("rundir")))
+        if u.path == "/api/rerank":
+            return self._send(app.rerank_run(body.get("rundir")))
         if u.path == "/api/rescore":
             return self._send(app.rescore_run(body.get("rundir"),
                                               body.get("engine")))

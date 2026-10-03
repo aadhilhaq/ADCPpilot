@@ -662,11 +662,22 @@ import re as _re                                              # noqa: E402
 _fields = set(_re.findall(r"\br\.([A-Za-z_][A-Za-z0-9_]*)", _spec))
 # The row a run with everything on produces: a panel, MM-GBSA, clusters and
 # ADCP 1.1's OpenMM minimisation.
-_full = report.summarise(
-    "LLKWHY", [{"score": -14.0, "cluster": 30}], mm=[-25.0, -22.0],
-    name="P1", panel=panel, engine="ADCP 1.1",
+#
+# Built the way report.write builds a run's rows, summarise and then
+# combined_scores, because some columns are filled by the second step. Four
+# peptides rather than one: a combined score is a position within a run, and
+# a run of one has no positions in it to take.
+_rows = [report.summarise(
+    seq, [{"score": sc, "cluster": 30}], mm=[gb, gb + 3.0],
+    name="P%d" % i, panel=dict(panel, bsa_per_res=90.0 + i, n_hbond=6 + i),
+    engine="ADCP 1.1",
     openmm=[{"e_complex_receptor": -55.0, "rank_adcp": 2}],
     clusters={"cluster_top": 30, "cluster_total": 300, "cluster_modes": 100})
+    for i, (seq, sc, gb) in enumerate(
+        [("LLKWHY", -14.0, -25.0), ("LLKWHW", -13.0, -23.0),
+         ("LLKWHF", -12.0, -21.0), ("LLKWHA", -11.0, -19.0)])]
+report.combined_scores(_rows)
+_full = _rows[0]
 _full["rank"] = 1
 _missing = sorted(f for f in _fields if f not in _full)
 check("every column in the web table reads a field the report writes",

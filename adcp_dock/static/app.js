@@ -1745,6 +1745,35 @@ async function reuseRun(dir){
 const any = (rows, k) => rows.some(r => r[k] != null && r[k] !== '');
 const pc = (v, n) => (v == null ? '-' : Number(v).toFixed(n));
 
+/* The terms of the combined score, as the table names them and what each one
+   is. Kept beside the column definitions rather than in them, because the
+   same words are wanted in the control under the table. */
+const COMBTERM = {energy: 'z energy', fit: 'z fit', specific: 'z bonds',
+                  site: 'z site', coverage: 'z coverage',
+                  cluster: 'z cluster', clash: 'z clash'};
+const COMBWHY = {
+  energy: 'MM-GBSA and the docking score, averaged: they agree at rho 0.66, '
+    + 'so they are two estimates of one quantity and count once.',
+  fit: 'Buried area per peptide residue. Per residue because raw buried area '
+    + 'tracks peptide size, which the energy already carries.',
+  specific: 'Hydrogen bonds and salt bridges, counted raw: unlike buried '
+    + 'area these are already independent of peptide length.',
+  site: 'The site residues\' share of the per residue decomposition - '
+    + 'whether the energy was earned at the residues the run was aimed at.',
+  coverage: 'How much of the site is touched at all.',
+  cluster: 'The share of the search\'s solutions in the top pose\'s cluster.',
+  clash: 'Steric clashes. A penalty only: it can never raise a score.'};
+
+/* Which order the table is shown in, per run, remembered for the session.
+   A view, not a change to the run: results.tsv keeps the order the run was
+   reported in whatever this is set to, and switching it writes nothing. */
+const COMBVIEW = {};
+/* What the last write said, kept per run because the table is redrawn after
+   it - and again every fifteen seconds while a run is watched. A message
+   that is wiped by the next redraw is a message nobody reads, and this one
+   carries the caution about what the measurements do not separate. */
+const COMBMSG = {};
+
 function colgroups(rows, tn, mm, omm){
   const G = [];
   // The columns that say WHICH peptide a row is. Exactly these are pinned,
@@ -1866,6 +1895,23 @@ function colgroups(rows, tn, mm, omm){
       + 'should be zero: the receptor is restrained, so an overlap cannot '
       + 'relax out.', f: r => r.n_clash},
   ]});
+  // The combined ranking, as a group of its own: the total and the
+  // contribution of each term, so a reader can see WHY a peptide sits where
+  // it does rather than being handed one number and asked to trust it.
+  if(any(rows, 'combined_z')) G.push({key: 'comb', label: 'combined ranking',
+    on: true, cols: [
+    {h: 'combined', cls: 'c', t: 'The combined score: the binding energy '
+      + 'together with the interface measurements, each turned into a '
+      + 'position within this run and then weighted. Higher is better, '
+      + 'unlike every energy column here. The weights say how far a measure '
+      + 'is trusted and are not fitted - there is no measured affinity to '
+      + 'fit them on.', f: r => pc(r.combined_z, 2)},
+  ].concat(['energy', 'fit', 'specific', 'site', 'coverage', 'cluster',
+            'clash'].filter(k => any(rows, 'z_' + k)).map(k => ({
+    h: COMBTERM[k] || k, cls: 'c',
+    t: (COMBWHY[k] || '') + ' Its contribution to the combined score, in '
+       + 'standard deviations of this run, already weighted.',
+    f: r => pc(r['z_' + k], 2)})))});
   // How the interface columns were measured: how many poses, on what
   // coordinates, and how the minimisation before the energy ended. It exists
   // only once the interface has been measured, so a run that has only its
@@ -1989,7 +2035,47 @@ function resultsTable(rows, tn, mm, omm, res){
       ? '<div class=why style="margin-top:4px">The interface columns describe '
         + 'one pose per peptide, the one with the lowest MM-GBSA energy. Hover '
         + 'over a heading to see what it measures.</div>' : '')
+    + combinedControl(rows, res)
     + rescoreControl(rows);
+}
+
+/* Switch the table between the order the run was reported in and the
+   combined one, and write the combined order into the run folder.
+ *
+ * Offered on any run whose measurements support it, including one that
+ * finished long before the metric existed: the score is arithmetic over
+ * columns the run already has, worked out when the page asks for it.
+ *
+ * Switching the view writes nothing. The button writes
+ * results_combined.tsv BESIDE results.tsv and never over it, because
+ * numbers from these runs have been quoted and a table that reads
+ * differently next time is worse than no table. */
+function combinedControl(rows, res){
+  const c = res && res.combined;
+  if(!c || !c.terms || !c.terms.length) return '';
+  const on = !!COMBVIEW[RUN];
+  return '<div class=panelnote>'
+    + '<b>Ranked by ' + (on ? 'the combined metric' : 'MM-GBSA alone')
+    + '.</b> '
+    + '<button class="ghost sm" id=combtoggle>'
+    + (on ? 'Rank by MM-GBSA' : 'Rank by the combined metric') + '</button> '
+    + '<button class="ghost sm" id=combwrite>'
+    + (c.on_disk ? 'Write it to the run again' : 'Write it to the run')
+    + '</button>'
+    + '<div class=why style="margin-top:6px">From ' + c.terms.length
+    + ' term(s): ' + c.terms.map(t => esc(t.what) + ' (weight '
+        + (+t.weight) + ')').join('; ') + '.'
+    + (c.constant.length ? ' Not ranked on, being the same for every '
+        + 'peptide here: ' + c.constant.map(esc).join(', ') + '.' : '')
+    + (c.off.length ? ' Not ranked on, missing for at least one peptide and '
+        + 'so switched off for all: ' + c.off.map(esc).join(', ') + '.' : '')
+    + ' The weights say how far a measure is trusted; they are not fitted, '
+    + 'because there is no measured affinity here to fit them on. Switching '
+    + 'the view changes nothing on disk, and results.tsv keeps the order '
+    + 'this run was reported in either way.</div>'
+    + '<div class=why id=combmsg style="margin-top:6px">'
+    + (COMBMSG[RUN] || '') + '</div>'
+    + '</div>';
 }
 
 /* Score a finished run again with another MM-GBSA engine. Offered only for
@@ -2086,7 +2172,15 @@ async function openRun(dir){
     if(d.error){ el.innerHTML = '<span class=bad>' + esc(d.error) + '</span>';
                  return; }
     monitor();
-    const rows = (d.results && d.results.rows) || [];
+    let rows = (d.results && d.results.rows) || [];
+    // The combined view is a sort of the rows the server sent, done here so
+    // switching it costs nothing and touches no file. The # column keeps the
+    // run's own rank, so a reader can still see where a peptide was.
+    if(COMBVIEW[dir] && rows.some(r => r.combined_z != null)){
+      const have = rows.filter(r => r.combined_z != null)
+                       .slice().sort((a, b) => b.combined_z - a.combined_z);
+      rows = have.concat(rows.filter(r => r.combined_z == null));
+    }
     const mm = rows.some(r => r.mmgbsa_n);
     const omm = rows.some(r => r.omm_n);
     const tn = (d.results && d.results.top_n) || 5;
@@ -2160,6 +2254,44 @@ async function openRun(dir){
       $('rescoremsg').innerHTML = '<span class=good>Submitted.</span> The '
         + esc(GBLABEL[engine] || engine) + ' columns appear here when it '
         + 'finishes.';
+      show();
+    };
+    const ct = $('combtoggle');
+    if(ct) ct.onclick = () => {
+      COMBVIEW[dir] = !COMBVIEW[dir];
+      show();
+    };
+    const cw = $('combwrite');
+    if(cw) cw.onclick = async () => {
+      cw.disabled = true;
+      $('combmsg').textContent = 'writing...';
+      const r = await api('/api/rerank', {rundir: dir});
+      cw.disabled = false;
+      if(r.error){
+        COMBMSG[dir] = '<span class=bad>' + esc(r.error) + '</span>';
+        $('combmsg').innerHTML = COMBMSG[dir];
+        return;
+      }
+      // What moved and what the measurements do not actually separate. A
+      // reordered table that does not say the second thing reads far more
+      // settled than it is: on every run measured so far one peptide's own
+      // poses span about as much as the whole run does.
+      const chains = (r.chains || []).filter(g => g.length > 1);
+      COMBMSG[dir] = '<span class=good>Written to '
+        + esc(r.wrote) + '.</span> results.tsv is unchanged. '
+        + r.moved + ' of ' + (r.order || []).length
+        + ' peptide(s) are in a different position from the run\'s own '
+        + 'order.'
+        + (chains.length
+          ? '<br><b>Caution:</b> ' + chains.reduce((n, g) => n + g.length, 0)
+            + ' peptide(s) fall in ' + chains.length + ' chain(s) this score '
+            + 'does not separate - over their own poses each one\'s score '
+            + 'covers the next one\'s, so a step of one place inside a chain '
+            + 'is not something the run showed.<br>'
+            + chains.map(g => g.map(esc).join(' &gt; ')).join('<br>')
+          : '');
+      $('combmsg').innerHTML = COMBMSG[dir];
+      COMBVIEW[dir] = true;
       show();
     };
     const pg = $('panelgo');

@@ -698,6 +698,12 @@ def write_table(rows, path, info, original=None, spans_by=None):
     person reading has to be able to see that a construct is third because of
     its buried area rather than because of its energy.
     """
+    # Rows first, path second, as hope_pe.write_table and scout.write_table
+    # have it. Said out loud because the two are easy to swap and the swap
+    # fails deep inside with an AttributeError about a string, which says
+    # nothing about what the caller got wrong.
+    if isinstance(rows, str) or not isinstance(path, str):
+        raise TypeError("write_table(rows, path, ...): the rows come first")
     terms = sorted({k for r in rows for k in (r.get("combined_terms") or {})})
     was = {s: i for i, s in enumerate(original or [], 1)}
     # The measurements themselves, under whichever name this run's table gave
