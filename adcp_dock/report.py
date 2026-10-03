@@ -141,15 +141,69 @@ def _residues(seq):
     return peptide.residues(seq)
 
 
-def rank(rows, by=None, top_n=TOP_N):
+def combined_scores(rows):
+    """Attach the combined score and its components to every row.
+
+    Computed whichever order the table is printed in. The panel measures
+    buried area, hydrogen bonds, salt bridges, site coverage and the per
+    residue decomposition for every pose, and until now none of it reached
+    the ranking; these columns are the record of what it said. Returns the
+    info block, or None when nothing could be scored.
+    """
+    from ._vendor import combined
+    for r in rows:
+        r.setdefault("sequence", r.get("peptide"))
+    try:
+        done, info = combined.score(rows)
+    except Exception:                                           # noqa: BLE001
+        # A second ordering is a convenience. A run that has produced a table
+        # must not be failed because an extra column could not be computed.
+        return None
+    if len(info.get("used") or {}) < 2:
+        # One axis is not a combination. A run with no panel can still have
+        # its energy z-scored, and the result would be the single-column
+        # order under a second name - a file and three columns implying a
+        # second opinion that was never formed. Nothing is published.
+        for r in rows:
+            for k in ("combined_z", "combined_terms", "combined_off"):
+                r.pop(k, None)
+        return None
+    order = {id(r): i for i, r in enumerate(done, 1)}
+    for r in rows:
+        r["rank_combined"] = (order[id(r)] if r.get("combined_z") is not None
+                              else None)
+        for k, v in (r.get("combined_terms") or {}).items():
+            r["z_" + k] = round(v, 3)
+        if r.get("combined_z") is not None:
+            r["combined_z"] = round(r["combined_z"], 3)
+    return info
+
+
+def rank(rows, by=None, top_n=TOP_N, on_combined=False):
     """Most negative first. MM-GBSA decides when it was run, because that is
-    the more considered estimate; ADCP's own score when it was not."""
-    key = by or ("mmgbsa_top%d" % top_n
-                 if any(r.get("mmgbsa_top%d" % top_n) is not None for r in rows)
-                 else "adcp_top%d" % top_n)
-    have = [r for r in rows if r.get(key) is not None]
-    gone = [r for r in rows if r.get(key) is None]
-    have.sort(key=lambda r: r[key])
+    the more considered estimate; ADCP's own score when it was not.
+
+    `on_combined` orders on the combined metric instead: the same energy
+    together with the interface measurements the panel already made. Off by
+    default, so a run reads the way every run before it did. The combined
+    columns are written either way - both orders are always in the file, and
+    this only decides which one the rows are sorted into.
+    """
+    if on_combined and any(r.get("combined_z") is not None for r in rows):
+        key = "combined_z"
+        have = [r for r in rows if r.get(key) is not None]
+        gone = [r for r in rows if r.get(key) is None]
+        # Higher is better here, the opposite of every other column in this
+        # table, because it is a z-score and not an energy.
+        have.sort(key=lambda r: -r[key])
+    else:
+        key = by or ("mmgbsa_top%d" % top_n
+                     if any(r.get("mmgbsa_top%d" % top_n) is not None
+                            for r in rows)
+                     else "adcp_top%d" % top_n)
+        have = [r for r in rows if r.get(key) is not None]
+        gone = [r for r in rows if r.get(key) is None]
+        have.sort(key=lambda r: r[key])
     for i, r in enumerate(have, 1):
         r["rank"] = i
     for r in gone:
@@ -157,9 +211,9 @@ def rank(rows, by=None, top_n=TOP_N):
     return have + gone, key
 
 
-def table(rows, top_n=TOP_N):
+def table(rows, top_n=TOP_N, on_combined=False):
     """Fixed-width, for a terminal or a log."""
-    rows, key = rank(rows, top_n=top_n)
+    rows, key = rank(rows, top_n=top_n, on_combined=on_combined)
     mm = any(r.get("mmgbsa_n") for r in rows)
     omm = any(r.get("omm_n") for r in rows)
     head = ["#", "name", "peptide", "len", "poses", "ADCP best",
@@ -169,6 +223,13 @@ def table(rows, top_n=TOP_N):
                  "spread"]
     if omm:
         head += ["OpenMM best"]
+    # The combined score sits at the end whether or not the table is ordered
+    # on it. Printed where a run is ordered the old way it is the only hint
+    # that a second answer exists; printed where it is the sort key it is the
+    # column somebody will want to check the order against.
+    comb = any(r.get("combined_z") is not None for r in rows)
+    if comb:
+        head += ["combined"]
     # Column widths are set from the content: a fixed name column either
     # truncates long names or leaves a gap on runs where nothing was
     # named.
@@ -176,10 +237,12 @@ def table(rows, top_n=TOP_N):
          max([len(str(r.get("name") or "-")) for r in rows] + [len(head[1])])
          + 1 if rows else 10,
          (max(len(str(r["peptide"])) for r in rows) + 1) if rows else 10]
-    out = ["ranked by %s, most negative first" % key, ""]
+    out = ["ranked by %s, %s first"
+           % (key, "highest" if key == "combined_z" else "most negative"), ""]
     fmt = ("%-4s %-*s %-*s %4s %5s %10s %11s %6s"
            + ("  %5s %8s %10s %8s %6s %7s" if mm else "")
-           + ("  %11s" if omm else ""))
+           + ("  %11s" if omm else "")
+           + ("  %8s" if comb else ""))
 
     def cell(v, nd=2):
         return "-" if v is None else ("%.*f" % (nd, v) if isinstance(v, float)
@@ -199,6 +262,8 @@ def table(rows, top_n=TOP_N):
         if omm:
             vals += [("%.1f (pose %s)" % (r["omm_best"], r["omm_best_pose"]))
                      if r.get("omm_n") else "-"]
+        if comb:
+            vals += [cell(r.get("combined_z"), 2)]
         out.append(fmt % tuple(vals))
     # An interface, not merely a pose: a run whose geometry was not kept still
     # has its energy terms, and they belong in the file rather than in a
@@ -295,13 +360,32 @@ def panel_table(rows):
     return out
 
 
-def write(rows, outdir, top_n=TOP_N, constants=None):
+def write(rows, outdir, top_n=TOP_N, constants=None, on_combined=False,
+          log=None):
     """results.tsv, results.json and a printable table. TSV because that is
-    what goes into a spreadsheet without anyone being asked to parse JSON."""
+    what goes into a spreadsheet without anyone being asked to parse JSON.
+
+    `on_combined` orders results.tsv on the combined metric. Either way both
+    orders are in the folder: the combined score and its components are
+    columns of results.tsv, and results_combined.tsv is written beside it in
+    combined order. A person reading one file is never without the other, and
+    nothing that was reported from an earlier run changes meaning because a
+    setting was switched.
+    """
     os.makedirs(outdir, exist_ok=True)
-    rows, key = rank(list(rows), top_n=top_n)
+    rows = list(rows)
+    info = combined_scores(rows)
+    if log and info is not None:
+        from ._vendor import combined as _c
+        _c.say(info, log)
+    rows, key = rank(rows, top_n=top_n, on_combined=on_combined)
     cols = ["rank", "name", "peptide", "length", "poses", "adcp_best",
             "adcp_top%d" % top_n, "adcp_sd"]
+    if any(r.get("combined_z") is not None for r in rows):
+        # The components, not only the total: a construct that ranked third
+        # did so for a reason, and the reason is these columns.
+        cols += ["rank_combined", "combined_z"]
+        cols += sorted({c for r in rows for c in r if c.startswith("z_")})
     if any(r.get("mmgbsa_n") for r in rows):
         cols += ["mmgbsa_n", "mmgbsa_best", "mmgbsa_top%d" % top_n,
                  "mmgbsa_median", "mmgbsa_sd", "mmgbsa_spread"]
@@ -330,6 +414,16 @@ def write(rows, outdir, top_n=TOP_N, constants=None):
         fh.write("\t".join(cols) + "\n")
         for r in rows:
             fh.write("\t".join(_tsv(r.get(c)) for c in cols) + "\n")
+    # The other order, as a file of its own, so switching the setting is
+    # never the only way to see it and a run carries both answers.
+    if any(r.get("combined_z") is not None for r in rows):
+        other = sorted([r for r in rows if r.get("combined_z") is not None],
+                       key=lambda r: -r["combined_z"])
+        other += [r for r in rows if r.get("combined_z") is None]
+        with open(os.path.join(outdir, "results_combined.tsv"), "w") as fh:
+            fh.write("\t".join(cols) + "\n")
+            for r in other:
+                fh.write("\t".join(_tsv(r.get(c)) for c in cols) + "\n")
     doc = {"ranked_by": key, "top_n": top_n, "rows": rows}
     if constants:
         # What every panel number was measured with, so a reader of the file
@@ -338,5 +432,5 @@ def write(rows, outdir, top_n=TOP_N, constants=None):
     with open(os.path.join(outdir, "results.json"), "w") as fh:
         json.dump(doc, fh, indent=1)
     with open(os.path.join(outdir, "results.txt"), "w") as fh:
-        fh.write(table(rows, top_n=top_n) + "\n")
+        fh.write(table(rows, top_n=top_n, on_combined=on_combined) + "\n")
     return tsv

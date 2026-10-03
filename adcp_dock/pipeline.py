@@ -905,9 +905,12 @@ def stage_report(rundir, j=None, log=print):
             "what this run used, with DOIs")
     except Exception as exc:                                    # noqa: BLE001
         log("  could not write the citation list: %s" % exc)
+    on_combined = bool(j.get("rank_combined"))
     tsv = report.write(rows, rundir, top_n=int(j.get("top_n", 5)),
-                       constants=_constants(j, rundir))
-    log(report.table(rows, top_n=int(j.get("top_n", 5))))
+                       constants=_constants(j, rundir),
+                       on_combined=on_combined, log=log)
+    log(report.table(rows, top_n=int(j.get("top_n", 5)),
+                     on_combined=on_combined))
     # Structures last, and never fatal: the table is the result, and a run
     # that has produced one should not be marked failed because a pose could
     # not be rebuilt into something a viewer can open.

@@ -95,6 +95,15 @@ def default(**kw):
         "mmgbsa_aggregate": "mean",
         "mm_workers": 8,       # rescore this many of the ranked poses
         "top_n": 5,              # the mean reported is over this many
+        # Which order the results table is written in. Off keeps the
+        # single-column order every run before this one used: MM-GBSA
+        # where it ran, ADCP's own score where it did not. On orders
+        # the table on the combined metric, which also takes in the
+        # interface the panel measured. The combined score and its
+        # components are columns either way, and results_combined.tsv
+        # is written beside results.tsv either way, so this changes
+        # the order of one file and never what the run reports.
+        "rank_combined": False,
         # Resources. Blank deliberately: asked of the cluster at
         # submit time. Defaulting the partition fails on any cluster
         # that names its partitions differently.
