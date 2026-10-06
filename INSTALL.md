@@ -265,7 +265,7 @@ Each run chooses its engine under **Docking engine**: *ADCP, newest installed* (
 
 A run can also start from a target file made in AGFR or AGFRGUI: give its path under *or a target file* (`--target-file`). The receptor, maps and box then come from that file, and this package's receptor preparation is not run. The file's name must not be changed, since ADCP finds the maps by it.
 
-Scripps' ADCP 1.1 environment includes the MSMS library (mslib) and the UT packages, which are free for academic use only; check their terms before commercial use.
+Scripps' ADCP 1.1 environment includes the MSMS library (mslib) and the UT packages, which are free for academic use only; check their terms before commercial use. A 1.1 run still uses ADFRsuite 1.0 for receptor preparation and the grid maps, and the packages those programs load there carry non-commercial terms of their own that ADFRsuite's `LICENSE.txt` does not list; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ### ADapt (optional)
 

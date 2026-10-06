@@ -248,9 +248,14 @@ MSG
   LOG="$TOOLS/adfr_install.log"
   # No licence answer is given on the user's behalf. The Scripps installer
   # asks "ACADEMIC INSTALLATION (Y/N)?" about MSMS, a licence declaration
-  # only the installing user can make. This tool never calls MSMS, so -l
-  # (the installer's own switch) skips the question and the MSMS library is
-  # never activated; stdin is /dev/null so no prompt can block the install.
+  # only the installing user can make, and renames mslibACA or mslibCOM to
+  # mslib, the importable MSMS library, once it is answered. This tool never
+  # imports MSMS, so -l (the installer's own switch) skips the question and
+  # with it that rename. It therefore governs a tree built here from scratch
+  # and says nothing about one already at this path: unpacking over a tree
+  # built without -l leaves the library where it was, and the msms program
+  # is in bin/msms either way. What this tree holds is reported below.
+  # stdin is /dev/null so no prompt can block the install.
   if ! ./install.sh -d "$TOOLS/ADFRsuite" -c 0 -l < /dev/null > "$LOG" 2>&1; then
     say "  the installer returned non-zero; checking what it produced anyway"
   fi
@@ -280,6 +285,23 @@ MSG
   found_adfr="$TOOLS/ADFRsuite"
   say "  installed at $found_adfr"
   say "  verified: ${ADFR_BINS[*]} are all present and executable"
+  # Read back, rather than assumed from -l: CCSBpckgs/mslib exists only once
+  # the academic-or-commercial question has been answered and the rename it
+  # drives has happened.
+  if [ -d "$found_adfr/CCSBpckgs/mslib" ]; then
+    say "  the MSMS library is in place at CCSBpckgs/mslib, so its academic"
+    say "  or commercial terms were accepted for this tree; this script passes"
+    say "  -l, which skips that question, so it was left by an earlier install"
+    say "  or put there by hand. Nothing adcp-dock runs imports it."
+  elif [ -d "$found_adfr/CCSBpckgs/mslibACA" ]; then
+    say "  the MSMS library was not activated: CCSBpckgs still holds mslibACA"
+    say "  and mslibCOM under those names, so nothing can import mslib."
+  else
+    say "  this tree holds no MSMS library to import."
+  fi
+  if [ -f "$found_adfr/bin/msms" ]; then
+    say "  the msms program itself is in bin/msms, as in every installation"
+  fi
 fi
 
 # --- install this package into that environment ---------------------------

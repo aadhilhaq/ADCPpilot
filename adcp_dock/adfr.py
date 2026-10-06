@@ -23,11 +23,23 @@ platform-independent sources are byte-identical to the Linux tarball's.
 
 LICENSING. ADFRsuite is distributed mostly under the LGPL 2, but bundles
 components that are free for academic use only: MSMS (Scripps), the UT
-packages (UT Austin) and STRIDE. Every installation unpacks them, but the
-programs this package runs do not use them. The MSMS library is activated
-only when the installing user answers an academic-or-commercial question,
-and this installer does not answer it on their behalf: it passes -l, the
-installer's own switch for skipping that question, so it stays inactive.
+packages (UT Austin) and STRIDE. Every installation unpacks them, and the
+programs this package runs import none of them. Scripps' installer asks an
+academic-or-commercial question about MSMS and, whichever way it is answered,
+renames mslibACA or mslibCOM to mslib, the importable MSMS library. The -l
+switch skips the question and with it that rename, and this installer passes
+-l rather than answer a licence declaration on the user's behalf. It then
+reports what the finished tree holds instead of what the switch implies,
+because -l cannot undo an earlier install: unpacking over a tree built
+without it leaves the library in place, and the msms program itself is in
+bin/msms whichever way the question goes.
+
+Six further packages inside CCSBpckgs (MolKit, mglutil, Support, DejaVu2,
+PyBabel and Volume) each carry the MGLTOOLS licence, which restricts use to
+non-commercial purposes. LICENSE.txt in the installed suite does not name
+them, and prepare_receptor and agfr do load five of the six. See
+THIRD_PARTY_NOTICES.md.
+
 Scripps asks that ADFRsuite be downloaded from their site rather than
 redistributed, which is what this does.
 """
@@ -60,8 +72,43 @@ PAGE = "https://ccsb.scripps.edu/adfr/downloads/"
 LICENCE_NOTE = (
     "ADFRsuite is the Scripps Research Institute's. It is mostly LGPL 2, but "
     "bundles MSMS, the UT packages and STRIDE, which are free for academic "
-    "use only; commercial use needs licences from their owners. See "
-    "LICENSE.txt in the installed suite.")
+    "use only; commercial use needs licences from their owners. Six packages "
+    "in CCSBpckgs (MolKit, mglutil, Support, DejaVu2, PyBabel and Volume) "
+    "carry the MGLTOOLS licence, which restricts use to non-commercial "
+    "purposes: LICENSE.txt in the installed suite does not name them, and "
+    "prepare_receptor and agfr load five of the six. THIRD_PARTY_NOTICES.md "
+    "in this package sets out both positions.")
+
+
+def msms_state(dest):
+    """One sentence on MSMS, read from the finished tree, not assumed.
+
+    Scripps' installer renames mslibACA or mslibCOM to mslib, the importable
+    MSMS library, once the installing user has answered its
+    academic-or-commercial question; -l skips the question and the rename. So
+    the presence of CCSBpckgs/mslib is what records the answer, and it is
+    read here rather than inferred from the switch, because unpacking over a
+    tree built without -l leaves the library where it was. The msms program
+    ships in bin/msms either way.
+    """
+    pkgs = os.path.join(dest, "CCSBpckgs")
+    prog = ("The msms program itself is in bin/msms, as it is in every "
+            "installation." if os.path.isfile(os.path.join(dest, "bin", "msms"))
+            else "This tree has no bin/msms.")
+    if os.path.isdir(os.path.join(pkgs, "mslib")):
+        return ("The MSMS library is in place, at CCSBpckgs/mslib, so its "
+                "academic or commercial terms were accepted for this tree. "
+                "This installer passes -l, which skips that question, so the "
+                "library was left by an earlier install here or put there by "
+                "hand. Nothing this package runs imports it. " + prog)
+    if os.path.isdir(os.path.join(pkgs, "mslibACA")):
+        return ("The MSMS library was not activated: CCSBpckgs still holds "
+                "mslibACA and mslibCOM under those names, so nothing can "
+                "import mslib. Activating it means stating academic or "
+                "commercial use, which is yours to state, not this tool's; "
+                "to do so, run ADFRsuite's own installer without -l. " + prog)
+    return ("This tree holds no MSMS library: CCSBpckgs has neither mslib nor "
+            "mslibACA, so nothing can import it. " + prog)
 
 
 def which_build():
@@ -181,9 +228,12 @@ def install(dest, cache=None, log=print):
             t.extractall(cache)
     src = os.path.join(cache, top)
 
-    # The academic-or-commercial question about MSMS is skipped with -l
-    # rather than answered: it is a licence declaration only the installing
-    # user can make, and nothing in this package calls MSMS.
+    # -l skips Scripps' academic-or-commercial question about MSMS rather
+    # than answering it: that is a licence declaration only the installing
+    # user can make, and nothing in this package imports MSMS. It skips the
+    # rename that question drives, so it governs a tree built from scratch
+    # here and says nothing about one already at this path; what the tree
+    # ends up holding is read back below, not assumed.
     # stdin is /dev/null so no prompt can block the install.
     log("  running the Scripps installer (a few minutes)")
     logf = os.path.join(cache, "adfr_install.log")
@@ -203,9 +253,7 @@ def install(dest, cache=None, log=print):
     shutil.rmtree(src, ignore_errors=True)
     log("ADFRsuite installed in %s" % dest)
     log(LICENCE_NOTE)
-    log("The MSMS library was not activated: that needs you to state academic "
-        "or commercial use, and this tool does not use it. To activate it, run "
-        "ADFRsuite's own installer yourself, without -l.")
+    log(msms_state(dest))
     return dest
 
 
