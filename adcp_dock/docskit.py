@@ -278,7 +278,9 @@ CREDITROLL = """<script>
   }
   measure();
   var again;
-  addEventListener("resize", function () { clearTimeout(again); again = setTimeout(measure, 250); });
+  // window. written out: a bare addEventListener is the same call, but a page that checks every
+  // name it calls is defined - the aptamer's does - cannot tell it from a typo.
+  window.addEventListener("resize", function () { clearTimeout(again); again = setTimeout(measure, 250); });
 })();
 </script>"""
 

@@ -3102,6 +3102,17 @@ document.addEventListener('change', e => {
 drawPeps();
 listRuns();
 showEngine();
+// Opened on a run, when HOPE Labs' Results asked for one: that run's
+// results, scrolled to. Runs are opened here by their folder, which is
+// what Results hands over.
+(function openAsked(){
+  const asked = new URLSearchParams(location.search).get('open');
+  if(!asked) return;
+  openRun(asked).then(() => {
+    const v = $('rundetail');
+    if(v && v.scrollIntoView) v.scrollIntoView({behavior: 'smooth', block: 'start'});
+  });
+})();
 
 
 /* ===================== what each setting means ======================= */
