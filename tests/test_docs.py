@@ -164,16 +164,30 @@ httpd.shutdown()
 for k in ("http_proxy", "HTTP_PROXY"):
     os.environ.pop(k, None)
 
-# --- the kit is the same file in every repository ---------------------------
-# Four interfaces share docskit.py and are kept byte identical. The other
-# copies are only present in a checkout that has them, so this is skipped
-# rather than failed where they are absent.
-SIBLING = "/scratch/group/p.agr250019.000/HOPE-pipelines/hope_monitor/docskit.py"
+# --- the kit is the same module in every repository -------------------------
+# Six interfaces share docskit.py. The code is one module; the docstring is
+# each copy's own, naming the interfaces its repository serves, so the code is
+# compared and the docstring is not.
+#
+# This named the group under its old name, p.agr250019.000, which stopped
+# existing when the lab moved to sflab. So it printed a note nobody read,
+# skipped, and the copies drifted apart for weeks while it said nothing. The
+# copies are only in a checkout that has them, so it is still skipped where
+# they are genuinely absent.
+
+
+def _kit_code(path):
+    """The module without its docstring: the copies say which repository they are in."""
+    with open(path, encoding="utf-8") as fh:
+        text = fh.read()
+    return text[text.index('"""', 3) + 3:]
+
+SIBLING = "/scratch/group/sflab/HOPE-pipelines/hope_monitor/docskit.py"
 if os.path.isfile(SIBLING):
-    mine = open(os.path.join(ROOT, "adcp_dock", "docskit.py"), "rb").read()
-    check(mine == open(SIBLING, "rb").read(),
-          "adcp_dock/docskit.py differs from %s; the four copies are kept "
-          "identical" % SIBLING)
+    mine = _kit_code(os.path.join(ROOT, "adcp_dock", "docskit.py"))
+    check(mine == _kit_code(SIBLING),
+          "adcp_dock/docskit.py differs below the docstring from %s; the "
+          "copies are one module" % SIBLING)
 else:
     print("note  %s is not here, so the copies were not compared" % SIBLING)
 
