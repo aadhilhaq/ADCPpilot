@@ -253,7 +253,15 @@ import inspect                                                   # noqa: E402
 from adcp_dock import job as jobmod, pipeline                    # noqa: E402
 
 prep_src = inspect.getsource(pipeline.stage_prepare)
-dock_src = inspect.getsource(pipeline.stage_dock)
+# The dock stage hands the rescoring to _stage_mmgbsa, which takes its poses
+# from _mm_inputs, so the three are read as one, in the order they run.
+_mm_src = inspect.getsource(pipeline._stage_mmgbsa)
+check("_stage_mmgbsa(" in inspect.getsource(pipeline.stage_dock)
+      and _mm_src.index("_mm_inputs(") < _mm_src.index("mmgbsa.run("),
+      "stage_dock no longer rescores through _stage_mmgbsa, or it scores "
+      "before it has taken its poses from _mm_inputs")
+dock_src = (inspect.getsource(pipeline.stage_dock)
+            + inspect.getsource(pipeline._mm_inputs) + _mm_src)
 
 for call, src, why in [
         ("receptor.load_for_box(", prep_src,

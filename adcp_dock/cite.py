@@ -433,10 +433,14 @@ def used_by(job):
         keys |= by | {"pdbfixer"}
         if job.get("minimise", True):
             keys |= {"openmm", "ff14sb", "gbn2"}
-    # MM-GBSA runs only on peptides without non-standard or D residues, and
-    # protonates each complex first: with PDB2PQR and PROPKA, or under
-    # reduce with the receptor's own states and reduce for the peptide.
-    if job.get("mmgbsa") and (not seqs or any(not peptide.is_extended(s) for s in seqs)):
+    # MM-GBSA runs on peptides without non-standard residues (and, in a run
+    # made before D residues and rings were rescored, without D residues or
+    # a ring), and protonates each complex first: with PDB2PQR and PROPKA,
+    # or under reduce with the receptor's own states and reduce for the
+    # peptide.
+    from . import mmforms
+    if job.get("mmgbsa") and (not seqs or any(
+            mmforms.unscoreable(s, job) is None for s in seqs)):
         keys |= {"amber", "ff14sb", "mmpbsa"} | by
         # The paper for the generalised Born model the energies were computed
         # in: OBC(II) by default, GBn2 when the run asked for it.

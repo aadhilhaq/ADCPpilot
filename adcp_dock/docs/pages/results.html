@@ -33,7 +33,10 @@ its convergence. It lists at most a hundred clusters, so the share is an upper
 bound.</p>
 <p><b>MM-GBSA</b> is the best, the mean, the median, how many poses were rescored
 and their spread, the most positive minus the most negative among them. The spread
-says how much the poses disagree; it is not a test of the ranking.</p>
+says how much the poses disagree; it is not a test of the ranking. A ring is
+rescored only on the poses that close it, so its count can be smaller than the
+others'. A peptide with no value at all is listed at the end of
+<code>results.txt</code> as unranked, with the reason beside its name.</p>
 <p><b>MM-GBSA breakdown</b> is the four parts of one pose's energy: van der
 Waals, electrostatic, polar solvation and nonpolar solvation. The pose is named in
 the group's first column: the lowest energy one among those measured.</p>

@@ -33,6 +33,45 @@ saveamberparm com {prefix}_com.parm7 {prefix}_com.rst7
 quit
 """
 
+# A ring peptide. The receptor and the peptide are loaded apart and combined,
+# so that the peptide's residues are numbered from 1 and the closing bond can
+# name them. The combined topology has the same atoms in the same order, with
+# the same coordinates, as loading the complex in one piece; only the order of
+# tleap's parameter tables differs. A head to tail ring is read against the
+# unit names given (loadPdbUsingSeq): read with loadpdb, its first and last
+# residues would get tleap's terminal templates, a free amine and a
+# carboxylate, which a ring does not have.
+LEAP_RING = """source leaprc.protein.ff14SB
+set default PBRadii {radii}
+rec = loadpdb {rec_pdb}
+pep = {load_pep}
+{bonds}
+com = combine {{ rec pep }}
+saveamberparm com {prefix}_com.parm7 {prefix}_com.rst7
+quit
+"""
+
+# The peptide alone, reflected, for the hydrogens of its D residues
+# (mirror_hydrogens).
+LEAP_MIRROR = """source leaprc.protein.ff14SB
+set default PBRadii {radii}
+pep = {load_pep}
+{bonds}
+saveamberparm pep {prefix}_mirror.parm7 {prefix}_mirror.rst7
+quit
+"""
+
+#: What a pose's molecule carries to say how its peptide is built: the
+#: closing bonds of a ring and the positions of its D residues
+#: (adcp_dock.mmforms.mark writes them).
+RING_PROP = "mm_ring"
+D_PROP = "mm_d"
+
+#: The longest a closing bond may be after the minimisation and still count
+#: as the bond: its length in ff14SB plus this. A bond the minimisation did
+#: not bring to length means the energy belongs to a strained ring.
+CLOSING_SLACK = 0.25
+
 MIN_IN = """Minimisation before rescoring: tleap adds hydrogens without regard to
 the partner molecule, and a single-point energy on the raw complex is dominated by
 those clashes rather than by the interaction.
@@ -577,6 +616,349 @@ def _parm_atoms(parm7: str):
     return None
 
 
+# ---- peptides beyond a linear chain of L residues -------------------------
+
+def peptide_spec(mol):
+    """How this pose's peptide is to be built: {"ring": None or {"kind",
+    "pairs", "gap"}, "d": [1-based positions of D residues]}. A linear
+    peptide of L residues carries neither, and is built as it always was."""
+    import json
+    ring, d = None, []
+    if mol is not None and mol.HasProp(RING_PROP):
+        ring = json.loads(mol.GetProp(RING_PROP))
+    if mol is not None and mol.HasProp(D_PROP):
+        d = [int(x) for x in mol.GetProp(D_PROP).split(",") if x.strip()]
+    return {"ring": ring, "d": d}
+
+
+def _is_atom(line):
+    return line.startswith(("ATOM", "HETATM"))
+
+
+def _peptide_lines(lines, renumber=True, mirror=False):
+    """The peptide's atom lines, numbered from 1 when asked and reflected
+    through the yz plane when asked, with a TER and an END."""
+    order, out = {}, []
+    for l in lines:
+        if not _is_atom(l) or l[21] != LIGAND_CHAIN:
+            continue
+        key = l[22:27]
+        if key not in order:
+            order[key] = len(order) + 1
+        if renumber:
+            l = l[:22] + "%4d " % order[key] + l[27:]
+        if mirror:
+            l = l[:30] + "%8.3f" % (-float(l[30:38])) + l[38:]
+        out.append(l if l.endswith("\n") else l + "\n")
+    return out + ["TER\n", "END\n"]
+
+
+def _units(pep_lines):
+    """The residue names of a peptide file, in order."""
+    out, last = [], None
+    for l in pep_lines:
+        if _is_atom(l) and l[22:27] != last:
+            out.append(l[17:20].strip())
+            last = l[22:27]
+    return out
+
+
+def _ring_ready(com_pdb, ring):
+    """Make the complex file what a ring is built from, in place, and return
+    the peptide residue names in order.
+
+    Head to tail: no OXT, which the protonation step may have added to what it
+    took for a C terminus. Disulfide: the joined cysteines named CYX, and any
+    other cysteine the protonation named CYX named CYS again, since only the
+    joined ones lose their thiol hydrogen. Running it twice changes nothing,
+    so a file kept from an interrupted run is fine.
+    """
+    lines = open(com_pdb).readlines()
+    order = {}
+    for l in lines:
+        if _is_atom(l) and l[21] == LIGAND_CHAIN and l[22:27] not in order:
+            order[l[22:27]] = len(order) + 1
+    n = len(order)
+    pairs = [(int(a), int(b)) for a, b in ring.get("pairs") or []]
+    if not pairs:
+        raise ValueError("a ring with no closing bond")
+    if ring["kind"] == "backbone" and pairs != [(1, n)]:
+        raise ValueError("a head to tail ring joins residue 1 to %d, not %s"
+                         % (n, pairs))
+    joined = {p for pr in pairs for p in pr}
+    out = []
+    for l in lines:
+        if _is_atom(l) and l[21] == LIGAND_CHAIN:
+            pos = order[l[22:27]]
+            res = l[17:20].strip()
+            if ring["kind"] == "backbone" and l[12:16].strip() == "OXT":
+                continue
+            if ring["kind"] == "disulfide":
+                if pos in joined:
+                    if res not in ("CYS", "CYX", "CYM"):
+                        raise ValueError("residue %d is %s, not a cysteine"
+                                         % (pos, res))
+                    l = l[:17] + "CYX" + l[20:]
+                elif res == "CYX":
+                    l = l[:17] + "CYS" + l[20:]
+        out.append(l)
+    with open(com_pdb, "w") as fh:
+        fh.writelines(out)
+    return _units([l for l in out if _is_atom(l) and l[21] == LIGAND_CHAIN])
+
+
+def _pep_leap(ring, pep_file, units):
+    """(how tleap loads the peptide, the bond commands) for a ring or a
+    linear peptide whose residues are numbered from 1."""
+    if not ring:
+        return "loadpdb %s" % pep_file, ""
+    pairs = [(int(a), int(b)) for a, b in ring["pairs"]]
+    if ring["kind"] == "backbone":
+        return ("loadPdbUsingSeq %s { %s }" % (pep_file, " ".join(units)),
+                "bond pep.1.N pep.%d.C" % len(units))
+    return ("loadpdb %s" % pep_file,
+            "\n".join("bond pep.%d.SG pep.%d.SG" % pr for pr in pairs))
+
+
+def _ring_leap(com_pdb, ring, workdir, prefix, radii):
+    """The tleap input for a ring peptide, and the two files it reads."""
+    units = _ring_ready(com_pdb, ring)
+    lines = open(com_pdb).readlines()
+    rec, last_ter = [], False
+    for l in lines:
+        if _is_atom(l) and l[21] != LIGAND_CHAIN:
+            rec.append(l)
+            last_ter = False
+        elif l.startswith("TER") and rec and not last_ter:
+            rec.append("TER\n")
+            last_ter = True
+    rec_file, pep_file = f"{prefix}_rec_forleap.pdb", f"{prefix}_pep_forleap.pdb"
+    with open(os.path.join(workdir, rec_file), "w") as fh:
+        fh.writelines(rec + ([] if last_ter else ["TER\n"]) + ["END\n"])
+    with open(os.path.join(workdir, pep_file), "w") as fh:
+        fh.writelines(_peptide_lines(lines))
+    load, bonds = _pep_leap(ring, pep_file, units)
+    return LEAP_RING.format(radii=radii, rec_pdb=rec_file, load_pep=load,
+                            bonds=bonds, prefix=prefix)
+
+
+def _is_h_name(name):
+    return name.lstrip("0123456789").upper().startswith("H")
+
+
+def mirror_hydrogens(workdir, prefix, com_pdb, spec, n_rec_res, home, env,
+                     radii=RADII, log=print):
+    """Put the atoms tleap adds to a D residue where a D residue has them.
+
+    tleap adds every hydrogen from its residue template's own geometry, so
+    on a D residue built with the L template it puts the alpha hydrogen, and
+    each hydrogen whose place depends on handedness, on the wrong side: on
+    the 13 residue p53 peptide reflected, 81 of 108 hydrogens landed 0.1 to
+    1.8 A from their mirror images, and the angle energy rose from 1065 to
+    3113 kcal/mol. A minimisation that started there would push the heavy
+    atoms, which are free, towards the L form.
+
+    So the peptide is reflected, which makes each D residue an L one, built
+    alone by tleap the same way, and reflected back: each D residue's
+    hydrogens are then the mirror image of the hydrogens tleap gives its L
+    form, which is where they belong. The same goes for the one heavy atom
+    tleap adds, the OXT of a C terminal residue, which ADCP does not write:
+    its place is taken from the template too. L residues keep tleap's own.
+    Returns a short report, or None when the two builds do not match atom
+    for atom.
+    """
+    import numpy as np
+    from . import amberfiles as af
+    lines = open(com_pdb).readlines()
+    mfile = f"{prefix}_mirror_pep.pdb"
+    pep = _peptide_lines(lines, mirror=True)
+    with open(os.path.join(workdir, mfile), "w") as fh:
+        fh.writelines(pep)
+    load, bonds = _pep_leap(spec.get("ring"), mfile, _units(pep))
+    leapf = os.path.join(workdir, f"{prefix}_mirror.leap")
+    with open(leapf, "w") as fh:
+        fh.write(LEAP_MIRROR.format(radii=radii, load_pep=load, bonds=bonds,
+                                    prefix=prefix))
+    # tleap always writes leap.log where it runs; the complex's is kept.
+    main_log = os.path.join(workdir, "leap.log")
+    kept = main_log + ".complex"
+    if os.path.isfile(main_log):
+        shutil.copy(main_log, kept)
+    subprocess.run([os.path.join(home, "bin", "tleap"), "-f", leapf],
+                   cwd=workdir, capture_output=True, text=True, env=env)
+    if os.path.isfile(main_log):
+        shutil.move(main_log, os.path.join(workdir, f"{prefix}_mirror_leap.log"))
+    if os.path.isfile(kept):
+        shutil.move(kept, main_log)
+    mparm = os.path.join(workdir, f"{prefix}_mirror.parm7")
+    mrst = os.path.join(workdir, f"{prefix}_mirror.rst7")
+    if not (os.path.isfile(mparm) and os.path.isfile(mrst)):
+        log(f"    {prefix}: tleap could not build the reflected peptide, so "
+            f"its D residues' hydrogens cannot be placed; skipped")
+        return None
+    cparm = af.read_parm7(os.path.join(workdir, f"{prefix}_com.parm7"))
+    crst = os.path.join(workdir, f"{prefix}_com.rst7")
+    xc = af.read_rst7(crst)
+    xm = af.read_rst7(mrst)
+    lig = af.residues(cparm)[n_rec_res:]
+    mres = af.residues(af.read_parm7(mparm))
+    if len(lig) != len(mres):
+        log(f"    {prefix}: the reflected peptide has {len(mres)} residues "
+            f"against {len(lig)}; skipped")
+        return None
+    # The atoms each peptide residue came with, by position: the rest were
+    # added by tleap.
+    docked, order = {}, {}
+    for l in lines:
+        if _is_atom(l) and l[21] == LIGAND_CHAIN:
+            pos = order.setdefault(l[22:27], len(order) + 1)
+            docked.setdefault(pos, set()).add(l[12:16].strip())
+    moved = 0
+    for p in spec["d"]:
+        if not 0 < p <= len(lig):
+            log(f"    {prefix}: D residue {p} is not in the peptide; skipped")
+            return None
+        _, lab_c, at_c = lig[p - 1]
+        _, lab_m, at_m = mres[p - 1]
+        if lab_c != lab_m or set(at_c) != set(at_m):
+            log(f"    {prefix}: residue {p} is {lab_c} in the complex and "
+                f"{lab_m} reflected, atom for atom different; skipped")
+            return None
+        # Every atom tleap added: the hydrogens, and a C terminal OXT, which
+        # ADCP does not write and tleap places from the template as well.
+        given = docked.get(p, set())
+        for nm, ic in at_c.items():
+            if _is_h_name(nm) or nm not in given:
+                x = xm[at_m[nm]].copy()
+                x[0] = -x[0]
+                xc[ic] = x
+                moved += 1
+    # A centre the mirror image does not cover. ADCP 1.1 builds &T and &I
+    # with the alpha carbon inverted and the beta carbon as in the L residue
+    # (the allo forms), so the reflected residue is not the L template's
+    # either, and its beta hydrogen lands beside its neighbours. Any
+    # hydrogen on a stereocentre of a D residue that is still on the side of
+    # its three heavy neighbours is put where a tetrahedral centre has it:
+    # 1.09 A out, opposite the mean of the three bond directions.
+    turned = 0
+    first = n_rec_res + 1
+    centres = af.stereo_centres(cparm, [first + p - 1 for p in spec["d"]])
+    for c, h in zip(centres, af.handedness(centres, xc)):
+        ic, ia, ib, iq, ih = c[3]
+        if ih is None or h["h_opposite"]:
+            continue
+        u = sum((xc[i] - xc[ic]) / np.linalg.norm(xc[i] - xc[ic])
+                for i in (ia, ib, iq))
+        xc[ih] = xc[ic] - 1.09 * u / np.linalg.norm(u)
+        turned += 1
+    tleap_copy = os.path.join(workdir, f"{prefix}_com_tleap.rst7")
+    if not os.path.isfile(tleap_copy):
+        shutil.copy(crst, tleap_copy)
+    af.write_rst7(crst, xc, like=tleap_copy)
+    return {"d_residues": list(spec["d"]), "atoms_placed": moved,
+            "hydrogens_turned": turned}
+
+
+def check_peptide(topo, traj, log=print):
+    """What the minimisation did to the peptide's stereocentres and to its
+    ring, from the topology and the coordinates before and after.
+
+    Returns (why not, report). "why not" is None when the pose may be
+    scored, and a reason otherwise:
+
+      a residue whose alpha carbon does not have the handedness the sequence
+      gives it in the docked pose, or loses it in the minimisation, or a
+      threonine or isoleucine beta carbon that changes, or a hydrogen on a
+      stereocentre left on the same side as its three heavy neighbours;
+
+      a closing bond that is not in the topology, or that the minimisation
+      left longer than its length in the force field plus CLOSING_SLACK.
+
+    The report is written beside the pose as <prefix>_checks.json, with the
+    closing bond's length and its energy term before and after, so the run
+    can say what the minimisation did to each ring.
+    """
+    import json
+    from . import amberfiles as af
+    spec = getattr(topo, "spec", None) or {"ring": None, "d": []}
+    parm = af.read_parm7(topo.path("com", "parm7"))
+    before = af.read_rst7(topo.path("com", "rst7"))
+    tp = traj if os.path.isabs(traj) else os.path.join(topo.workdir, traj)
+    after = af.read_rst7(tp) if os.path.isfile(tp) else before
+    first = topo.n_rec_res + 1
+    lig = list(range(first, first + topo.n_lig_res))
+    centres = af.stereo_centres(parm, lig)
+    hb, ha = af.handedness(centres, before), af.handedness(centres, after)
+    d = set(spec.get("d") or [])
+    problems, stereo = [], []
+    for b, a in zip(hb, ha):
+        pos = b["residue"] - first + 1
+        want = None
+        if b["centre"] == "CA":
+            want = -1 if pos in d else 1
+        row = {"position": pos, "residue": b["name"], "centre": b["centre"],
+               "before": b["volume"], "after": a["volume"],
+               "h_opposite": a["h_opposite"]}
+        stereo.append(row)
+        form = "D" if pos in d else "L"
+        if want is not None and b["volume"] * want <= 0:
+            problems.append("residue %d (%s) is not %s in the docked pose"
+                            % (pos, b["name"], form))
+        elif b["volume"] * a["volume"] <= 0:
+            problems.append("residue %d (%s) changed handedness at %s in the "
+                            "minimisation" % (pos, b["name"], b["centre"]))
+        elif a["h_opposite"] is False:
+            problems.append("residue %d (%s) has its %s hydrogen on the wrong "
+                            "side after the minimisation"
+                            % (pos, b["name"], b["centre"]))
+    closing = []
+    ring = spec.get("ring")
+    if ring:
+        res = af.residues(parm)
+        for a_pos, b_pos in ring["pairs"]:
+            ra, rb = res[first + int(a_pos) - 2], res[first + int(b_pos) - 2]
+            if ring["kind"] == "backbone":
+                ia, ib, what = ra[2].get("N"), rb[2].get("C"), "C to N"
+            else:
+                ia, ib, what = ra[2].get("SG"), rb[2].get("SG"), "S to S"
+            if ia is None or ib is None:
+                problems.append("the closing bond's atoms are not in the "
+                                "topology")
+                continue
+            t0 = af.bond_term(parm, before, ia, ib)
+            t1 = af.bond_term(parm, after, ia, ib)
+            closing.append({"bond": what, "residues": [int(a_pos), int(b_pos)],
+                            "docked_gap": ring.get("gap"),
+                            "r0": t0["r0"], "k": t0["k"],
+                            "before": t0["length"], "after": t1["length"],
+                            "energy_before": t0["energy"],
+                            "energy_after": t1["energy"]})
+            if not t0["present"]:
+                problems.append("the closing %s bond is not in the topology"
+                                % what)
+            elif t1["length"] > t0["r0"] + CLOSING_SLACK:
+                problems.append("the closing %s bond is %.2f A after the "
+                                "minimisation, against %.2f A for the bond"
+                                % (what, t1["length"], t0["r0"]))
+    why = "; ".join(problems) or None
+    report = {"why": why, "scored_on": os.path.basename(tp),
+              "d_residues": sorted(d), "stereocentres": stereo,
+              "closing": closing}
+    try:
+        with open(topo.path("checks", "json"), "w") as fh:
+            json.dump(report, fh, indent=1)
+    except OSError:
+        pass
+    for c in closing:
+        log(f"    {topo.prefix}: closing {c['bond']} bond {c['before']:.2f} A "
+            f"({c['energy_before']:.1f} kcal/mol) before the minimisation, "
+            f"{c['after']:.2f} A ({c['energy_after']:.2f} kcal/mol) after")
+    if d and not why:
+        log(f"    {topo.prefix}: every D centre is still D after the "
+            f"minimisation ({len(d)} residue(s))")
+    return why, report
+
+
 class _Topo:
     """The tleap built topologies one pose's energy is computed from.
 
@@ -592,6 +974,7 @@ class _Topo:
         self.rec_mask, self.lig_mask, self.asl = rec_mask, lig_mask, asl
         self.n_rec_res, self.n_lig_res = n_rec_res, n_lig_res
         self.home, self.env, self.radii = home, env, radii
+        self.spec = {"ring": None, "d": []}
 
     def path(self, kind, ext):
         return os.path.join(self.workdir, "%s_%s.%s" % (self.prefix, kind, ext))
@@ -614,16 +997,35 @@ def _topologies(rec, pose_mol, workdir, prefix, log=print,
     if home is None:
         return None
     env = dict(os.environ, AMBERHOME=home)
+    spec = peptide_spec(pose_mol)
     rec_pdb, lig_pdb, com_pdb = _write_pdbs(rec, pose_mol, workdir, prefix)
     if prep_ph is not None:
         com_pdb = prep_complex(com_pdb, workdir, prefix, prep_ph, log,
                                protonation=getattr(rec, "protonation", None))
     leap = os.path.join(workdir, f"{prefix}.leap")
+    if spec["ring"]:
+        # The closing bond, and for a head to tail ring no termini.
+        try:
+            text = _ring_leap(com_pdb, spec["ring"], workdir, prefix, radii)
+        except (ValueError, KeyError) as exc:
+            log(f"    {prefix}: the ring cannot be built ({exc}), skipped")
+            return None
+    else:
+        text = LEAP.format(complex_pdb=os.path.basename(com_pdb),
+                           receptor_pdb=os.path.basename(rec_pdb),
+                           ligand_pdb=os.path.basename(lig_pdb),
+                           prefix=prefix, radii=radii)
     with open(leap, "w") as fh:
-        fh.write(LEAP.format(complex_pdb=os.path.basename(com_pdb),
-                             receptor_pdb=os.path.basename(rec_pdb),
-                             ligand_pdb=os.path.basename(lig_pdb),
-                             prefix=prefix, radii=radii))
+        fh.write(text)
+    # A topology left by an earlier attempt must not stand in for this one.
+    for ext in ("parm7", "rst7"):
+        stale = os.path.join(workdir, f"{prefix}_com.{ext}")
+        if os.path.isfile(stale):
+            os.remove(stale)
+    for name in (f"{prefix}_com_tleap.rst7", f"{prefix}_checks.json"):
+        stale = os.path.join(workdir, name)
+        if os.path.isfile(stale):
+            os.remove(stale)
     subprocess.run([os.path.join(home, "bin", "tleap"), "-f", leap],
                    cwd=workdir, capture_output=True, text=True, env=env)
     if not os.path.isfile(os.path.join(workdir, f"{prefix}_com.parm7")):
@@ -677,6 +1079,16 @@ def _topologies(rec, pose_mol, workdir, prefix, log=print,
         return None
     log(f"    {prefix}: {asl}")
     log(f"    {prefix}: receptor_mask {rec_mask[:60]}  ligand_mask {lig_mask}")
+    if spec["d"]:
+        placed = mirror_hydrogens(workdir, prefix, com_pdb, spec, n_rec_res,
+                                  home, env, radii, log)
+        if placed is None:
+            return None
+        log(f"    {prefix}: D residue(s) {', '.join(map(str, spec['d']))} "
+            f"built with the L template; {placed['atoms_placed']} "
+            f"added atom(s) placed as their mirror image"
+            + (f", {placed['hydrogens_turned']} more turned to the open side "
+               f"of their centre" if placed["hydrogens_turned"] else ""))
     ante = prep.find_tool("ante-MMPBSA.py")
     if ante is None:
         log(f"    {prefix}: ante-MMPBSA.py not found, skipped")
@@ -690,8 +1102,10 @@ def _topologies(rec, pose_mol, workdir, prefix, log=print,
         log(f"    {prefix}: could not split the complex topology, skipped")
         return None
 
-    return _Topo(workdir, prefix, com_pdb, rec_mask, lig_mask,
+    topo = _Topo(workdir, prefix, com_pdb, rec_mask, lig_mask,
                  n_rec_res, n_lig_res, asl, home, env, radii)
+    topo.spec = spec
+    return topo
 
 
 def _minimise(topo, log=print):
@@ -752,6 +1166,12 @@ def run_amber(rec, pose_mol, workdir: str, prefix: str, log=print,
     # it cannot work that out afterwards from the files alone.
     with open(os.path.join(workdir, f"{prefix}_scored_on.txt"), "w") as fh:
         fh.write(traj + "\n")
+    # The peptide that is scored must be the one that was docked: its
+    # stereocentres as docked, and a ring's closing bond a bond.
+    why, _rep = check_peptide(topo, traj, log)
+    if why:
+        log(f"    {prefix}: not scored: {why}")
+        return None
     if traj != os.path.basename(minrst):
         # sander wrote no restart file at all, so the energy below is computed
         # on the complex as tleap built it: hydrogens unrelaxed, and the pose
@@ -776,7 +1196,18 @@ def run_amber(rec, pose_mol, workdir: str, prefix: str, log=print,
         # positive energy is one the minimiser rescued rather than
         # one that was plausible.
         start = _first_energy(os.path.join(workdir, f"{prefix}_min.out"))
-        if start is not None and start > CLASHED_START:
+        junction = _at_ring_junction(topo)
+        if start is not None and start > CLASHED_START and junction:
+            # A ring's two ends as the docking leaves them: its restraint
+            # pulls the end residues' alpha carbons to about 2.2 A, where a
+            # peptide bond holds them 3.8 A apart, so the hydrogens tleap adds
+            # there overlap. That is inside the peptide, which is free to
+            # move, and the closing bond and the stereocentres are checked
+            # after the minimisation (check_peptide).
+            log(f"    {prefix}: the pose started at {start:.2e} kcal/mol, "
+                f"from {junction} where the ring closes, crowded as the "
+                f"docking leaves it; the peptide is free to move there")
+        elif start is not None and start > CLASHED_START:
             log(f"    {prefix}: the pose started at {start:.2e} kcal/mol, so it "
                 f"is inside the receptor, and the receptor is held fixed, so "
                 f"the clash cannot relax out. Any energy from it describes "
@@ -866,6 +1297,10 @@ def run_openmm(rec, pose_mol, workdir: str, prefix: str, log=print,
     traj = _minimise(topo, log)
     if traj != f"{prefix}_min.rst7":
         log(f"    {prefix}: minimisation did not converge, using the raw pose")
+    why, _rep = check_peptide(topo, traj, log)
+    if why:
+        log(f"    {prefix}: not scored: {why}")
+        return None
     return openmm_dg(topo, log, intdiel, traj)
 
 
@@ -991,6 +1426,13 @@ def run_prime(rec, pose_mol, workdir: str, prefix: str, log=print,
     preparation. Prime is given the prepared complex, not the raw pose.
     """
     from . import gbengines
+    spec = peptide_spec(pose_mol)
+    if spec["ring"] or spec["d"]:
+        # The caller refuses these before they get here; this is the guard
+        # that keeps a ring from ever being scored as a linear chain.
+        log(f"    {prefix}: Prime does not score a peptide with D residues or "
+            f"a ring here, skipped")
+        return None
     schro = gbengines.find_schrodinger()
     if not schro:
         log(f"    {prefix}: no Schrodinger install with prime_mmgbsa was "
@@ -1279,6 +1721,34 @@ MIN_H_RATIO = 1.75
 # A starting energy above this means the pose overlaps the receptor. A clean
 # docked complex starts in the thousands once tleap has added hydrogens.
 CLASHED_START = 1e6
+
+
+def _at_ring_junction(topo):
+    """The atom with the largest force at the first step of the
+    minimisation, as "atom HA of residue 1", when the peptide is a head to
+    tail ring and that atom is in its first or last residue; else ""."""
+    spec = getattr(topo, "spec", None) or {}
+    ring = spec.get("ring") or {}
+    if ring.get("kind") != "backbone":
+        return ""
+    try:
+        txt = open(topo.path("min", "out"), errors="replace").read()
+        i = txt.index("NSTEP       ENERGY")
+        bits = txt[i:].splitlines()[1].split()
+        atom = int(bits[-1]) - 1
+        from . import amberfiles as af
+        res = af.residues(af.read_parm7(topo.path("com", "parm7")))
+    except (OSError, ValueError, IndexError):
+        return ""
+    first = topo.n_rec_res + 1
+    for r, _lab, atoms in res:
+        for nm, k in atoms.items():
+            if k == atom:
+                pos = r - first + 1
+                if pos in (1, topo.n_lig_res):
+                    return "atom %s of residue %d" % (nm, pos)
+                return ""
+    return ""
 
 
 def _min_state(min_out):

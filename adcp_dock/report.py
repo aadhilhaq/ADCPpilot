@@ -26,7 +26,7 @@ GB_LABELS = {"amber": "AmberTools", "openmm": "OpenMM",
 
 def summarise(peptide, modes, mm=None, top_n=TOP_N, name="", openmm=None,
               engine="", panel=None, clusters=None, mmgbsa_engine="",
-              mm_by_engine=None):
+              mm_by_engine=None, mm_skipped=None):
     """One row. `mm` is [dG] for the poses that were rescored, best-first.
 
     The name is carried from the result file rather than derived from the
@@ -101,6 +101,11 @@ def summarise(peptide, modes, mm=None, top_n=TOP_N, name="", openmm=None,
                                     / float(clusters["cluster_total"]), 3)
     if panel:
         row.update({c: panel.get(k) for c, k in PANEL_KEYS})
+    if mm_skipped and not row.get("mmgbsa_n"):
+        # Why there is no MM-GBSA value: non-standard residues, or a ring
+        # none of whose top poses is closed. Said per peptide, in the list
+        # of unranked peptides, rather than as one sentence for all of them.
+        row["mmgbsa_skipped"] = str(mm_skipped)
     return row
 
 
@@ -274,9 +279,11 @@ def table(rows, top_n=TOP_N, on_combined=False):
     unranked = [r for r in rows if r.get("rank") is None]
     if unranked:
         out.append("")
-        out.append("Unranked (no %s): %s. Peptides with non-standard or D "
-                   "residues have no MM-GBSA value." % (key, ", ".join(
-                       str(r.get("name") or r["peptide"]) for r in unranked)))
+        out.append("Unranked (no %s): %s." % (key, ", ".join(
+            str(r.get("name") or r["peptide"])
+            + (" (%s)" % r["mmgbsa_skipped"] if r.get("mmgbsa_skipped")
+               and key.startswith("mmgbsa") else "")
+            for r in unranked)))
     return "\n".join(out)
 
 

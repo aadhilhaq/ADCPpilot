@@ -1048,10 +1048,11 @@ def minimisation(min_out):
 def from_atoms(rec_atoms, pose, lig_chain="B"):
     """A complex Structure from the receptor as read and a docked pose.
 
-    The path for a run with no MM-GBSA: no Amber installed, or a peptide with
-    non-standard or D residues, which has no protein force field topology and
-    so can never have one. Heavy atoms only, and no minimisation, so the
-    energy columns stay empty while the interface columns are still measured.
+    The path for a run with no MM-GBSA: no Amber installed, a peptide with
+    non-standard residues, which has no protein force field topology and so
+    can never have one, or a ring none of whose poses is closed. Heavy atoms
+    only, and no minimisation, so the energy columns stay empty while the
+    interface columns are still measured.
     """
     xyz, name, resname, chain, resnum, element = [], [], [], [], [], []
     for a in rec_atoms:

@@ -13,7 +13,7 @@ import os
 import re
 import types
 
-from . import adcp11, job as jobmod, peptide, report, slurm, target, verify
+from . import adcp11, job as jobmod, mmforms, peptide, report, slurm, target, verify
 from . import sizing, structure, trajectories
 from . import tools as toolmod
 from ._vendor import adcp, metrics, mmgbsa, poseviewer, prep, receptor
@@ -581,107 +581,182 @@ def stage_dock(rundir, index, j=None, log=print):
             out["openmm"] = omm
             log("  OpenMM minimized %d pose(s)" % len(omm))
 
-    if j.get("mmgbsa") and out["modes"] and peptide.is_extended(seq):
-        # The MM-GBSA topology is built from the sequence's standard
-        # residues, and has no parameters for non-standard side chains.
-        log("  no MM-GBSA for %s: it has non-standard or D residues; use "
-            "ADCP 1.1's OpenMM minimization for these" % seq)
-        out["mmgbsa"] = []
-        out["mmgbsa_skipped"] = "non-standard or D residues"
-    elif j.get("mmgbsa") and out["modes"] and opts["cyclic"] != "none":
-        # The complex is built from the sequence as a linear chain, with free
-        # termini and no disulfide, so a ring's closing bond would be two
-        # atoms pressed together that the force field does not join.
-        log("  no MM-GBSA for %s: it was docked %s, and the rescoring builds "
-            "a linear peptide; use ADCP 1.1's OpenMM minimization, which "
-            "adds the ring's closing bond"
-            % (seq, peptide.CYCLIC_LABELS[opts["cyclic"]]))
-        out["mmgbsa"] = []
-        out["mmgbsa_skipped"] = "cyclic peptide"
-    elif j.get("mmgbsa") and out["modes"]:
-        rec = _rec_for_mmgbsa(j, log)
-        n = min(int(j.get("mmgbsa_poses", 5)), keep)
+    if j.get("mmgbsa") and out["modes"]:
+        _stage_mmgbsa(rundir, j, seq, out, pdir, keep, cpus, opts, log=log)
+    if not out.get("panel"):
+        # No energy for this peptide, and the interface can still be
+        # measured. A peptide with non-standard residues, or a ring none of
+        # whose top poses is closed, never has an MM-GBSA number, so this is
+        # the only panel it will ever get.
+        _panel_geometry(rundir, j, seq, out, pdir, log=log)
+    _save_result(rundir, jobmod.key(seq), out)
+    return out
+
+
+def _mm_inputs(j, seq, pdir, n, log=print):
+    """The poses MM-GBSA is given for one peptide, out of its top n.
+
+    Returns (molecules, their ADCP ranks, [{"pose", "why"}] for the poses
+    of the top n that are not given). The window is the top n whatever the
+    peptide: a ring whose third pose is open is scored on the others of
+    the same n, never on a pose further down to make up the number, so
+    every peptide in a run is scored on its own top n poses.
+    """
+    mode = docking_options(j)["cyclic"] if mmforms.enabled(j) else "none"
+    ph = float(j.get("ph", 7.4))
+    mols, ranks, skipped = [], [], []
+    for k in range(1, n + 1):
+        pose = adcp.read_pose(pdir, k)
+        if pose is None:
+            break
+        ring = mmforms.closure(pose, seq, mode)
+        if not ring["closed"]:
+            log("    pose %d: %s, so it is not rescored" % (k, ring["why"]))
+            skipped.append({"pose": k, "why": ring["why"],
+                            "gap": ring.get("gap")})
+            continue
         # Docked coordinates laid onto a clean topology, matched by
         # (residue number, atom name). ADCP writes a residue's atoms
         # in two blocks, so a pose copied in file order has
         # duplicated residues; transplant refuses anything it cannot
-        # match atom for atom.
-        mols, ranks = [], []
-        for k in range(1, n + 1):
-            pose = adcp.read_pose(pdir, k)
-            if pose is None:
-                break
-            # At the run's pH, as the docking was. The complex is
-            # protonated again before the energy (by PDB2PQR, or
-            # under reduce named from the receptor's own states);
-            # this is passed so that anything written from this
-            # molecule carries the right charges.
-            mol = poseviewer.transplant(seq, pose,
-                                        ph=float(j.get("ph", 7.4)))
-            if mol is None:
-                log("    pose %d could not be matched atom for atom, skipped"
-                    % k)
-                continue
-            mols.append(mol)
-            ranks.append(k)
-        if mols:
-            mmdir = os.path.join(rundir, "mmgbsa")
-            detail = {}
-            # The batch entry point rather than a loop: it caches
-            # per pose, so a resumed task recomputes only what is
-            # missing, and it runs several poses at once on the
-            # cores the task already holds.
-            workers = max(1, min(cpus or 1, len(mols),
-                                 int(j.get("mm_workers", 8))))
-            mmgbsa.run([{"sequence": seq}], rec, {seq: mols}, mmdir, log=log,
-                       prep_ph=float(j.get("ph", 7.4)), n_poses=len(mols),
-                       workers=workers,
-                       aggregate=j.get("mmgbsa_aggregate", "mean"),
-                       details=detail,
-                       model=j.get("mmgbsa_model") or "obc2",
-                       engine=j.get("mmgbsa_engine") or "amber")
-            d = detail.get(seq) or {}
-            vals = list(d.get("values") or [])
-            got = list(d.get("ranks") or [])
-            # Read MMPBSA.py's output back. A complex split
-            # through a molecule rather than at the interface
-            # still produces a number that looks like any other.
-            # Kept by position, not by value: two poses can share an energy.
-            good, kept, folders = [], [], []
-            for i, r in enumerate(got):
-                dat = os.path.join(mmdir, seq, "pose%d" % r,
-                                   "%s_mmgbsa.dat" % seq)
-                ok, bad = verify.mmgbsa_split(dat)
-                if ok:
-                    good.append(vals[i])
-                    # r counts the poses MM-GBSA was given; ranks
-                    # says which ADCP pose each one is, and the two
-                    # differ once a pose could not be matched.
-                    kept.append(ranks[r - 1] if 0 < r <= len(ranks) else r)
-                    folders.append(r)
-                else:
-                    log("    pose %d discarded: %s" % (r, verify.explain(bad)))
-            out["mmgbsa"] = good
-            out["mmgbsa_ranks"] = kept
-            # Which Born radii the energies were computed with (mbondi2 for
-            # a new run; a run scored before they were set keeps mbondi).
-            out["mmgbsa_radii"] = d.get("radii")
-            out["mmgbsa_model"] = d.get("model")
-            # Which engine produced these numbers. Without it the column is
-            # three different quantities with nothing to tell them apart.
-            out["mmgbsa_engine"] = j.get("mmgbsa_engine") or "amber"
-            _panel_scored(rundir, j, seq, out, mmdir, folders, kept, good,
-                          log=log)
+        # match atom for atom. At the run's pH, as the docking was. The
+        # complex is protonated again before the energy (by PDB2PQR, or
+        # under reduce named from the receptor's own states); this is
+        # passed so that anything written from this molecule carries the
+        # right charges.
+        mol = poseviewer.transplant(seq, pose, ph=ph)
+        if mol is None:
+            log("    pose %d could not be matched atom for atom, skipped" % k)
+            skipped.append({"pose": k,
+                            "why": "could not be matched atom for atom"})
+            continue
+        mmforms.mark(mol, seq, ring)
+        mols.append(mol)
+        ranks.append(k)
+    return mols, ranks, skipped
+
+
+def _stage_mmgbsa(rundir, j, seq, out, pdir, keep, cpus, opts, log=print):
+    """MM-GBSA for one docked peptide, written into its result `out`."""
+    import json
+    engine = j.get("mmgbsa_engine") or "amber"
+    why = mmforms.unscoreable(seq, j)
+    if why is None:
+        why = mmforms.engine_refusal(engine, seq, opts["cyclic"])
+    if why == mmforms.SKIP_OLD_D:
+        # The MM-GBSA topology is built from the sequence's standard
+        # residues, and has no parameters for non-standard side chains.
+        log("  no MM-GBSA for %s: it has non-standard or D residues; use "
+            "ADCP 1.1's OpenMM minimization for these" % seq)
+    elif why == mmforms.SKIP_OLD_RING:
+        # A run made before rings could be rescored keeps not rescoring
+        # them: it built the complex as a linear chain, with free termini
+        # and no disulfide.
+        log("  no MM-GBSA for %s: it was docked %s, and the rescoring builds "
+            "a linear peptide; use ADCP 1.1's OpenMM minimization, which "
+            "adds the ring's closing bond"
+            % (seq, peptide.CYCLIC_LABELS[opts["cyclic"]]))
+    elif why == mmforms.SKIP_NONSTANDARD:
+        log("  no MM-GBSA for %s: it has non-standard residues, which the "
+            "force field has no parameters for; ADCP 1.1's OpenMM "
+            "minimization covers most of them" % seq)
+    elif why:
+        log("  no MM-GBSA for %s: %s" % (seq, why))
+    if why:
+        out["mmgbsa"] = []
+        out["mmgbsa_skipped"] = why
+        return
+    n = min(int(j.get("mmgbsa_poses", 5)), keep)
+    mols, ranks, skipped = _mm_inputs(j, seq, pdir, n, log=log)
+    mm = mmforms.name(seq)
+    if mmforms.d_positions(seq):
+        out["mmgbsa_d"] = mmforms.d_positions(seq)
+    if not mols:
+        if skipped and all(s["why"].startswith("ring not closed")
+                           for s in skipped):
+            reason = mmforms.none_closed(len(skipped))
+            log("  no MM-GBSA for %s: %s" % (seq, reason))
         else:
+            reason = "no pose could be built for MM-GBSA"
             log("  no pose could be laid on a clean topology; no MM-GBSA")
-            out["mmgbsa"] = []
-    if not out.get("panel"):
-        # No energy for this peptide, and the interface can still be
-        # measured. A peptide with non-standard or D residues can never have
-        # an MM-GBSA number, so this is the only panel it will ever get.
-        _panel_geometry(rundir, j, seq, out, pdir, log=log)
-    _save_result(rundir, jobmod.key(seq), out)
-    return out
+        out["mmgbsa_skipped"] = reason
+        if skipped:
+            out["mmgbsa_poses_skipped"] = skipped
+        out["mmgbsa"] = []
+        return
+    rec = _rec_for_mmgbsa(j, log)
+    mmdir = os.path.join(rundir, "mmgbsa")
+    detail = {}
+    # The batch entry point rather than a loop: it caches
+    # per pose, so a resumed task recomputes only what is
+    # missing, and it runs several poses at once on the
+    # cores the task already holds.
+    workers = max(1, min(cpus or 1, len(mols), int(j.get("mm_workers", 8))))
+    mmgbsa.run([{"sequence": mm}], rec, {mm: mols}, mmdir, log=log,
+               prep_ph=float(j.get("ph", 7.4)), n_poses=len(mols),
+               workers=workers,
+               aggregate=j.get("mmgbsa_aggregate", "mean"),
+               details=detail,
+               model=j.get("mmgbsa_model") or "obc2",
+               engine=engine)
+    d = detail.get(mm) or {}
+    vals = list(d.get("values") or [])
+    got = list(d.get("ranks") or [])
+    # Read MMPBSA.py's output back. A complex split
+    # through a molecule rather than at the interface
+    # still produces a number that looks like any other.
+    # Kept by position, not by value: two poses can share an energy.
+    good, kept, folders = [], [], []
+    for i, r in enumerate(got):
+        dat = os.path.join(mmdir, mm, "pose%d" % r, "%s_mmgbsa.dat" % mm)
+        ok, bad = verify.mmgbsa_split(dat)
+        if ok:
+            good.append(vals[i])
+            # r counts the poses MM-GBSA was given; ranks
+            # says which ADCP pose each one is, and the two
+            # differ once a pose could not be matched.
+            kept.append(ranks[r - 1] if 0 < r <= len(ranks) else r)
+            folders.append(r)
+        else:
+            log("    pose %d discarded: %s" % (r, verify.explain(bad)))
+            skipped.append({"pose": ranks[r - 1] if 0 < r <= len(ranks)
+                            else r, "why": verify.explain(bad)})
+    # A pose given to MM-GBSA that came back without an energy: the checks
+    # on the minimised peptide say why when they were the reason.
+    closing = []
+    for r in range(1, len(mols) + 1):
+        chk = os.path.join(mmdir, mm, "pose%d" % r, "%s_checks.json" % mm)
+        rep = {}
+        if os.path.isfile(chk):
+            try:
+                rep = json.load(open(chk))
+            except ValueError:
+                rep = {}
+        if r not in got:
+            skipped.append({"pose": ranks[r - 1],
+                            "why": rep.get("why") or
+                            "the MM-GBSA calculation failed; see the task log"})
+        elif r in folders:
+            for c in rep.get("closing") or []:
+                closing.append(dict(c, pose=ranks[r - 1]))
+    if skipped:
+        out["mmgbsa_poses_skipped"] = sorted(skipped, key=lambda s: s["pose"])
+    if closing:
+        out["mmgbsa_closing"] = closing
+    out["mmgbsa"] = good
+    out["mmgbsa_ranks"] = kept
+    # Which Born radii the energies were computed with (mbondi2 for
+    # a new run; a run scored before they were set keeps mbondi).
+    out["mmgbsa_radii"] = d.get("radii")
+    out["mmgbsa_model"] = d.get("model")
+    # Which engine produced these numbers. Without it the column is
+    # three different quantities with nothing to tell them apart.
+    out["mmgbsa_engine"] = engine
+    if not good and mmforms.enabled(j):
+        out["mmgbsa_skipped"] = ("no closed pose could be scored"
+                                 if opts["cyclic"] != "none"
+                                 else "no pose could be scored")
+    _panel_scored(rundir, j, seq, out, mmdir, folders, kept, good, log=log)
 
 
 def _hotspots(j):
@@ -725,6 +800,7 @@ def _panel_scored(rundir, j, seq, out, mmdir, folders, ranks, values,
     """The panel for the poses MM-GBSA scored, on the geometry it scored them
     on."""
     hot = _hotspots(j)
+    mm = mmforms.name(seq)
     log("  measuring the interface on the geometry each of %d pose(s) was "
         "scored on" % len(folders))
     cpus = int(os.environ.get("SLURM_CPUS_PER_TASK", j.get("cpus", 0)) or 0)
@@ -732,10 +808,10 @@ def _panel_scored(rundir, j, seq, out, mmdir, folders, ranks, values,
 
     def one(i):
         """One pose, in its own directory, so several can run at once."""
-        posedir = os.path.join(mmdir, seq, "pose%d" % folders[i])
+        posedir = os.path.join(mmdir, mm, "pose%d" % folders[i])
         quiet = (lambda *a: None) if workers > 1 else log
         try:
-            return i, metrics.for_pose(posedir, seq, hotspots=hot, log=quiet)
+            return i, metrics.for_pose(posedir, mm, hotspots=hot, log=quiet)
         except metrics.Mismatch as exc:
             log("    pose %d: %s, so it is not measured" % (ranks[i], exc))
         except Exception as exc:                                # noqa: BLE001
@@ -815,8 +891,9 @@ def _panel_geometry(rundir, j, seq, out, pdir, log=print):
 
     Heavy atoms and no minimisation, so the interface columns are filled and
     the energy columns stay empty. It is the only panel available for a
-    peptide with non-standard or D residues, and for a run on a machine with
-    no Amber.
+    peptide with non-standard residues, a ring with no closed pose, a D
+    residue or a ring in a run made before those were rescored, and a run
+    on a machine with no Amber.
     """
     if not out.get("modes"):
         return
@@ -911,13 +988,14 @@ def energy_terms(rundir, r):
     mmdir = os.path.join(rundir, "mmgbsa")
     if not seq or not kept or not os.path.isdir(mmdir):
         return {}
-    folders = _pose_dirs(mmdir, seq)
+    mm = mmforms.name(seq)
+    folders = _pose_dirs(mmdir, mm)
     stored = r.get("mmgbsa_ranks") or []
     best = None
     for n in folders:
-        d = os.path.join(mmdir, seq, "pose%d" % n)
-        t = metrics.terms(os.path.join(d, "%s_mmgbsa.dat" % seq),
-                          os.path.join(d, "%s_mmpbsa.in" % seq))
+        d = os.path.join(mmdir, mm, "pose%d" % n)
+        t = metrics.terms(os.path.join(d, "%s_mmgbsa.dat" % mm),
+                          os.path.join(d, "%s_mmpbsa.in" % mm))
         tot = t.get("total")
         if tot is None or not any(abs(tot - v) < 0.006 for v in kept):
             continue
@@ -969,11 +1047,12 @@ def measurable(rundir, r):
     mmdir = os.path.join(rundir, "mmgbsa")
     if not seq or not os.path.isdir(mmdir):
         return False
-    for n in _pose_dirs(mmdir, seq):
-        d = os.path.join(mmdir, seq, "pose%d" % n)
-        if (os.path.isfile(os.path.join(d, "%s_com.parm7" % seq))
-                and (os.path.isfile(os.path.join(d, "%s_min.rst7" % seq))
-                     or os.path.isfile(os.path.join(d, "%s_com.rst7" % seq)))):
+    mm = mmforms.name(seq)
+    for n in _pose_dirs(mmdir, mm):
+        d = os.path.join(mmdir, mm, "pose%d" % n)
+        if (os.path.isfile(os.path.join(d, "%s_com.parm7" % mm))
+                and (os.path.isfile(os.path.join(d, "%s_min.rst7" % mm))
+                     or os.path.isfile(os.path.join(d, "%s_com.rst7" % mm)))):
             return True
     return False
 
@@ -1019,7 +1098,8 @@ def stage_panel(rundir, j=None, log=print):
     done = 0
     for f, r in todo:
         seq = r["peptide"]
-        folders = _pose_dirs(mmdir, seq)
+        mm = mmforms.name(seq)
+        folders = _pose_dirs(mmdir, mm)
         if not folders:
             log("  %s: no pose folders on disk" % seq)
             continue
@@ -1027,9 +1107,9 @@ def stage_panel(rundir, j=None, log=print):
         # never be attached to the wrong pose.
         vals, keep = [], []
         for n in folders:
-            d = os.path.join(mmdir, seq, "pose%d" % n)
-            t = metrics.terms(os.path.join(d, "%s_mmgbsa.dat" % seq),
-                              os.path.join(d, "%s_mmpbsa.in" % seq))
+            d = os.path.join(mmdir, mm, "pose%d" % n)
+            t = metrics.terms(os.path.join(d, "%s_mmgbsa.dat" % mm),
+                              os.path.join(d, "%s_mmpbsa.in" % mm))
             if t.get("total") is not None:
                 keep.append(n)
                 vals.append(t["total"])
@@ -1212,7 +1292,10 @@ def stage_report(rundir, j=None, log=print):
                                      # shows up as its own columns.
                                      mm_by_engine=mmgbsa.engines_on_disk(
                                          os.path.join(rundir, "mmgbsa"),
-                                         r["peptide"]),
+                                         mmforms.name(r["peptide"])),
+                                     # Why a peptide has no MM-GBSA value,
+                                     # for the list of unranked peptides.
+                                     mm_skipped=r.get("mmgbsa_skipped"),
                                      name=(r.get("name")
                                            or by_seq.get(r["peptide"], "")),
                                      # A peptide rescored before the panel
@@ -1648,24 +1731,27 @@ def stage_rescore(rundir, engine, j=None, log=print):
         seq = r.get("peptide") or ""
         if not seq:
             continue
-        if peptide.is_extended(seq):
-            log("  %s: non-standard or D residues, which no MM-GBSA "
-                "engine here has parameters for; skipped" % seq)
+        # The same rules as the run's own scoring: a peptide it did not
+        # score is not scored here, and a ring is scored only on the poses
+        # that close it, never as a linear chain.
+        why = mmforms.unscoreable(seq, j) or mmforms.engine_refusal(
+            eng.name, seq, docking_options(j)["cyclic"])
+        if why:
+            log("  %s: %s; skipped" % (seq, why))
             continue
         pdir = os.path.join(rundir, "docking", jobmod.key(seq))
-        mols = []
-        for k in range(1, n_want + 1):
-            pose = adcp.read_pose(pdir, k)
-            if pose is None:
-                break
-            mol = poseviewer.transplant(seq, pose, ph=ph)
-            if mol is not None:
-                mols.append(mol)
+        mols, _ranks, _skipped = _mm_inputs(j, seq, pdir, n_want,
+                                            log=lambda *a: None)
         if not mols:
-            log("  %s: no pose could be rebuilt; skipped" % seq)
+            log("  %s: %s; skipped" % (seq, mmforms.none_closed(len(_skipped))
+                                       if _skipped and all(
+                                           x["why"].startswith("ring not")
+                                           for x in _skipped)
+                                       else "no pose could be rebuilt"))
             continue
         log("  %s: %d pose(s)" % (seq, len(mols)))
-        mmgbsa.run([{"sequence": seq}], rec, {seq: mols}, mmdir, log=log,
+        mm = mmforms.name(seq)
+        mmgbsa.run([{"sequence": mm}], rec, {mm: mols}, mmdir, log=log,
                    prep_ph=ph, n_poses=len(mols), workers=workers,
                    aggregate=j.get("mmgbsa_aggregate", "mean"),
                    model=j.get("mmgbsa_model") or "obc2",

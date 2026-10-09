@@ -67,7 +67,15 @@ def transplant(seq: str, pose: dict, capped: bool | None = None,
     """
     if capped is None:
         capped = any(str(r).strip().upper() in CAP_RES for r in pose.get("resname", []))
-    tmpl = template(seq, capped=capped, ph=ph)
+    # A D residue ("&K") is built with its L template, and the docked
+    # coordinates carry the handedness: ADCP 1.1 names it as the L residue
+    # (LYS) with the same atom names, so the match below is unchanged, and
+    # the stereo tags are read back from the coordinates at the end. A
+    # non-standard side chain ("N<BHD>") has no template here at all.
+    d_form = "&" in seq
+    if "<" in seq:
+        return None
+    tmpl = template(seq.replace("&", ""), capped=capped, ph=ph)
     if tmpl is None:
         return None
     coords = {}
@@ -104,6 +112,8 @@ def transplant(seq: str, pose: dict, capped: bool | None = None,
             ed.RemoveAtom(i)
         tmpl = ed.GetMol()
         Chem.SanitizeMol(tmpl)
+    if d_form:
+        Chem.AssignStereochemistryFrom3D(tmpl)
     return tmpl
 
 

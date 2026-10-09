@@ -201,11 +201,12 @@ HELP = {
         "chain and say nothing.\n\n"
         "Both are restraints ADCP's search pulls on, not bonds it starts "
         "with, so check that the ends, or the two sulfurs, meet in the poses "
-        "you use. A ring is not rescored with MM-GBSA here, which builds a "
-        "linear peptide. ADCP 1.1's OpenMM minimization can be used "
-        "instead: it adds the ring's closing bond, and for a disulfide it "
-        "does so only where the two sulfurs are within 3.5 \u00c5 of each "
-        "other."),
+        "you use. MM-GBSA rescores a ring only on the poses that close it, "
+        "with the closing bond built: the two ends within 2.5 \u00c5 for a "
+        "ring head to tail, the two sulfurs within 3.5 \u00c5 for a "
+        "disulfide. A pose that is open is not rescored, and a ring with no "
+        "closed pose among those rescored is listed as unranked, with the "
+        "reason."),
     "helical": (
         "Replicas that start helical",
         "Each replica of ADCP's search starts from a shape: a helix or a "
@@ -363,7 +364,11 @@ HELP = {
         "It separates peptides that the docking score ranks together, and it "
         "is the slowest step in the run, taking roughly as long again as the "
         "docking. It gives an ordering within one run against one receptor, "
-        "not a binding constant. It needs AmberTools."),
+        "not a binding constant. It needs AmberTools.\n\n"
+        "Peptides with D residues are rescored and ranked with the rest, and "
+        "so are rings, on the poses that close them. Peptides with "
+        "non-standard residues are not rescored: the force field has no "
+        "parameters for them."),
     "mmposes": (
         "Poses to rescore",
         "MM-GBSA runs on this many of each peptide's poses. The cost grows "

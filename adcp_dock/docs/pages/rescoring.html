@@ -25,10 +25,12 @@ option is switched off and the page says why.</p>
 conformation, no ensemble average and no entropy term. It gives an ordering
 within one run against one receptor. It does not give a binding constant, and
 values from two different receptors are not comparable.</div>
-<p>Peptides with non-standard or D residues are not rescored: the topology is
-built from standard residues and the force field has no parameters for the
-others. Those rows have no MM-GBSA value, the table says so, and ADCP 1.1's own
-OpenMM minimisation is the number to use for them instead.</p>
+<p>Peptides with D residues, and rings whose pose is closed, are rescored and
+ranked with the rest: see <a href="#d-and-rings">D residues and rings</a>.
+Peptides with non-standard residues are not: the force field has no parameters
+for their side chains. Those rows have no MM-GBSA value, the table lists them as
+unranked with the reason, and ADCP 1.1's own OpenMM minimisation is the number to
+use for them instead.</p>
 
 <figure>
 <img src="img/docking-settings.png" alt="The Docking and rescoring card, with the MM-GBSA row showing">
@@ -88,6 +90,83 @@ than making its own, and declines to run where <code>sander</code> is absent.
 Letting it minimise further moves the energy by tens of kcal/mol, because the
 extra relaxation loosens the interface: the two energy models agree, and the
 minimisation was the whole of the difference.</p>
+
+<h2 id="d-and-rings">D residues and rings</h2>
+<p><b>A D residue is built with the template of its L form, and the docked
+coordinates carry its handedness.</b> This is exact rather than an
+approximation, because ff14SB has no term that tells a residue from its mirror
+image. Every torsion term in it has a phase of 0 or 180 degrees, so it gives the
+same energy for an angle and for its negative, and it has no CMAP grid, the one
+protein term that would not. Bonds, angles, van der Waals, electrostatics and
+the solvation term depend only on distances and angles, which a mirror image
+keeps. It was checked directly: a D peptide and its exact mirror image as an L
+peptide have the same energy, term by term, before and after a minimisation.</p>
+<p>The one thing the L template would get wrong is where <code>tleap</code>
+puts the atoms a docked pose does not carry, the hydrogens and the last
+residue's second oxygen, which it takes from the template's own geometry: on a D
+residue it puts the alpha hydrogen on the wrong side. So those atoms of each D
+residue are placed as the mirror image of where they go on its L form. ADCP 1.1
+builds a D threonine or a D isoleucine with only its alpha carbon inverted,
+which is the allo form, and the hydrogen on its beta carbon is then put on the
+open side of that carbon. After the minimisation every stereocentre of the
+peptide is checked against the docked pose, and a pose in which any centre
+changed its handedness is not scored.</p>
+<p><b>A ring is rescored only on the poses that close it.</b> ADCP's ring is a
+restraint its search pulls on rather than a bond, and a pose can leave the two
+ends apart. A pose counts as closed when the two atoms the closing bond joins
+are no further apart than this:</p>
+<table>
+<tr><th>Ring</th><th>The two atoms</th><th>Their bond</th><th>Closed within</th></tr>
+<tr><td>head to tail</td><td>the first residue's N and the last residue's C</td><td>1.33 &Aring;</td><td>2.5 &Aring;</td></tr>
+<tr><td>disulfide</td><td>the sulfurs of the two cysteines</td><td>2.04 &Aring;</td><td>3.5 &Aring;</td></tr>
+</table>
+<p>The two distances come from 300 ring poses docked into MDM2 with ADCP 1.0
+and 1.1, each of which was also built with its closing bond and minimised
+whatever its distance, to see what closing it does. The ends of a head to tail
+ring sat anywhere from 0.4 to 4.7 &Aring; apart, half of them within about 2
+&Aring;, with no natural break. Closing the bond turned no stereocentre into its
+mirror image in any of the 100 poses whose ends were under 2.4 &Aring; apart,
+2 of 27 between 2.4 and 3.0 &Aring;, and 8 of 23 beyond that, always at an end
+residue. The sulfurs of a disulfide fell in two groups: with ADCP 1.1, 2.0 to
+3.2 &Aring; or 3.9 &Aring; and more, nothing in between; with ADCP 1.0, up to
+3.5 &Aring; and then 4.3 &Aring; and more. Two sulfurs that are not bonded touch
+at about 3.6 &Aring;, so a pair closer than 3.5 &Aring; is held there by the
+ring, and 3.5 &Aring; is also where ADCP 1.1's own minimisation adds the bond.
+In every closed pose the bond came out at its proper length after the
+minimisation, with an energy of under 0.3 kcal/mol. ADCP's head to tail
+restraint holds the two end residues closer together than a peptide bond would,
+so the minimisation opens the join out a little; even so, the closed rings moved
+by 1.0 &Aring; RMSD at the median, as much as linear peptides do in the same
+minimisation.</p>
+<p>A closed pose is built with its closing bond: a head to tail ring with no
+free amine and no carboxylate, and a disulfide between two CYX residues. The
+bond is checked after the minimisation as well, and a pose whose bond the
+minimisation did not bring to length is not scored. A pose that is not closed is
+not rescored, and the task log says so for that pose, for example
+<code>ring not closed in this pose: ends 4.31 &Aring; apart</code>. A ring is
+never scored as a linear chain.</p>
+<p>The poses considered are the same top poses as for every other peptide. A
+ring whose third pose is open is scored on its other closed poses, not on a pose
+further down the list, and the <b>MM n</b> column says how many poses its value
+is the mean of. A ring none of whose top poses is closed has no MM-GBSA value:
+it keeps its docking score and its interface panel, and the table lists it as
+unranked with the reason.</p>
+<p><b>They rank with the others.</b> D peptides and closed rings are scored with
+the same engine, force field, minimisation and solvent model as linear peptides
+of L residues, so all of them are ranked together in one table.</p>
+<p><b>AmberTools and OpenMM score both</b>, from the same topology. Prime builds
+its own structure from a PDB file, and nothing has shown that it keeps a closing
+bond or a D centre as they were docked, so it refuses these peptides and says
+why rather than score another molecule.</p>
+<p><b>ADCP 1.1's own minimised poses are not used.</b> Its OpenMM minimisation
+does add a ring's closing bond, but with another force field, on a receptor it
+completes itself, and only in a run that asked for it. Taking those poses for
+rings while linear peptides start from their docked poses would score the two
+from different starting points, so every peptide is rescored from its docked
+pose.</p>
+<p><b>A run set up before this version</b> keeps skipping D residues and rings
+when it is resumed or rescored, so one run never ranks peptides scored under two
+rules. Start a new run to rescore them.</p>
 
 <h2 id="what-else-it-measures">What else it measures</h2>
 <p>While each pose is rescored, the run also measures the interface on the same

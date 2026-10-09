@@ -58,15 +58,23 @@ cannot be docked cannot be chosen. Typing one by hand that is not in the library
 refused by name.</p>
 
 <h2 id="what-changes-in-the-run">What changes in the run</h2>
-<p>Docking happens as usual, with ADCP 1.1 and its side-chain library. Two things
-are different afterwards.</p>
-<p><b>MM-GBSA is skipped for these peptides.</b> The Amber topology is built from
-standard residues and the force field has no parameters for the others. Those rows
-carry no MM-GBSA value, the table lists them as unranked, and the reason is
-printed. In a list that mixes standard and modified peptides, the standard ones are
-rescored and ranked and the modified ones are not, so the two groups cannot be
-ranked against each other on energy.</p>
-<p><b>Use ADCP 1.1's own minimisation instead.</b> <b>Poses to minimize with
+<p>Docking happens as usual, with ADCP 1.1 and its side-chain library. What
+happens afterwards depends on the residue.</p>
+<p><b>D residues are rescored with MM-GBSA.</b> Each is built with the template of
+its L form, and the docked coordinates carry its handedness, which is exact for the
+force field the rescoring uses: it has no term that tells a residue from its mirror
+image. The hydrogens of each D residue are placed as a D residue has them, and every
+stereocentre is checked after the minimisation. A peptide whose only changes are D
+residues is rescored and ranked with the standard peptides of the same run, on the
+same engine and the same protocol. <a href="rescoring.html#d-and-rings">Rescoring
+with MM-GBSA</a> gives the detail and how it was checked.</p>
+<p><b>MM-GBSA is skipped for non-standard residues.</b> The force field has no
+parameters for their side chains. A peptide with one carries no MM-GBSA value, and
+the table lists it as unranked with the reason. In a list that mixes them with
+standard and D peptides, the others are rescored and ranked and these are not, so
+the two groups cannot be ranked against each other on energy.</p>
+<p><b>For non-standard residues, use ADCP 1.1's own minimisation instead.</b>
+<b>Poses to minimize with
 OpenMM</b> relaxes the top poses with the Amber ff99SB force field and the GBn2
 solvent model, holding the receptor away from the peptide in place, and reports the
 lowest E(complex) minus E(receptor) beside the scores. It is at most five minimiser

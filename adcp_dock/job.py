@@ -144,6 +144,12 @@ def default(**kw):
         # run that does not ask for anything else stays comparable with them.
         "mmgbsa_engine": "amber",
         "mmgbsa_poses": 5,
+        # D residues and rings are rescored: a D residue with its L form's
+        # template and the docked handedness, a ring only on the poses that
+        # close it (mmforms). A job file without it was made when both were
+        # skipped, and keeps skipping them, so one run never ranks peptides
+        # scored under two rules.
+        "mmgbsa_d_rings": True,
         # How the poses of one peptide become a single number. The
         # table reports the mean of the top few either way, with the
         # best, the median, the count and the spread.

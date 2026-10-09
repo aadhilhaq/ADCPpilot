@@ -126,13 +126,16 @@ were not closed. With ADCP 1.0, eight of ten poses were closed (2.0 to 4.1
 came closer than 5 &Aring;. Check the poses you use. A ring also makes
 the search longer: each replica took about one and a half times as long head to
 tail, and the walltime estimate allows for it.</p>
-<div class="note"><b>A ring is not rescored with MM-GBSA.</b> The rescoring
-builds the peptide from its sequence as a linear chain, which would leave the
-ring's closing atoms pressed together without a bond. Ringed peptides keep their
-docking scores and their interface panel. ADCP 1.1's OpenMM minimisation, in
-the Docking card, can be used instead: it adds the ring's closing bond, and for
-a disulfide it does so only where the two sulfurs are within 3.5 &Aring; of each
-other.</div>
+<div class="note"><b>A ring is rescored with MM-GBSA on the poses that close
+it.</b> The rescoring builds the ring's closing bond, but only on a pose whose two
+ends already meet: within 2.5 &Aring; for a head to tail ring and 3.5 &Aring; for a
+disulfide. A pose that is not closed is not rescored and the task log says so, and a
+peptide with no closed pose among its top poses keeps its docking score and its
+interface panel and is listed as unranked. See
+<a href="rescoring.html#d-and-rings">D residues and rings</a>. ADCP 1.1's OpenMM
+minimisation, in the Docking card, is a separate option: it adds the ring's closing
+bond too, and for a disulfide only where the two sulfurs are within 3.5 &Aring; of
+each other.</div>
 
 <h2 id="helical">Helical starts</h2>
 <p>Each replica of ADCP's search starts the peptide in a shape: a helix or a
