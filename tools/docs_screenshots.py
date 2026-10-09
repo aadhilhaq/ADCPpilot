@@ -9,7 +9,8 @@ By Aadhil Haq
 Starts the interface with a fresh runs folder holding the shipped example
 run, drives the page the way a person would (loads the example's receptor,
 sets its site, pastes its peptides, opens a help box, opens the finished run,
-opens ADapt on the receptor when it is installed, and reads its save back)
+and, when ADapt is installed, shows it in the Receptor card, opens it full
+screen, unticks the bound peptide in it and has ADapt write the receptor)
 and saves each view the docs show. Run it
 again after the page changes, so the pictures never describe an older page.
 
@@ -44,7 +45,8 @@ WANT = ["interface.png", "receptor-loaded.png", "site-residues.png",
         "peptide-options.png", "docking-settings.png", "help-box.png",
         "runs.png", "results-table.png", "pose-viewer.png", "cite.png",
         "adapt.png", "guide.png", "submit.png", "runs-folders.png",
-        "file-viewer.png", "site-surface.png", "receptor-adapt.png"]
+        "file-viewer.png", "site-surface.png", "receptor-adapt.png",
+        "adapt-inline.png"]
 
 
 def start_server(python, runs, roots):
@@ -179,6 +181,12 @@ def main():
                 for ch in (job.get("chains") or []):
                     pg.check('#chainbox .chk[data-ch="%s"]' % ch)
                 pg.wait_for_timeout(1500)
+                # ADapt opens in the card on the structure by itself, where it
+                # is installed. Folded for this picture, which is about the
+                # chains and the preparation; its own pictures come later.
+                if pg.locator("#adaptpanel").is_visible():
+                    pg.evaluate("adaptFold(true)")
+                    pg.wait_for_timeout(500)
                 shot(card("#reccode"), "receptor-loaded.png")
             step("receptor", load_receptor)
 
@@ -416,32 +424,59 @@ def main():
                 pg.keyboard.press("Escape")
             step("cite", cite)
 
-            # ADapt, through the interface, when it is installed here
+            # ADapt, in the Receptor card, when it is installed here
             def adapt():
-                if not pg.locator("#adaptopen").is_visible():
-                    print("  ADapt is not offered here, so no adapt.png",
+                if not pg.locator("#adaptsec").is_visible() \
+                        or not pg.evaluate("ADAPT_OK"):
+                    print("  ADapt is not offered here, so no ADapt pictures",
                           flush=True)
                     return
-                # The receptor goes with the click: ADapt opens on it.
-                pg.evaluate("window.scrollTo(0, 0)")
+                pg.evaluate("adaptFold(false)")
+                # Opened on the receptor when it was loaded: its frame shows
+                # the session once ADapt has started and read the file.
+                pg.wait_for_function(
+                    "() => { try { const d = document.getElementById('adaptframe')"
+                    ".contentDocument; return !!d && d.querySelectorAll('#tree li').length > 0"
+                    " && !!d.querySelector('#viewer canvas'); }"
+                    " catch(e){ return false; } }", timeout=330000)
+                pg.wait_for_function(
+                    "() => /this page.s preparation/.test("
+                    "document.getElementById('adaptsays').textContent)", timeout=60000)
+                pg.wait_for_timeout(5000)
+                shot(pg.locator("#adaptsec"), "adapt-inline.png")
+                # The same session full screen, in a tab of its own.
                 with ctx.expect_page(timeout=60000) as popup:
-                    pg.click("#adaptopen")
+                    pg.click("#adaptfull")
                 tab = popup.value
-                tab.wait_for_url("**/adapt/?t=*session=*", timeout=330000)
                 tab.wait_for_load_state("load")
                 tab.wait_for_function(
-                    "() => !document.body.innerText.includes('No structure loaded')",
+                    "() => document.querySelectorAll('#tree li').length > 0",
                     timeout=240000)
                 tab.wait_for_timeout(5000)
                 shot(tab, "adapt.png")
-                # Saved there, it is read back here and used as the receptor.
-                tab.wait_for_selector("#saverec:not([disabled])", timeout=120000)
-                tab.click("#saverec")
+                tab.close()
                 pg.bring_to_front()
-                pg.wait_for_selector("#adaptuse:not(.hide)", timeout=240000)
+                # The bound p53 peptide, chain B, taken out of the receptor in
+                # ADapt's tree: the card switches to ADapt's receptor.
+                frame = pg.frame_locator("#adaptframe")
+                # A chain's own row has no box; the protein under it has.
+                frame.locator("#tree").evaluate(
+                    "t => { const li = [...t.querySelectorAll('li.kind-chain')].find("
+                    "x => x.querySelector('.lab').textContent.trim() === 'B');"
+                    " const cat = [...li.querySelectorAll('li.kind-category')].find("
+                    "x => /protein/.test(x.querySelector('.lab').textContent));"
+                    " (cat || li).querySelector('input.cb[data-col=rec]').dataset.shot = 'B'; }")
+                frame.locator('input.cb[data-shot="B"]').click()
+                pg.wait_for_function(
+                    "() => /as set in ADapt/.test("
+                    "document.getElementById('adaptsays').textContent)", timeout=60000)
+                # Written now and read back, as a submission would.
+                pg.click("#adaptnow")
+                pg.wait_for_selector("#adaptuse:not(.hide)", timeout=300000)
                 pg.wait_for_function(
                     "() => /atoms/.test(document.getElementById('recinfo').textContent)",
                     timeout=120000)
+                pg.evaluate("adaptFold(true)")
                 pg.wait_for_timeout(2000)
                 pg.evaluate("document.getElementById('step-receptor')"
                             ".scrollIntoView({block: 'start'})")

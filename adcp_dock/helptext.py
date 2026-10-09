@@ -36,6 +36,25 @@ HELP = {
         "too few maps or was renamed after it was made is refused with the "
         "reason. Do not rename a target: ADCP finds its maps by the file's "
         "name."),
+    "adaptframe": (
+        "ADapt, on the structure you loaded",
+        "ADapt, by Michel Sanner, opens here on every structure you load. It "
+        "shows what the file holds: each biological assembly, the hetero "
+        "groups, metals and their charges, alternate locations, incomplete "
+        "side chains and modified residues. Tick or untick what should stay "
+        "in the receptor in its tree, and look at the result in its view.\n\n"
+        "Opening it changes nothing: docking uses this page's own preparation "
+        "until you change something in ADapt. From the first change the line "
+        "above the frame says that docking will use the receptor as set in "
+        "ADapt, and the preparation settings are greyed out, since ADapt and "
+        "AGFR decide them. You do not need ADapt's save button: when you "
+        "submit, ADapt writes the receptor as it is set there, and it is read "
+        "back and recorded with the run. Use ADapt's receptor now writes it "
+        "at once, so the site can be checked on it.\n\n"
+        "Use this page's preparation instead goes back; only a later change "
+        "in ADapt brings its receptor back. Hide folds the frame away and "
+        "Open full screen shows the same session in a tab of its own. On a "
+        "phone a button opens it in a tab instead."),
     "hotspots": (
         "The residues that define the site",
         "CHAIN:NUMBER, like A:98, or bare numbers when the receptor is one "

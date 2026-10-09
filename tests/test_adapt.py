@@ -243,10 +243,39 @@ check("d.adapt && d.adapt.available" in appjs, "the row is shown only when the s
 check("api('/api/adapt'" in appjs, "the button asks the server to start it")
 check("Open in ADapt" in html and "id=adaptuse" in html and "id=adaptdrop" in html,
       "the Receptor card opens the receptor in ADapt and shows the receptor read back")
-check("/api/adapt/saved" in appjs and "startAdaptWatch" in appjs,
-      "the page watches the session for a receptor save")
+check("/api/adapt/saved" in appjs and "/api/adapt/state" in appjs
+      and "async function adaptPoll" in appjs,
+      "the page watches the session for changes and for a receptor save")
 check("window.open('', '_blank')" in appjs,
-      "the tab is opened inside the click, where a browser allows it")
+      "on a phone the tab is opened inside the click, where a browser allows it")
+
+# --- ADapt in the card, opened by itself -------------------------------------
+import re as _re  # noqa: E402
+frame = _re.search(r"<iframe id=adaptframe[^>]*>", html)
+check(frame is not None, "the Receptor card holds a frame for ADapt")
+sandbox = _re.search(r'sandbox="([^"]*)"', frame.group(0)).group(1).split() if frame else []
+check("allow-scripts" in sandbox and "allow-same-origin" in sandbox,
+      "ADapt runs in the frame, on this page's origin through /adapt/ (%s)" % sandbox)
+check(not any(t.startswith("allow-top-navigation") for t in sandbox),
+      "and the frame cannot navigate this page (%s)" % sandbox)
+check("allow-popups-to-escape-sandbox" in sandbox and "allow-downloads" in sandbox,
+      "its Docs link and its downloads still work")
+check("adaptAuto(d);" in appjs and "function adaptAuto" in appjs,
+      "a structure loaded opens in ADapt by itself")
+check("matchMedia('(max-width: 700px)')" in appjs and "id=adaptopen" in html,
+      "on a phone the button stands in for the frame")
+check("id=adaptfull" in html and "Open full screen" in html and "id=adaptfold" in html,
+      "the frame can be opened full screen, and folded away")
+check("Docking will use <b>this page\\u2019s preparation</b>" in appjs
+      and "Docking will use <b>the receptor as set in ADapt</b>" in appjs,
+      "the card always says which receptor will be docked")
+check("Use this page&rsquo;s preparation instead" in html
+      and "Use ADapt&rsquo;s receptor now" in html,
+      "with a way back, and a way to have ADapt write its receptor at once")
+check("/api/adapt/write" in appjs and "await adaptWriteNow()" in appjs,
+      "submitting with ADapt's receptor has ADapt write it first")
+check("localStorage.setItem('adapt.theme'" in appjs and "adaptFrameTheme();" in appjs,
+      "the frame follows this page's light or dark theme")
 check("ssh -L" not in appjs,
       "nobody is asked to forward a second port: ADapt comes through this page's own")
 check("new URL(r.url, location.href)" in appjs,
@@ -357,6 +386,12 @@ class FakeADapt(http.server.BaseHTTPRequestHandler):
             return self._out(json.dumps({"session": "s1", "folder": SESSION,
                                          "pdbid": "1ycr", "current": "Biomol 1"}).encode(),
                              "application/json")
+        if path == "/api/sessions":
+            return self._out(json.dumps({"sessions": [
+                {"session": "s1", "pdbid": "1ycr", "folder_display": SESSION},
+                {"session": "s9", "pdbid": "4hhb",
+                 "folder_display": "~/elsewhere/4hhb_session"}]}).encode(),
+                "application/json")
         if path == "/api/download":
             return self._out(b"ATOM", "chemical/x-pdbqt",
                              extra=[("Content-Disposition", 'attachment; filename="r.pdbqt"')])
@@ -368,6 +403,32 @@ class FakeADapt(http.server.BaseHTTPRequestHandler):
         seen_posts.append((self.path, self.rfile.read(n), self.headers.get("Content-Type")))
         if "t=TOK" not in query:
             return self._out(b'{"error": "bad or missing token"}', "application/json", 403)
+        if path == "/api/fetch" and "code=9ZZZ" in query:
+            return self._out(b'{"error": "9ZZZ has no PDB format file"}',
+                             "application/json", 400)
+        if path == "/api/save":
+            # As ADapt's Session.save does: a new save folder with the
+            # receptor PDBQT and _rec_H.pdb, recorded in session.json.
+            body = json.loads(seen_posts[-1][1].decode())
+            if body.get("s") != "s1":
+                return self._out(b'{"error": "no such session; load the PDB file again"}',
+                                 "application/json", 400)
+            rec = json.load(open(os.path.join(SESSION, "session.json")))
+            k = len(rec["saves"]) + 1
+            sub = "save_%03d_rec" % k
+            os.makedirs(os.path.join(SESSION, sub))
+            files = []
+            for name, text in (("1ycr_rec.pdbqt", PDBQT), ("1ycr_rec_H.pdb", PDBH)):
+                open(os.path.join(SESSION, sub, name), "w").write(text)
+                files.append({"name": name, "md5": md5(text)})
+            rec["saves"].append({"n": k, "kind": "receptor", "tab": "Biomol 1",
+                                 "at": "2026-10-09T02:00:%02d" % k, "folder": sub,
+                                 "files": files, "mutations": {}, "altlocs": {},
+                                 "charges": {}, "reduce": {"version": "reduce.3.23.130521",
+                                                           "decisions": []}})
+            json.dump(rec, open(os.path.join(SESSION, "session.json"), "w"))
+            return self._out(json.dumps({"save": k, "files": files, "log": []}).encode(),
+                             "application/json")
         return self._out(json.dumps({"session": "s1", "folder": SESSION, "pdbid": "1ycr",
                                      "current": "Biomol 1"}).encode(), "application/json")
 
@@ -466,9 +527,16 @@ check(res.get("url") == "/adapt/?t=TOK&session=s1" and len(seen_posts) == 1,
       "a session ADapt still holds is opened again rather than uploaded anew")
 cif = os.path.join(tmp, "7a3r.cif")
 open(cif, "w").write("data_7A3R\n")
+seen_posts.clear()
 res = proxy_app.adapt_open({"path": cif, "code": "7A3R"})
-check(res.get("url") == "/adapt/?t=TOK&pdb=7A3R",
-      "an mmCIF fetched by its id is opened in ADapt by that id (%s)" % res.get("url"))
+check(res.get("url") == "/adapt/?t=TOK&session=s1" and seen_posts
+      and seen_posts[-1][0].startswith("/adapt/api/fetch?") and "code=7A3R" in seen_posts[-1][0],
+      "an mmCIF fetched by its id is fetched by ADapt itself, so its session is "
+      "known here (%s, %s)" % (res.get("url"), seen_posts[-1:]))
+res = proxy_app.adapt_open({"path": cif, "code": "9ZZZ"})
+check(res.get("url") == "/adapt/?t=TOK&pdb=9ZZZ" and "could not fetch" in res.get("note", ""),
+      "an id ADapt cannot fetch here sends the page to ADapt by the id, with why (%s)"
+      % res)
 res = proxy_app.adapt_open({"path": cif})
 check("PDB files only" in res.get("note", "") and "session=" not in res.get("url", ""),
       "an mmCIF without an id is not uploaded, and the page is told why (%s)" % res)
@@ -517,6 +585,115 @@ check(jobmod.adapt_problems(j) == [], "an unchanged save is fine")
 open(os.path.join(SAVE, "1ycr_rec_H.pdb"), "a").write("REMARK changed\n")
 check(jobmod.adapt_problems(j), "a save changed since the run was set up is refused")
 open(os.path.join(SAVE, "1ycr_rec_H.pdb"), "w").write(PDBH)
+# --- what has been changed in a session, read from its session.json ------------
+# ADapt rewrites session.json after every edit and every save. Reading the file
+# leaves ADapt's running session alone: its api/session hands out the log lines
+# its own page has not shown yet.
+st = adapt.read_state(SESSION)
+check(st["edits"] == 0 and st["tab"] == "" and [x["n"] for x in st["saves"]] == [1],
+      "a session nothing was changed in has no edits, and its receptor save is listed "
+      "(%s)" % {k: st[k] for k in ("edits", "tab", "saves")})
+rec_ = json.load(open(os.path.join(SESSION, "session.json")))
+rec_["opened_tab"] = "Biomol 1"
+rec_["events"] = [
+    {"what": "check", "node": "B", "key": "B", "column": "rec", "state": "unchecked",
+     "tab": "Biomol 1", "at": "2026-10-09T01:00:00"},
+    {"what": "check", "node": "water (55)", "column": "rec", "state": "checked",
+     "tab": "Biomol 1", "at": "2026-10-09T01:01:00"},
+    {"what": "charge", "node": "ZN 401", "charge": 2.0, "tab": "Biomol 1",
+     "at": "2026-10-09T03:00:00"}]
+json.dump(rec_, open(os.path.join(SESSION, "session.json"), "w"))
+st = adapt.read_state(SESSION)
+check(st["edits"] == 3 and st["tab"] == "Biomol 1",
+      "every edit ADapt recorded is counted (%s)" % st["edits"])
+check(st["changes"] == ["chain B out of the receptor", "water (55) in the receptor",
+                        "ZN 401 charge 2.0"],
+      "and said in words (%s)" % st["changes"])
+check(st["saves"][0]["edits_before"] == 2,
+      "a save knows how many edits came before it, by ADapt's own times (%s)" % st["saves"])
+try:
+    adapt.read_state(tmp)
+    check(False, "a folder without session.json has a state")
+except adapt.NoSave:
+    check(True, "a folder without session.json has none")
+
+# Through the server, by the session alone: its folder is known from the open.
+proxy_app._adapt_folders()["s1"] = SESSION
+got_st = proxy_app.adapt_state(session="s1")
+check(got_st.get("found") and got_st.get("edits") == 3 and got_st.get("folder") == SESSION,
+      "the page is told what has been changed in its session (%s)" % got_st.get("why"))
+proxy_app._adapt_folders().clear()
+got_st = proxy_app.adapt_state(session="s1")
+check(got_st.get("found") and got_st.get("folder") == SESSION,
+      "a session opened inside ADapt is found in ADapt's own list (%s)" % got_st.get("why"))
+check(adapt.session_folder(StubRunner.url, "s9")
+      == os.path.expanduser("~/elsewhere/4hhb_session"),
+      "a folder ADapt shows from the home folder is read as that folder")
+check(not proxy_app.adapt_state(session="gone").get("found"),
+      "a session ADapt does not hold is said to be gone")
+code, body, _h = get("/api/adapt/state?session=s1&t=" + proxy_app.token)
+check(code == 200 and json.loads(body).get("edits") == 3,
+      "and asked for over HTTP with this page's token (%s)" % code)
+code, body, _h = get("/api/adapt/state?session=s1")
+check(code == 403, "not without it (%s)" % code)
+
+# --- ADapt writes the receptor when asked, the way its own button does ------------
+seen_posts.clear()
+w1 = proxy_app.adapt_write({"session": "s1", "folder": SESSION})
+check(w1.get("found") and w1.get("written") and w1.get("save") == 3,
+      "ADapt is asked to write the receptor and its save is read back (%s)"
+      % {k: w1.get(k) for k in ("found", "written", "save", "why")})
+saves_posted = [x for x in seen_posts if x[0].startswith("/adapt/api/save?")]
+check(len(saves_posted) == 1
+      and json.loads(saves_posted[0][1].decode()) == {"s": "s1", "kind": "receptor"},
+      "with the call ADapt's receptor PDBQT button makes: api/save, the session, "
+      "kind receptor (%s)" % saves_posted)
+check(w1.get("pdbqt", "").endswith("save_003_rec/1ycr_rec.pdbqt")
+      and w1.get("pdbqt_md5") == md5(PDBQT) and w1.get("pdb_md5") == md5(PDBH),
+      "read back as any save is, with the checksums the run records")
+check(w1.get("edits") == 3, "and with the number of edits it holds")
+st3 = proxy_app.adapt_state(session="s1", folder=SESSION)
+mine3 = [x for x in st3["saves"] if x["n"] == 3]
+check(mine3 and mine3[0].get("written_here") and mine3[0]["edits_before"] == 3,
+      "the save this server asked for is marked, with the exact edits before it (%s)"
+      % mine3)
+w2 = proxy_app.adapt_write({"session": "s1", "folder": SESSION})
+check(w2.get("found") and not w2.get("written") and w2.get("save") == 3
+      and len([x for x in seen_posts if x[0].startswith("/adapt/api/save?")]) == 1,
+      "nothing changed since, so the same save is used rather than another written")
+rec_ = json.load(open(os.path.join(SESSION, "session.json")))
+rec_["events"].append({"what": "altloc", "node": "SER 5", "altloc": "B",
+                       "tab": "Biomol 1", "at": "2026-10-09T04:00:00"})
+json.dump(rec_, open(os.path.join(SESSION, "session.json"), "w"))
+w3 = proxy_app.adapt_write({"session": "s1", "folder": SESSION})
+check(w3.get("found") and w3.get("written") and w3.get("save") == 4,
+      "a change since the last save is written anew (%s)" % w3.get("save"))
+j3 = jobmod.default(adapt={"folder": w3["folder"], "save": w3["save"], "session": "s1"})
+check(jobmod.take_adapt(j3) == [] and j3["adapt"]["save"] == 4
+      and j3["adapt"]["pdbqt_md5"] == md5(PDBQT) and j3["receptor"] == w3["pdb"],
+      "and a run set up from it records that save, as job.json's adapt key")
+check(not proxy_app.adapt_write({"session": "nope"}).get("found"),
+      "a session whose folder is not known is not written")
+rec_ = json.load(open(os.path.join(SESSION, "session.json")))
+rec_["events"].append({"what": "tab", "name": "Biomol 2", "tab": "Biomol 2",
+                       "at": "2026-10-09T05:00:00"})
+json.dump(rec_, open(os.path.join(SESSION, "session.json"), "w"))
+bad_w = proxy_app.adapt_write({"session": "nope", "folder": SESSION})
+check(not bad_w.get("found") and "no such session" in bad_w.get("why", ""),
+      "a session ADapt no longer holds is refused with ADapt's reason (%s)" % bad_w)
+check(not proxy_app.adapt_write({}).get("found"), "no session, nothing written")
+code, body, _h = get("/api/adapt/write?t=" + proxy_app.token,
+                     data=json.dumps({"session": "s1", "folder": SESSION}).encode(),
+                     headers={"Content-Type": "application/json"})
+check(code == 200 and json.loads(body).get("save") == 5,
+      "and asked for over HTTP (%s %r)" % (code, body[:120]))
+
+# --- ADapt may be shown in a frame: nothing it sends forbids it ---------------------
+code, body, h = get("/adapt/?t=TOK")
+check(not h.get("X-Frame-Options") and "frame-ancestors" not in (h.get(
+      "Content-Security-Policy") or ""),
+      "ADapt's page through this server carries nothing that forbids a frame")
+
 httpd.shutdown()
 fake.shutdown()
 for k in ("http_proxy", "HTTP_PROXY"):

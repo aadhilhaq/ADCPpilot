@@ -326,6 +326,111 @@ def read_save(folder, save=None):
     }
 
 
+# --- what has been changed in a session, and writing its receptor -------------
+
+def _describe(ev):
+    """One edit from session.json's events, in a few plain words."""
+    what = ev.get("what")
+    node = str(ev.get("node") or ev.get("key") or "an item")
+    if len(node) <= 2 and node.isalnum():
+        # ADapt names a chain's row by its letter alone.
+        node = "chain " + node
+    if what == "check":
+        col = "receptor" if ev.get("column") == "rec" else "ligand"
+        state = ev.get("state")
+        verb = ("in the " if state == "checked" else
+                "partly in the " if state == "partial" else "out of the ")
+        return "%s %s%s" % (node, verb, col)
+    if what == "tab":
+        return "assembly %s" % (ev.get("name") or ev.get("tab") or "")
+    if what == "altloc":
+        return "%s at alternate location %s" % (node, ev.get("altloc"))
+    if what == "charge":
+        return "%s charge %s" % (node, ev.get("charge"))
+    if what == "sidechain":
+        return "%s side chain %s" % (
+            node, "completed" if ev.get("action") == "complete" else "as it is")
+    if what == "mutate":
+        return "%s mutated to %s" % (node, str(ev.get("choice") or "").replace(
+            "Base Res:", "").strip())
+    return "%s %s" % (what or "edit", node)
+
+
+def read_state(folder):
+    """What has been done in an ADapt session, from the session.json ADapt
+    rewrites after every edit and every save.
+
+    ADapt records each edit in order (a box ticked or unticked, another
+    assembly, an alternate location, a charge, a side chain, a mutation), so
+    the number of edits says whether anything has been changed since the
+    session was opened or since a save. Looking only at the file means this
+    never touches the running session: ADapt's own api/session hands out the
+    log lines its page has not shown yet, and asking it would take them from
+    the page.
+
+    Returns {folder, pdbid, input, tab, edits, changes, saves}; `changes` is
+    the last few edits in words, `saves` each receptor save with the number
+    of edits made before it. Raises NoSave when there is no session.json.
+    """
+    folder = os.path.abspath(os.path.expanduser(str(folder or "").strip()))
+    sj = os.path.join(folder, "session.json")
+    try:
+        rec = json.load(open(sj))
+    except OSError:
+        raise NoSave("%s holds no session.json, so it is not an ADapt session "
+                     "folder" % folder)
+    except ValueError:
+        # Caught between ADapt's write and its rename: the next look reads it.
+        raise NoSave("%s could not be read" % sj)
+    events = [e for e in rec.get("events") or [] if isinstance(e, dict)]
+    tab = rec.get("opened_tab") or ""
+    for e in events:
+        if e.get("what") == "tab" and e.get("name"):
+            tab = e["name"]
+    saves = []
+    for s in rec.get("saves") or []:
+        if not isinstance(s, dict) or s.get("kind") != "receptor" \
+                or not s.get("files"):
+            continue
+        at = str(s.get("at") or "")
+        # Seconds are all ADapt records, so an edit in the same second as a
+        # save counts as made before it.
+        before = sum(1 for e in events if str(e.get("at") or "") <= at)
+        saves.append({"n": int(s.get("n", 0)), "at": at, "tab": s.get("tab") or "",
+                      "edits_before": before})
+    return {"folder": folder, "pdbid": rec.get("pdbid") or "",
+            "input": (rec.get("input") or {}).get("name") or "",
+            "tab": tab, "edits": len(events),
+            "changes": [_describe(e) for e in events[-6:]],
+            "saves": saves}
+
+
+def session_folder(url, session):
+    """The folder of a session ADapt holds, from its list of sessions (its
+    api/sessions, which changes nothing). '' when it does not hold it."""
+    try:
+        got = call(url, "api/sessions", timeout=30)
+    except RuntimeError:
+        return ""
+    for s in got.get("sessions") or []:
+        if s.get("session") == session:
+            return os.path.expanduser(s.get("folder_display") or "")
+    return ""
+
+
+def write_receptor(url, session, timeout=600):
+    """Ask a running ADapt to write the receptor of a session, as its own
+    "receptor PDBQT" button does: POST api/save with the session and kind
+    "receptor". ADapt writes the PDBQT and the _rec_H.pdb into a new save
+    folder and records the save in session.json. Returns its answer, whose
+    "save" is the save's number; raises RuntimeError with ADapt's reason."""
+    body = json.dumps({"s": session, "kind": "receptor"}).encode()
+    got = call(url, "api/save", data=body, timeout=timeout)
+    if not got.get("save"):
+        raise RuntimeError("ADapt wrote no receptor")
+    return got
+
+
 def wanted_port():
     """The port asked for in the environment, or 0 to let the system choose.
 

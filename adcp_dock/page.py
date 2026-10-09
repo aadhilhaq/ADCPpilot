@@ -272,6 +272,25 @@ textarea{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;min-height:76
    greyed out while ADapt's is used, as is the pH while reduce is chosen. */
 .prepsteps .chk.off{opacity:.45}
 #adaptuse .bar{margin-top:8px}
+/* ADapt in the Receptor card: the line saying which receptor is docked, its
+   buttons, and the frame, as tall as ADapt's tree and view need. */
+#adaptsays b{font-weight:600}
+#adaptacts{justify-content:flex-start;flex-wrap:wrap;gap:8px}
+#adaptacts:not(:has(button:not(.hide))){display:none}
+.adaptbar{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;
+  margin-top:10px}
+.adaptlab{margin:0;font-weight:600;font-size:12.5px;color:var(--fg)}
+.adaptbar .why{flex:1 1 200px;margin:0}
+#adaptfull{font-size:11.5px;padding:3px 10px}
+#adaptfull.hide{display:none}
+#adaptframewrap{margin-top:8px;border:1px solid var(--line);border-radius:10px;
+  overflow:hidden;background:var(--card)}
+#adaptframe{display:block;width:100%;height:min(78vh,760px);min-height:520px;
+  border:0;background:var(--card)}
+/* Folded, the frame keeps its size out of sight, so ADapt's 3D view is not
+   drawn into a box of no size and need not be drawn again. */
+#adaptframewrap.folded{height:0;border:0;margin:0;visibility:hidden}
+#adaptsec.adapton{border-color:var(--accent)}
 /* A button in a row is laid out by .row button, which outranks .hide. */
 .row button.hide{display:none}
 #adaptwhat b{font-weight:600}
@@ -977,24 +996,53 @@ __STALE__
   <div id=targetnote class=why style="margin-top:9px"></div>
   <!-- ADapt, a separate tool, shown only when the server can find it. It
        shows what a structure file holds and prepares the receptor the way
-       AGFR does; a receptor saved there is read back and docked as it is. -->
-  <div id=adaptrow class="row hide" style="margin-top:10px;align-items:center">
-    <div style="flex:0 0 auto"><button class=ghost id=adaptopen type=button>Open in ADapt</button>
-      <button class="ghost sm hide" id=adaptcheck type=button>Read the save now</button></div>
-    <div class=why id=adaptnote style="flex:1 1 280px">ADapt, a separate tool by
-      Michel Sanner, opens the receptor above and lets you choose what stays in
-      it: the assembly, which hetero groups stay, metal charges, alternate
-      locations and modified residues. Save the receptor there and it is read
-      back here.</div>
+       AGFR does. Once a structure is loaded it opens here on it by itself,
+       in a frame through this server's /adapt/, and the line above the
+       frame always says which receptor will be docked: this page's own
+       preparation until anything is changed in ADapt, then the receptor as
+       set there, which ADapt writes when the run is submitted. -->
+  <div id=adaptsec class="prepgroup adaptsec hide">
+    <div class=grouphead>ADapt <span>what the structure holds, and what stays in the receptor</span></div>
+    <div class=why id=adaptsays style="margin-top:6px">ADapt, a separate tool by
+      Michel Sanner, opens here on the structure once one is loaded above. It
+      shows each assembly, the hetero groups, metals, alternate locations and
+      modified residues, and lets you choose what stays in the receptor.</div>
+    <div class=bar id=adaptacts style="margin-top:8px">
+      <button class="ghost sm hide" id=adaptnow type=button>Use ADapt&rsquo;s receptor now</button>
+      <button class="ghost sm hide" id=adaptdrop type=button>Use this page&rsquo;s preparation instead</button>
+    </div>
+    <!-- The frame: tall enough for ADapt's tree beside its 3D view. It
+         may not navigate this page (no allow-top-navigation). -->
+    <div id=adaptpanel class=hide>
+      <div class=adaptbar>
+        <label for=adaptframe class=adaptlab>ADapt on <span id=adaptwhat2>this structure</span></label>
+        <span class=why id=adaptwait></span>
+        <a class="ghost sm btnlink hide" id=adaptfull target=_blank rel=noopener
+           href="#">Open full screen</a>
+        <button class="ghost sm" id=adaptfold type=button aria-expanded=true
+                aria-controls=adaptframewrap>Hide</button>
+      </div>
+      <div id=adaptframewrap class=hide>
+        <iframe id=adaptframe title="ADapt" loading=eager
+          sandbox="allow-scripts allow-same-origin allow-forms allow-downloads allow-popups allow-popups-to-escape-sandbox"
+          referrerpolicy=same-origin></iframe>
+      </div>
+    </div>
+    <!-- On a phone the frame is too narrow for ADapt's tree and view, so a
+         button opens it in a tab of its own on the same session. -->
+    <div id=adaptrow class="row hide" style="margin-top:10px;align-items:center">
+      <div style="flex:0 0 auto"><button class=ghost id=adaptopen type=button>Open in ADapt</button></div>
+      <div class=why id=adaptnote style="flex:1 1 220px">Opens ADapt in a tab of its
+        own, on the structure above.</div>
+    </div>
   </div>
-  <!-- The receptor ADapt saved, once it is read back: where it came from,
-       what was chosen, and the way back to the structure file. -->
+  <!-- The receptor ADapt wrote, once it is read back: where it came from and
+       what was chosen. -->
   <div id=adaptuse class="prepgroup hide">
     <div class=grouphead>Receptor from ADapt</div>
     <div class=why id=adaptwhat style="margin-top:6px"></div>
     <div class=bar style="margin-top:8px">
       <button class="ghost sm" id=adaptread type=button>Read the newest save again</button>
-      <button class="ghost sm" id=adaptdrop type=button>Use the structure file instead</button>
     </div>
   </div>
 </div>

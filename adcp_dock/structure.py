@@ -10,6 +10,7 @@ without one it does not need.
 import gzip
 import math
 import os
+import re
 
 AA3 = {
     "ALA": "A", "ARG": "R", "ASN": "N", "ASP": "D", "CYS": "C", "GLN": "Q",
@@ -24,7 +25,7 @@ WATER = {"HOH", "WAT", "DOD", "H2O"}
 
 class Atom:
     __slots__ = ("serial", "name", "resname", "chain", "resnum", "icode",
-                 "x", "y", "z", "element", "hetatm")
+                 "x", "y", "z", "element", "hetatm", "altloc")
 
     def __init__(self, **kw):
         for k in self.__slots__:
@@ -93,7 +94,16 @@ def _read_pdb(path, model):
             rec = L[:6]
             if rec == "MODEL ":
                 seen_model = True
-                skipping = int(L[10:14]) != model
+                # The number belongs in columns 11 to 14, and some writers
+                # put it anywhere after the record name.
+                try:
+                    number = int(L[10:14])
+                except ValueError:
+                    try:
+                        number = int((L[6:].split() or ["0"])[0])
+                    except ValueError:
+                        number = model
+                skipping = number != model
                 continue
             if rec == "ENDMDL" and seen_model:
                 skipping = True
@@ -101,15 +111,61 @@ def _read_pdb(path, model):
             if skipping or rec not in ("ATOM  ", "HETATM"):
                 continue
             try:
-                out.append(Atom(serial=int(L[6:11]), name=L[12:16].strip(),
-                                resname=L[17:20].strip(), chain=L[21].strip() or "A",
-                                resnum=int(L[22:26]), icode=L[26].strip(),
-                                x=float(L[30:38]), y=float(L[38:46]),
-                                z=float(L[46:54]),
-                                element=L[76:78].strip(), hetatm=rec == "HETATM"))
+                resnum = _number(L[22:26])
+                x, y, z = _coords(L)
             except ValueError:
                 continue
+            out.append(Atom(serial=_serial(L[6:11]), name=L[12:16].strip(),
+                            resname=L[17:20].strip(), chain=L[21].strip() or "A",
+                            resnum=resnum, icode=L[26:27].strip(),
+                            altloc=L[16:17].strip(), x=x, y=y, z=z,
+                            element=L[76:78].strip(), hetatm=rec == "HETATM"))
     return out
+
+
+def _serial(text):
+    """An atom serial, which nothing here relies on, so it never costs the
+    atom. Past 99,999 atoms OpenMM, VMD and others write it in hexadecimal
+    ("186a0"), and some write stars. An atom whose serial could not be read
+    used to be dropped, which left a large receptor's last atoms out of
+    everything read from it, its surface included."""
+    s = text.strip()
+    try:
+        return int(s)
+    except ValueError:
+        pass
+    try:
+        return int(s, 16)
+    except ValueError:
+        return 0
+
+
+def _number(text):
+    """A residue number: decimal, or hexadecimal past 9,999 residues, which
+    is how OpenMM writes one it cannot keep."""
+    s = text.strip()
+    try:
+        return int(s)
+    except ValueError:
+        return int(s, 16)
+
+
+_FLOAT = re.compile(r"-?\d+\.\d+")
+
+
+def _coords(L):
+    """x, y and z from their fixed columns, which hold three numbers even
+    when they run together ("-100.123-200.456-300.789"). A line whose writer
+    let a wide number push the columns along is read by the numbers in it
+    instead, rather than lost."""
+    try:
+        return float(L[30:38]), float(L[38:46]), float(L[46:54])
+    except ValueError:
+        pass
+    got = _FLOAT.findall(L[30:66])
+    if len(got) < 3:
+        raise ValueError("no coordinates in %r" % L[30:54])
+    return float(got[0]), float(got[1]), float(got[2])
 
 
 def _read_cif(path):
@@ -159,6 +215,7 @@ def _read_cif(path):
                 chain=(g(r, "auth_asym_id", "label_asym_id", default="A") or "A"),
                 resnum=int(float(g(r, "auth_seq_id", "label_seq_id", default="0") or 0)),
                 icode=(g(r, "pdbx_PDB_ins_code", default="") or "").strip(),
+                altloc=(g(r, "label_alt_id", default="") or "").strip(),
                 x=float(g(r, "Cartn_x")), y=float(g(r, "Cartn_y")),
                 z=float(g(r, "Cartn_z")),
                 element=g(r, "type_symbol", default=""),
@@ -445,6 +502,31 @@ def near_points(atoms, points, cutoff=CONTACT, chains_keep=None):
     return _near(atoms, points, cutoff, chains_keep)
 
 
+def one_conformer(atoms):
+    """The atoms with one alternate location per residue: those without one,
+    and those of the first location the residue lists, normally A, which is
+    the one 3Dmol draws. The site view is drawn from these and the surface
+    is computed from them, so the two agree."""
+    first = {}
+    for a in atoms:
+        alt = (getattr(a, "altloc", "") or "").strip()
+        if not alt:
+            yield a
+            continue
+        k = (a.chain, a.resnum, a.icode or "")
+        if first.setdefault(k, alt) == alt:
+            yield a
+
+
+def _fixed(n, width):
+    """A number that fits its columns: decimal while it can, then
+    hexadecimal, as OpenMM writes them, so a number past the columns' reach
+    never pushes the coordinates along."""
+    if -(10 ** (width - 1)) < n < 10 ** width:
+        return "%*d" % (width, n)
+    return "%*x" % (width, n % (16 ** width))
+
+
 def write_pdb(atoms, path, chains_keep=None):
     """Back out as PDB, which is what every tool downstream reads."""
     keep = set(chains_keep or [])
@@ -457,11 +539,12 @@ def write_pdb(atoms, path, chains_keep=None):
             if last is not None and a.chain != last:
                 fh.write("TER\n")
             n += 1
-            fh.write("%-6s%5d %-4s %3s %1s%4d%1s   %8.3f%8.3f%8.3f%6.2f%6.2f"
+            fh.write("%-6s%5s %-4s %3s %1s%4s%1s   %8.3f%8.3f%8.3f%6.2f%6.2f"
                      "          %2s\n"
-                     % ("HETATM" if a.hetatm else "ATOM", n,
+                     % ("HETATM" if a.hetatm else "ATOM", _fixed(n, 5),
                         (" " + a.name) if len(a.name) < 4 else a.name,
-                        a.resname[:3], a.chain[:1], a.resnum, a.icode or " ",
+                        a.resname[:3], a.chain[:1], _fixed(a.resnum, 4),
+                        a.icode or " ",
                         a.x, a.y, a.z, 1.0, 0.0, (a.element or "")[:2]))
             last = a.chain
         fh.write("TER\nEND\n")

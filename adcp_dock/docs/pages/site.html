@@ -153,7 +153,13 @@ built around show together, with the box over both.</figcaption>
 the surface a probe of 1.5 &Aring;, a water molecule, traces as it rolls over the
 atoms. A groove shows as a groove, which a cartoon does not show. Waters are left
 out, and hetero groups too unless <b>Keep heteroatoms</b> is ticked, so the
-surface is the receptor the run will dock into.</p>
+surface is the receptor the run will dock into. A receptor ADapt wrote keeps
+whatever ADapt kept in it.</p>
+<p>Every separate piece of the receptor has its own surface: two chains that do
+not touch, a domain whose linker is missing from the file, a metal ion standing
+apart. Pockets sealed inside the protein, which no probe from outside can reach,
+are not drawn, so the see-through surface in the pose viewer shows the outside
+of the receptor and nothing inside it.</p>
 <p>It is computed by MSMS, Michel Sanner's program, which ships with ADFRsuite.
 Each atom is given the radius MSMS's own converter, <code>pdb_to_xyzr</code>,
 gives it, and the surface is finer for a small receptor than for a large one.

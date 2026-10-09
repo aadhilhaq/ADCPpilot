@@ -19,6 +19,7 @@ import re
 import shutil
 import stat
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -453,9 +454,12 @@ class App:
         With a receptor (body["path"]), ADapt is handed the file through its
         own api/upload and the page is opened on that session (session= in
         the URL, as its README's "Embedding ADapt" describes). ADapt reads
-        PDB files only; for an mmCIF fetched by its id, ADapt fetches the
-        entry itself (pdb=). The answer names the session and its folder,
-        which the page then watches for a receptor save.
+        PDB files only; for an mmCIF fetched by its id, ADapt is asked to
+        fetch the entry itself (its api/fetch), which opens a session the
+        same way, so this server knows the session whichever way it came.
+        Only if that fails is the page sent to ADapt with pdb= instead. The
+        answer names the session and its folder, which the page then watches
+        for changes and saves.
         """
         from . import adapt as adaptmod
         body = body or {}
@@ -500,15 +504,16 @@ class App:
                            tab=got.get("current") or "",
                            pdbid=got.get("pdbid") or "")
             elif fetch.looks_like_code(code):
-                out["pdb"] = code
+                session = self._adapt_fetch(url, code, out)
             else:
                 out["note"] = ("ADapt reads PDB files only, and this receptor "
                                "is %s; load a PDB file in ADapt with Open PDB "
                                "or Fetch." % os.path.basename(path))
         elif fetch.looks_like_code(code):
-            out["pdb"] = code
+            session = self._adapt_fetch(url, code, out)
         if session:
             self._adapt_last = {"session": session, "folder": out["folder"]}
+            self._adapt_folders()[session] = out["folder"]
         # ADapt listens on a port of its own on this machine, which a browser
         # elsewhere cannot reach through the one port the launcher or an ssh
         # tunnel forwards. So the page is sent to /adapt/ on THIS server,
@@ -516,6 +521,130 @@ class App:
         # token travels with it and ADapt checks it, as it always did.
         out["url"] = adaptmod.page_url(url, session=session, pdb=out.get("pdb"))
         return out
+
+    def _adapt_fetch(self, url, code, out):
+        """An entry opened in ADapt by its id, through ADapt's own api/fetch:
+        the session it made, recorded in `out`, or None, with the page sent
+        to ADapt's pdb= instead so ADapt says itself what went wrong."""
+        from . import adapt as adaptmod
+        try:
+            got = adaptmod.call(url, "api/fetch", {"code": code.upper()}, data=b"")
+        except RuntimeError as exc:
+            out["pdb"] = code
+            out["note"] = "ADapt could not fetch %s here (%s)" % (code, exc)
+            return None
+        out.update(session=got.get("session"), folder=got.get("folder") or "",
+                   tab=got.get("current") or "", pdbid=got.get("pdbid") or "")
+        return got.get("session")
+
+    def _adapt_folders(self):
+        """Each session opened from here, with its folder."""
+        if not hasattr(self, "_adapt_folder_map"):
+            self._adapt_folder_map = {}
+        return self._adapt_folder_map
+
+    def _adapt_folder(self, session, folder=""):
+        """A session's folder: as given, as opened from here, or as ADapt
+        lists it (a structure opened inside ADapt itself)."""
+        from . import adapt as adaptmod
+        folder = str(folder or "").strip()
+        session = str(session or "").strip()
+        if folder or not session:
+            return folder
+        folder = self._adapt_folders().get(session, "")
+        if folder:
+            return folder
+        runner = getattr(self, "_adapt_runner", None)
+        if runner is not None and runner.running():
+            folder = adaptmod.session_folder(runner.url, session)
+            if folder:
+                self._adapt_folders()[session] = folder
+        return folder
+
+    def adapt_state(self, session="", folder=""):
+        """What has been changed in an ADapt session so far, read from the
+        session.json ADapt rewrites after every edit (adapt.read_state).
+
+        The page asks every few seconds while ADapt is shown, and once the
+        number of edits grows it says that docking will use the receptor as
+        set in ADapt. The saves this server asked for are marked, with the
+        exact number of edits made before each, so the page can tell whether
+        the receptor written last is still the receptor as set."""
+        from . import adapt as adaptmod
+        folder = self._adapt_folder(session, folder)
+        if not folder:
+            return {"found": False,
+                    "why": "ADapt does not hold that session any more"}
+        try:
+            got = adaptmod.read_state(folder)
+        except adaptmod.NoSave as exc:
+            return {"found": False, "why": str(exc), "folder": folder}
+        mine = getattr(self, "_adapt_written", {})
+        for sv in got["saves"]:
+            k = (got["folder"], sv["n"])
+            if k in mine:
+                sv["edits_before"] = mine[k]
+                sv["written_here"] = True
+        got["found"] = True
+        got["session"] = str(session or "")
+        return got
+
+    def adapt_write(self, body=None):
+        """Ask ADapt to write the receptor of a session as it is set there,
+        the way its own receptor PDBQT button does (adapt.write_receptor),
+        and read the save back as the page reads one it watched for
+        (adapt.read_save): the same PDBQT, _rec_H.pdb and checksums that the
+        run then records under `adapt` in job.json.
+
+        A receptor this server wrote is used again rather than written anew
+        when nothing has been changed in the session since."""
+        from . import adapt as adaptmod
+        body = body or {}
+        session = str(body.get("session") or "").strip()
+        if not session:
+            return {"found": False, "why": "no ADapt session is open on this page"}
+        runner = getattr(self, "_adapt_runner", None)
+        if runner is None or not runner.running():
+            return {"found": False,
+                    "why": "ADapt is not running; open the receptor in ADapt again"}
+        folder = self._adapt_folder(session, body.get("folder"))
+        if not folder:
+            return {"found": False,
+                    "why": "ADapt does not hold that session any more; open the "
+                           "receptor in ADapt again"}
+        with _ADAPT_WRITE_LOCK:
+            try:
+                state = adaptmod.read_state(folder)
+            except adaptmod.NoSave as exc:
+                return {"found": False, "why": str(exc), "folder": folder}
+            if not hasattr(self, "_adapt_written"):
+                self._adapt_written = {}
+            reuse = None
+            for sv in reversed(state["saves"]):
+                if self._adapt_written.get((state["folder"], sv["n"])) \
+                        == state["edits"]:
+                    reuse = sv["n"]
+                    break
+            if reuse is None:
+                t0 = time.time()
+                try:
+                    done = adaptmod.write_receptor(runner.url, session)
+                except RuntimeError as exc:
+                    return {"found": False, "folder": folder,
+                            "why": "ADapt could not write the receptor: %s" % exc}
+                reuse = int(done["save"])
+                self._adapt_written[(state["folder"], reuse)] = state["edits"]
+                wrote = round(time.time() - t0, 1)
+            else:
+                wrote = None
+            try:
+                got = adaptmod.read_save(folder, reuse)
+            except adaptmod.NoSave as exc:
+                return {"found": False, "why": str(exc), "folder": folder}
+        got.update(found=True, session=session, edits=state["edits"],
+                   written=wrote is not None, write_seconds=wrote)
+        self._adapt_last = {"session": session, "folder": got["folder"]}
+        return got
 
     def adapt_saved(self, session="", folder="", save=None):
         """The receptor ADapt saved, read back from the session folder it
@@ -555,10 +684,16 @@ class App:
 
         For the site view, the receptor file as the run will keep it: the
         chains asked for, without waters, and without hetero groups unless
-        they are kept. For a run, its prepared receptor, or one pose's
+        they are kept. A receptor ADapt wrote is kept as ADapt wrote it, so
+        the page asks for its hetero groups and waters too (het=1, water=1).
+        For a run, its prepared receptor as it was docked, or one pose's
         peptide. The answer is cached in the runs folder by what it was
         computed from. Where MSMS cannot give one, the answer says why and
         the viewer draws its own.
+
+        Every separate piece of the receptor has its outer surface: two
+        chains that do not touch, or a domain whose linker is missing, are
+        each surfaced (surface.compute).
         """
         from . import surface as surf
         exe = toolmod.discover(roots=self.tools_roots).adfr_program("msms")
@@ -582,7 +717,9 @@ class App:
                     fh.write(text)
                     tmp = fh.name
                 try:
-                    atoms = structure.read(tmp)
+                    # The receptor as it was docked: a water ADapt was told
+                    # to keep is part of it.
+                    atoms = structure.read(tmp, keep_water=True)
                 finally:
                     os.unlink(tmp)
             else:
@@ -592,11 +729,12 @@ class App:
                     return {"source": "fallback", "why": "no such structure"}
                 chains = [c for c in one("chains").split(",") if c]
                 het = one("het") in ("1", "true", "yes")
+                water = one("water") in ("1", "true", "yes")
                 # Modified residues the preparation reads as the residue they
                 # stand in for stay, as they stay in the receptor.
                 from ._vendor import prepare as _prep
                 part = set(structure.AA3) | set(_prep.STANDIN)
-                atoms = [a for a in structure.read(path)
+                atoms = [a for a in structure.read(path, keep_water=water)
                          if (not chains or a.chain in chains)
                          and (het or not a.hetatm or a.resname in part)]
             got = surf.cached(atoms, exe, os.path.join(self.runs, "_surfaces"))
@@ -1866,6 +2004,9 @@ def _tail(logdir, n=40):
 
 
 _ADAPT_LOCK = threading.Lock()
+#: One receptor written by ADapt at a time: a second press, or a submission
+#: while the first is still being written, waits for it and reuses it.
+_ADAPT_WRITE_LOCK = threading.Lock()
 
 #: How long one request to ADapt may take. Reading a large structure runs
 #: AGFR's own processing and is not quick.
@@ -2112,7 +2253,9 @@ class Handler(BaseHTTPRequestHandler):
                     or not structure.is_structure(path)):
                 return self._send("not a structure file", 404, "text/plain")
             try:
-                atoms = structure.read(path)
+                # One conformer per residue, the one the surface is
+                # computed from (structure.one_conformer).
+                atoms = list(structure.one_conformer(structure.read(path)))
             except Exception as exc:                            # noqa: BLE001
                 return self._send("could not read it: %s" % exc, 400,
                                   "text/plain")
@@ -2170,6 +2313,9 @@ class Handler(BaseHTTPRequestHandler):
                                             q.get("peptide", [""])[0]))
         if u.path == "/api/surface":
             return self._send(app.surface(q))
+        if u.path == "/api/adapt/state":
+            return self._send(app.adapt_state((q.get("session") or [""])[0],
+                                              (q.get("folder") or [""])[0]))
         if u.path == "/api/adapt/saved":
             one = lambda k: (q.get(k) or [""])[0]            # noqa: E731
             return self._send(app.adapt_saved(one("session"), one("folder"),
@@ -2268,6 +2414,8 @@ class Handler(BaseHTTPRequestHandler):
                                               body.get("engine")))
         if u.path == "/api/adapt":
             return self._send(app.adapt_open(body))
+        if u.path == "/api/adapt/write":
+            return self._send(app.adapt_write(body))
         return self._send({"error": "no such endpoint"}, 404)
 
 

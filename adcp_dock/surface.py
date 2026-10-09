@@ -18,6 +18,16 @@ structure with hydrogens and the same structure without them give the same
 surface. Where the table cannot be read, an element table of this module's
 own stands in, and the answer says so.
 
+MSMS triangulates one connected surface, the outer surface of whichever
+piece holds the atom it starts from. A receptor in separate pieces, two
+chains that do not touch or a domain whose linker is missing, would show a
+surface on that one piece only. So the atoms are first grouped into pieces
+that touch, MSMS is run on each piece, and the outer surfaces are drawn
+together. MSMS's own -all_components finds every piece too, but it also
+triangulates every cavity sealed inside the protein, which the see-through
+surface would show as bubbles (45 of them in the antibody 1IGT); it took four
+times as long, and on GroEL with GroES it crashed.
+
 The answer is the triangulation itself: vertices, normals and triangles,
 packed as little-endian binary and base64 encoded, so a surface of fifty
 thousand vertices costs the page about a megabyte rather than several. Each
@@ -41,6 +51,8 @@ import tempfile
 import threading
 import time
 
+from .structure import one_conformer
+
 #: The probe, in Angstrom: a water molecule, and MSMS's own default.
 PROBE = 1.5
 
@@ -58,8 +70,9 @@ TIMEOUT = 30
 MEMORY = 1 << 30
 
 #: Each answer is cached by what it was computed from, so a structure is
-#: triangulated once whoever asks for it next.
-CACHE_VERSION = 3
+#: triangulated once whoever asks for it next. 4: every separate piece has
+#: its surface, where 3 and before had only one; one conformer per atom.
+CACHE_VERSION = 4
 
 #: One MSMS at a time, so two people opening large structures at once do
 #: not both hold their memory on the same login node.
@@ -183,23 +196,129 @@ def _is_h(a):
     return n[:1] in ("H", "D")
 
 
-def spheres(atoms, table=None):
-    """(xyzr text, residue keys, index of each sphere's residue) for the
-    heavy atoms. Hydrogens are left out, as pdb_to_xyzr leaves them out by
-    default: the united atom radii already count them."""
-    lines, keys, which, seen = [], [], [], {}
-    for a in atoms:
+def sphere_rows(atoms, table=None):
+    """([(x, y, z, r)], residue keys, index of each sphere's residue) for the
+    heavy atoms, one conformer each. Hydrogens are left out, as pdb_to_xyzr
+    leaves them out by default: the united atom radii already count them."""
+    rows, keys, which, seen = [], [], [], {}
+    for a in one_conformer(atoms):
         if _is_h(a):
             continue
         r = radius_of(a.resname, a.name, a.element, table)
-        lines.append("%.3f %.3f %.3f %.2f" % (a.x, a.y, a.z, r))
+        rows.append((float(a.x), float(a.y), float(a.z), r))
         k = "%s:%s%s" % ((a.chain or "").strip() or "_", a.resnum,
                          (a.icode or "").strip())
         if k not in seen:
             seen[k] = len(keys)
             keys.append(k)
         which.append(seen[k])
-    return "\n".join(lines) + "\n", keys, which
+    return rows, keys, which
+
+
+def xyzr_text(rows):
+    """MSMS's input: one sphere per line."""
+    return "".join("%.3f %.3f %.3f %.2f\n" % row for row in rows)
+
+
+def spheres(atoms, table=None):
+    """(xyzr text, residue keys, index of each sphere's residue) for the
+    heavy atoms (sphere_rows, as MSMS reads them)."""
+    rows, keys, which = sphere_rows(atoms, table)
+    return xyzr_text(rows), keys, which
+
+
+# --- pieces ------------------------------------------------------------------
+
+#: The neighbouring cells of a grid, each pair once: the cell itself is
+#: handled apart.
+_HALF = [(dx, dy, dz) for dx in (-1, 0, 1) for dy in (-1, 0, 1)
+         for dz in (-1, 0, 1) if (dx, dy, dz) > (0, 0, 0)]
+
+
+def pieces(rows, probe=PROBE):
+    """The spheres grouped into pieces whose surfaces join: [[index]],
+    largest first.
+
+    Two atoms belong to one piece when the probe cannot pass between them,
+    that is when they are closer than their two radii and the probe's
+    diameter. A piece's outer surface is then one connected surface, which
+    is what MSMS triangulates when it is given that piece.
+
+    Done without comparing every atom with every other. Neighbours in the
+    file are joined first, because bonded atoms follow each other, which
+    leaves a few groups per chain. Then on a grid whose cells are as wide as
+    the longest reach, only groups in the same or neighbouring cells that are
+    not already one piece are compared, atom by atom, until one pair is close
+    enough. On a compute node the 10,434 atoms of the antibody 1IGT took
+    0.03 s and the 58,870 of GroEL with GroES 0.2 s.
+    """
+    n = len(rows)
+    if not n:
+        return []
+    parent = list(range(n))
+
+    def find(i):
+        root = i
+        while parent[root] != root:
+            root = parent[root]
+        while parent[i] != root:
+            parent[i], i = root, parent[i]
+        return root
+
+    two_p = 2.0 * probe
+    for i in range(1, n):
+        x0, y0, z0, r0 = rows[i - 1]
+        x1, y1, z1, r1 = rows[i]
+        lim = r0 + r1 + two_p
+        if (x0 - x1) ** 2 + (y0 - y1) ** 2 + (z0 - z1) ** 2 < lim * lim:
+            a, b = find(i - 1), find(i)
+            if a != b:
+                parent[a] = b
+
+    def touch(la, lb):
+        for i in la:
+            xi, yi, zi, ri = rows[i]
+            ri += two_p
+            for j in lb:
+                xj, yj, zj, rj = rows[j]
+                lim = ri + rj
+                dx = xi - xj
+                if dx >= lim or -dx >= lim:
+                    continue
+                if dx * dx + (yi - yj) ** 2 + (zi - zj) ** 2 < lim * lim:
+                    return True
+        return False
+
+    cell = 2.0 * max(r for _x, _y, _z, r in rows) + two_p
+    grid = {}
+    for i, (x, y, z, _r) in enumerate(rows):
+        grid.setdefault((int(x // cell), int(y // cell), int(z // cell)),
+                        []).append(i)
+    groups = {}
+    for key, members in grid.items():
+        g = {}
+        for i in members:
+            g.setdefault(find(i), []).append(i)
+        groups[key] = list(g.values())
+    for (cx, cy, cz), ga in groups.items():
+        for a in range(len(ga)):
+            for b in range(a + 1, len(ga)):
+                ra, rb = find(ga[a][0]), find(ga[b][0])
+                if ra != rb and touch(ga[a], ga[b]):
+                    parent[ra] = rb
+        for dx, dy, dz in _HALF:
+            gb = groups.get((cx + dx, cy + dy, cz + dz))
+            if not gb:
+                continue
+            for la in ga:
+                for lb in gb:
+                    ra, rb = find(la[0]), find(lb[0])
+                    if ra != rb and touch(la, lb):
+                        parent[ra] = rb
+    out = {}
+    for i in range(n):
+        out.setdefault(find(i), []).append(i)
+    return sorted(out.values(), key=lambda m: (-len(m), m[0]))
 
 
 # --- msms itself -------------------------------------------------------------
@@ -229,11 +348,17 @@ def _limits():
         pass
 
 
-def run_msms(exe, xyzr, workdir, probe=PROBE, density=1.0, timeout=TIMEOUT):
+def run_msms(exe, xyzr, workdir, probe=PROBE, density=1.0, timeout=TIMEOUT,
+             name="surface"):
     """(vertices, normals, closest sphere per vertex, faces) from msms, or
-    SurfaceError. Indices are 0-based."""
-    inp = os.path.join(workdir, "in.xyzr")
-    out = os.path.join(workdir, "surface")
+    SurfaceError. Indices are 0-based.
+
+    Without -all_components msms writes one component, the outer surface of
+    the spheres it is given, as <name>.vert and <name>.face. (With it, it
+    writes component 0 there and each further one as <name>_1, <name>_2 and
+    so on, cavities included; that is not used.)"""
+    inp = os.path.join(workdir, name + ".xyzr")
+    out = os.path.join(workdir, name)
     with open(inp, "w") as fh:
         fh.write(xyzr)
     cmd = [exe, "-if", inp, "-of", out, "-probe_radius", "%g" % probe,
@@ -287,7 +412,8 @@ def _b64(fmt, values):
 
 def compute(atoms, exe, probe=PROBE, density=None, timeout=TIMEOUT,
             workdir=None):
-    """The surface of these atoms as a dict the page can draw.
+    """The surface of these atoms as a dict the page can draw: the outer
+    surface of every separate piece, one mesh.
 
     Raises SurfaceError with a reason a person can read.
     """
@@ -301,36 +427,65 @@ def compute(atoms, exe, probe=PROBE, density=None, timeout=TIMEOUT,
             table = read_radii_table(table_path)
         except Exception:                                      # noqa: BLE001
             table = None
-    xyzr, keys, which = spheres(atoms, table)
-    n = len(which)
+    rows, keys, which = sphere_rows(atoms, table)
+    n = len(rows)
     if not n:
         raise SurfaceError("there are no heavy atoms to put a surface on")
     if n > MAX_ATOMS:
         raise SurfaceError("%d atoms is more than this server triangulates "
                            "(%d)" % (n, MAX_ATOMS))
     dens = float(density or density_for(n))
-    tmp = tempfile.mkdtemp(prefix="msms_", dir=workdir)
     t0 = time.time()
+    parts = pieces(rows, probe)
+    grouped = time.time() - t0
+    tmp = tempfile.mkdtemp(prefix="msms_", dir=workdir)
+    v, nrm, atom, faces, missed = [], [], [], [], []
     try:
         with _RUN_LOCK:
-            v, nrm, atom, faces = run_msms(exe, xyzr, tmp, probe, dens,
-                                           timeout)
+            # One limit for all the pieces together, as there was for one.
+            end = time.time() + timeout
+            for k, part in enumerate(parts):
+                left = end - time.time()
+                if left <= 0:
+                    raise SurfaceError("MSMS took longer than %d s" % timeout)
+                try:
+                    pv, pn, pa, pf = run_msms(
+                        exe, xyzr_text([rows[i] for i in part]), tmp, probe,
+                        dens, left, name="piece%d" % k)
+                except SurfaceError as exc:
+                    # The largest piece is the receptor; without it there is
+                    # nothing worth drawing. A stray ion or a fragment that
+                    # MSMS cannot close is left without one, and said.
+                    if k == 0 or "longer than" in str(exc):
+                        raise
+                    missed.append(len(part))
+                    continue
+                base = len(v) // 3
+                v.extend(pv)
+                nrm.extend(pn)
+                atom.extend(part[a] if a < len(part) else part[0] for a in pa)
+                faces.extend(base + f for f in pf)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     secs = time.time() - t0
     res = [which[a] if a < len(which) else 0 for a in atom]
-    return {"source": "msms", "probe": probe, "density": dens,
-            "atoms": n, "vertices": len(v) // 3, "triangles": len(faces) // 3,
-            "seconds": round(secs, 2),
-            "radii": ("pdb_to_xyzr united atom radii, read from %s"
-                      % os.path.relpath(table_path, adfr_home(exe))
-                      if table else "element radii (pdb_to_xyzr's table "
-                      "was not found)"),
-            "encoding": "base64 little-endian: verts and norms float32 x,y,z; "
-                        "faces uint32 0-based; res uint32 index into residues",
-            "verts": _b64("f", v), "norms": _b64("f", nrm),
-            "faces": _b64("I", faces), "res": _b64("I", res),
-            "residues": keys}
+    out = {"source": "msms", "probe": probe, "density": dens,
+           "atoms": n, "vertices": len(v) // 3, "triangles": len(faces) // 3,
+           "pieces": len(parts) - len(missed),
+           "piece_atoms": [len(p) for p in parts][:20],
+           "seconds": round(secs, 2), "grouping_seconds": round(grouped, 2),
+           "radii": ("pdb_to_xyzr united atom radii, read from %s"
+                     % os.path.relpath(table_path, adfr_home(exe))
+                     if table else "element radii (pdb_to_xyzr's table "
+                     "was not found)"),
+           "encoding": "base64 little-endian: verts and norms float32 x,y,z; "
+                       "faces uint32 0-based; res uint32 index into residues",
+           "verts": _b64("f", v), "norms": _b64("f", nrm),
+           "faces": _b64("I", faces), "res": _b64("I", res),
+           "residues": keys}
+    if missed:
+        out["unsurfaced"] = {"pieces": len(missed), "atoms": sum(missed)}
+    return out
 
 
 def cache_key(atoms, exe, probe=PROBE, density=None):
@@ -340,9 +495,10 @@ def cache_key(atoms, exe, probe=PROBE, density=None):
     for a in atoms:
         if _is_h(a):
             continue
-        h.update(("%s %s %s %s %.3f %.3f %.3f\n"
-                  % (a.chain, a.resnum, a.resname, a.name, a.x, a.y, a.z))
-                 .encode())
+        h.update(("%s %s %s %s %s %s %.3f %.3f %.3f\n"
+                  % (a.chain, a.resnum, a.icode or "",
+                     getattr(a, "altloc", "") or "", a.resname, a.name,
+                     a.x, a.y, a.z)).encode())
     try:
         st = os.stat(exe)
         h.update(("%s %d %d" % (exe, st.st_size, int(st.st_mtime))).encode())

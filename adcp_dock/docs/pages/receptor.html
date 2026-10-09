@@ -28,8 +28,8 @@ cluster cannot see your file.</li>
 receptor, maps and box are used as they are, and none of the preparation
 below runs. See <a href="#target-file">a target file from AGFR</a>.</li>
 <li><b>A receptor prepared in ADapt.</b> Load a structure by any of the first
-three, press <b>Open in ADapt</b>, choose there what stays in the receptor and
-save it; the save is read back and docked as ADapt wrote it. See
+three and ADapt opens on it in the card. Change there what stays in the
+receptor, and that receptor is docked. See
 <a href="#adapt">a receptor prepared in ADapt</a>.</li>
 </ul>
 <p>A <code>.pdbqt</code> is not taken by any of the first three. It is a
@@ -193,38 +193,73 @@ included, whichever way the side-chain setting is.</p>
 
 <h2 id="adapt">A receptor prepared in ADapt</h2>
 <figure>
-<img src="img/receptor-adapt.png" alt="The Receptor card using a receptor read back from ADapt, with the session folder and what was chosen">
-<figcaption><b>A receptor read back from ADapt.</b> The card names the entry,
-the assembly and the save, lists what was chosen there, and greys out the
-preparation settings, which do not apply to it.</figcaption>
+<img src="img/adapt-inline.png" alt="The Receptor card with ADapt open in a frame on 1YCR: its tree of chains, waters and hetero groups beside its 3D view, and above it the line saying which receptor will be docked">
+<figcaption><b>ADapt in the Receptor card.</b> Loaded a moment ago, nothing is
+changed yet, so the line above the frame says that docking will use this
+page&rsquo;s own preparation.</figcaption>
 </figure>
 <p>ADapt, by Michel Sanner, shows what a structure file holds and prepares the
-receptor the way AGFR does, with AGFR's own code. Use it when the choice of what
-stays in the receptor matters: which biological assembly, which hetero groups
-stay (a lone catalytic zinc, for example), the charge a metal carries, which
-alternate location of a residue, and modified residues.</p>
-<ol class="steps">
-<li>Load the structure in the Receptor card, from a PDB id or a file. ADapt
-reads PDB files; an mmCIF fetched by its id is opened there by the id.</li>
-<li>Press <b>Open in ADapt</b>. ADapt opens in a new tab on that structure.</li>
-<li>Choose what stays in the receptor, then press <b>receptor PDBQT</b>.</li>
-<li>Back on this page, the save is read back within a few seconds and used as
-the receptor. Saving again in ADapt replaces it; <b>Read the newest save
-again</b> asks at once.</li>
-</ol>
+receptor the way AGFR does, with AGFR&rsquo;s own code. Use it when the choice of
+what stays in the receptor matters: which biological assembly, which hetero
+groups stay (a lone catalytic zinc, for example), the charge a metal carries,
+which alternate location of a residue, and modified residues.</p>
+<p>Where ADapt is installed, it opens by itself, in a frame at the foot of the
+Receptor card, on every structure you load: a PDB id fetched, a file on the
+cluster or one from your own computer. Nothing changes by opening it. Its tree
+lists everything in the file with a tick for what goes into the receptor, and
+its view shows the structure, with what is in the receptor drawn apart from
+what is not.</p>
+<p>The line above the frame always says which receptor will be docked.</p>
+<ul>
+<li><b>Docking will use this page&rsquo;s preparation.</b> Until you change
+anything in ADapt, the run prepares the structure as the settings above say,
+exactly as it would without ADapt.</li>
+<li><b>Docking will use the receptor as set in ADapt.</b> From the first change
+in ADapt, an unticked chain or the waters taken out for example, the line says
+so and names the assembly and the last changes. The preparation settings and
+the chain ticks are greyed out, because ADapt and AGFR decide them now.</li>
+</ul>
+<figure>
+<img src="img/receptor-adapt.png" alt="The Receptor card after the waters were unticked in ADapt: the line above the frame says docking will use the receptor as set in ADapt, the preparation settings are greyed out, and the receptor ADapt wrote is described below">
+<figcaption><b>After a change in ADapt.</b> Docking now uses the receptor as set
+there. Once ADapt has written it, the card names the save and lists what was
+chosen.</figcaption>
+</figure>
+<p>You do not need ADapt&rsquo;s own save button. When you submit, ADapt is asked
+to write the receptor as it is set there, just as its <b>receptor PDBQT</b>
+button would, and the receptor is read back and recorded with the run.
+<b>Use ADapt&rsquo;s receptor now</b> does the same at once, so the site can be
+checked on the receptor that will be docked: the site view then shows it.
+Changing anything in ADapt afterwards means it is written again when you
+submit. If you do press ADapt&rsquo;s own save button, that save is read back
+too.</p>
+<p><b>Use this page&rsquo;s preparation instead</b> goes back to this
+page&rsquo;s preparation of the structure ADapt was opened on, and the settings
+above apply again. Only a later change in ADapt brings its receptor back.</p>
+<p><b>Hide</b> folds the frame away; ADapt keeps what you set and the line still
+says which receptor will be docked. <b>Open full screen</b> shows the same
+session in a tab of its own, which is easier for a large structure; what you
+change there counts here, and the frame catches up when you come back. On a
+phone the frame would be too narrow for ADapt&rsquo;s tree beside its view, so
+the card shows an <b>Open in ADapt</b> button instead, which opens ADapt in a
+tab of its own on the same structure. ADapt reads PDB files; an mmCIF fetched by
+its id is opened there by the id, and an mmCIF file without one is not opened.</p>
 <p>What is read back is what ADapt wrote in its session folder: the receptor
 PDBQT, which is docked as it is; its <code>_rec_H.pdb</code>, the same receptor
 with every hydrogen reduce placed, which the site, the viewers and MM-GBSA read;
-and <code>session.json</code>, which records what was chosen. The run copies all
-three into its <code>receptor</code> folder and records the session folder, the
-save and the files' checksums in <code>job.json</code>, so a save changed later
-is refused rather than docked into, and <b>reuse settings</b> reads the same
-save back. The preparation settings above do not apply, and nothing of this
-package's preparation runs: no rebuilt side chains, no minimisation, and reduce
-placed the hydrogens in ADapt. From the command line the same is
-<code>adcp-dock new RUN --adapt-session FOLDER [--adapt-save N] -s ...</code>.</p>
-<p><b>Use the structure file instead</b> goes back to the structure the session
-was opened on, and the preparation here applies again.</p>
+and <code>session.json</code>, which records every change made and every save.
+The run copies all three into its <code>receptor</code> folder and records the
+session folder, the save and the files&rsquo; checksums in
+<code>job.json</code>, so a save changed later is refused rather than docked
+into, and <b>reuse settings</b> reads the same save back and opens ADapt on it
+again. Nothing of this package&rsquo;s preparation runs on it: no rebuilt side
+chains, no minimisation, and reduce placed the hydrogens in ADapt. From the
+command line the same is <code>adcp-dock new RUN --adapt-session FOLDER
+[--adapt-save N] -s ...</code>.</p>
+<div class="note"><b>Where ADapt is missing or too old.</b> Without ADapt the
+card has no frame and nothing else changes. An ADapt older than the version this
+interface works with is not opened; one quiet line in the card says how to
+update it.</div>
 
 <h2 id="target-file">A target file from AGFR</h2>
 <p>A target file (<code>.trg</code>) made in AGFR or AGFRGUI holds a receptor

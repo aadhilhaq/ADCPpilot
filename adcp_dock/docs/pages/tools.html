@@ -54,32 +54,36 @@ The repository's third party notices say which.</p>
 
 <h2 id="adapt">ADapt</h2>
 <figure>
-<img src="img/adapt.png" alt="ADapt open in its own tab on the receptor from the Receptor card">
-<figcaption><b>ADapt, opened from the Receptor card.</b> It opens on the receptor
-loaded there and shows what the file holds: each biological assembly, alternate
+<img src="img/adapt.png" alt="ADapt open full screen, in its own tab, on the structure from the Receptor card">
+<figcaption><b>ADapt, opened full screen from the Receptor card.</b> It opens on
+the structure loaded there and shows what the file holds: each biological assembly, alternate
 locations, side chains with missing atoms, missing residues, ligands, cofactors and
 metals.</figcaption>
 </figure>
 <p>ADapt, by Michel Sanner, is a separate program, not part of this package. It runs
 on the ADCP 1.1 environment above. Get it with:</p>
 <pre>git clone https://github.com/michelsanner/adapt</pre>
-<p>When the interface finds both ADapt and ADCP 1.1, the Receptor card shows
-<b>Open in ADapt</b>, which hands ADapt the receptor loaded there and opens it in a
-new tab on that structure. Choose what stays in the receptor and press
-<b>receptor PDBQT</b> in ADapt: the save is read back and docked as ADapt wrote it
-(see <a href="receptor.html#adapt">a receptor prepared in ADapt</a>). Its first
-start imports AGFR's libraries and can take a minute or two on a busy login node,
-so the interface starts it in the background as soon as the page shows the button,
-and the tab says what it is waiting for. ADapt keeps its sessions in
+<p>When the interface finds both ADapt and ADCP 1.1, ADapt opens by
+itself in a frame in the Receptor card on each structure loaded there; <b>Open
+full screen</b> shows the same session in a tab of its own, and on a phone a
+button opens it in a tab instead. Change anything in it and the receptor as set
+there is the one docked: ADapt writes it when you submit, and it is read back and
+recorded with the run (see <a href="receptor.html#adapt">a receptor prepared in
+ADapt</a>). Its first start imports AGFR's libraries and can take a minute or two
+on a busy login node, so the interface starts it in the background as soon as the
+page opens, and the card says what it is waiting for. ADapt keeps its sessions in
 <code>adapt_sessions</code> inside your runs folder, and it stops when the
 interface stops.</p>
 <p>It is embedded the way its own README describes. It is started with
 <code>--base-path /adapt</code> and its page uses relative paths only, so this
 interface's server passes <code>/adapt/</code> to it unchanged, over the connection
-the page already has, and nothing else needs forwarding. The receptor is handed to
-it through its <code>api/upload</code>, the tab is opened with
-<code>session=</code> in the address, and what it saves is read from the session
-folder it wrote. This needs ADapt from commit 6dae90b on; an older checkout is not
+the page already has, and nothing else needs forwarding. The structure is handed
+to it through its <code>api/upload</code>, or its <code>api/fetch</code> for an
+entry fetched by its id, and the frame is opened with <code>session=</code> in the
+address. What has been changed is read from the <code>session.json</code> ADapt
+rewrites after every edit; the receptor is written through its
+<code>api/save</code>, the call its own receptor PDBQT button makes; and the save
+is read from the session folder it wrote. This needs ADapt from commit 6dae90b on; an older checkout is not
 offered, and the card says to update it with <code>git pull</code>.</p>
 
 <h2 id="adfr-programs">reduce and MSMS, from ADFRsuite</h2>

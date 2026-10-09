@@ -286,12 +286,24 @@ function gbEngines(rows){
   posesLimit();
   mapsNote();
   gbEngines(d.gb_engines);
-  // ADapt, a separate tool, when the server can find it.
+  // ADapt, a separate tool, when the server can find it. It opens in the
+  // Receptor card on each structure loaded; one loaded already opens now.
   if(d.adapt && d.adapt.available){
-    $('adaptrow').classList.remove('hide');
-    // Started now, so the button finds ADapt ready rather than waiting on a
-    // first start, which takes a minute or more on a busy login node.
+    ADAPT_OK = true;
+    $('adaptsec').classList.remove('hide');
+    adaptLayout();
+    // Started now, so ADapt is ready by the time a structure is loaded
+    // rather than waiting on a first start, which takes a minute or more on
+    // a busy login node.
     api('/api/adapt/warm', {});
+    if(ADAPTREC && !ADAPTF && ADAPTSRC && ADAPTSRC.path)
+      adaptOpenFor(ADAPTSRC, ADAPTREC.session || '');
+    else if(RECEPTOR) adaptAuto(RECEPTOR);
+  } else if(d.adapt && d.adapt.why && !/not installed/.test(d.adapt.why)){
+    // Installed but not usable here, too old for instance: one quiet line
+    // with what to do, and no frame.
+    $('adaptsec').classList.remove('hide');
+    $('adaptsays').textContent = d.adapt.why;
   }
   // Without AmberTools the rescoring cannot run, so it cannot be chosen.
   // The box arrives ticked, because that is the right default wherever it
@@ -320,21 +332,366 @@ let RECEPTOR = null;
 let TARGET = null, TARGET_ERR = '';
 $('recload').onclick = () => { leaveAdapt(false); loadReceptor(); };
 
-/* ADapt runs as its own program, started by the server on request. The tab is
-   opened inside the click, where a browser allows it, and pointed at ADapt
-   once the server has it running. ADapt comes through this page's own server,
-   under /adapt/, so nothing else needs forwarding.
+/* ===================== ADapt ========================================= */
+/* ADapt, by Michel Sanner, runs as its own program, started by the server on
+   request, and comes through this page's own server under /adapt/, so
+   nothing else needs forwarding.
 
-   The receptor above goes with it: the server hands the file to ADapt
-   (its api/upload) and the tab opens on that session. Once a receptor is
-   saved there, this page reads back what ADapt wrote, the receptor PDBQT, its
-   _rec_H.pdb and session.json, and uses it as the receptor: ADAPTREC. */
-let ADAPTREC = null, ADAPT_WATCH = null, ADAPT_TIMER = null, ADAPTSRC = null;
+   Once a structure is loaded it is opened in ADapt by itself, in a frame in
+   this card: the server hands the file to ADapt (its api/upload, or its
+   api/fetch for an entry fetched by its id) and the frame shows that
+   session. Opening it changes nothing. Docking uses this page's own
+   preparation until something is changed in ADapt: ADapt records every edit
+   in its session, the page asks after them (/api/adapt/state), and from the
+   first one the card says that docking will use the receptor as set in
+   ADapt, with a way back.
+
+   Nobody has to find ADapt's save button. When the run is submitted, or Use
+   ADapt's receptor now is pressed, the server asks ADapt to write the
+   receptor as its own receptor PDBQT button does (/api/adapt/write), and the
+   save is read back: the receptor PDBQT, its _rec_H.pdb and session.json,
+   kept as ADAPTREC and recorded by the run. A receptor saved with ADapt's
+   own button is read back the same way.
+
+   On a phone the frame is too narrow for ADapt's tree beside its view, so a
+   button opens ADapt in a tab of its own on the same session, and the same
+   watching applies. */
+let ADAPT_OK = false;     // the server can run ADapt here
+let ADAPTREC = null;      // the receptor ADapt wrote, read back and in use
+let ADAPTSRC = null;      // the structure that receptor's session was opened on
+/* The ADapt session tied to this page: {session, folder, url, src, pdbid,
+   tab, edits, seen, saves, changes, known}. `seen` is the number of edits
+   already accounted for: more than that is a change made since. */
+let ADAPTF = null;
+/* 'page': this page's preparation is docked; 'adapt': the receptor as set in
+   ADapt. */
+let ADAPTMODE = 'page';
+let ADAPT_GEN = 0, ADAPT_TIMER = null, ADAPT_POLLING = false, ADAPT_BUSY = false;
+let ADAPT_TOUCH = 0, ADAPT_AWAY = false, ADAPT_FRAMED = '', ADAPT_PENDING = '';
+const PHONEQ = matchMedia('(max-width: 700px)');
+const adaptInline = () => !PHONEQ.matches;
+const baseName = p => String(p || '').split('/').pop();
+
+/* The structure loaded above, as ADapt is to be given it. */
+function adaptSource(d){
+  d = d || RECEPTOR || {};
+  return {path: d.path || $('recpath').value.trim(),
+          code: d.fetched ? $('reccode').value.trim().toUpperCase() : ''};
+}
+
+/* A structure was loaded: ADapt opens on it, unless the receptor loaded is
+   ADapt's own save, or ADapt already shows this structure. */
+function adaptAuto(d){
+  if(!ADAPT_OK || ADAPTREC || TARGET) return;
+  const src = adaptSource(d);
+  if(!src.path || ADAPT_PENDING === src.path) return;
+  if(ADAPTF && ADAPTF.src && ADAPTF.src.path === src.path && !ADAPTF.switched){
+    adaptLayout();
+    return;
+  }
+  adaptOpenFor(src);
+}
+
+/* Opens a structure in ADapt: a new session, or `session` again while ADapt
+   still holds it. The frame is pointed at it when the page is wide enough. */
+async function adaptOpenFor(src, session){
+  const gen = ++ADAPT_GEN;
+  ADAPTF = null;
+  clearInterval(ADAPT_TIMER);
+  adaptFrameClear();
+  if(!ADAPTREC && ADAPTMODE !== 'page'){ ADAPTMODE = 'page'; adaptApplied(); }
+  $('adaptsec').classList.remove('hide');
+  $('adaptwhat2').textContent = src.code || baseName(src.path) || 'this structure';
+  adaptLayout();
+  const t0 = Date.now();
+  const tick = () => adaptWait('Starting ADapt on ' + (src.code || baseName(src.path))
+    + ': ' + Math.round((Date.now() - t0) / 1000) + ' s. A first start can take a '
+    + 'minute or two on a busy login node.');
+  tick();
+  const timer = setInterval(tick, 1000);
+  adaptSays();
+  let r;
+  ADAPT_PENDING = src.path || '';
+  try { r = await api('/api/adapt', {path: src.path || '', code: src.code || '',
+                                     session: session || ''}); }
+  finally {
+    clearInterval(timer);
+    if(gen === ADAPT_GEN) ADAPT_PENDING = '';
+  }
+  if(gen !== ADAPT_GEN) return null;          // another structure came meanwhile
+  if(!r || r.error || !r.session){
+    adaptWait((r && (r.error || r.note)) || 'ADapt did not open this structure.', true);
+    adaptSays();
+    return null;
+  }
+  ADAPTF = {session: r.session, folder: r.folder || '', src: src,
+            url: new URL(r.url, location.href).href, pdbid: r.pdbid || '',
+            tab: r.tab || '', edits: null, seen: null, saves: [], changes: [],
+            known: null};
+  $('adaptwhat2').textContent = (r.pdbid || src.code || baseName(src.path)).toUpperCase();
+  $('adaptfull').href = ADAPTF.url;
+  $('adaptfull').classList.remove('hide');
+  adaptWait('');
+  if(adaptInline()) adaptFrame();
+  ADAPT_TIMER = setInterval(() => { if(!document.hidden) adaptPoll(); }, 3000);
+  await adaptPoll();
+  return ADAPTF;
+}
+
+/* The frame onto the session, in this page's theme: ADapt reads its theme
+   from this origin's storage when its page loads. */
+function adaptFrame(){
+  if(!ADAPTF) return;
+  try { localStorage.setItem('adapt.theme', isDark() ? 'dark' : 'light'); } catch(e){}
+  ADAPT_AWAY = false;
+  ADAPT_FRAMED = ADAPTF.session;
+  $('adaptframe').dataset.loaded = '';
+  /* Shown at once, at its full size, so ADapt's 3D view is made the size it
+     will be drawn at. */
+  $('adaptframewrap').classList.remove('hide');
+  adaptWait('Loading ADapt\u2019s view of the structure\u2026');
+  $('adaptframe').src = ADAPTF.url;
+  adaptLayout();
+}
+/* No frame, or not yet one: an empty box would read as broken. */
+function adaptFrameClear(){
+  ADAPT_FRAMED = '';
+  const fr = $('adaptframe');
+  fr.dataset.loaded = '';
+  if(fr.getAttribute('src')) fr.src = 'about:blank';
+  $('adaptframewrap').classList.add('hide');
+  $('adaptfull').classList.add('hide');
+}
+$('adaptframe').addEventListener('load', () => {
+  const fr = $('adaptframe');
+  if(!ADAPT_FRAMED || !fr.getAttribute('src') || fr.getAttribute('src') === 'about:blank')
+    return;
+  adaptWait('');
+  $('adaptframewrap').classList.remove('hide');
+  fr.dataset.loaded = adaptFrameSession() || ADAPT_FRAMED;
+  let doc = null;
+  try { doc = fr.contentDocument; } catch(e){ doc = null; }
+  if(!doc) return;
+  /* Every click or change in ADapt may be an edit: asked after at once,
+     and again once ADapt has had time to record it. */
+  const touched = () => {
+    ADAPT_TOUCH = Date.now();
+    setTimeout(adaptPoll, 900);
+    setTimeout(adaptPoll, 2800);
+  };
+  doc.addEventListener('click', touched, true);
+  doc.addEventListener('change', touched, true);
+  adaptFrameTheme();
+});
+/* ADapt has a light and dark switch of its own; the frame follows this page. */
+function adaptFrameTheme(){
+  try {
+    const fr = $('adaptframe'), doc = fr.contentDocument, w = fr.contentWindow;
+    const btn = doc && doc.getElementById('theme');
+    if(!btn) return;
+    const t = doc.documentElement.dataset.theme;
+    const dark = t ? t === 'dark' : w.matchMedia('(prefers-color-scheme: dark)').matches;
+    if(dark !== isDark()) btn.click();
+  } catch(e){ /* not loaded yet: it reads the theme when it loads */ }
+}
+/* The session the frame shows now: a structure opened inside ADapt itself
+   is a session of its own. */
+function adaptFrameSession(){
+  try {
+    const fr = $('adaptframe');
+    if(!fr.getAttribute('src') || !fr.contentWindow) return '';
+    return new URLSearchParams(fr.contentWindow.location.search).get('session') || '';
+  } catch(e){ return ''; }
+}
+function adaptWait(text, bad){
+  const el = $('adaptwait');
+  if(!el) return;
+  el.innerHTML = bad ? '<span class=bad>' + esc(text) + '</span>' : esc(text || '');
+}
+/* The frame on a wide page, the button on a phone. */
+function adaptLayout(){
+  const wide = adaptInline();
+  $('adaptpanel').classList.toggle('hide', !wide || !(ADAPTF || ADAPT_GEN));
+  $('adaptrow').classList.toggle('hide', wide || !ADAPT_OK);
+  if(wide && ADAPTF && ADAPT_FRAMED !== ADAPTF.session) adaptFrame();
+}
+PHONEQ.addEventListener('change', adaptLayout);
+/* Hidden or shown, remembered for next time. Hidden, ADapt keeps its session
+   and the card still says which receptor will be docked. */
+function adaptFold(folded){
+  $('adaptframewrap').classList.toggle('folded', folded);
+  $('adaptfold').textContent = folded ? 'Show' : 'Hide';
+  $('adaptfold').setAttribute('aria-expanded', folded ? 'false' : 'true');
+  try { localStorage.setItem('adcp.adaptfold', folded ? '1' : ''); } catch(e){}
+}
+$('adaptfold').onclick = () =>
+  adaptFold(!$('adaptframewrap').classList.contains('folded'));
+try { if(localStorage.getItem('adcp.adaptfold') === '1') adaptFold(true); } catch(e){}
+/* Full screen is the same session in a tab of its own. What is changed there
+   is seen here, and the frame is shown again on return, so its tree is not
+   left behind. */
+$('adaptfull').addEventListener('click', () => { ADAPT_AWAY = true; });
+window.addEventListener('focus', () => { if(ADAPTF) adaptPoll(); });
+
+/* What has been changed in ADapt, from its session. The first change makes
+   ADapt's receptor the one to dock; a save made with ADapt's own button is
+   read back, as it always was. */
+async function adaptPoll(){
+  const f = ADAPTF;
+  if(!f || ADAPT_POLLING || ADAPT_BUSY) return;
+  ADAPT_POLLING = true;
+  try {
+    /* Only once the frame has shown this session: until then its address is
+       still the one before. */
+    const fr = $('adaptframe');
+    const now = adaptInline() && fr.dataset.loaded === f.session ? adaptFrameSession() : '';
+    if(now && now !== f.session){
+      f.session = now; f.folder = ''; f.seen = -1; f.seenAtOpen = 0; f.known = 0;
+      f.switched = true; ADAPT_FRAMED = now; fr.dataset.loaded = now;
+    }
+    const d = await api('/api/adapt/state?session=' + encodeURIComponent(f.session)
+      + '&folder=' + encodeURIComponent(f.folder || ''));
+    if(f !== ADAPTF || !d || !d.found) return;
+    f.folder = d.folder; f.edits = d.edits; f.saves = d.saves || [];
+    f.tab = d.tab || ''; f.changes = d.changes || []; f.pdbid = d.pdbid || f.pdbid;
+    if(f.seen === null) f.seen = d.edits;
+    if(f.seenAtOpen === undefined) f.seenAtOpen = Math.max(0, f.seen);
+    const newest = f.saves.length ? f.saves[f.saves.length - 1] : null;
+    if(f.known === null) f.known = newest ? newest.n : 0;
+    if(d.edits > f.seen){
+      f.seen = d.edits;
+      if(ADAPTMODE !== 'adapt'){ ADAPTMODE = 'adapt'; adaptApplied(); }
+      if(ADAPT_AWAY && Date.now() - ADAPT_TOUCH > 8000 && adaptInline()) adaptFrame();
+    }
+    if(newest && newest.n > f.known && !newest.written_here){
+      f.known = newest.n;
+      const a = await api('/api/adapt/saved?folder=' + encodeURIComponent(f.folder)
+        + '&save=' + newest.n);
+      if(f === ADAPTF && a && a.found){
+        a.session = f.session;
+        a.edits = newest.edits_before;
+        ADAPTMODE = 'adapt';
+        await useAdapt(a);
+      }
+    }
+    adaptSays();
+  } finally { ADAPT_POLLING = false; }
+}
+
+/* Whether ADapt holds changes the receptor in use does not have yet. */
+function adaptDirty(){
+  if(!ADAPTF || ADAPTF.edits === null) return !ADAPTREC;
+  if(!ADAPTREC) return true;
+  if(ADAPTREC.folder === ADAPTF.folder){
+    const sv = ADAPTF.saves.find(s => s.n === ADAPTREC.save);
+    const before = ADAPTREC.edits != null ? ADAPTREC.edits : (sv ? sv.edits_before : 0);
+    return ADAPTF.edits > before;
+  }
+  /* An older save, shown in a session opened afresh: only a change made in
+     it since replaces that save. */
+  return ADAPTF.edits > ADAPTF.seenAtOpen;
+}
+
+/* ADapt writes the receptor as set there, and it is read back and used. */
+async function adaptWriteNow(){
+  if(ADAPTREC && !adaptDirty()) return ADAPTREC;
+  if(!ADAPTF){
+    adaptSays('The receptor as set in ADapt cannot be written: ADapt is not open '
+      + 'on this structure. Load the structure again, or use this page\u2019s preparation.');
+    return null;
+  }
+  ADAPT_BUSY = true;
+  $('adaptnow').disabled = $('adaptdrop').disabled = true;
+  $('adaptsays').innerHTML = 'ADapt is writing the receptor as set there, with '
+    + 'reduce\u2019s hydrogens. This takes a few seconds, longer for a large structure.';
+  let d;
+  try {
+    d = await api('/api/adapt/write', {session: ADAPTF.session, folder: ADAPTF.folder});
+  } finally {
+    ADAPT_BUSY = false;
+    $('adaptnow').disabled = $('adaptdrop').disabled = false;
+  }
+  if(!d || !d.found){
+    adaptSays((d && (d.why || d.error)) || 'ADapt wrote nothing.');
+    return null;
+  }
+  d.session = ADAPTF.session;
+  ADAPTF.known = Math.max(ADAPTF.known || 0, d.save);
+  ADAPTMODE = 'adapt';
+  await useAdapt(d);
+  /* ADapt's own list of files written shows the save too. */
+  try {
+    const w = $('adaptframe').contentWindow;
+    if(d.written && w && typeof w.listSave === 'function' && ADAPT_FRAMED === d.session)
+      w.listSave({save: d.save, kind: 'receptor', tab: d.tab,
+                  files: [{name: baseName(d.pdbqt)}, {name: baseName(d.pdb)}]});
+  } catch(e){}
+  return d;
+}
+$('adaptnow').onclick = () => adaptWriteNow();
+
+/* The line that always says which receptor will be docked. */
+function adaptSays(problem){
+  const el = $('adaptsays');
+  if(!el) return;
+  const now = $('adaptnow'), drop = $('adaptdrop');
+  const show = (b, on) => b.classList.toggle('hide', !on);
+  $('adaptsec').classList.toggle('adapton', ADAPTMODE === 'adapt');
+  if(!ADAPTF && !ADAPTREC){
+    show(now, false); show(drop, false);
+    if(problem) el.innerHTML = '<span class=bad>' + esc(problem) + '</span>';
+    else if(RECEPTOR && ADAPT_GEN) el.innerHTML = 'Docking will use <b>this page\u2019s '
+      + 'preparation</b> of the structure above.';
+    return;
+  }
+  const f = ADAPTF || {};
+  const edits = f.edits || 0;
+  const last = f.changes && f.changes.length ? f.changes[f.changes.length - 1] : '';
+  const what = (f.tab ? esc(f.tab) : '')
+    + (edits ? (f.tab ? '; ' : '') + edits + (edits === 1 ? ' change' : ' changes')
+       + (last ? (edits === 1 ? ': ' : ', the last: ') + esc(last) : '') : '');
+  let html;
+  if(ADAPTMODE !== 'adapt'){
+    html = 'Docking will use <b>this page\u2019s preparation</b> of the structure above. '
+      + 'Change anything in ADapt' + (adaptInline() ? ' below' : '') + ', such as '
+      + 'unticking a chain or the waters, and docking will use the receptor as set '
+      + 'there instead.';
+    show(now, !!ADAPTF); show(drop, false);
+  } else {
+    const dirty = adaptDirty();
+    if(ADAPTREC && !dirty && ADAPTF && ADAPTREC.folder !== ADAPTF.folder){
+      html = 'Docking will use <b>receptor save ' + esc(ADAPTREC.save) + ' from ADapt</b>, '
+        + 'read back from its session folder. ADapt no longer holds the session it was '
+        + 'made in, so the view below starts from the structure as first opened; '
+        + 'changing anything there replaces save ' + esc(ADAPTREC.save)
+        + ' with the receptor as set there.';
+    } else if(ADAPTREC && !dirty){
+      html = 'Docking will use <b>the receptor as set in ADapt</b>'
+        + (what ? ' (' + what + ')' : '') + ', written as save ' + esc(ADAPTREC.save)
+        + ' and read back: what it holds is below.';
+    } else if(ADAPTREC){
+      html = 'Docking will use <b>the receptor as set in ADapt</b> (' + what + '). It has '
+        + 'changed since save ' + esc(ADAPTREC.save) + ' was written, so ADapt writes it '
+        + 'again when you submit.';
+    } else {
+      html = 'Docking will use <b>the receptor as set in ADapt</b>'
+        + (what ? ' (' + what + ')' : '') + '. ADapt writes it when you submit; '
+        + '<b>Use ADapt\u2019s receptor now</b> writes it at once, so the site can be '
+        + 'checked on it.';
+    }
+    html += ' The preparation settings above do not apply.';
+    show(now, !!ADAPTF && (!ADAPTREC || dirty)); show(drop, true);
+  }
+  if(problem) html += '<br><span class=bad>' + esc(problem) + '</span>';
+  el.innerHTML = html;
+}
+
+/* The phone's way in: ADapt in a tab of its own. The tab is opened inside the
+   click, where a browser allows it, and says what is happening: a first start
+   on a busy login node takes a minute or more, and a blank tab for that long
+   reads as broken. */
 $('adaptopen').onclick = async () => {
   const note = $('adaptnote'), btn = $('adaptopen');
-  /* The tab is opened inside the click, where a browser allows it, and says
-     what is happening: a first start on a busy login node takes a minute or
-     more, and a blank tab for that long reads as broken. */
   const tab = window.open('', '_blank');
   if(tab){
     try {
@@ -346,109 +703,93 @@ $('adaptopen').onclick = async () => {
     } catch(e){ /* a browser that refuses is still fine: the tab opens later */ }
   }
   btn.disabled = true;
-  const t0 = Date.now();
-  const tick = () => {
-    note.textContent = 'Starting ADapt: ' + Math.round((Date.now() - t0) / 1000)
-      + ' s. The first start can take a minute or two.';
-  };
-  tick();
-  const timer = setInterval(tick, 1000);
-  /* The structure the receptor came from: the file above, or, once ADapt's
-     receptor is in use, the structure that session was opened on. */
-  const src = ADAPTREC ? (ADAPTSRC || {}) : {path: $('recpath').value.trim(),
-    code: RECEPTOR && RECEPTOR.fetched ? $('reccode').value.trim() : ''};
-  let r;
-  try { r = await api('/api/adapt', {path: src.path || '', code: src.code || '',
-                                     session: ADAPTREC ? (ADAPTREC.session || '') : ''}); }
-  finally { clearInterval(timer); btn.disabled = false; }
-  if(r.error || !r.url){
+  let f = ADAPTF;
+  try {
+    if(!f){
+      const src = ADAPTREC && ADAPTSRC ? ADAPTSRC : adaptSource();
+      f = await adaptOpenFor(src, ADAPTREC ? (ADAPTREC.session || '') : '');
+    }
+  } finally { btn.disabled = false; }
+  if(!f){
     if(tab) tab.close();
-    note.innerHTML = '<span class=bad>' + esc(r.error || 'ADapt did not start.') + '</span>';
+    note.innerHTML = '<span class=bad>' + esc($('adaptwait').textContent
+      || 'ADapt did not start.') + '</span>';
     return;
   }
-  /* A path on this server, so ADapt travels through the same connection as
-     this page and nothing else needs forwarding. Made absolute because the
-     new tab began as about:blank. */
-  const url = new URL(r.url, location.href).href;
-  if(tab) tab.location.href = url;
-  const again = ' (<a href="' + esc(url) + '" target=_blank rel=noopener>open it again</a>)';
-  if(r.session){
-    if(!ADAPTREC) ADAPTSRC = src;
-    ADAPT_WATCH = {session: r.session, folder: r.folder || ''};
-    startAdaptWatch();
-    note.innerHTML = 'ADapt is open in a new tab on ' + esc(r.pdbid || 'this receptor')
-      + again + '. Choose what stays in the receptor there and press '
-      + '<b>receptor PDBQT</b>: this page reads the save back and uses it.';
-  } else {
-    note.innerHTML = 'ADapt is open in a new tab' + again + '. '
-      + esc(r.note || 'Load the receptor there with Open PDB or Fetch.');
-  }
+  ADAPT_AWAY = true;
+  if(tab) tab.location.href = f.url;
+  note.innerHTML = 'ADapt is open in a new tab on ' + esc(f.pdbid || 'this receptor')
+    + ' (<a href="' + esc(f.url) + '" target=_blank rel=noopener>open it again</a>). '
+    + 'Change what stays in the receptor there; this card says which receptor will be docked.';
 };
-/* ADapt's saves are looked for every few seconds while a session opened from
-   here is open, and the newest receptor save is taken as it appears. */
-function startAdaptWatch(){
-  $('adaptcheck').classList.remove('hide');
-  clearInterval(ADAPT_TIMER);
-  ADAPT_TIMER = setInterval(() => { if(!document.hidden) checkAdaptSave(false); }, 4000);
-}
+
+/* The receptor ADapt wrote, read back again from its folder. */
 async function checkAdaptSave(manual){
-  if(!ADAPT_WATCH) return;
-  const d = await api('/api/adapt/saved?session='
-    + encodeURIComponent(ADAPT_WATCH.session || '') + '&folder='
-    + encodeURIComponent(ADAPT_WATCH.folder || ''));
+  const folder = (ADAPTF && ADAPTF.folder) || (ADAPTREC && ADAPTREC.folder) || '';
+  if(!folder) return;
+  const d = await api('/api/adapt/saved?folder=' + encodeURIComponent(folder));
   if(!d || !d.found){
-    if(manual) $('adaptnote').innerHTML = '<span class=bad>'
-      + esc((d && (d.why || d.error)) || 'nothing was read back') + '</span>';
+    if(manual) adaptSays((d && (d.why || d.error)) || 'nothing was read back');
     return;
   }
-  ADAPT_WATCH.folder = d.folder;
   if(ADAPTREC && ADAPTREC.folder === d.folder && ADAPTREC.save === d.save
      && ADAPTREC.pdb_md5 === d.pdb_md5){
-    if(manual) $('adaptnote').textContent = 'Save ' + d.save
-      + ' is still the newest receptor ADapt saved in this session.';
+    if(manual) $('adaptwhat').insertAdjacentHTML('beforeend', '<br>Save ' + esc(d.save)
+      + ' is still the newest receptor ADapt saved in this session.');
     return;
   }
+  d.session = ADAPTF ? ADAPTF.session : (ADAPTREC && ADAPTREC.session) || '';
+  ADAPTMODE = 'adapt';
   await useAdapt(d);
 }
 async function useAdapt(d){
   ADAPTREC = d;
+  if(ADAPTF && ADAPTF.src) ADAPTSRC = ADAPTF.src;
   $('recpath').value = d.pdb;
   await loadReceptor();
   adaptApplied();
-  $('adaptnote').textContent = 'Read back receptor save ' + d.save
-    + ' from ADapt. Saving the receptor again in ADapt replaces it here.';
 }
-/* Leaving ADapt's receptor: for the structure it was made from, or because
-   another structure was loaded above. */
+/* Back to this page's own preparation, of the structure ADapt was opened on.
+   Only a change made in ADapt after this brings ADapt's receptor back. */
 function leaveAdapt(reload){
-  if(!ADAPTREC && !ADAPT_WATCH) return;
-  const src = ADAPTSRC;
-  ADAPTREC = null; ADAPT_WATCH = null; ADAPTSRC = null;
-  clearInterval(ADAPT_TIMER);
-  $('adaptcheck').classList.add('hide');
+  const src = ADAPTSRC || (ADAPTF && ADAPTF.src);
+  const had = !!ADAPTREC;
+  const kept = ADAPT_CHAINS;
+  ADAPTREC = null; ADAPTSRC = null; ADAPT_CHAINS = null;
+  ADAPTMODE = 'page';
+  if(ADAPTF && ADAPTF.edits !== null) ADAPTF.seen = ADAPTF.edits;
   adaptApplied();
-  if(reload && src && src.path){
+  if(!reload) return;
+  if(ADAPTF && ADAPTF.switched && src && src.path) adaptOpenFor(src);
+  if(had && src && src.path && $('recpath').value.trim() !== src.path){
     $('recpath').value = src.path;
-    loadReceptor();
-  }
+    loadReceptor().then(() => adaptChainsBack(kept));
+  } else adaptChainsBack(kept);
 }
 $('adaptdrop').onclick = () => leaveAdapt(true);
-$('adaptcheck').onclick = () => checkAdaptSave(true);
-$('adaptread').onclick = () => {
-  if(!ADAPT_WATCH && ADAPTREC) ADAPT_WATCH = {session: ADAPTREC.session || '',
-                                              folder: ADAPTREC.folder};
-  checkAdaptSave(true);
-};
-/* Everything that depends on whether the receptor is ADapt's: the card says
-   where it came from, and the settings that belong to a structure file are
-   greyed out, since ADapt and AGFR made those choices. */
+$('adaptread').onclick = () => checkAdaptSave(true);
+/* Everything that depends on whether ADapt's receptor is the one docked: the
+   card says so, and the settings that belong to a structure file are greyed
+   out, since ADapt and AGFR make those choices. */
 const PREP_IDS = ['keep_hetatms', 'rebuild_sidechains', 'fill_loops',
                   'protonation', 'ph', 'minimise'];
+function adaptOn(){ return ADAPTMODE === 'adapt' || !!ADAPTREC; }
+/* The chains ticked before ADapt's receptor was chosen, ticked again when
+   this page's preparation is chosen back. */
+let ADAPT_CHAINS = null;
+function adaptChainsBack(ids){
+  (ids || []).forEach(c => {
+    const el = document.querySelector('#chainbox .chk[data-ch="' + c + '"]');
+    if(el){ el.checked = true; el.disabled = false; }
+  });
+  if(ids && ids.length && typeof drawPicker === 'function') drawPicker();
+}
 function adaptApplied(){
-  const on = !!ADAPTREC;
-  $('adaptuse').classList.toggle('hide', !on);
-  // Once a save is in use, its own block reads the next one.
-  $('adaptcheck').classList.toggle('hide', on || !ADAPT_WATCH);
+  const on = adaptOn();
+  $('adaptuse').classList.toggle('hide', !ADAPTREC);
+  if(on && ADAPT_CHAINS === null)
+    ADAPT_CHAINS = Array.from(document.querySelectorAll('#chainbox .chk:checked'))
+      .map(x => x.getAttribute('data-ch'));
   document.querySelectorAll('#chainbox .chk').forEach(x => {
     if(on) x.checked = false;
     x.disabled = on;
@@ -463,7 +804,9 @@ function adaptApplied(){
   if(on) $('protonation').value = 'reduce';
   protNote();
   prepNote();
-  if(!on){ $('adaptwhat').innerHTML = ''; return; }
+  adaptSays();
+  guideSoon();
+  if(!ADAPTREC){ $('adaptwhat').innerHTML = ''; return; }
   const d = ADAPTREC;
   const list = (o, f) => Object.keys(o || {}).length
     ? Object.keys(o).map(k => esc(k) + (f ? ' ' + esc(f(o[k])) : '')).join(', ')
@@ -477,6 +820,9 @@ function adaptApplied(){
   const bio = String(d.biomolecule || '');
   const chains = d.tab && bio.indexOf(d.tab + ':') === 0
     ? bio.slice(d.tab.length + 1).trim() : bio;
+  /* The assembly's chains, and the chains the receptor kept of them. */
+  const kept = RECEPTOR && RECEPTOR.path === d.pdb
+    ? (RECEPTOR.chains || []).map(c => c.id).join(', ') : '';
   $('adaptwhat').innerHTML = '<b>' + esc(d.pdbid || d.input || 'receptor') + '</b>'
     + (d.tab ? ', ' + esc(d.tab) : '') + (chains ? ' (' + esc(chains) + ')' : '')
     + ', receptor save ' + esc(d.save)
@@ -484,7 +830,8 @@ function adaptApplied(){
     + 'Hetero groups kept: ' + esc((d.hetero || []).join(', ') || 'none')
     + '. Ion charges set: ' + list(d.charges, v => '= ' + v)
     + '. Alternate locations chosen: ' + list(d.altlocs, v => v)
-    + '. Mutations: ' + list(d.mutations, v => 'to ' + v) + '.<br>'
+    + '. Mutations: ' + list(d.mutations, v => 'to ' + v) + '.'
+    + (kept ? ' Chains in the receptor: ' + esc(kept) + '.' : '') + '<br>'
     + 'Hydrogens placed by ' + esc(d.reduce || 'reduce') + ', as AGFR places them'
     + (his.length ? ': ' + his.slice(0, 8).map(k => esc(resName(k))
         + ' ' + esc(d.his[k])).join(', ') + (his.length > 8 ? ', ...' : '') : '')
@@ -494,8 +841,8 @@ function adaptApplied(){
 /* The pH belongs to PROPKA: reduce takes none. */
 function protNote(){
   const red = $('protonation').value === 'reduce';
-  $('ph').disabled = red || !!ADAPTREC;
-  $('phlabel').classList.toggle('off', red || !!ADAPTREC);
+  $('ph').disabled = red || adaptOn();
+  $('phlabel').classList.toggle('off', red || adaptOn());
 }
 $('protonation').addEventListener('change', () => { protNote(); guideSoon(); });
 protNote();
@@ -504,8 +851,9 @@ protNote();
 function prepNote(){
   $('prepnote').textContent = TARGET
     ? 'Not used with a target file: its receptor was prepared when the file was made.'
-    : ADAPTREC
-      ? 'Not used with a receptor from ADapt: ADapt chose what stays in it, and reduce placed its hydrogens there.'
+    : adaptOn()
+      ? 'Not used: docking will use the receptor as set in ADapt, below, where ADapt '
+        + 'chooses what stays in it and reduce places its hydrogens.'
       : '';
 }
 /* What the run is told about ADapt's receptor: where to find the save. */
@@ -572,7 +920,7 @@ function gotReceptor(d){
       + ' res ' + c.first + ' to ' + c.last + '</span></label>').join('');
   $('chainbox').querySelectorAll('.chk').forEach(x =>
     x.onchange = () => drawPicker());
-  if(ADAPTREC) $('chainbox').querySelectorAll('.chk').forEach(x => x.disabled = true);
+  if(adaptOn()) $('chainbox').querySelectorAll('.chk').forEach(x => x.disabled = true);
   HOT = [];
   fillLigands(d.ligands || []);
   drawChips();
@@ -583,6 +931,8 @@ function gotReceptor(d){
   SITE_OK = null;
   if(siteMode() !== 'residues' || $('hotspots').value.trim()) siteSoon();
   guideSoon();
+  // ADapt opens on it, in the card, by itself.
+  adaptAuto(d);
 }
 $('recfetch').onclick = fetchCode;
 $('reccode').onkeydown = e => { if(e.key === 'Enter') fetchCode(); };
@@ -834,7 +1184,7 @@ $('pickeruse').onclick = () => {
 $('recbrowse').onclick = () => openPicker({
   dirs: false, title: 'Choose a receptor',
   start: $('recpath').value.trim(),
-  onPick: v => { $('recpath').value = v; clearMissingOn('recpath');
+  onPick: v => { leaveAdapt(false); $('recpath').value = v; clearMissingOn('recpath');
                  loadReceptor(); }});
 
 /* The Runs panel lists whatever RUNS_ROOT points at. This is how you point
@@ -1034,10 +1384,13 @@ function siteSurface(){
     return;
   }
   const chs = activeChains();
-  const het = $('keep_hetatms').checked && !ADAPTREC ? 1 : 0;
-  const key = 'site|' + RECEPTOR.path + '|' + chs.join(',') + '|' + het;
+  /* A receptor ADapt wrote keeps what ADapt kept in it: its hetero groups and
+     any waters, which are part of what is docked. */
+  const het = ADAPTREC || $('keep_hetatms').checked ? 1 : 0;
+  const water = ADAPTREC ? 1 : 0;
+  const key = 'site|' + RECEPTOR.path + '|' + chs.join(',') + '|' + het + '|' + water;
   const d = surfaceFor(key, '/api/surface?path=' + encodeURIComponent(RECEPTOR.path)
-    + '&chains=' + encodeURIComponent(chs.join(',')) + '&het=' + het,
+    + '&chains=' + encodeURIComponent(chs.join(',')) + '&het=' + het + '&water=' + water,
     () => siteSurface());
   if(d === null){
     $('surfnote').textContent = 'computing the surface with MSMS...';
@@ -2029,8 +2382,9 @@ $('autofill').onclick = async () => {
     chains: chosenChains(),
     fill_loops: $('fill_loops').checked,
     // reduce and PROPKA cost different times, and a receptor from ADapt is
-    // copied rather than prepared.
-    protonation: $('protonation').value, adapt: adaptBody(),
+    // copied rather than prepared, written or not yet.
+    protonation: $('protonation').value,
+    adapt: ADAPTREC ? adaptBody() : (adaptOn() && ADAPTF ? {folder: ADAPTF.folder} : {}),
     box: (SITE && SITE.size) || null,
     // What the options cost: the maps, a pocket found by AutoSite, a ring,
     // helical starts, more poses and kept trajectories.
@@ -2220,6 +2574,18 @@ $('submit').onclick = async () => {
       + ' still needed</span>';
     return;
   }
+  /* The receptor as set in ADapt is written now, unless the one read back
+     is still it, and read back like any other save: the run records it. */
+  if(adaptOn() && !trg && (!ADAPTREC || adaptDirty())){
+    $('submsg').textContent = 'ADapt is writing the receptor as set there…';
+    const w = await adaptWriteNow();
+    if(!w){
+      $('submsg').innerHTML = '<span class=bad>The receptor as set in ADapt could '
+        + 'not be written; the reason is in the Receptor card.</span>';
+      $('adaptsec').scrollIntoView({behavior: 'smooth', block: 'center'});
+      return;
+    }
+  }
   $('submsg').textContent = 'submitting…';
   // A path typed into the box has to work as well as one chosen in the
   // browser. It is applied here rather than on every keystroke, so a
@@ -2339,6 +2705,7 @@ function applyViewBg(){
 function themeChanged(){
   themeButton();
   applyViewBg();
+  adaptFrameTheme();
   /* the residue drawings are made for one background or the other */
   if($('moddlg') && $('moddlg').open) drawViews();
 }
@@ -2652,20 +3019,31 @@ async function reuseRun(dir){
   leaveAdapt(false);
   if(j.receptor){
     clearMissingOn('recpath');
-    await loadReceptor();
+    /* A receptor from ADapt is read back before it is loaded, so the load
+       knows it is ADapt's and does not open it in ADapt as a new structure. */
+    let fromAdapt = null;
     if(j.adapt && j.adapt.folder){
       const a = await api('/api/adapt/saved?folder=' + encodeURIComponent(j.adapt.folder)
         + '&save=' + encodeURIComponent(j.adapt.save || ''));
       if(a && a.found){
+        fromAdapt = a;
         ADAPTREC = a;
+        ADAPTMODE = 'adapt';
         ADAPTSRC = {path: a.input ? a.folder + '/' + a.input : ''};
         if(j.adapt.session) ADAPTREC.session = j.adapt.session;
-        adaptApplied();
+        $('recpath').value = a.pdb;
       } else {
-        $('adaptnote').innerHTML = '<span class=bad>This run\'s receptor came from '
-          + 'ADapt, and it cannot be read back: ' + esc((a && a.why) || 'unknown')
-          + '</span>';
+        $('adaptsec').classList.remove('hide');
+        adaptSays('This run\'s receptor came from ADapt, and it cannot be read back: '
+          + ((a && a.why) || 'unknown'));
       }
+    }
+    await loadReceptor();
+    if(fromAdapt){
+      adaptApplied();
+      /* ADapt shows the session the save came from while it still holds it,
+         and otherwise the structure the save was made from, opened afresh. */
+      if(ADAPT_OK && ADAPTSRC.path) adaptOpenFor(ADAPTSRC, ADAPTREC.session || '');
     }
     (j.chains || []).forEach(c => {
       const el = document.querySelector('.chk[data-ch="' + c + '"]');
@@ -3365,8 +3743,11 @@ function labelFor(bare, col, extra){
   if(m === 'none') return null;
   return m === 'plain' ? labelBare(col, extra) : labelBox(col, extra);
 }
-function surfStyle(mode, hex){
-  if(mode === 1) return {opacity:0.92, color:hex};
+/* A solid peptide is drawn fully opaque. At 0.92 3Dmol counts it as see-through
+   and draws it in the same pass as a see-through receptor, whose surface then
+   hid the peptide's wherever the peptide lay behind it. */
+function surfStyle(mode, hex, opaque){
+  if(mode === 1) return {opacity: opaque ? 1 : 0.92, color:hex};
   if(mode === 2) return {opacity:0.50, color:hex};
   return {opacity:0.95, color:hex, wireframe:true, linewidth:0.5};
 }
@@ -3702,10 +4083,10 @@ function applySurface(){
     const d = surfaceFor(key, url, () => { if(VR) draw(false); });
     if(d === null) return 'computing the ' + (pose ? 'peptide' : 'receptor') + ' surface with MSMS...';
     if(d.source === 'msms'){
-      try { addSurfaceMesh(VR, d, surfStyle(mode, hex)); } catch(e){}
+      try { addSurfaceMesh(VR, d, surfStyle(mode, hex, pose)); } catch(e){}
       return '';
     }
-    try { VR.addSurface($3Dmol.SurfaceType.VDW, surfStyle(mode, hex), sel); }
+    try { VR.addSurface($3Dmol.SurfaceType.VDW, surfStyle(mode, hex, pose), sel); }
     catch(e){}
     return (pose ? 'peptide' : 'receptor') + ' surface drawn by the viewer: '
       + (d.why || 'MSMS gave none');

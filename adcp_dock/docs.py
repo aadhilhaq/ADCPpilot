@@ -58,6 +58,7 @@ HELP_LINKS = {
     "rebuild_sidechains": "receptor.html#side-chains",
     "fill_loops": "receptor.html#loops",
     "targetfile": "receptor.html#target-file",
+    "adaptframe": "receptor.html#adapt",
     "hotspots": "site.html#residues",
     "site_mode": "site.html#where-the-box-goes",
     "site_ligand": "site.html#ligand",

@@ -45,7 +45,7 @@ the run's row rather than being left amber; the list is in
 <tr><td><code>this is an alpha-carbon trace</code></td><td>the structure has one atom per residue, so every side chain is missing. Rebuilding them all is modelling rather than preparation, so the preparation stops at the start of the run.</td></tr>
 <tr><td><code>pose N discarded</code></td><td>that pose's bonded terms did not cancel, so the complex was split through a molecule rather than at the interface, and its energy was not used. Look at the chain selections and the rescoring log.</td></tr>
 <tr><td>the receptor was not protonated with reduce</td><td>reduce could not run, and PDB2PQR with PROPKA protonated the receptor instead, at the pH in the Receptor card. The <code>reduce</code> line of the preparation log says why; its full output is in <code>receptor/protonated.reduce.txt</code>.</td></tr>
-<tr><td>the receptor ADapt saved has changed since this run was set up</td><td>a file in the ADapt session folder was changed after the run read it back. Read the save back again in the Receptor card, or save the receptor again in ADapt.</td></tr>
+<tr><td>the receptor ADapt saved has changed since this run was set up</td><td>a file in the ADapt session folder was changed after the run read it back. Press Use ADapt's receptor now in the Receptor card, so ADapt writes it again.</td></tr>
 <tr><td>one task of the array failed</td><td>the others are unaffected. Open the run and resume it: only the peptides with no result are docked again.</td></tr>
 </table>
 <div class="note"><b>A failed preparation cannot be resumed into a result.</b> The
