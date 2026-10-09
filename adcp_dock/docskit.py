@@ -245,6 +245,10 @@ CREDITBAR_CSS = """
 @media (prefers-reduced-motion:reduce){
   .creditbar .rolling .credittext{animation:none}
 }
+/* For somebody who has asked for less motion the credits do not roll, and a still line would cut
+   them off, so the bar grows to as many lines as they need instead. */
+.creditbar.still{height:auto;line-height:1.45;padding:3px 14px;align-items:flex-start}
+.creditbar.still .credittext{white-space:normal;overflow:visible;text-overflow:clip}
 .creditbar .credittext{min-width:0;flex:1 1 auto;white-space:nowrap;overflow:hidden;
   text-overflow:ellipsis}
 .creditbar .creditlinks{flex:none;white-space:nowrap}
@@ -264,11 +268,19 @@ CREDITROLL = """<script>
   var text = bar.querySelector(".credittext");
   if (!text) return;
   var said = text.innerHTML;
+  var calm = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
   function measure() {
     var box = text.parentNode.classList.contains("rolling") ? text.parentNode : null;
     if (box) { box.replaceWith.call(box, text); text.innerHTML = said; }   // back to still
     text.classList.remove("rolled");
+    bar.classList.remove("still");
+    document.body.style.paddingBottom = "";
     if (text.scrollWidth <= text.clientWidth + 2) return;                  // it fits; leave it
+    if (calm && calm.matches) {                    // no rolling: wrap onto more lines instead
+      bar.classList.add("still");
+      document.body.style.paddingBottom = (bar.offsetHeight + 4) + "px";
+      return;
+    }
     var roll = document.createElement("span");
     roll.className = "rolling";
     text.parentNode.insertBefore(roll, text);
@@ -281,6 +293,7 @@ CREDITROLL = """<script>
   // window. written out: a bare addEventListener is the same call, but a page that checks every
   // name it calls is defined - the aptamer's does - cannot tell it from a typo.
   window.addEventListener("resize", function () { clearTimeout(again); again = setTimeout(measure, 250); });
+  if (calm && calm.addEventListener) calm.addEventListener("change", measure);
 })();
 </script>"""
 
