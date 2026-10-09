@@ -100,7 +100,9 @@ same energy for an angle and for its negative, and it has no CMAP grid, the one
 protein term that would not. Bonds, angles, van der Waals, electrostatics and
 the solvation term depend only on distances and angles, which a mirror image
 keeps. It was checked directly: a D peptide and its exact mirror image as an L
-peptide have the same energy, term by term, before and after a minimisation.</p>
+peptide have the same energy, term by term. After a minimisation of 1,000 steps
+they still agree within 1 kcal/mol, because the minimiser's path from two
+mirrored starting points differs by rounding.</p>
 <p>The one thing the L template would get wrong is where <code>tleap</code>
 puts the atoms a docked pose does not carry, the hydrogens and the last
 residue's second oxygen, which it takes from the template's own geometry: on a D
