@@ -31,9 +31,16 @@ if not GIT or not shutil.which("bash"):
     sys.exit(77)
 
 tmp = tempfile.mkdtemp(prefix="adcp_update_")
-env = dict(os.environ, GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1",
+# Nothing from the environment this runs in may point update.sh at a real
+# installation of ADapt or ADFRsuite; tests/test_adapt_fetch.py covers ADapt.
+env = {k: v for k, v in os.environ.items()
+       if k not in ("ADFRSUITE_HOME", "ADCP_HOME", "ADAPT_HOME", "ADCPSUITE_HOME")}
+env["PATH"] = os.pathsep.join(d for d in env.get("PATH", "").split(os.pathsep)
+                             if d and not os.path.exists(os.path.join(d, "prepare_receptor")))
+env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1",
            GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.org",
-           GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@example.org")
+           GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@example.org",
+           ADAPT_REPO_URL=os.path.join(tempfile.gettempdir(), "no-such-adapt.git"))
 
 
 def git(cwd, *args):

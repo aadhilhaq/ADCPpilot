@@ -51,9 +51,19 @@ The folder you give is where the environment and ADFRsuite go. Choose one with r
 * looks for an environment and an ADFRsuite already on the machine, and builds only what is missing;
 * builds the environment (Python 3.11, RDKit, AmberTools, PDB2PQR, OpenMM, PDBFixer and Biopython, all from conda-forge) with your cluster's conda, or with micromamba, a single file it fetches into that folder, when there is none. No conda module is needed;
 * downloads ADFRsuite from Scripps, checks the archive against a pinned SHA-256 checksum, and installs it;
+* installs ADCP 1.1 beside ADFRsuite with the Scripps Research Institute's own recipe ([section 4](#4-adcp-11-optional)); `--no-adcp11` leaves it out;
+* fetches ADapt beside it, once ADapt's repository is public ([ADapt](#adapt-optional)); until then it says so in one line and carries on;
 * writes `activate.sh` in the checkout, which names all of it.
 
-It takes 15 to 40 minutes, nearly all of it AmberTools. If it stops part way, run the same line again: it carries on from what is already there. `./install.sh --check` reports what it found and changes nothing. Nothing is written to your home directory.
+It takes 15 to 40 minutes, nearly all of it AmberTools, and about ten more for ADCP 1.1. If it stops part way, run the same line again: it carries on from what is already there. `./install.sh --check` reports what it found, what an install would add, and whether ADapt could be fetched today, and changes nothing. Nothing is written to your home directory.
+
+To update later, in the checkout:
+
+```bash
+git pull; ./update.sh
+```
+
+`update.sh` moves the checkout to the newest version, reinstalls the package, and brings ADapt up to date beside ADFRsuite ([ADapt](#adapt-optional)). It never builds an environment; it says when ADCP 1.1 is missing and gives the command that adds it.
 
 **For a whole group**, run it once in a shared folder and have everyone use
 that checkout. Each person runs their own server from the shared install.
@@ -278,7 +288,7 @@ Use the notebook to explore the workflow and inspect inputs. Reduced search sett
 
 ## 4. ADCP 1.1 (optional)
 
-ADCP 1.1 is the current version of AutoDock CrankPep. It adds non-standard and D amino acids, all-atom poses in one file, and an optional OpenMM minimization and re-ranking of the top poses. The Scripps Research Institute distributes it as its own Python 3.7 environment. Install it, on a cluster login node, a workstation or in Colab, with:
+ADCP 1.1 is the current version of AutoDock CrankPep. It adds non-standard and D amino acids, all-atom poses in one file, and an optional OpenMM minimization and re-ranking of the top poses. The Scripps Research Institute distributes it as its own Python 3.7 environment. On a cluster, `install.sh` installs it beside ADFRsuite unless given `--no-adcp11`. Otherwise, or to add it later, install it on a cluster login node, a workstation or in Colab with:
 
 ```bash
 adcp-dock install-adcp11                      # beside ADFRsuite, in the tools folder
@@ -308,15 +318,55 @@ Scripps' ADCP 1.1 environment includes the MSMS library (mslib) and the UT packa
 
 ### ADapt (optional)
 
-ADapt, by Michel Sanner, shows what a PDB file holds before you dock into it: each biological assembly, alternate locations, side chains with missing atoms, missing residues, ligands, cofactors and metals, in a browser page. It writes receptor and ligand PDBQT files the way AGFR does. It runs on the ADCP 1.1 environment above, and it is a separate project, not included in this package. Get it from <https://github.com/michelsanner/adapt> (while that repository is private, ask its author for access):
+ADapt, by Michel Sanner, shows what a PDB file holds before you dock into it: each biological assembly, alternate locations, side chains with missing atoms, missing residues, ligands, cofactors and metals. It prepares the receptor the way AGFR does, with AGFR's own code. It is a separate project, not included in this package, and it runs on the ADCP 1.1 environment above, so it is used only where ADCP 1.1 is installed.
 
-```bash
-git clone https://github.com/michelsanner/adapt
-```
+#### How it is fetched
 
-The interface finds it at `$ADAPT_HOME`, in a folder named `adapt` beside ADFRsuite, beside this checkout or in a tools folder given with `--tools-root`, or at `~/.adcp-dock/adapt`. It needs ADapt from commit 6dae90b on, which takes `--base-path` and writes `_rec_H.pdb`; an older checkout is not offered, and `git pull` in it updates it. When it finds ADapt and ADCP 1.1, the Receptor card shows **Open in ADapt**, which hands ADapt the receptor loaded there (its `api/upload`) and opens it in a new tab on that session (`session=` in the address). Choose there what stays in the receptor, the assembly, hetero groups such as a catalytic zinc, metal charges, alternate locations and modified residues, and press *receptor PDBQT*. The page reads back what ADapt wrote in its session folder, the receptor PDBQT, its `_rec_H.pdb` and `session.json`, and uses it as the receptor: the PDBQT is docked as ADapt wrote it, and this package's preparation does not run. From the command line: `adcp-dock new RUN --adapt-session FOLDER [--adapt-save N] -s ...`. ADapt keeps its sessions in `adapt_sessions` inside the runs folder, and it stops when the interface stops.
+`install.sh` and `update.sh` fetch it from <https://github.com/michelsanner/adapt> into a folder named `adapt` beside ADFRsuite, where the interface looks for it. They fetch it anonymously: git runs so that it never asks for a username or password and never uses a saved credential, so the same thing happens for everyone, on every cluster.
 
-ADapt runs beside the interface on the same machine, started with `--base-path /adapt`, and the interface's server passes `/adapt/` to it unchanged, as ADapt's README describes, so it reaches your browser over the same connection as the interface. Nothing else needs forwarding, whether you use the desktop launcher or your own `ssh -L`. Its first start imports AGFR's libraries and can take a minute or two on a busy login node, so the interface starts it in the background as soon as the page shows the button, and the tab says what it is waiting for. To run ADapt on its own: `ADCPSUITE=/path/to/adcpsuite ADAPT_OUTDIR=/path/to/folder adapt/bin/adapt serve`.
+* **While the repository is private**, as it is today, the fetch fails at once and the script says so in one line, then carries on:
+
+  ```
+  ADapt: not installed: https://github.com/michelsanner/adapt.git is not public yet. ADCP docking works without it; ./update.sh fetches it once it is public, or fetch it by hand with access (INSTALL.md, ADapt)
+  ```
+
+  Where ADapt is already installed, the line is instead `ADapt: 1005e87, kept as it is: https://github.com/michelsanner/adapt.git is not public yet`. If you have access now, clone it yourself beside ADFRsuite, over whichever address your access works with (ssh as here, or https with a token):
+
+  ```bash
+  source activate.sh
+  git clone git@github.com:michelsanner/adapt.git "$(dirname "$ADFRSUITE_HOME")/adapt"
+  ```
+
+  `update.sh` never uses that address afterwards: it fetches from the public one.
+
+* **Once it is public**, the next `./update.sh`, or `./install.sh` on a new installation, clones it. Nothing else needs doing.
+
+`install.sh` fetches ADapt only where there is no `adapt` folder yet, and leaves one that is already there to `update.sh`. After updating the checkout, `update.sh` looks at that folder:
+
+* **Missing**: it tries the anonymous clone above.
+* **A git checkout**: it fetches the newest `master` from the https address, never through the remote the checkout has configured (on a cluster whose ssh setup gives github.com another repository's deploy key, that remote fails), and moves the checkout forward only when that is a plain fast forward. A checkout with local changes to its files, on another branch, or with commits of its own is left exactly as it is, and the line says why.
+* **Not a git checkout**, for example one copied without its `.git` folder: it is left as it is, and the line says it cannot be updated automatically.
+
+A checkout whose commit is no longer in the published history, as happens if the history is rewritten when the repository is made public, is left as it is too. In that case, and for a folder that is not a git checkout, move the folder aside (`mv adapt adapt.old` beside ADFRsuite) and the next `./update.sh` fetches a fresh checkout in its place.
+
+After moving ADapt forward, `update.sh` checks that the new version still has `bin/adapt` and takes `--base-path`, which this interface needs to embed it. If it does not, ADapt is moved back to the commit it was on and the line says so, so a change to ADapt never leaves an installation without a working ADapt. The line always says which commit ADapt is at and why; the next one says whether ADCP 1.1 is installed and, when it is not, gives the command that adds it.
+
+`ADAPT_REPO_URL` fetches from another address instead, a fork for example, and `ADAPT_REPO_BRANCH` follows another branch.
+
+#### Where the interface finds it
+
+At `$ADAPT_HOME`, in a folder named `adapt` beside ADFRsuite, in the installation's own `tools/docking`, beside this checkout or in a tools folder given with `--tools-root`, or at `~/.adcp-dock/adapt`. It needs ADapt from commit 6dae90b on, which takes `--base-path` and writes `_rec_H.pdb`. An older checkout is not offered, and the Receptor card says how to update it; `./update.sh` does.
+
+#### In the page
+
+When the interface finds ADapt and ADCP 1.1, ADapt opens by itself in a frame inside the Receptor card, on every structure loaded there: a PDB id fetched, a file on the cluster or one from your own computer. Opening it changes nothing. The line above the frame always says which receptor will be docked:
+
+* **Docking will use this page's preparation.** Until you change anything in ADapt, the structure is prepared as the Receptor card's settings say, exactly as without ADapt.
+* **Docking will use the receptor as set in ADapt.** From the first change there, an unticked chain or the waters taken out for example, ADapt decides what stays in the receptor: the assembly, hetero groups such as a catalytic zinc, metal charges, alternate locations and modified residues. The card's preparation settings are greyed out.
+
+You do not need ADapt's own save button. When you submit, the page asks ADapt to write the receptor as it is set there (its `api/save`, the call its *receptor PDBQT* button makes), and reads back what ADapt wrote in its session folder: the receptor PDBQT, its `_rec_H.pdb` and `session.json`. The PDBQT is docked as ADapt wrote it, and this package's preparation does not run. The run copies the three files into its `receptor` folder and records the session, the save and their checksums. *Use ADapt's receptor now* does the same at once, so the site can be checked on the receptor that will be docked, and *Use this page's preparation instead* goes back. *Open full screen* shows the same session in a tab of its own; on a phone the card offers *Open in ADapt*, which opens it in a tab. From the command line: `adcp-dock new RUN --adapt-session FOLDER [--adapt-save N] -s ...`. ADapt keeps its sessions in `adapt_sessions` inside the runs folder, and it stops when the interface stops. The built-in Docs page *A receptor prepared in ADapt* shows each step.
+
+ADapt runs beside the interface on the same machine, started with `--base-path /adapt`, and the interface's server passes `/adapt/` to it unchanged, as ADapt's README describes, so it reaches your browser over the same connection as the interface. Nothing else needs forwarding, whether you use the desktop launcher or your own `ssh -L`. Its first start imports AGFR's libraries and can take a minute or two on a busy login node, so the interface starts it in the background as soon as the page opens, and the card says what it is waiting for. To run ADapt on its own: `ADCPSUITE=/path/to/adcpsuite ADAPT_OUTDIR=/path/to/folder adapt/bin/adapt serve`.
 
 ### reduce and MSMS
 

@@ -10,9 +10,17 @@
 # the file count matters more than the size. So this looks for them first,
 # in the places a shared install puts them, and builds only what is missing.
 #
+# Beside ADFRsuite it then puts ADCP 1.1, with the Scripps Research
+# Institute's own recipe (adcp_dock/adcp11_install.py), and ADapt, Michel
+# Sanner's tool for choosing what stays in a receptor, which runs on ADCP 1.1.
+# ADapt is fetched anonymously from its public repository; while that
+# repository is private this says so in one line and carries on, and
+# ./update.sh fetches it once it is public. ADapt never stops an install.
+#
 #     ./install.sh                      look around, install what is missing
 #     ./install.sh <shared-prefix> install under this prefix
 #     ./install.sh --check              report and change nothing
+#     ./install.sh --no-adcp11 ...      leave out ADCP 1.1 (ADapt needs it)
 #
 # Run it on a login node: it downloads files, and compute nodes often have no
 # outbound network. Nothing else is needed first: a cluster's own conda is
@@ -23,10 +31,12 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHECK_ONLY=0
+NO_ADCP11=0
 PREFIX=""
 for a in "$@"; do
   case "$a" in
     --check) CHECK_ONLY=1 ;;
+    --no-adcp11) NO_ADCP11=1 ;;
     -*) echo "unknown option: $a" >&2; exit 2 ;;
     *)  PREFIX="$a" ;;
   esac
@@ -34,6 +44,13 @@ done
 
 say()  { printf '%s\n' "$*"; }
 head_() { printf '\n== %s ==\n' "$*"; }
+# A long line, wrapped and indented under its heading.
+wrap() { printf '%s\n' "$*" | fold -s -w 74 | sed 's/^/  /'; }
+
+# Finding and fetching ADapt, and finding ADCP 1.1, the way the interface
+# finds them. The same file is what update.sh uses.
+# shellcheck source=scripts/adapt_fetch.sh
+. "$HERE/scripts/adapt_fetch.sh"
 
 # --- where a shared install keeps things ----------------------------------
 # Ordered by how likely they are to be the right answer on a given machine.
@@ -107,12 +124,64 @@ if [ -z "$found_adfr" ]; then
   fi
 fi
 
+# Both go beside ADFRsuite, where the interface looks for them: beside the one
+# found, or the one this is about to install. ADCP_HOME is this checkout, as
+# activate.sh will say.
+adfr_at="${found_adfr:-${PREFIX:-$HERE}/tools/docking/ADFRsuite}"
+TOOLS_AT=$(adapt_tools "$adfr_at" "$HERE")
+suite_found() { ADFRSUITE_HOME="$adfr_at" ADCP_HOME="$HERE" adcp11_found; }
+head_ "Looking for ADCP 1.1 and ADapt"
+found_suite=$(suite_found)
+if [ -n "$found_suite" ]; then
+  say "  USING ADCP 1.1 at $found_suite"
+else
+  say "  ADCP 1.1: not found"
+fi
+ADAPT_DIR=$(adapt_dest "$adfr_at" "$HERE")
+adapt_at=$(adapt_commit "$ADAPT_DIR")
+if adapt_is "$ADAPT_DIR"; then
+  if adapt_embeds "$ADAPT_DIR"; then
+    say "  ADapt at $ADAPT_DIR${adapt_at:+ ($adapt_at)}"
+  else
+    say "  ADapt at $ADAPT_DIR${adapt_at:+ ($adapt_at)}, older than this"
+    say "        interface needs; ./update.sh brings it up to date"
+  fi
+elif [ -e "$ADAPT_DIR" ]; then
+  say "  $ADAPT_DIR exists but is not ADapt; it is left as it is"
+else
+  say "  ADapt: not found"
+fi
+
 # --- decide ---------------------------------------------------------------
 head_ "What this machine still needs"
-need_env=0; need_adfr=0
+need_env=0; need_adfr=0; need_suite=0; need_adapt=0
 [ -n "$found_env" ]  || { need_env=1;  say "  an environment with numpy, RDKit, AmberTools and pdb2pqr"; }
 [ -n "$found_adfr" ] || { need_adfr=1; say "  ADFRsuite (adcp, agfr, prepare_receptor)"; }
-[ "$need_env$need_adfr" = "00" ] && say "  nothing. Everything it needs is already on this machine."
+if [ -z "$found_suite" ]; then
+  if [ "$NO_ADCP11" = 1 ]; then
+    say "  ADCP 1.1 is not here, and --no-adcp11 leaves it out. ADapt, the"
+    say "        non-standard and D residues and AGFR 1.1 need it."
+  else
+    need_suite=1
+    say "  ADCP 1.1, into $TOOLS_AT/adcpsuite (about ten minutes"
+    say "        and 3 GB; --no-adcp11 leaves it out)"
+  fi
+fi
+if [ ! -e "$ADAPT_DIR" ]; then
+  need_adapt=1
+  if [ "$CHECK_ONLY" = 1 ]; then
+    # Asked, not assumed: --check says what an install would do today.
+    adapt_public
+    if [ "$ADAPT_STATE" = public ]; then
+      say "  ADapt, into $ADAPT_DIR, from $ADAPT_URL"
+    else
+      wrap "ADapt would not be fetched today: $ADAPT_LINE. ADCP docking works without it, and ./update.sh fetches it once it can."
+    fi
+  else
+    say "  ADapt, into $ADAPT_DIR, if its repository is public"
+  fi
+fi
+[ "$need_env$need_adfr$need_suite$need_adapt" = "0000" ] && say "  nothing. Everything it needs is already on this machine."
 
 if [ "$CHECK_ONLY" = 1 ]; then
   say ""
@@ -391,11 +460,82 @@ write_activate "$found_env" "$found_adfr"
 say ""
 say "Wrote $ACT"
 
+# --- ADCP 1.1, beside ADFRsuite --------------------------------------------
+# With the package's own installer, which follows the Scripps Research
+# Institute's recipe and checks every Scripps package against a pinned
+# checksum. Optional for docking, which ADCP 1.0 does, so a failure here is
+# reported and the install carries on; running this script again retries it.
+adfr_at="$found_adfr"
+TOOLS_AT=$(adapt_tools "$found_adfr" "$HERE")
+if [ "$need_suite" = 1 ]; then
+  SUITE_DEST="$TOOLS_AT/adcpsuite"
+  head_ "Installing ADCP 1.1 into $SUITE_DEST"
+  say "  the Scripps Research Institute's recipe: about ten minutes and 3 GB"
+  # HOME points beside it for this one command, as for conda above: nothing
+  # of it belongs in the home directory. A micromamba fetched above is
+  # reused rather than fetched again.
+  mkdir -p "$TOOLS_AT/.adcpsuite_home"
+  if HOME="$TOOLS_AT/.adcpsuite_home" ADFRSUITE_HOME="$found_adfr" ADCP_HOME="$HERE" \
+     PATH="${PREFIX:+$PREFIX/tools:}$PATH" PYTHONPATH="$HERE${PYTHONPATH:+:$PYTHONPATH}" \
+     "$found_env/bin/python" -u -m adcp_dock.adcp11_install --dest "$SUITE_DEST" 2>&1 \
+     | sed 's/^/  /'; then :; fi
+  rmdir "$TOOLS_AT/.adcpsuite_home" 2>/dev/null || true
+  found_suite=$(suite_found)
+  if [ -n "$found_suite" ]; then
+    say "  verified: ADCP 1.1 is at $found_suite"
+  else
+    cat >&2 <<MSG
+
+  ADCP 1.1 did not install; the lines above say why. Docking with ADCP 1.0
+  works without it. Run this script again to retry, or just this step:
+
+      $found_env/bin/python -m adcp_dock.cli install-adcp11 --dest $SUITE_DEST
+
+MSG
+  fi
+fi
+
+# --- ADapt, beside it -------------------------------------------------------
+# Fetched anonymously (scripts/adapt_fetch.sh): no prompt and no stored
+# credential, so while the repository is private this is one calm line. A
+# folder already there is left for ./update.sh, which knows when it is safe
+# to move one forward.
+head_ "ADapt"
+ADAPT_DIR=$(adapt_dest "$found_adfr" "$HERE")
+if [ -z "$ADAPT_DIR" ]; then
+  say "  not fetched: there is no ADFRsuite folder to put it beside"
+elif [ -e "$ADAPT_DIR" ]; then
+  adapt_at=$(adapt_commit "$ADAPT_DIR")
+  if adapt_is "$ADAPT_DIR"; then
+    wrap "already at $ADAPT_DIR${adapt_at:+ ($adapt_at)}; ./update.sh keeps it up to date"
+  else
+    wrap "$ADAPT_DIR is already there and is not ADapt; it is left as it is"
+  fi
+else
+  adapt_clone "$ADAPT_DIR"
+  wrap "$ADAPT_LINE"
+fi
+if [ -z "$found_suite" ] && adapt_is "${ADAPT_DIR:-/nonexistent}"; then
+  wrap "ADapt runs on ADCP 1.1, which is not installed, so the interface will not offer it until ADCP 1.1 is added."
+fi
+
 # --- prove it ------------------------------------------------------------
 head_ "Checking"
 # shellcheck disable=SC1090
 source "$ACT"
 "$found_env/bin/python" -m adcp_dock.cli check || true
+say ""
+say "  ADCP 1.1         ${found_suite:-not installed (optional; ADapt needs it)}"
+if adapt_is "${ADAPT_DIR:-/nonexistent}"; then
+  adapt_at=$(adapt_commit "$ADAPT_DIR")
+  if adapt_embeds "$ADAPT_DIR"; then
+    say "  ADapt            $ADAPT_DIR${adapt_at:+ ($adapt_at)}"
+  else
+    say "  ADapt            $ADAPT_DIR${adapt_at:+ ($adapt_at)}, older than the interface needs"
+  fi
+else
+  say "  ADapt            not installed (optional; ./update.sh fetches it once it is public)"
+fi
 
 cat <<EOF
 

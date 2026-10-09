@@ -35,7 +35,7 @@ adcp-dock check
 adcp-dock serve --port 0
 ```
 
-`install.sh` needs no conda module: it uses the cluster's conda where there is one and fetches micromamba where there is not. It builds the environment, downloads ADFRsuite from Scripps and checks it against a pinned checksum, and writes `activate.sh`, which names everything ([INSTALL.md, 1.2](INSTALL.md#12-install)).
+`install.sh` needs no conda module: it uses the cluster's conda where there is one and fetches micromamba where there is not. It builds the environment, downloads ADFRsuite from Scripps and checks it against a pinned checksum, installs ADCP 1.1 beside it, fetches ADapt beside it once ADapt's repository is public, and writes `activate.sh`, which names everything ([INSTALL.md, 1.2](INSTALL.md#12-install)). To update later, `git pull; ./update.sh` in the checkout; it keeps ADapt up to date too.
 
 The server prints an address with an access token. Open it through an SSH tunnel ([INSTALL.md, 1.5](INSTALL.md#15-start-the-page)) or with the [desktop launcher](INSTALL.md#5-the-desktop-launcher).
 
@@ -47,7 +47,7 @@ python3 -m venv ~/.adcp-dock/venv
 ~/.adcp-dock/venv/bin/adcp-dock local
 ```
 
-ADCP 1.1 is an optional extra install: `adcp-dock install-adcp11` ([INSTALL.md, section 4](INSTALL.md#4-adcp-11-optional)). On top of it, ADapt, a separate tool by Michel Sanner that shows what a structure file holds before you dock into it, can be opened from the Receptor card once it is installed ([INSTALL.md, ADapt](INSTALL.md#adapt-optional)).
+ADCP 1.1 is optional. On a cluster `install.sh` installs it (`--no-adcp11` leaves it out); elsewhere `adcp-dock install-adcp11` does ([INSTALL.md, section 4](INSTALL.md#4-adcp-11-optional)). On top of it, ADapt, a separate tool by Michel Sanner that shows what a structure file holds and prepares the receptor the way AGFR does, opens inside the Receptor card on the structure loaded there. `install.sh` and `update.sh` fetch it beside ADFRsuite from its repository once that is public; until then they say so in one line and carry on ([INSTALL.md, ADapt](INSTALL.md#adapt-optional)).
 
 `adcp-dock example` adds a finished run, MDM2 with three peptides, to open before docking anything. The Colab notebook includes it.
 

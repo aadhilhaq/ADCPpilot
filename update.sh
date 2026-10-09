@@ -11,8 +11,13 @@
 # rewritten, a plain pull refuses, and this script is what moves the checkout
 # onto the new history.
 #
+# It also brings ADapt, Michel Sanner's separate tool, up to date beside
+# ADFRsuite, or fetches it there when it is missing and its repository is
+# public. That step never stops or fails the update.
+#
 # What it does NOT do: build an environment. install.sh owns that, it only
 # has to run once, and it is the thing that needs a login node and a network.
+# So a missing ADCP 1.1 is reported with the command that adds it.
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$HERE"
@@ -104,6 +109,55 @@ fi
 say "clearing cached bytecode"
 find "$HERE" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null
 note "done"
+
+# --- ADapt, and the ADCP 1.1 it runs on ---------------------------------------
+# ADapt is Michel Sanner's own repository, kept beside ADFRsuite, where the
+# interface finds it. It is fetched anonymously from its https address, never
+# through the remote its checkout has configured, and only ever moved forward
+# along its branch; scripts/adapt_fetch.sh says what is left alone and why.
+# Nothing here can stop this script, prompt, or make it fail: ADCP docking
+# works without ADapt.
+say "ADapt, and the ADCP 1.1 it runs on"
+if [ -f "$HERE/scripts/adapt_fetch.sh" ]; then
+  # shellcheck source=scripts/adapt_fetch.sh
+  . "$HERE/scripts/adapt_fetch.sh"
+  # The ADFRsuite this install uses: the one activate.sh names, else the one
+  # whose programs are on PATH, as the interface would find them.
+  ADFR_AT="${ADFRSUITE_HOME:-}"
+  if [ -z "$ADFR_AT" ] && command -v prepare_receptor >/dev/null 2>&1; then
+    ADFR_AT=$(dirname "$(dirname "$(command -v prepare_receptor)")")
+  fi
+  ADAPT_DIR=$(adapt_dest "$ADFR_AT" "${ADCP_HOME:-}")
+  if [ -z "$ADAPT_DIR" ]; then
+    note "ADapt: not fetched, since no ADFRsuite was found to put it beside (activate.sh names none, and none is on PATH; run ./install.sh)"
+  else
+    if [ -e "$ADAPT_DIR" ]; then
+      adapt_update "$ADAPT_DIR"
+    else
+      adapt_clone "$ADAPT_DIR"
+    fi
+    case "$ADAPT_STATE" in
+      changed|branch|detached|ahead|diverged|blocked|rolledback|broken|unreadable|fetched_old)
+        warn "ADapt: $ADAPT_LINE" ;;
+      *) note "ADapt: $ADAPT_LINE" ;;
+    esac
+    USED=$(adapt_found "$HERE")
+    if [ -n "$USED" ] && [ "$(cd "$USED" && pwd -P)" != "$(cd "$ADAPT_DIR" 2>/dev/null && pwd -P)" ]; then
+      note "  the interface uses the ADapt in $USED instead, which this leaves alone"
+    fi
+  fi
+  SUITE=$(adcp11_found)
+  if [ -n "$SUITE" ]; then
+    note "ADCP 1.1: $SUITE"
+  elif [ -n "$ADAPT_DIR" ]; then
+    warn "ADCP 1.1 is not installed, and ADapt runs on it. To add it, on a login node (ten minutes, 3 GB):"
+    note "  ${PY:-python3} -m adcp_dock.cli install-adcp11 --dest $(dirname "$ADAPT_DIR")/adcpsuite"
+  else
+    warn "ADCP 1.1 is not installed, and ADapt runs on it. ./install.sh adds both."
+  fi
+else
+  note "scripts/adapt_fetch.sh is missing from this checkout; ADapt left as it is"
+fi
 
 # --- what this install has now ----------------------------------------------
 # The checkout is installed in editable mode, so it is what runs. A copy left

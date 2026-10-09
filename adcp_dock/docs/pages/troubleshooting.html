@@ -89,13 +89,21 @@ in the bar; Mol* is the larger of the two and takes a moment the first time.</li
 none, for the reason the line gives: it is not installed with ADFRsuite here, the
 structure is larger than the server triangulates, or MSMS failed on it. The
 viewer's own surface is drawn instead, and nothing else is affected.</li>
-<li><b>Open in ADapt says the ADapt here is older.</b> Embedding needs the ADapt
-that takes <code>--base-path</code> and writes <code>_rec_H.pdb</code>. Update the
-ADapt checkout with <code>git pull</code> and restart the interface.</li>
-<li><b>The save in ADapt is not read back.</b> Only a receptor save counts: press
-<b>receptor PDBQT</b> in ADapt, not ligand PDBQT. The page looks for it every few
-seconds while it is open; <b>Read the save now</b>, beside <b>Open in ADapt</b>,
-asks at once and says what it found.</li>
+<li><b>ADapt does not open in the Receptor card.</b> It opens only where ADapt and
+ADCP 1.1 are both installed. <code>./update.sh</code> says on its ADapt line where
+ADapt is and why, and on the next line whether ADCP 1.1 is there, with the command
+that adds it. While ADapt's repository is private it is not fetched, and docking
+works as before.</li>
+<li><b>The Receptor card says the ADapt here is older.</b> Embedding needs the ADapt
+that takes <code>--base-path</code> and writes <code>_rec_H.pdb</code>. Run
+<code>./update.sh</code> in the ADCP_docking checkout, which brings ADapt beside
+ADFRsuite up to date, and restart the interface.</li>
+<li><b>The run did not use what was set in ADapt.</b> The line above the frame says
+which receptor will be docked, and it is this page&rsquo;s preparation until
+something is changed in ADapt, or again after <b>Use this page&rsquo;s preparation
+instead</b>. Change something in ADapt, or press <b>Use ADapt&rsquo;s receptor
+now</b>, and the line says the receptor as set in ADapt will be docked; ADapt
+writes it when you submit.</li>
 </ul>
 
 <h2 id="asking-for-help">Asking for help</h2>

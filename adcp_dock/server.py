@@ -416,7 +416,8 @@ class App:
         if not adaptmod.embeddable(home):
             return {"available": False, "repo": adaptmod.REPO,
                     "why": "The ADapt in %s (%s) is older than the version this "
-                           "interface works with (%s or later). Update it: git -C "
+                           "interface works with (%s or later). Update it: ./update.sh "
+                           "in the ADCP_docking checkout updates ADapt too, or git -C "
                            "%s pull" % (home, adaptmod.commit(home) or "unknown",
                                         adaptmod.EMBED_COMMIT, home)}
         return {"available": True, "repo": adaptmod.REPO, "why": "",

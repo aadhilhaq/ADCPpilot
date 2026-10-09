@@ -10,12 +10,14 @@ receptor with every hydrogen reduce placed (<id>_rec_H.pdb).
 
 It drives AGFR's own code, so it runs on the ADCP 1.1 environment's Python and
 is started here as its own program with that environment named. Nothing of it
-is imported or shipped with this package; it is found where it was installed:
+is imported or shipped with this package; it is found where it was installed.
+install.sh and update.sh fetch it from
 
-    git clone https://github.com/michelsanner/adapt
+    https://github.com/michelsanner/adapt
 
-and then ADAPT_HOME set to that folder, or the folder placed beside this
-checkout or beside ADFRsuite.
+into a folder named adapt beside ADFRsuite, anonymously, once that repository
+is public (scripts/adapt_fetch.sh). It is also found at ADAPT_HOME, or beside
+this checkout.
 
 It is embedded the way its README's "Embedding ADapt" section describes: it
 is started with --base-path /adapt, so this interface's server forwards
