@@ -38,8 +38,11 @@ def check(cond, why):
 TMP = tempfile.mkdtemp(prefix="adcp_surface_")
 os.environ["HOME"] = TMP
 REC = os.path.join(ROOT, "adcp_dock", "example_run", "receptor", "1YCR.pdb")
-ROOTS = [r for r in ("/scratch/group/p.agr250019.000/tools/docking",)
-         if os.path.isdir(r)]
+# Where the tools are, for the checks that run them: ADCP_TEST_TOOLS, or else the folder
+# holding ADFRsuite. Without either those checks are skipped.
+ROOTS = [r for r in (os.environ.get("ADCP_TEST_TOOLS", ""),
+                     os.path.dirname(os.environ.get("ADFRSUITE_HOME", "").rstrip("/")))
+         if r and os.path.isdir(r)]
 atoms = [a for a in structure.read(REC) if a.chain == "A"]
 
 # --- the density follows the size -------------------------------------------

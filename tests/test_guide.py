@@ -28,7 +28,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock import page, pipeline, server, sizing, structure  # noqa: E402
+from adcp_dock import page, pipeline, server, sizing, slurm, structure  # noqa: E402
 from adcp_dock import job as jobmod                               # noqa: E402
 
 fails, ran = [], 0
@@ -187,7 +187,12 @@ else:
           "reading it only; the screenshot script drives it in a browser")
 
 # --- the site line: angstroms, and the box said once --------------------------------
-REC = os.path.join(ROOT, "examples", "receptor.pdb")
+REC = os.environ.get("ADCP_TEST_RECEPTOR") or os.path.join(ROOT, "examples", "receptor.pdb")
+if not os.path.isfile(REC):
+    # examples/receptor.pdb is the user's own and ignored by git, so a fresh clone has none.
+    # The package's own example ships MDM2 (chain A) with p53's peptide (chain B), a site in A
+    # and a ligand in B, which is what these checks ask of a receptor.
+    REC = os.path.join(ROOT, "adcp_dock", "example_run", "receptor", "1YCR.pdb")
 atoms = structure.read(REC)
 _c, size, note = structure.box_for(
     [a for a in atoms if a.chain == "A"],
@@ -253,11 +258,14 @@ body = {"peptides": [{"sequence": "ETFSDLWKLLPEN"}], "replicas": 50,
 e = app.estimate_run(dict(body))
 j = jobmod.default(**{k: v for k, v in body.items() if k in jobmod.default()})
 j["tools_roots"] = app.tools_roots
-check(e.get("prep_walltime") == pipeline.prep_time(j),
+# What the submission books is prep_time capped at the partition's own limit (slurm.within_limit),
+# so on a cluster whose default partition allows less than the four hours, both say less.
+booked = slurm.within_limit(pipeline.prep_time(j), j.get("partition"), j.get("sbatch_extra"))
+check(e.get("prep_walltime") == booked,
       "the estimate counts the prepare job at %r and the submission books %r"
-      % (e.get("prep_walltime"), pipeline.prep_time(j)))
+      % (e.get("prep_walltime"), booked))
 e = app.estimate_run(dict(body, target_file="/nowhere/target.trg"))
-check(e.get("prep_walltime") == "04:00:00",
+check(e.get("prep_walltime") == slurm.within_limit("04:00:00"),
       "a target file's prepare job is counted at %r" % e.get("prep_walltime"))
 check("of queue time booked in total" not in appjs and "b.total" in appjs,
       "the page still states the chain's estimate as if it were one booking")

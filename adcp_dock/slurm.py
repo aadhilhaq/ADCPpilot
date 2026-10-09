@@ -123,7 +123,7 @@ def within_limit(hhmmss, partition="", extra=""):
     asked = _limit_minutes(hhmmss)
     if limit is None or asked is None or asked <= limit:
         return hhmmss
-    return "%d:%02d:00" % (limit // 60, limit % 60)
+    return "%02d:%02d:00" % (limit // 60, limit % 60)
 
 
 def fits(partition, minutes):

@@ -51,9 +51,17 @@ def run_cli(*argv):
 
 
 TMP = tempfile.mkdtemp(prefix="adcp_options_")
-REC = os.path.join(ROOT, "examples", "receptor.pdb")
-ROOTS = [r for r in ("/scratch/group/p.agr250019.000/tools/docking",)
-         if os.path.isdir(r)]
+REC = os.environ.get("ADCP_TEST_RECEPTOR") or os.path.join(ROOT, "examples", "receptor.pdb")
+if not os.path.isfile(REC):
+    # examples/receptor.pdb is the user's own and ignored by git, so a fresh clone has none.
+    # The package's own example ships MDM2 (chain A) with p53's peptide (chain B), a site in A
+    # and a ligand in B, which is what these checks ask of a receptor.
+    REC = os.path.join(ROOT, "adcp_dock", "example_run", "receptor", "1YCR.pdb")
+# Where the ADCP 1.1 suite is, for the checks that need it: ADCP_TEST_TOOLS, or else the folder
+# holding ADFRsuite, which is where install-adcp11 puts it. Without either they are skipped.
+ROOTS = [r for r in (os.environ.get("ADCP_TEST_TOOLS", ""),
+                     os.path.dirname(os.environ.get("ADFRSUITE_HOME", "").rstrip("/")))
+         if r and os.path.isdir(r)]
 
 
 # --- % helical: what -p is given, and how many replicas start helical ------
