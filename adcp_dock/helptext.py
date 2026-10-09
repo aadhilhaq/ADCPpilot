@@ -54,7 +54,12 @@ HELP = {
         "Use this page's preparation instead goes back; only a later change "
         "in ADapt brings its receptor back. Hide folds the frame away and "
         "Open full screen shows the same session in a tab of its own. On a "
-        "phone a button opens it in a tab instead."),
+        "phone a button opens it in a tab instead.\n\n"
+        "A first start on a busy login node takes a minute or two. Meanwhile "
+        "the frame's space shows each step as it happens, and the rest of "
+        "the page can be used. Once ADapt's receptor is read back, a card "
+        "above the frame says it is the one docked, and offers Use ADapt's "
+        "current receptor when something has changed in ADapt since."),
     "hotspots": (
         "The residues that define the site",
         "CHAIN:NUMBER, like A:98, or bare numbers when the receptor is one "

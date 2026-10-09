@@ -144,7 +144,8 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .listing .sz{margin-left:auto;color:var(--dim);font-size:12px}
 .listing .place{font-weight:600}
 .dlg-f{padding:10px 16px;border-top:1px solid var(--line);display:flex;
-  gap:10px;align-items:center;justify-content:space-between}
+  gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.dlg-f>span{flex-wrap:wrap}
 
 /* A job's state at a glance: a running job's dot moves, because a static one
    looks finished. */
@@ -281,12 +282,17 @@ textarea{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;min-height:76
   margin-top:10px}
 .adaptlab{margin:0;font-weight:600;font-size:12.5px;color:var(--fg)}
 .adaptbar .why{flex:1 1 200px;margin:0}
-#adaptfull{font-size:11.5px;padding:3px 10px}
+/* Always holding its place, so the buttons stay at the right end. */
+.adaptbar #adaptwait{display:block}
 #adaptfull.hide{display:none}
 #adaptframewrap{margin-top:8px;border:1px solid var(--line);border-radius:10px;
   overflow:hidden;background:var(--card)}
 #adaptframe{display:block;width:100%;height:min(78vh,760px);min-height:520px;
-  border:0;background:var(--card)}
+  border:0;background:var(--card);transition:opacity .5s ease}
+#adaptframewrap{position:relative}
+#adaptframewrap.ld-under #adaptframe{opacity:0}
+/* Folded, the stage is folded with the frame and the line above says it. */
+#adaptpanel:not(.isfolded) #adaptwait .ld-inline{display:none}
 /* Folded, the frame keeps its size out of sight, so ADapt's 3D view is not
    drawn into a box of no size and need not be drawn again. */
 #adaptframewrap.folded{height:0;border:0;margin:0;visibility:hidden}
@@ -304,14 +310,35 @@ textarea{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;min-height:76
 .row button,.row .fixedval{height:38px;box-sizing:border-box}
 .row button{display:inline-flex;align-items:center;justify-content:center}
 .row .stepper button{height:38px}
+/* ---- buttons: one hierarchy -------------------------------------------
+   Four kinds, so a person new to the page can tell at a glance what to press:
+     primary    filled in the accent: the one action a card's step waits for
+     secondary  outlined in the accent, 36px tall at 14px: an action someone
+                needs, that is not the card's main one
+     ghost      outlined in the ink: utilities, such as close, copy, refresh,
+                and the extra actions on a row
+     a link     only for what nobody needs in order to carry on
+   None is pale: a needed action never sits in grey text on a faint line.
+   Every one shows the keyboard's focus. */
 button{font:inherit;padding:8px 16px;border-radius:999px;cursor:pointer;
-  border:1px solid var(--line);background:var(--card);color:var(--fg)}
+  border:1px solid var(--pill-line);background:var(--card);color:var(--fg)}
 button:hover{background:var(--soft)}
-button.primary{background:var(--accent);border-color:var(--accent);color:#fff;
-  font-weight:600;padding:10px 26px}
-button.primary:hover{filter:brightness(1.08)}
-button.ghost{font-size:12.5px;padding:5px 12px;color:var(--dim)}
-button.ghost.danger{color:var(--bad)}
+button:focus-visible,a.btnlink:focus-visible{outline:2px solid var(--accent);
+  outline-offset:2px}
+button.primary{background:var(--accent);border-color:var(--accent);
+  color:var(--on-accent);font-weight:600;padding:10px 26px}
+button.primary:hover{background:var(--accent);filter:brightness(1.08)}
+button.secondary,a.btnlink.secondary{min-height:36px;font-size:14px;
+  font-weight:600;padding:6px 16px;color:var(--accent);background:var(--card);
+  border:1.5px solid var(--accent);line-height:1.3}
+button.secondary:hover,a.btnlink.secondary:hover{background:var(--accent2);
+  color:var(--accent)}
+a.btnlink.secondary{display:inline-flex;align-items:center}
+/* In a table a button keeps its words on one line. */
+td button.secondary{white-space:nowrap}
+button.ghost{font-size:13px;padding:5px 13px;color:var(--fg);min-height:32px}
+button.ghost.danger{color:var(--bad);
+  border-color:color-mix(in srgb,var(--bad) 55%,var(--pill-line))}
 /* The peptide menu and the non-standard residue dialog, laid out as AlphaFold
    Server's: a menu under the row's dots, then a dialog in which a residue is
    clicked to add a row with a type chosen from that residue's options. */
@@ -447,10 +474,11 @@ button.q:focus-visible{outline:1px dotted var(--accent);outline-offset:2px}
    left to the user agent (about 21px). */
 #helpbox h3,#issuebox h3{font-size:15px}
 /* A link that looks like a button: a download has to be a real <a href>, or
-   the browser cannot save it. */
-.btnlink{display:inline-block;font:inherit;font-size:12.5px;
-  padding:5px 12px;border-radius:999px;border:1px solid var(--line);
-  background:var(--card);color:var(--dim);text-decoration:none;
+   the browser cannot save it. It looks exactly like the ghost button beside
+   it. */
+.btnlink{display:inline-block;font:inherit;font-size:13px;
+  padding:5px 13px;border-radius:999px;border:1px solid var(--pill-line);
+  background:var(--card);color:var(--fg);text-decoration:none;
   cursor:pointer;vertical-align:middle;line-height:1.35}
 .btnlink:hover{background:var(--soft);color:var(--fg);text-decoration:none}
 .grp{position:relative;display:inline-block;margin-right:1.15em;
@@ -584,8 +612,14 @@ td.nm{text-align:left;white-space:nowrap}
 .restbl tr.resgo.on td+td{box-shadow:none}
 .panelnote{margin:9px 0 2px;padding:10px 12px;border:1px solid var(--line);
   border-radius:10px;font-size:13px}
-/* Row actions have to fit on one line beside the run. */
-.btnlink.sm,button.ghost.sm{font-size:11.5px;padding:3px 10px}
+/* The extra actions on a row: smaller, but still plainly buttons. */
+.btnlink.sm,button.ghost.sm{font-size:13px;padding:4px 12px;min-height:32px}
+/* A label on a row, such as "run" or "site": it says what something is and is
+   not pressed, so it has no border and no pointer. */
+.tag{display:inline-block;font-size:11.5px;font-weight:600;letter-spacing:.01em;
+  padding:0 7px;border-radius:5px;margin-left:6px;
+  background:color-mix(in srgb,var(--accent) 14%,var(--card));color:var(--fg);
+  vertical-align:1px;cursor:default;line-height:1.5}
 .sz{color:var(--dim);font-size:10.5px;margin-left:3px}
 #issuebox textarea,#issuebox input{width:100%}
 tr.pick{cursor:pointer} tr.pick:hover{background:var(--soft)}
@@ -630,17 +664,22 @@ footer{color:var(--dim);font-size:12px;text-align:center;padding:18px 0 4px;
 /* A group does not wrap inside itself, so a label is never separated from the
    buttons it names. */
 .vgrp{display:inline-flex;gap:6px;align-items:center;flex:0 0 auto}
+/* On a phone a group wider than the screen wraps inside itself, its label
+   still first, rather than push the page sideways. */
+@media (max-width:600px){.vgrp{flex-wrap:wrap;max-width:100%;flex:0 1 auto}}
 .vbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;
   justify-content:center;
   padding:9px 10px;background:var(--soft);border:1px solid var(--line);
   border-radius:10px;margin-bottom:10px}
 .vbar .lb{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;
   color:var(--dim);font-weight:650;margin-right:1px}
-.vbar .pill{font-size:11.5px;padding:4px 11px;border-radius:999px;
-  border:1px solid var(--line);background:var(--card);color:var(--dim);
-  cursor:pointer}
-.vbar .pill.on{background:var(--accent);border-color:var(--accent);color:#fff;
-  font-weight:600}
+.vbar .pill{font-size:12px;padding:4px 12px;border-radius:999px;
+  border:1px solid var(--pill-line);background:var(--card);color:var(--fg);
+  cursor:pointer;min-height:28px}
+.vbar .pill:hover{border-color:var(--accent)}
+.vbar .pill:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.vbar .pill.on{background:var(--accent);border-color:var(--accent);
+  color:var(--on-accent);font-weight:600}
 .vsep{width:1px;align-self:stretch;background:var(--line);margin:0 4px}
 .cpick{display:inline-flex;align-items:center;gap:5px;font-size:11px;
   color:var(--dim)}
@@ -716,6 +755,14 @@ footer{color:var(--dim);font-size:12px;text-align:center;padding:18px 0 4px;
 .guide li.done .gn{display:none}
 .guide li.done .gtick{display:block}
 .guide li.done .glab{color:var(--good);font-weight:600}
+/* Busy: a turning arc round the number while ADapt starts after a structure
+   is loaded, and two words under the label. Nothing is blocked by it. */
+.gnum{position:relative}
+.guide li.busy .gnum::after{content:"";position:absolute;inset:-6px;
+  border-radius:50%;border:2px solid transparent;border-top-color:var(--accent);
+  border-right-color:var(--accent);animation:ld-turn 1s linear infinite}
+.guide li.busy .glab::after{content:"ADapt starting";display:block;
+  font-size:10.5px;font-weight:600;color:var(--accent)}
 /* Words for a screen reader, which cannot see the fill or the tick. */
 .vh{position:absolute;width:1px;height:1px;margin:-1px;padding:0;
   overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
@@ -767,12 +814,14 @@ main{counter-reset:step}
 .card.step-later:focus-within>:not(h2){filter:none;opacity:1}
 @media (prefers-reduced-motion:reduce){
   .gnum,.card[data-step],.card[data-step]>*{transition:none}
+  .guide li.busy .gnum::after{animation:none;border-style:dashed;
+    border-color:var(--accent)}
 }
 
 /* ---- the runs: two views ---------------------------------------------- */
 .tabs{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;
   margin:0 0 12px}
-.tabs button{font-size:12.5px;padding:6px 16px;color:var(--dim)}
+.tabs button{font-size:13px;padding:6px 16px;color:var(--fg);min-height:34px}
 .tabs button[aria-selected=true]{background:var(--accent);
   border-color:var(--accent);color:var(--on-accent);font-weight:600}
 /* A table of runs is wider than a phone, and scrolls in its own box rather
@@ -836,6 +885,270 @@ main{counter-reset:step}
 #filetext{margin:0;border-radius:0;max-height:none;flex:1 1 auto;
   min-height:0;white-space:pre;overflow:auto}
 #filedlg .dlg-f{flex-wrap:wrap}
+
+/* ---- waiting ------------------------------------------------------------
+   One component for every wait longer than a moment (app.js, Wait), in two
+   sizes. The stage fills the space something will appear in: a quiet outline
+   of what is coming, and over it a card with a small molecule drawing itself,
+   a title, why to wait, the real steps ticking as they happen, the time so
+   far, and a line that it is fine to carry on. The inline size is one line,
+   for a wait beside a button. Both turn into an error with Try again.
+
+   The colours are the page's tokens, so both themes follow. With less motion
+   asked for, the shimmer and the drawing stop and everything is shown
+   still. */
+.ld-host{position:relative}
+.ld-stage{position:absolute;inset:0;z-index:4;display:flex;align-items:flex-start;
+  justify-content:center;padding:clamp(18px,7%,64px) 16px 18px;background:var(--card);
+  overflow:auto;transition:opacity .5s ease}
+.ld-stage.ld-leave{opacity:0;pointer-events:none}
+/* ADapt's layout, sketched: its tree beside its view. */
+.ld-skel{position:absolute;inset:0;display:grid;
+  grid-template-columns:minmax(0,34%) minmax(0,1fr);gap:14px;padding:16px;
+  opacity:.9}
+.ld-sk-tree{display:flex;flex-direction:column;gap:11px;padding-top:6px}
+.ld-sk-tree i{display:block;height:11px;border-radius:6px;width:78%}
+.ld-sk-tree i:nth-child(3n+2){width:62%;margin-left:16px}
+.ld-sk-tree i:nth-child(3n){width:48%;margin-left:32px}
+.ld-sk-tree i:first-child{height:15px;width:44%;margin-bottom:6px}
+.ld-sk-view{border-radius:12px;position:relative;overflow:hidden}
+.ld-sk-tree i,.ld-sk-view{background:linear-gradient(100deg,var(--soft) 30%,
+  color-mix(in srgb,var(--line) 70%,var(--soft)) 50%,var(--soft) 70%);
+  background-size:300% 100%;animation:ld-shimmer 1.8s linear infinite}
+.ld-sk-view b{position:absolute;left:50%;top:50%;width:46%;aspect-ratio:1;
+  transform:translate(-50%,-50%);border-radius:50%;
+  border:2px dashed color-mix(in srgb,var(--line) 80%,transparent)}
+@keyframes ld-shimmer{0%{background-position:100% 0}100%{background-position:0 0}}
+.ld-card{position:relative;width:min(440px,100%);background:var(--card);
+  border:1px solid var(--line);border-radius:16px;padding:22px 24px 18px;
+  box-shadow:0 18px 50px rgba(15,25,45,.16),0 2px 6px rgba(15,25,45,.06);
+  text-align:center;color:var(--fg)}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .ld-card{
+  box-shadow:0 18px 50px rgba(0,0,0,.55)}}
+:root[data-theme=dark] .ld-card{box-shadow:0 18px 50px rgba(0,0,0,.55)}
+.ld-title{margin:6px 0 4px;font-size:18px;font-weight:650;letter-spacing:-.01em}
+.ld-why{margin:0 auto 14px;color:var(--dim);font-size:13.5px;line-height:1.5;
+  max-width:34em}
+/* The mark: a ring of six atoms whose bonds draw in one after another, then
+   an aromatic ring inside, and one atom going round. */
+.ld-mark{width:62px;height:62px;display:block;margin:0 auto;overflow:visible}
+.ld-mark .ld-bond,.ld-mark .ld-arom{fill:none;stroke:var(--accent);
+  stroke-width:2.6;stroke-linecap:round;stroke-dasharray:1;stroke-dashoffset:0}
+.ld-mark .ld-arom{stroke-width:1.8;opacity:.55}
+.ld-mark .ld-atom{fill:var(--accent);stroke:var(--card);stroke-width:1.6;
+  transform-box:fill-box;transform-origin:center}
+.ld-mark .ld-orbit{fill:none;stroke:var(--accent2);stroke-width:1.4}
+.ld-mark .ld-base{fill:none;stroke:color-mix(in srgb,var(--accent) 22%,var(--card));
+  stroke-width:2.6;stroke-linejoin:round}
+.ld-mark .ld-e{fill:var(--good)}
+.ld-mark .ld-spin{transform-origin:32px 32px;animation:ld-turn 3s linear infinite}
+.ld-mark .ld-bond{animation:ld-draw 2.8s ease-in-out infinite both}
+.ld-mark .ld-atom{animation:ld-pop 2.8s ease-in-out infinite both}
+.ld-mark .ld-arom{animation:ld-ring 2.8s ease-in-out infinite both}
+.ld-mark .b2,.ld-mark .a2{animation-delay:.16s}
+.ld-mark .b3,.ld-mark .a3{animation-delay:.32s}
+.ld-mark .b4,.ld-mark .a4{animation-delay:.48s}
+.ld-mark .b5,.ld-mark .a5{animation-delay:.64s}
+.ld-mark .b6,.ld-mark .a6{animation-delay:.8s}
+@keyframes ld-draw{0%{stroke-dashoffset:1;opacity:.35}22%{stroke-dashoffset:0;opacity:1}
+  78%{stroke-dashoffset:0;opacity:1}100%{stroke-dashoffset:0;opacity:.35}}
+@keyframes ld-pop{0%{transform:scale(.6);opacity:.5}16%{transform:scale(1.18);opacity:1}
+  26%{transform:scale(1)}78%{transform:scale(1);opacity:1}100%{transform:scale(.6);opacity:.5}}
+@keyframes ld-ring{0%,30%{stroke-dashoffset:1}55%,80%{stroke-dashoffset:0}100%{stroke-dashoffset:1}}
+@keyframes ld-turn{to{transform:rotate(360deg)}}
+/* The steps, each with its state in its icon and its words: waiting, under
+   way, done (a tick, and when), or where it stopped (a cross). */
+.ld-steps{list-style:none;margin:0 auto;padding:12px 14px;max-width:360px;
+  text-align:left;background:color-mix(in srgb,var(--soft) 55%,var(--card));
+  border:1px solid var(--line);
+  border-radius:12px;display:flex;flex-direction:column;gap:9px}
+.ld-step{display:flex;align-items:center;gap:10px;font-size:13.5px;
+  color:var(--dim);line-height:1.35}
+.ld-ic{flex:0 0 auto;width:18px;height:18px;border-radius:50%;
+  border:2px solid var(--pill-line);display:inline-flex;align-items:center;
+  justify-content:center;box-sizing:border-box}
+.ld-ic svg{width:12px;height:12px;fill:var(--on-accent);display:none}
+.ld-step .ld-lab{flex:1 1 auto;min-width:0}
+.ld-at{flex:0 0 auto;font-size:12px;color:var(--dim);
+  font-variant-numeric:tabular-nums}
+.ld-step.ld-now{color:var(--fg);font-weight:600}
+.ld-step.ld-now .ld-ic{border-color:var(--accent2);border-top-color:var(--accent);
+  border-right-color:var(--accent);animation:ld-turn .9s linear infinite}
+.ld-step.ld-ok{color:var(--fg)}
+.ld-step.ld-ok .ld-ic{background:var(--good);border-color:var(--good)}
+.ld-step.ld-ok .ld-ic .ld-tick,.ld-step.ld-no .ld-ic .ld-x{display:block}
+.ld-step.ld-no{color:var(--bad);font-weight:600}
+.ld-step.ld-no .ld-ic{background:var(--bad);border-color:var(--bad)}
+.ld-meta{margin:12px 0 0;font-size:12.5px;color:var(--dim)}
+.ld-time,.ld-at{white-space:nowrap}
+.ld-time{font-variant-numeric:tabular-nums;font-weight:600;color:var(--fg)}
+.ld-slow{margin:10px auto 0;max-width:360px;text-align:left;font-size:13px;
+  line-height:1.45;padding:9px 12px;border-radius:10px;color:var(--fg);
+  background:color-mix(in srgb,var(--accent2) 75%,var(--card));
+  border-left:3px solid var(--accent)}
+.ld-keep{margin:10px 0 0;font-size:12.5px;color:var(--dim)}
+.ld-keep svg{width:13px;height:13px;fill:currentColor;vertical-align:-2px;
+  margin-right:4px}
+/* Gone wrong: the card says so in red, in plain words, with Try again. */
+.ld-errbox{margin:2px 0 14px}
+.ld-errtext{margin:0 auto 6px;max-width:34em;font-size:13.5px;line-height:1.5}
+.ld-detail{margin:0 auto 12px;max-width:36em;font-size:12px;color:var(--dim);
+  overflow-wrap:anywhere;text-align:left;padding:7px 10px;border-radius:8px;
+  background:color-mix(in srgb,var(--soft) 55%,var(--card));
+  border:1px solid var(--line)}
+.ld-card.ld-bad{border-color:color-mix(in srgb,var(--bad) 55%,var(--line))}
+.ld-card.ld-bad .ld-title{color:var(--bad)}
+.ld-badmark{display:none;width:52px;height:52px;margin:0 auto;fill:var(--bad)}
+.ld-card.ld-bad .ld-mark{display:none}
+.ld-card.ld-bad .ld-badmark{display:block}
+.ld-stage.ld-halt .ld-sk-tree i,.ld-stage.ld-halt .ld-sk-view{animation:none;
+  opacity:.6}
+.ld-retry:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.ld-card.ld-fine .ld-title{color:var(--good)}
+/* Ready: the ring stands complete and still. */
+.ld-card.ld-fine .ld-mark *{animation:none}
+.ld-card.ld-fine .ld-mark .ld-bond,.ld-card.ld-fine .ld-mark .ld-arom{
+  stroke-dashoffset:0;opacity:1}
+.ld-card.ld-fine .ld-mark .ld-arom{opacity:.55}
+/* A whole tab of its own (Open full screen while ADapt starts). */
+.ld-page{position:fixed;inset:0;background:var(--bg)}
+.ld-page .ld-stage{background:var(--bg);align-items:center}
+/* The inline size: one line beside a button, for a shorter wait. */
+.ld-inline{display:inline-flex;align-items:center;gap:8px;max-width:100%;
+  padding:5px 13px 5px 9px;border-radius:14px;background:var(--accent2);
+  border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);
+  color:var(--fg);font-size:13px;font-weight:600;line-height:1.35;
+  text-align:left;vertical-align:middle}
+.ld-inline .ld-time{font-weight:400;color:var(--dim);flex:0 0 auto}
+.ld-inline .ld-lab{min-width:0}
+.ld-mini{width:18px;height:18px;flex:0 0 auto;overflow:visible}
+.ld-mini circle{fill:var(--accent);animation:ld-blink 1.2s linear infinite}
+.ld-mini .m2{animation-delay:.2s}.ld-mini .m3{animation-delay:.4s}
+.ld-mini .m4{animation-delay:.6s}.ld-mini .m5{animation-delay:.8s}
+.ld-mini .m6{animation-delay:1s}
+.ld-mini path{fill:none;stroke:var(--accent);stroke-width:1.2;opacity:.35}
+@keyframes ld-blink{0%,100%{opacity:.2}30%{opacity:1}}
+.ld-inline.ld-bad{background:color-mix(in srgb,var(--bad) 9%,var(--card));
+  border-color:color-mix(in srgb,var(--bad) 45%,transparent);flex-wrap:wrap;
+  font-weight:400}
+.ld-inline.ld-bad .ld-lab{font-weight:600;color:var(--bad)}
+.ld-inline .ld-x2{width:16px;height:16px;fill:var(--bad);flex:0 0 auto;
+  display:none}
+.ld-inline.ld-bad .ld-x2{display:block}
+.ld-inline.ld-bad .ld-mini{display:none}
+.ld-inline .ld-errtext{color:var(--fg);flex:1 1 220px;min-width:0}
+.ld-inline .ld-retry{margin-left:2px;min-height:32px;font-size:13px;
+  padding:3px 13px}
+/* The heading's badge and the strip's step while ADapt starts. */
+.cardbusy{display:inline-flex;align-items:center;gap:6px;margin-left:10px;
+  padding:2px 10px 2px 6px;border-radius:999px;background:var(--accent2);
+  color:var(--fg);font-size:11.5px;font-weight:650;letter-spacing:0;
+  text-transform:none;vertical-align:1px;border:0;cursor:pointer;
+  font-family:inherit;line-height:1.5}
+.cardbusy .ld-mini{width:14px;height:14px}
+.cardbusy.ld-bad{background:color-mix(in srgb,var(--bad) 12%,var(--card))}
+.cardbusy .ld-x2{display:block;width:14px;height:14px;fill:var(--bad)}
+.cardbusy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){
+  .ld-sk-tree i,.ld-sk-view,.ld-mark .ld-bond,.ld-mark .ld-atom,
+  .ld-mark .ld-arom,.ld-mark .ld-spin,.ld-step.ld-now .ld-ic,
+  .ld-mini circle{animation:none}
+  .ld-mark .ld-bond,.ld-mark .ld-arom{stroke-dashoffset:0}
+  .ld-step.ld-now .ld-ic{border-color:var(--accent)}
+  .ld-mini circle{opacity:.75}
+  .ld-stage{transition:none}
+  #adaptframe{transition:none}
+}
+@media (max-width:600px){
+  .ld-skel{grid-template-columns:minmax(0,1fr)}
+  .ld-sk-tree{display:none}
+  .ld-card{padding:18px 16px 14px}
+  .ld-title{font-size:16.5px}
+}
+
+/* ---- ADapt's receptor, as a status card --------------------------------
+   The headline is what docking will use; the facts are chips; the long
+   details fold away; and the one action the state calls for is a filled
+   button, with the way back beside it as a secondary. */
+.aucard{margin-top:10px;background:var(--card);border:1px solid var(--line);
+  border-left:4px solid var(--accent);border-radius:12px;padding:12px 14px;
+  text-align:left}
+.aucard.au-current{border-left-color:var(--good)}
+.aucard.au-newer,.aucard.au-pending{border-left-color:var(--warn)}
+.auhead{display:flex;align-items:flex-start;gap:11px;flex-wrap:wrap}
+.auicon{flex:0 0 auto;width:34px;height:34px;border-radius:10px;
+  background:var(--accent2);color:var(--accent);display:inline-flex;
+  align-items:center;justify-content:center}
+.auicon svg{width:21px;height:21px;fill:currentColor}
+.aumain{flex:1 1 220px;min-width:0}
+.autitle{font-size:15px;font-weight:650;color:var(--fg);line-height:1.3}
+.ausub{font-size:12.5px;color:var(--dim);margin-top:2px;overflow-wrap:anywhere}
+.austate{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;
+  font-size:12.5px;font-weight:650;padding:4px 11px;border-radius:999px;
+  align-self:center;color:var(--fg)}
+.austate svg{width:15px;height:15px;flex:0 0 auto}
+.austate:empty{display:none}
+.austate.ok{background:color-mix(in srgb,var(--good) 14%,var(--card))}
+.austate.ok svg{fill:var(--good)}
+.austate.todo{background:color-mix(in srgb,var(--warn) 16%,var(--card))}
+.austate.todo svg{fill:var(--warn)}
+.austate.info{background:var(--accent2)}
+.auchips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.auchips:empty{display:none}
+.auchip{display:inline-flex;align-items:baseline;gap:6px;font-size:12.5px;
+  padding:3px 10px;border-radius:8px;background:var(--card);
+  border:1px solid var(--pill-line);color:var(--fg);max-width:100%;
+  overflow-wrap:anywhere}
+.auchip b{font-weight:600;color:var(--dim);font-size:11px;
+  text-transform:uppercase;letter-spacing:.04em}
+.aunote{margin-top:10px;font-size:13px;line-height:1.5;color:var(--fg)}
+.aunote:empty{display:none}
+.auacts{display:flex;flex-wrap:wrap;gap:8px 10px;margin-top:12px;
+  align-items:center}
+.aumore{margin-top:10px;font-size:12.5px}
+.aumore summary{cursor:pointer;color:var(--accent);font-weight:600;
+  display:inline-flex;align-items:center;gap:5px;padding:2px 0;list-style:none}
+.aumore summary::-webkit-details-marker{display:none}
+.aumore summary::before{content:"";width:0;height:0;border-style:solid;
+  border-width:4.5px 0 4.5px 7px;border-color:transparent transparent transparent
+  currentColor;transition:transform .15s}
+.aumore[open] summary::before{transform:rotate(90deg)}
+@media (prefers-reduced-motion:reduce){.aumore summary::before{transition:none}}
+.aumore summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;
+  border-radius:4px}
+.aumore .why{margin-top:6px;line-height:1.6}
+
+/* ---- column widths -----------------------------------------------------
+   Every table of runs, results and residues can have its columns resized
+   (app.js, colResize): a grip on the right edge of each heading, dragged with
+   a mouse, a pen or a finger, moved with the arrow keys once focused, or
+   double clicked to fit the column to its widest entry. Once a table has a
+   resized column its layout is fixed, so the other columns keep their
+   widths, and text too long for its column ends in an ellipsis with the
+   whole of it on hover. */
+/* No weight of its own, so a heading that sticks keeps sticking. */
+:where(th.colsz){position:relative}
+.colgrip{position:absolute;top:0;right:0;bottom:0;width:11px;z-index:6;
+  cursor:col-resize;touch-action:none;display:flex;justify-content:center;
+  align-items:center;outline:none}
+.colgrip::after{content:"";width:2px;height:62%;min-height:12px;
+  border-radius:1px;background:transparent;transition:background-color .15s}
+th:hover>.colgrip::after{background:var(--pill-line)}
+.colgrip:hover::after,.colgrip.on::after{background:var(--accent);width:3px}
+.colgrip:focus-visible::after{background:var(--accent);width:3px}
+.colgrip:focus-visible{box-shadow:inset 0 0 0 2px var(--accent);border-radius:3px}
+table.colfixed{table-layout:fixed}
+table.colfixed th,table.colfixed td{overflow:hidden;text-overflow:ellipsis}
+table.colfixed td.fname{white-space:nowrap;overflow-wrap:normal}
+table.colfixed td.fname .fgo{max-width:100%;min-width:0}
+table.colfixed td.fname .fgo span{overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;min-width:0}
+table.colfixed td.acts,table.colfixed td.facts{white-space:normal}
+body.colmoving,body.colmoving *{cursor:col-resize !important;
+  user-select:none !important}
+.colreset{margin:6px 0 0;display:block;margin-left:auto}
+.colreset.hide{display:none}
+@media (prefers-reduced-motion:reduce){.colgrip::after{transition:none}}
 
 /* ---- a phone ----------------------------------------------------------
    The residue strip lays a row of thirty residues on one line, wider than a
@@ -930,14 +1243,14 @@ __STALE__
       <label for=reccode>PDB id</label>
       <input type=text id=reccode placeholder="4CMM" maxlength=4
              style="text-transform:uppercase"></div>
-    <div style="flex:0 0 auto"><button id=recfetch>Fetch from RCSB</button></div>
+    <div style="flex:0 0 auto"><button class=primary id=recfetch>Fetch from RCSB</button></div>
     <div class=why style="flex:0 0 auto;padding-bottom:9px">or</div>
     <div class=fieldwrap style="flex:3 1 280px">
       <label for=recpath>a file already on this machine</label>
       <input type=text id=recpath
              placeholder="/path/to/receptor.pdb  (or .cif, .mmcif, .ent, .gz)"></div>
-    <div style="flex:0 0 auto"><button id=recload>Load</button></div>
-    <div style="flex:0 0 auto"><button class=ghost id=recbrowse>Browse&hellip;</button></div>
+    <div style="flex:0 0 auto"><button class=secondary id=recload>Load</button></div>
+    <div style="flex:0 0 auto"><button class=secondary id=recbrowse>Browse&hellip;</button></div>
     <!-- From the user's own computer. "Browse" walks the cluster's
          filesystem; this reads a file on the user's machine and sends it
          through the connection that is already open. -->
@@ -946,7 +1259,7 @@ __STALE__
          here builds maps from a PDBQT as it stands. The way to dock into a
          receptor prepared elsewhere is a target file, below. -->
     <div style="flex:0 0 auto">
-      <button class=ghost id=recupload>From this computer&hellip;</button>
+      <button class=secondary id=recupload>From this computer&hellip;</button>
       <input type=file id=recfile style="display:none"
              accept=".pdb,.ent,.cif,.mmcif,.txt"></div>
   </div>
@@ -990,8 +1303,8 @@ __STALE__
       <label for=targetfile>or a target file made in AGFR or AGFRGUI (.trg)</label>
       <input type=text id=targetfile
              placeholder="/path/to/target.trg  (optional: its receptor, maps and box are used)"></div>
-    <div style="flex:0 0 auto"><button id=trgload>Load</button></div>
-    <div style="flex:0 0 auto"><button class=ghost id=trgbrowse>Browse&hellip;</button></div>
+    <div style="flex:0 0 auto"><button class=secondary id=trgload>Load</button></div>
+    <div style="flex:0 0 auto"><button class=secondary id=trgbrowse>Browse&hellip;</button></div>
   </div>
   <div id=targetnote class=why style="margin-top:9px"></div>
   <!-- ADapt, a separate tool, shown only when the server can find it. It
@@ -1008,8 +1321,35 @@ __STALE__
       shows each assembly, the hetero groups, metals, alternate locations and
       modified residues, and lets you choose what stays in the receptor.</div>
     <div class=bar id=adaptacts style="margin-top:8px">
-      <button class="ghost sm hide" id=adaptnow type=button>Use ADapt&rsquo;s receptor now</button>
-      <button class="ghost sm hide" id=adaptdrop type=button>Use this page&rsquo;s preparation instead</button>
+      <button class="primary hide" id=adaptnow type=button>Use ADapt&rsquo;s receptor now</button>
+      <button class="secondary hide" id=adaptdrop type=button>Use this page&rsquo;s preparation instead</button>
+    </div>
+    <!-- The receptor ADapt wrote, once it is read back: a status card with
+         the one thing that matters as its headline, the key facts as chips,
+         the long details folded away, and only the action the state calls
+         for. app.js (adaptCard) fills it. Above the frame, where it is seen
+         without scrolling past ADapt. -->
+    <div id=adaptuse class="aucard hide" role=region aria-labelledby=autitle>
+      <div class=auhead>
+        <span class=auicon aria-hidden=true><svg viewBox="0 0 24 24"><path
+          d="M7 7.5l10 3M7 7.5l3 10M17 10.5l-7 7" fill=none stroke=currentColor
+          stroke-width=1.8 stroke-linecap=round /><circle cx=7 cy=7.5 r=3 /><circle
+          cx=17 cy=10.5 r=3 /><circle cx=10 cy=17.5 r=3 /></svg></span>
+        <div class=aumain>
+          <div class=autitle id=autitle>Docking will use ADapt&rsquo;s receptor</div>
+          <div class=ausub id=ausub></div>
+        </div>
+        <span class=austate id=austate role=status aria-live=polite></span>
+      </div>
+      <div class=auchips id=auchips></div>
+      <div class=aunote id=aunote></div>
+      <div class=auacts id=auacts>
+        <button class="primary hide" id=adaptupdate type=button>Use ADapt&rsquo;s current receptor</button>
+        <button class="primary hide" id=adaptread type=button>Read the newer save</button>
+        <button class=secondary id=adaptback type=button>Use this page&rsquo;s preparation instead</button>
+      </div>
+      <details class=aumore id=aumore><summary>Details</summary>
+        <div class=why id=adaptwhat></div></details>
     </div>
     <!-- The frame: tall enough for ADapt's tree beside its 3D view. It
          may not navigate this page (no allow-top-navigation). -->
@@ -1017,11 +1357,14 @@ __STALE__
       <div class=adaptbar>
         <label for=adaptframe class=adaptlab>ADapt on <span id=adaptwhat2>this structure</span></label>
         <span class=why id=adaptwait></span>
-        <a class="ghost sm btnlink hide" id=adaptfull target=_blank rel=noopener
+        <a class="btnlink secondary hide" id=adaptfull target=_blank rel=noopener
            href="#">Open full screen</a>
-        <button class="ghost sm" id=adaptfold type=button aria-expanded=true
+        <button class=ghost id=adaptfold type=button aria-expanded=true
                 aria-controls=adaptframewrap>Hide</button>
       </div>
+      <!-- While ADapt starts, the space the frame will fill holds the
+           loading stage (app.js, Wait): a quiet outline of ADapt's tree and
+           view, and over it a card whose steps tick as they happen. -->
       <div id=adaptframewrap class=hide>
         <iframe id=adaptframe title="ADapt" loading=eager
           sandbox="allow-scripts allow-same-origin allow-forms allow-downloads allow-popups allow-popups-to-escape-sandbox"
@@ -1031,18 +1374,10 @@ __STALE__
     <!-- On a phone the frame is too narrow for ADapt's tree and view, so a
          button opens it in a tab of its own on the same session. -->
     <div id=adaptrow class="row hide" style="margin-top:10px;align-items:center">
-      <div style="flex:0 0 auto"><button class=ghost id=adaptopen type=button>Open in ADapt</button></div>
+      <div style="flex:0 0 auto"><button class=secondary id=adaptopen type=button>Open in ADapt</button></div>
       <div class=why id=adaptnote style="flex:1 1 220px">Opens ADapt in a tab of its
         own, on the structure above.</div>
-    </div>
-  </div>
-  <!-- The receptor ADapt wrote, once it is read back: where it came from and
-       what was chosen. -->
-  <div id=adaptuse class="prepgroup hide">
-    <div class=grouphead>Receptor from ADapt</div>
-    <div class=why id=adaptwhat style="margin-top:6px"></div>
-    <div class=bar style="margin-top:8px">
-      <button class="ghost sm" id=adaptread type=button>Read the newest save again</button>
+      <div id=adaptrowwait style="flex:1 1 100%"></div>
     </div>
   </div>
 </div>
@@ -1083,7 +1418,7 @@ __STALE__
       <input type=number id=bmin value="20" step="1" min="10" max="40"></div>
     <div><label for=bmax>Max box</label>
       <input type=number id=bmax value="30" step="1" min="10" max="60"></div>
-    <div style="flex:0 0 auto"><button id=sitecheck>Check site</button></div>
+    <div style="flex:0 0 auto"><button class=primary id=sitecheck>Check site</button></div>
   </div>
   <div id=sitenote class=why style="margin-top:9px"></div>
   <!-- A box around an interface groove often covers the chain on the far
@@ -1147,14 +1482,14 @@ __STALE__
     For non-standard and D amino acids (ADCP 1.1), use a peptide's &#8942; menu.</p>
   <div id=peps></div>
   <div class=bar>
-    <button id=addpep>+ Add peptide</button>
-    <button class=ghost id=pastepep>Paste a list&hellip;</button>
+    <button class=primary id=addpep>+ Add peptide</button>
+    <button class=secondary id=pastepep>Paste a list&hellip;</button>
     <!-- The server has always accepted .txt, .csv, .fasta, .fa and .seq
          peptide lists; there was simply no control to send one, so a list
          could only be pasted. The file is read in the browser, the same way
          the receptor is, because the page is served through a tunnel and the
          cluster cannot see the machine the browser runs on. -->
-    <button class=ghost id=pepfilebtn>Upload a list&hellip;</button>
+    <button class=secondary id=pepfilebtn>Upload a list&hellip;</button>
     <input type=file id=pepfile style="display:none"
            accept=".txt,.csv,.fasta,.fa,.seq,text/plain">
     <span style="flex:1"></span>
@@ -1166,7 +1501,7 @@ __STALE__
   <div id=pastebox class="hide" style="margin-top:11px">
     <label for=pastetext>One per line: <code>SEQUENCE</code>, <code>name: SEQUENCE</code>, or FASTA</label>
     <textarea id=pastetext placeholder="RWGPGAWGSGSGHY&#10;KDGGVDGPGDS"></textarea>
-    <div style="margin-top:8px"><button class=ghost id=pasteadd>Add these</button></div>
+    <div style="margin-top:8px"><button class=secondary id=pasteadd>Add these</button></div>
   </div>
   <!-- How every peptide in the run is built and started: as a chain or a
        ring, and how many replicas begin as a helix. Peptide settings rather
@@ -1304,7 +1639,7 @@ __STALE__
         <input type=number id=throttle value="0" min="0" max="200">
         <button class=st data-step="throttle:1" type=button>+</button></div></div>
     <div style="flex:0 0 auto"><label>&nbsp;</label>
-      <button id=autofill title="Work out how long this will take and ask
+      <button class=primary id=autofill title="Work out how long this will take and ask
 the queue for twice that and half an hour more, and at least two hours">Estimate &amp; fill</button></div>
   </div>
   <!-- Under the button that writes it: what the estimate assumed, and what
@@ -1330,7 +1665,7 @@ the queue for twice that and half an hour more, and at least two hours">Estimate
       <input type=text id=outdir placeholder="where the run directory goes">
       </div>
     <div style="flex:0 0 auto"><label>&nbsp;</label>
-      <button class=ghost id=outbrowse>Browse&hellip;</button></div>
+      <button class=secondary id=outbrowse>Browse&hellip;</button></div>
   </div>
   <div id=outmsg class=why style="margin-top:6px"></div>
   <!-- This cluster's own rules. Many clusters refuse a job without an
@@ -1368,7 +1703,7 @@ the queue for twice that and half an hour more, and at least two hours">Estimate
     <!-- Runs made elsewhere, or by someone else, are reached by pointing this
          at their folder. Without it the only runs visible were the ones this
          session happened to write. -->
-    <button class=ghost id=runsbrowse>Browse&hellip;</button>
+    <button class=secondary id=runsbrowse>Browse&hellip;</button>
     <span class=why id=runsroot></span>
   </div>
   <div id=runspanel role=tabpanel aria-labelledby=tab_runs>
@@ -1472,10 +1807,10 @@ larger of the two and takes a moment the first time.">
   <div class=dlg-f>
     <span class=why id=citenote>Download for your reference manager:</span>
     <span style="display:flex;gap:8px;align-items:center">
-      <button class=ghost data-cite=txt>.txt</button>
-      <button class=ghost data-cite=bib>BibTeX</button>
-      <button class=ghost data-cite=ris>RIS / EndNote</button>
-      <button class=ghost id=citecopy>Copy</button>
+      <button class=secondary data-cite=txt>.txt</button>
+      <button class=secondary data-cite=bib>BibTeX</button>
+      <button class=secondary data-cite=ris>RIS / EndNote</button>
+      <button class=secondary id=citecopy>Copy</button>
       <button class=ghost id=citeclose>Close</button>
     </span>
   </div>
@@ -1504,7 +1839,7 @@ larger of the two and takes a moment the first time.">
     <span class=why id=modmsg></span>
     <span style="display:flex;gap:8px;align-items:center">
       <button class=ghost id=modcancel>Cancel</button>
-      <button id=modsave disabled>Save</button>
+      <button class=primary id=modsave disabled>Save</button>
     </span>
   </div>
 </dialog>
@@ -1518,7 +1853,7 @@ larger of the two and takes a moment the first time.">
   <div class=dlg-f>
     <span class=why id=filenote></span>
     <span style="display:flex;gap:8px;align-items:center">
-      <a class=btnlink id=filedl href="#">Download</a>
+      <a class="btnlink secondary" id=filedl href="#">Download</a>
       <button class=ghost id=fileclose>Close</button>
     </span>
   </div>
@@ -1531,7 +1866,7 @@ larger of the two and takes a moment the first time.">
   <div class=dlg-f>
     <span class=why id=foldernote></span>
     <span style="display:flex;gap:8px;align-items:center">
-      <button class=ghost id=foldercopy>Copy path</button>
+      <button class=secondary id=foldercopy>Copy path</button>
       <button class=ghost id=folderclose>Close</button>
     </span>
   </div>
@@ -1547,9 +1882,9 @@ larger of the two and takes a moment the first time.">
   <div class=dlg-f>
     <span class=why id=fbnote></span>
     <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <button class=ghost id=fbcopy>Copy details</button>
-      <a class=btnlink id=fbmail target=_blank rel=noopener>Open email</a>
-      <a class=btnlink id=fbissue target=_blank rel=noopener
+      <button class=secondary id=fbcopy>Copy details</button>
+      <a class="btnlink secondary" id=fbmail target=_blank rel=noopener>Open email</a>
+      <a class="btnlink secondary" id=fbissue target=_blank rel=noopener
          href="https://github.com/aadhilhaq/ADCP_docking/issues/new">Open a GitHub issue</a>
       <button class=ghost id=fbclose>Close</button>
     </span>
@@ -1573,7 +1908,7 @@ larger of the two and takes a moment the first time.">
     <span class=why id=pickernote></span>
     <span style="display:flex;gap:8px;align-items:center">
       <button class=ghost id=pickernew>+ New folder</button>
-      <button class=ghost id=pickeruse>Use this folder</button>
+      <button class=primary id=pickeruse>Use this folder</button>
       <button class=ghost id=pickerclose>Close</button>
     </span>
   </div>

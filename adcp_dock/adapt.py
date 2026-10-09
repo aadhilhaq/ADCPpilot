@@ -33,6 +33,7 @@ import re
 import signal
 import subprocess
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -168,6 +169,19 @@ def call(url, path, params=None, data=None, timeout=600):
         return json.loads(body.decode())
     except ValueError:
         raise RuntimeError("ADapt's answer was not JSON")
+
+
+def answering(url, timeout=3):
+    """Whether a running ADapt answers a request: its list of sessions, the
+    cheapest thing it serves. Any answer counts, a refusal included; only no
+    answer at all does not."""
+    if not url:
+        return False
+    try:
+        call(url, "api/sessions", timeout=timeout)
+        return True
+    except RuntimeError as exc:
+        return not str(exc).startswith("ADapt did not answer")
 
 
 def upload(url, path, name=None, timeout=600):
@@ -469,10 +483,29 @@ class Runner:
         # the start to finish: that can take minutes, and the interface may
         # be shutting down meanwhile.
         self.starting = None
+        # When the start now under way began, and why the last one failed:
+        # what the page shows while it waits, read without the lock, which a
+        # start holds for as long as it waits.
+        self.started_at = None
+        self.failed = ""
         self.lock = threading.Lock()
 
     def running(self):
         return bool(self.url) and self.proc is not None and self.proc.poll() is None
+
+    def phase(self):
+        """Where a start has got to: "running" once ADapt has printed its
+        address, "starting" while its process is up and has not yet,
+        "failed" when the last start gave up (with why), else "none"."""
+        if self.running():
+            return {"process": "running"}
+        proc, began = self.starting, self.started_at
+        if proc is not None and proc.poll() is None:
+            return {"process": "starting",
+                    "seconds": round(time.time() - began, 1) if began else None}
+        if self.failed:
+            return {"process": "failed", "why": self.failed}
+        return {"process": "none"}
 
     def start(self, home, env_root, outdir, timeout=None, port=None,
               base_path=BASE_PATH):
@@ -521,13 +554,17 @@ class Runner:
                 ready.set()
             threading.Thread(target=pump, daemon=True).start()
             ready.wait(timeout or self.START_SECONDS)
-            self.starting = None
             if "url" not in found:
+                self.starting = None
                 _stop(proc)
                 why = [l for l in tail if l.strip()][-3:]
-                raise RuntimeError("ADapt did not start. Its last words: %s"
-                                   % (" / ".join(why) or "none; see %s" % log_path))
+                self.failed = ("ADapt did not start. Its last words: %s"
+                               % (" / ".join(why) or "none; see %s" % log_path))
+                raise RuntimeError(self.failed)
+            # Running before no longer starting, so the page never sees a
+            # moment in which neither is true.
             self.proc, self.url = proc, found["url"]
+            self.starting = None
             return self.url
 
     def stop(self):

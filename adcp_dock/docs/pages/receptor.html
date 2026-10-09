@@ -209,6 +209,20 @@ cluster or one from your own computer. Nothing changes by opening it. Its tree
 lists everything in the file with a tick for what goes into the receptor, and
 its view shows the structure, with what is in the receptor drawn apart from
 what is not.</p>
+<figure>
+<img src="img/adapt-loading.png" alt="The Receptor card while ADapt starts: in the space the frame will fill, an outline of ADapt's tree and view, and over it a card titled Starting ADapt with its steps, the first ticked, the time so far, and a line saying you can keep going below">
+<figcaption><b>While ADapt starts.</b> Each step is ticked when it happens, with
+the time it took; the clock below counts the wait so far. A badge beside the
+card's heading and a turning ring on step 1 of the strip say the same from
+anywhere on the page.</figcaption>
+</figure>
+<p>A first start on a busy login node takes a minute or two; later ones are
+quick. While it starts, the space the frame will fill shows the steps as they
+happen: ADapt started on the cluster, ADapt answering, the structure handed to
+it, and its view drawn. Nothing waits on it, so carry on with the site and the
+peptides meanwhile. If ADapt does not start, the card says why in plain words,
+with <b>Try again</b>. Docking does not need ADapt: without it, this page
+prepares the receptor itself.</p>
 <p>The line above the frame always says which receptor will be docked.</p>
 <ul>
 <li><b>Docking will use this page&rsquo;s preparation.</b> Until you change
@@ -222,8 +236,9 @@ the chain ticks are greyed out, because ADapt and AGFR decide them now.</li>
 <figure>
 <img src="img/receptor-adapt.png" alt="The Receptor card after the waters were unticked in ADapt: the line above the frame says docking will use the receptor as set in ADapt, the preparation settings are greyed out, and the receptor ADapt wrote is described below">
 <figcaption><b>After a change in ADapt.</b> Docking now uses the receptor as set
-there. Once ADapt has written it, the card names the save and lists what was
-chosen.</figcaption>
+there. Once ADapt has written it, a status card above the frame says so, with
+the save, the chains and the hetero groups kept, and whether anything has
+changed in ADapt since.</figcaption>
 </figure>
 <p>You do not need ADapt&rsquo;s own save button. When you submit, ADapt is asked
 to write the receptor as it is set there, just as its <b>receptor PDBQT</b>
@@ -233,13 +248,29 @@ checked on the receptor that will be docked: the site view then shows it.
 Changing anything in ADapt afterwards means it is written again when you
 submit. If you do press ADapt&rsquo;s own save button, that save is read back
 too.</p>
+<p>Once the receptor ADapt wrote has been read back, a card above the frame
+says <b>Docking will use ADapt&rsquo;s receptor</b>, with the save, the chains,
+the hetero groups kept and the changes made in ADapt as short labels, and the
+rest, such as each histidine&rsquo;s protonation and the session folder, under
+<b>Details</b>. It offers only what its state calls for:</p>
+<ul>
+<li><b>Up to date with ADapt</b>, with a tick: there is nothing to press.</li>
+<li><b>Changed in ADapt since save 1</b>: <b>Use ADapt&rsquo;s current
+receptor</b> has ADapt write it again and reads it back. Submitting does the
+same by itself.</li>
+<li><b>Save 2 not read yet</b>: a save made with ADapt&rsquo;s own button is read
+back by itself, and if that fails the card says why, with <b>Read save 2</b>
+to try again.</li>
+</ul>
 <p><b>Use this page&rsquo;s preparation instead</b> goes back to this
 page&rsquo;s preparation of the structure ADapt was opened on, and the settings
 above apply again. Only a later change in ADapt brings its receptor back.</p>
 <p><b>Hide</b> folds the frame away; ADapt keeps what you set and the line still
 says which receptor will be docked. <b>Open full screen</b> shows the same
 session in a tab of its own, which is easier for a large structure; what you
-change there counts here, and the frame catches up when you come back. On a
+change there counts here, and the frame catches up when you come back. Opened
+while ADapt is still starting, the tab shows the same steps and goes to ADapt
+when it is ready. On a
 phone the frame would be too narrow for ADapt&rsquo;s tree beside its view, so
 the card shows an <b>Open in ADapt</b> button instead, which opens ADapt in a
 tab of its own on the same structure. ADapt reads PDB files; an mmCIF fetched by

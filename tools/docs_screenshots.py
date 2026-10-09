@@ -9,8 +9,9 @@ By Aadhil Haq
 Starts the interface with a fresh runs folder holding the shipped example
 run, drives the page the way a person would (loads the example's receptor,
 sets its site, pastes its peptides, opens a help box, opens the finished run,
-and, when ADapt is installed, shows it in the Receptor card, opens it full
-screen, unticks the bound peptide in it and has ADapt write the receptor)
+and, when ADapt is installed, shows it starting and then in the Receptor
+card, opens it full screen, unticks the bound peptide in it and has ADapt write
+the receptor)
 and saves each view the docs show. Run it
 again after the page changes, so the pictures never describe an older page.
 
@@ -46,7 +47,7 @@ WANT = ["interface.png", "receptor-loaded.png", "site-residues.png",
         "runs.png", "results-table.png", "pose-viewer.png", "cite.png",
         "adapt.png", "guide.png", "submit.png", "runs-folders.png",
         "file-viewer.png", "site-surface.png", "receptor-adapt.png",
-        "adapt-inline.png"]
+        "adapt-inline.png", "adapt-loading.png"]
 
 
 def start_server(python, runs, roots):
@@ -180,6 +181,18 @@ def main():
                     timeout=120000)
                 for ch in (job.get("chains") or []):
                     pg.check('#chainbox .chk[data-ch="%s"]' % ch)
+                # ADapt starting on it, where ADapt is installed: the loading
+                # card in the space its frame will fill, taken while one step
+                # is ticked and the next is under way. A start already warm
+                # can take only seconds, so it is taken the moment that holds.
+                if pg.locator("#adaptframewrap .ld-stage").count():
+                    pg.evaluate("document.getElementById('adaptsec')"
+                                ".scrollIntoView({block: 'start'})")
+                    pg.wait_for_function(
+                        "() => !!document.querySelector('#adaptframewrap .ld-step.ld-ok')"
+                        " && !!document.querySelector('#adaptframewrap .ld-step.ld-now')",
+                        timeout=120000, polling="raf")
+                    shot(pg.locator("#adaptsec"), "adapt-loading.png")
                 pg.wait_for_timeout(1500)
                 # ADapt opens in the card on the structure by itself, where it
                 # is installed. Folded for this picture, which is about the
@@ -218,7 +231,7 @@ def main():
             def site_surface():
                 pg.check("#sitesurf")
                 pg.wait_for_function(
-                    "() => !/computing/.test(document.getElementById('surfnote').textContent)",
+                    "() => !document.querySelector('#surfnote .ld-inline')",
                     timeout=180000)
                 pg.locator("#sitepick").scroll_into_view_if_needed()
                 pg.wait_for_timeout(5000)
@@ -382,7 +395,7 @@ def main():
             def folders():
                 pg.click("#tab_folders")
                 pg.wait_for_selector("#flist .ftable", timeout=60000)
-                pg.locator("#flist tr:has(.pill) button.fgo").first.click()
+                pg.locator("#flist tr:has(.tag) button.fgo").first.click()
                 pg.wait_for_function(
                     "() => /This folder is the run/.test("
                     "document.getElementById('fhere').textContent)", timeout=60000)

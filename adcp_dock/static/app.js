@@ -28,6 +28,558 @@ async function api(path, body){
   catch(e){ return {error:'the server did not answer with JSON (' + r.status + ')'}; }
 }
 
+/* ===================== waiting ======================================= */
+/* One component for every wait longer than a moment, so the page waits the
+   same way everywhere. Its style is under "waiting" in page.py.
+
+     const w = waitFor({title, why, steps: [[key, while, done], ...], keep,
+                        slow: [seconds, words], label, delay});
+     w.show(el, 'stage' or 'inline')   in as many places as it should be seen
+     w.step({key: 'wait', 'now', 'ok' or 'no'})   as each real event happens
+     w.fail(what, why, detail, retry)   in plain words, with Try again
+     w.finish(then)                     the last tick, then a fade
+     w.drop()                           gone at once, for a newer wait
+
+   Nothing here invents progress. A step ticks when its own event happens, and
+   the only number shown is the time so far. A screen reader hears each change
+   of step through one polite status line, never the clock. */
+const LD_TICK = '<svg class=ld-tick viewBox="0 0 24 24" aria-hidden=true><path '
+  + 'd="M9.5 16.6 4.9 12l-1.6 1.6 6.2 6.2L21 8.3l-1.6-1.6z"/></svg>';
+const LD_X = '<svg class=ld-x viewBox="0 0 24 24" aria-hidden=true><path d="M6.4 5 '
+  + '12 10.6 17.6 5 19 6.4 13.4 12 19 17.6 17.6 19 12 13.4 6.4 19 5 17.6 10.6 12 '
+  + '5 6.4z"/></svg>';
+/* A ring of six atoms whose bonds draw in one after another, with one atom
+   going round it. */
+const LD_MARK = (() => {
+  const p = [[32, 13], [48.5, 22.5], [48.5, 41.5], [32, 51], [15.5, 41.5], [15.5, 22.5]];
+  let bonds = '', atoms = '';
+  p.forEach((a, i) => {
+    const b = p[(i + 1) % 6];
+    bonds += '<path class="ld-bond b' + (i + 1) + '" pathLength=1 d="M' + a[0] + ' '
+      + a[1] + 'L' + b[0] + ' ' + b[1] + '"/>';
+    atoms += '<circle class="ld-atom a' + (i + 1) + '" cx=' + a[0] + ' cy=' + a[1]
+      + ' r=3.7 />';
+  });
+  return '<svg class=ld-mark viewBox="0 0 64 64" aria-hidden=true focusable=false>'
+    + '<circle class=ld-orbit cx=32 cy=32 r=27 />'
+    + '<path class=ld-base d="M' + p.map(a => a.join(' ')).join('L') + 'Z"/>' + bonds
+    + '<circle class=ld-arom pathLength=1 cx=32 cy=32 r=9.5 />' + atoms
+    + '<g class=ld-spin><circle class=ld-e cx=32 cy=5 r=2.7 /></g></svg>';
+})();
+/* The same ring, small, its atoms lighting in turn. */
+const LD_MINI = (() => {
+  const p = [[12, 4], [18.9, 8], [18.9, 16], [12, 20], [5.1, 16], [5.1, 8]];
+  return '<svg class=ld-mini viewBox="0 0 24 24" aria-hidden=true focusable=false>'
+    + '<path d="M' + p.map(a => a.join(' ')).join('L') + 'Z"/>'
+    + p.map((a, i) => '<circle class=m' + (i + 1) + ' cx=' + a[0] + ' cy=' + a[1]
+      + ' r=2.4 />').join('') + '</svg>';
+})();
+const LD_BAD = '<svg class=ld-badmark viewBox="0 0 24 24" aria-hidden=true><path d="M12 '
+  + '2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1 5h2v7.5h-2zm0 9.3h2v2.2h-2z"/></svg>';
+const LD_X2 = '<svg class=ld-x2 viewBox="0 0 24 24" aria-hidden=true><path d="M12 2a10 '
+  + '10 0 1 0 0 20 10 10 0 0 0 0-20zm-1 5h2v7.5h-2zm0 9.3h2v2.2h-2z"/></svg>';
+const LD_DOWN = '<svg viewBox="0 0 24 24" aria-hidden=true><path d="M11 4h2v12l5.5-5.5 '
+  + '1.4 1.4L12 19.8l-7.9-7.9 1.4-1.4L11 16z"/></svg>';
+
+/* The time so far, as a person reads it: "37 s", "1 min 05 s". */
+function ldTime(s){
+  s = Math.max(0, Math.floor(s));
+  return s < 60 ? s + ' s'
+    : Math.floor(s / 60) + ' min ' + String(s % 60).padStart(2, '0') + ' s';
+}
+
+function waitFor(o){
+  o = o || {};
+  const steps = o.steps || [];
+  const w = {o: o, t0: Date.now(), st: {}, at: {}, err: null, over: false,
+             views: [], hosts: [], timer: 0, later: [], said: ''};
+  /* Every place it was asked to show in lets go of it. */
+  const release = () => w.hosts.forEach(h => { if(h._ldWait === w) h._ldWait = null; });
+  steps.forEach(s => { w.st[s[0]] = 'wait'; });
+  const secs = () => (Date.now() - w.t0) / 1000;
+  const q = (v, sel) => Array.from(v.root.querySelectorAll(sel));
+  const calm = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* One polite line, changed only when the step changes. */
+  const say = text => {
+    if(!text || text === w.said) return;
+    w.said = text;
+    w.views.forEach(v => {
+      const el = v.kind === 'inline' ? null : v.root.querySelector('.ld-say');
+      if(el) setTimeout(() => { el.textContent = text; }, 60);
+    });
+  };
+  const tick = () => {
+    const s = secs();
+    w.views.forEach(v => {
+      q(v, '.ld-time').forEach(e => { e.textContent = ldTime(s); });
+      q(v, '.ld-slow').forEach(e => e.classList.toggle('hide',
+        !(o.slow && s >= o.slow[0]) || !!w.err || w.over));
+    });
+  };
+  const paint = v => {
+    steps.forEach(([k, during, done]) => {
+      const li = v.root.querySelector('.ld-step[data-k="' + k + '"]');
+      if(!li) return;
+      const st = w.st[k] || 'wait';
+      li.className = 'ld-step ld-' + st;
+      li.querySelector('.ld-lab').textContent = st === 'ok' ? (done || during) : during;
+      li.querySelector('.ld-at').textContent = st === 'ok' && w.at[k] != null
+        ? ldTime(w.at[k]) : '';
+      if(st === 'now') li.setAttribute('aria-current', 'step');
+      else li.removeAttribute('aria-current');
+    });
+    if(w.err) failView(v);
+  };
+  const failView = v => {
+    const e = w.err;
+    v.root.classList.add(v.kind === 'inline' ? 'ld-bad' : 'ld-halt');
+    q(v, '.ld-card').forEach(c => c.classList.add('ld-bad'));
+    q(v, '.ld-title,.ld-inline .ld-lab').forEach(t => { t.textContent = e.what; });
+    q(v, '.ld-why,.ld-meta,.ld-slow,.ld-keep,.ld-inline .ld-time')
+      .forEach(x => x.classList.add('hide'));
+    q(v, '.ld-errbox').forEach(x => x.classList.remove('hide'));
+    q(v, '.ld-errtext').forEach(x => {
+      x.textContent = e.why || '';
+      x.classList.toggle('hide', !e.why);
+    });
+    q(v, '.ld-detail').forEach(x => {
+      x.textContent = e.detail ? 'What it said: ' + e.detail : '';
+      x.classList.toggle('hide', !e.detail);
+    });
+    q(v, '.ld-retry').forEach(b => {
+      b.classList.toggle('hide', !e.retry);
+      b.onclick = () => { const again = e.retry; w.drop(); if(again) again(); };
+    });
+  };
+  const build = (host, kind) => {
+    const doc = host.ownerDocument || document;
+    let root;
+    if(kind === 'inline'){
+      root = doc.createElement('span');
+      root.className = 'ld-inline';
+      root.innerHTML = LD_MINI + LD_X2 + '<span class=ld-lab></span>'
+        + '<span class=ld-time aria-hidden=true>0 s</span>'
+        + '<span class="ld-errtext hide"></span>'
+        + '<button type=button class="secondary ld-retry hide">Try again</button>';
+      root.querySelector('.ld-lab').textContent = o.label || o.title || 'Working';
+      // The polite line is the host itself, so the pill's words are heard
+      // when it appears and when it changes, but the clock never is.
+      if(!host.getAttribute('role')){
+        host.setAttribute('role', 'status');
+        host.setAttribute('aria-live', 'polite');
+      }
+    } else {
+      root = doc.createElement('div');
+      root.className = 'ld-stage';
+      root.innerHTML = (o.skeleton === false ? '' : '<div class=ld-skel aria-hidden=true>'
+          + '<div class=ld-sk-tree>' + '<i></i>'.repeat(12) + '</div>'
+          + '<div class=ld-sk-view><b></b></div></div>')
+        + '<div class=ld-card>'
+        + '<p class="vh ld-say" role=status aria-live=polite aria-atomic=true></p>'
+        + LD_MARK + LD_BAD
+        + '<h3 class=ld-title></h3>'
+        + (o.why ? '<p class=ld-why></p>' : '')
+        + '<div class="ld-errbox hide"><p class=ld-errtext></p>'
+        + '<p class="ld-detail hide"></p>'
+        + '<button type=button class="primary ld-retry hide">Try again</button></div>'
+        + (steps.length ? '<ol class=ld-steps>' + steps.map(s =>
+            '<li class="ld-step ld-wait" data-k="' + esc(s[0]) + '"><span class=ld-ic>'
+            + LD_TICK + LD_X + '</span><span class=ld-lab></span>'
+            + '<span class=ld-at></span></li>').join('') + '</ol>' : '')
+        + '<p class=ld-meta aria-hidden=true><span class=ld-time>0 s</span> so far</p>'
+        + (o.slow ? '<p class="ld-slow hide"></p>' : '')
+        + (o.keep ? '<p class=ld-keep>' + LD_DOWN + '<span></span></p>' : '')
+        + '</div>';
+      root.querySelector('.ld-title').textContent = o.title || 'Working';
+      if(o.why) root.querySelector('.ld-why').textContent = o.why;
+      if(o.slow) root.querySelector('.ld-slow').textContent = o.slow[1];
+      if(o.keep) root.querySelector('.ld-keep span').textContent = o.keep;
+      host.classList.add('ld-host');
+    }
+    return root;
+  };
+
+  w.show = (host, kind) => {
+    if(!host || w.over) return w;
+    kind = kind || 'inline';
+    // A newer wait in the same place replaces the one before it.
+    if(host._ldWait && host._ldWait !== w) host._ldWait.hide(host);
+    host._ldWait = w;
+    w.hosts.push(host);
+    const put = () => {
+      if(w.over || host._ldWait !== w) return;
+      const v = {host: host, kind: kind, root: build(host, kind)};
+      if(kind === 'inline') host.innerHTML = '';
+      host.appendChild(v.root);
+      w.views.push(v);
+      paint(v);
+      tick();
+      if(!w.timer && !w.err) w.timer = setInterval(tick, 1000);
+      if(w.said && v.kind !== 'inline'){
+        const el = v.root.querySelector('.ld-say');
+        if(el) setTimeout(() => { el.textContent = w.said; }, 60);
+      }
+    };
+    // A wait that may well be over at once is shown only if it is not.
+    if(o.delay) w.later.push(setTimeout(put, o.delay));
+    else put();
+    return w;
+  };
+  w.hide = host => {
+    w.views = w.views.filter(v => {
+      if(v.host !== host) return true;
+      v.root.remove();
+      return false;
+    });
+    if(host._ldWait === w) host._ldWait = null;
+    if(!w.views.length && !w.later.length){ clearInterval(w.timer); w.timer = 0; }
+  };
+  w.step = states => {
+    if(w.over) return w;
+    let now = '';
+    Object.keys(states || {}).forEach(k => {
+      if(states[k] === 'ok' && w.st[k] !== 'ok') w.at[k] = secs();
+      w.st[k] = states[k];
+    });
+    steps.forEach(([k, during]) => { if(w.st[k] === 'now' && !now) now = during; });
+    w.views.forEach(paint);
+    if(now) say(now + '.');
+    return w;
+  };
+  w.fail = (what, why, detail, retry) => {
+    if(w.over) return w;
+    w.err = {what: what, why: why || '', detail: detail || '', retry: retry || null};
+    clearInterval(w.timer); w.timer = 0;
+    w.views.forEach(failView);
+    say(what + '. ' + (why || ''));
+    return w;
+  };
+  w.finish = then => {
+    if(w.over) return w;
+    tick();
+    w.over = true;
+    w.later.forEach(clearTimeout); w.later = [];
+    clearInterval(w.timer); w.timer = 0;
+    const stages = w.views.filter(v => v.kind !== 'inline');
+    w.views.filter(v => v.kind === 'inline').forEach(v => v.root.remove());
+    release();
+    if(!stages.length){ if(then) then(); return w; }
+    // The last tick is seen before the stage goes.
+    stages.forEach(v => {
+      v.root.querySelector('.ld-card').classList.add('ld-fine');
+      q(v, '.ld-slow,.ld-keep').forEach(x => x.classList.add('hide'));
+      if(o.done) v.root.querySelector('.ld-title').textContent = o.done;
+      const el = v.root.querySelector('.ld-say');
+      if(el) el.textContent = (o.done || 'Ready') + '.';
+    });
+    const hold = calm() ? 0 : 450, fade = calm() ? 0 : 520;
+    setTimeout(() => {
+      stages.forEach(v => v.root.classList.add('ld-leave'));
+      if(then) then();
+      setTimeout(() => stages.forEach(v => v.root.remove()), fade);
+    }, hold);
+    return w;
+  };
+  w.drop = () => {
+    w.over = true;
+    w.later.forEach(clearTimeout); w.later = [];
+    clearInterval(w.timer); w.timer = 0;
+    w.views.forEach(v => v.root.remove());
+    release();
+    w.views = [];
+    return w;
+  };
+  return w;
+}
+
+/* A short wait beside a control, in its compact form: shown in `el` once it
+   has lasted a moment, and gone when the answer comes. */
+function waitIn(el, label, opt){
+  return waitFor(Object.assign({label: label, delay: 400}, opt || {}))
+    .show(el, 'inline');
+}
+/* The same, kept while the same thing is still awaited: a view redrawn while
+   a surface is computed does not start its clock again. */
+function waitKeep(el, label){
+  const w = el && el._ldWait;
+  if(w && !w.over && w.o.label === label) return w;
+  return waitIn(el, label, {delay: 0});
+}
+/* Done waiting in `el`, if anything was. */
+function waitDone(el){
+  if(el && el._ldWait) el._ldWait.finish();
+}
+/* An answer, or the reason there was none, as an answer. api() throws when
+   the server cannot be reached at all; a wait must still end. */
+async function ask(path, body){
+  try { return await api(path, body); }
+  catch(e){ return {error: 'the page could not reach its server ('
+                    + ((e && e.message) || e) + ')', lost: true}; }
+}
+
+/* ===================== column widths ================================= */
+/* The tables of runs, folders, results and residues can have their columns
+   resized: a grip on the right edge of each heading, dragged with a mouse, a
+   pen or a finger, moved ten pixels at a time with the arrow keys once it
+   has the focus, or double clicked to fit its column to the widest entry.
+
+   A table with a resized column has a fixed layout, with each column's width
+   on a <col>, so widening one column never makes another jump; with a fixed
+   layout the first row's cells would decide the widths, and in the results
+   table that row is the group headings, spanning several columns each. What
+   no longer fits ends in an ellipsis, with the whole of it on hover.
+
+   Widths are kept in this browser, per table and per column, under
+   adcp.colw, and a Reset column widths button beside a table appears once
+   one of its columns has been resized. Every read and write of the storage
+   is guarded, so a browser that refuses storage still resizes, and forgets
+   on reload. */
+const COLW_KEY = 'adcp.colw', COLW_MIN = 48, COLW_MAX = 1200, COLW_STEP = 10;
+/* The stored widths, as {table: {column: px}}, from a storage that may be
+   missing or refuse (tests/test_columns.py runs these under Node). */
+function colwAll(store){
+  try {
+    const v = JSON.parse((store && store.getItem(COLW_KEY)) || '{}');
+    return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+  } catch(e){ return {}; }
+}
+function colwGet(store, table){
+  const t = colwAll(store)[table];
+  const out = {};
+  if(t && typeof t === 'object')
+    Object.keys(t).forEach(k => { if(+t[k] > 0) out[k] = Math.round(+t[k]); });
+  return out;
+}
+function colwClamp(px, min){
+  return Math.round(Math.min(COLW_MAX, Math.max(min || COLW_MIN, +px || 0)));
+}
+/* Keeps one column's width; false when the storage refused it. */
+function colwPut(store, table, col, px, min){
+  const all = colwAll(store);
+  const t = all[table] && typeof all[table] === 'object' ? all[table] : {};
+  t[col] = colwClamp(px, min);
+  all[table] = t;
+  try { store.setItem(COLW_KEY, JSON.stringify(all)); return true; }
+  catch(e){ return false; }
+}
+/* Forgets one table's widths, and only that table's. */
+function colwReset(store, table){
+  const all = colwAll(store);
+  delete all[table];
+  try { store.setItem(COLW_KEY, JSON.stringify(all)); return true; }
+  catch(e){ return false; }
+}
+function colwStore(){
+  try { return window.localStorage; } catch(e){ return null; }
+}
+/* What this session resized where storage is refused, so a table redrawn a
+   moment later still has the widths it was given. */
+const COLW_HERE = {};
+function colwFor(table){
+  return Object.assign({}, colwGet(colwStore(), table), COLW_HERE[table] || {});
+}
+
+/* The headings that stand for one column each: the last row of the head. */
+function colHeads(t){
+  const rows = t.tHead && t.tHead.rows.length ? t.tHead.rows
+    : (t.rows[0] && t.rows[0].querySelector('th') ? [t.rows[0]] : []);
+  return rows.length ? Array.from(rows[rows.length - 1].cells) : [];
+}
+/* A column's key: its data-ck, else its heading's words, else its place. */
+function colKey(th, i){
+  return th.getAttribute('data-ck')
+    || (th.textContent || '').trim().toLowerCase().replace(/\s+/g, ' ') || 'col' + i;
+}
+
+/* Makes table `t` resizable, as table `key`. `after` runs whenever its
+   widths change (the results table places its pinned columns again).
+   `reset` is the element the reset button goes after. Safe to call again
+   on a table drawn afresh. */
+function colResize(t, key, opt){
+  if(!t) return;
+  opt = opt || {};
+  const heads = colHeads(t);
+  if(!heads.length) return;
+  const keys = heads.map(colKey);
+  const mins = heads.map(th => +th.getAttribute('data-min') || COLW_MIN);
+  const after = () => { if(opt.after) opt.after(); };
+  /* The button, beside the table, shown once something was resized. */
+  let rb = opt.reset && opt.reset.parentNode
+    ? opt.reset.parentNode.querySelector(':scope > .colreset[data-for="' + key + '"]')
+    : null;
+  if(opt.reset && !rb){
+    rb = document.createElement('button');
+    rb.type = 'button';
+    rb.className = 'ghost sm colreset hide';
+    rb.setAttribute('data-for', key);
+    rb.textContent = 'Reset column widths';
+    opt.reset.insertAdjacentElement('afterend', rb);
+  }
+  const showReset = () => {
+    if(rb) rb.classList.toggle('hide', !Object.keys(colwFor(key)).length);
+  };
+  /* Every column at the width it has now, or as kept, in a fixed layout. */
+  const fix = () => {
+    if(t.classList.contains('colfixed')) return true;
+    const now = heads.map(th => th.getBoundingClientRect().width);
+    if(!now.some(x => x > 0)) return false;
+    const kept = colwFor(key);
+    let cg = t.querySelector(':scope > colgroup.colw');
+    if(!cg){
+      cg = document.createElement('colgroup');
+      cg.className = 'colw';
+      t.insertBefore(cg, t.firstChild);
+    }
+    cg.innerHTML = heads.map(() => '<col>').join('');
+    /* A column nobody resized keeps its width, rounded up: one rounded down
+       by a fraction of a pixel would cut its heading short. */
+    Array.from(cg.children).forEach((c, i) => {
+      c.style.width = (kept[keys[i]] != null ? colwClamp(kept[keys[i]], mins[i])
+                       : Math.ceil(now[i]) + 1) + 'px';
+    });
+    t.classList.add('colfixed');
+    total();
+    titles();
+    return true;
+  };
+  const cols = () => {
+    const cg = t.querySelector(':scope > colgroup.colw');
+    return cg ? Array.from(cg.children) : [];
+  };
+  const total = () => {
+    const sum = cols().reduce((n, c) => n + (parseFloat(c.style.width) || 0), 0);
+    t.style.width = sum + 'px';
+    t.style.minWidth = '0';
+  };
+  /* The whole of what an ellipsis cut short, on hover. */
+  const titles = () => {
+    Array.from(t.querySelectorAll('td')).forEach(td => {
+      if(!td.title && !td.querySelector('button,select,input')) {
+        const text = (td.textContent || '').trim();
+        if(text) td.title = text;
+      }
+    });
+    Array.from(t.querySelectorAll('.fgo')).forEach(b => {
+      if(!b.title) b.title = (b.textContent || '').trim();
+    });
+  };
+  const unfix = () => {
+    const cg = t.querySelector(':scope > colgroup.colw');
+    if(cg) cg.remove();
+    t.classList.remove('colfixed');
+    t.style.width = '';
+    t.style.minWidth = '';
+  };
+  const setW = (i, px, save) => {
+    if(!fix()) return;
+    const w = colwClamp(px, mins[i]);
+    const c = cols()[i];
+    if(!c) return;
+    c.style.width = w + 'px';
+    total();
+    heads[i].querySelector('.colgrip').setAttribute('aria-valuenow', String(w));
+    if(save){
+      COLW_HERE[key] = Object.assign(COLW_HERE[key] || {}, {[keys[i]]: w});
+      colwPut(colwStore(), key, keys[i], w, mins[i]);
+      showReset();
+    }
+    after();
+  };
+  const widthOf = i => {
+    const c = cols()[i];
+    return c ? parseFloat(c.style.width) || heads[i].getBoundingClientRect().width
+      : heads[i].getBoundingClientRect().width;
+  };
+  /* The widest entry in column i, measured with the table laid out by its
+     contents for a moment, which nothing is drawn in between. */
+  const fit = i => {
+    if(!fix()) return;
+    const c = cols()[i], was = c.style.width;
+    const style = [t.style.width, t.style.minWidth];
+    t.classList.remove('colfixed');
+    t.style.width = 'max-content';
+    c.style.width = '';
+    const w = heads[i].getBoundingClientRect().width;
+    c.style.width = was;
+    t.classList.add('colfixed');
+    t.style.width = style[0]; t.style.minWidth = style[1];
+    setW(i, w + 2, true);
+  };
+  heads.forEach((th, i) => {
+    th.classList.add('colsz');
+    if(th.querySelector(':scope > .colgrip')) return;
+    const g = document.createElement('span');
+    g.className = 'colgrip';
+    g.tabIndex = 0;
+    g.setAttribute('role', 'separator');
+    g.setAttribute('aria-orientation', 'vertical');
+    g.setAttribute('aria-valuemin', String(mins[i]));
+    g.setAttribute('aria-valuemax', String(COLW_MAX));
+    g.setAttribute('aria-label', 'Resize the ' + ((th.textContent || '').trim()
+      || 'actions') + ' column. Left and right arrow keys change its width; '
+      + 'double click fits it to its contents.');
+    th.appendChild(g);
+    g.addEventListener('pointerdown', e => {
+      if(e.button !== 0 && e.pointerType === 'mouse') return;
+      e.preventDefault();
+      e.stopPropagation();
+      if(!fix()) return;
+      const x0 = e.clientX, w0 = widthOf(i);
+      g.classList.add('on');
+      document.body.classList.add('colmoving');
+      try { g.setPointerCapture(e.pointerId); } catch(err){}
+      const move = ev => setW(i, w0 + ev.clientX - x0, false);
+      const up = ev => {
+        g.removeEventListener('pointermove', move);
+        g.removeEventListener('pointerup', up);
+        g.removeEventListener('pointercancel', up);
+        g.classList.remove('on');
+        document.body.classList.remove('colmoving');
+        setW(i, w0 + ev.clientX - x0, true);
+      };
+      g.addEventListener('pointermove', move);
+      g.addEventListener('pointerup', up);
+      g.addEventListener('pointercancel', up);
+    });
+    // A click on the grip is not a click on the heading or its row.
+    g.addEventListener('click', e => e.stopPropagation());
+    g.addEventListener('dblclick', e => { e.preventDefault(); e.stopPropagation(); fit(i); });
+    g.addEventListener('keydown', e => {
+      if(e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      e.preventDefault();
+      setW(i, widthOf(i) + (e.key === 'ArrowRight' ? COLW_STEP : -COLW_STEP), true);
+    });
+  });
+  if(rb) rb.onclick = () => {
+    delete COLW_HERE[key];
+    colwReset(colwStore(), key);
+    unfix();
+    heads.forEach(th => {
+      const g = th.querySelector('.colgrip');
+      if(g) g.removeAttribute('aria-valuenow');
+    });
+    showReset();
+    after();
+  };
+  showReset();
+  /* Kept widths are put back as the table is drawn; a table drawn while it
+     is hidden, in a tab not showing, is done the moment it is shown. */
+  if(Object.keys(colwFor(key)).length){
+    if(fix()) after();
+    else if(window.ResizeObserver && !t._colWatch){
+      t._colWatch = new ResizeObserver(() => {
+        if(t.getBoundingClientRect().width){
+          t._colWatch.disconnect();
+          t._colWatch = null;
+          if(fix()) after();
+        }
+      });
+      t._colWatch.observe(t);
+    }
+  }
+}
+
 /* ===================== the step guide ================================ */
 /* Five steps across the top, and the cards that take them. Each step is
    decided by a check the page already makes, never by a click on the strip:
@@ -48,6 +600,10 @@ async function api(path, body){
    and nobody should be walked through steps that are already done. */
 const STEPS = ['receptor', 'site', 'peptides', 'docking', 'submit'];
 let PEPS_READY = false, SUBMITTED = false, GUIDE_T = 0;
+/* Something still under way for a step, in words, such as ADapt starting
+   after a structure is loaded: the strip shows it turning, and says it. It
+   decides nothing and blocks nothing. */
+const GUIDE_BUSY = {};
 const GUIDE_HINT = {
   receptor: ['Load a receptor, fetch one by PDB id, or load a target file',
              'A receptor is loaded'],
@@ -141,8 +697,10 @@ function guide(){
       const why = k === 'docking' && state === 'now' ? dockingProblem() : '';
       b.title = why || GUIDE_HINT[k][state === 'done' ? 1 : 0];
       const st = li.querySelector('.gstate');
-      if(st) st.textContent = state === 'done' ? ', done'
-        : state === 'now' ? ', to do now' : ', still to do';
+      if(st) st.textContent = (state === 'done' ? ', done'
+        : state === 'now' ? ', to do now' : ', still to do')
+        + (GUIDE_BUSY[k] ? ', ' + GUIDE_BUSY[k] : '');
+      li.classList.toggle('busy', !!GUIDE_BUSY[k]);
     }
     const card = $('step-' + k);
     if(card){
@@ -393,7 +951,9 @@ function adaptAuto(d){
 }
 
 /* Opens a structure in ADapt: a new session, or `session` again while ADapt
-   still holds it. The frame is pointed at it when the page is wide enough. */
+   still holds it. The frame is pointed at it when the page is wide enough.
+   While ADapt starts, the space the frame will fill shows the loading stage,
+   whose steps tick as the server and the frame report them (adaptWaitBegin). */
 async function adaptOpenFor(src, session){
   const gen = ++ADAPT_GEN;
   ADAPTF = null;
@@ -402,42 +962,269 @@ async function adaptOpenFor(src, session){
   if(!ADAPTREC && ADAPTMODE !== 'page'){ ADAPTMODE = 'page'; adaptApplied(); }
   $('adaptsec').classList.remove('hide');
   $('adaptwhat2').textContent = src.code || baseName(src.path) || 'this structure';
+  adaptWaitBegin(src, session, gen);
   adaptLayout();
-  const t0 = Date.now();
-  const tick = () => adaptWait('Starting ADapt on ' + (src.code || baseName(src.path))
-    + ': ' + Math.round((Date.now() - t0) / 1000) + ' s. A first start can take a '
-    + 'minute or two on a busy login node.');
-  tick();
-  const timer = setInterval(tick, 1000);
   adaptSays();
   let r;
   ADAPT_PENDING = src.path || '';
-  try { r = await api('/api/adapt', {path: src.path || '', code: src.code || '',
-                                     session: session || ''}); }
+  try { r = await adaptAsk(src, session); }
   finally {
-    clearInterval(timer);
     if(gen === ADAPT_GEN) ADAPT_PENDING = '';
   }
   if(gen !== ADAPT_GEN) return null;          // another structure came meanwhile
-  if(!r || r.error || !r.session){
-    adaptWait((r && (r.error || r.note)) || 'ADapt did not open this structure.', true);
+  if(!r || r.error || r.lost || r.late || !r.session){
+    adaptWaitFailed(r || {}, src);
     adaptSays();
     return null;
   }
   ADAPTF = {session: r.session, folder: r.folder || '', src: src,
             url: new URL(r.url, location.href).href, pdbid: r.pdbid || '',
             tab: r.tab || '', edits: null, seen: null, saves: [], changes: [],
-            known: null};
+            known: null, unread: null};
   $('adaptwhat2').textContent = (r.pdbid || src.code || baseName(src.path)).toUpperCase();
   $('adaptfull').href = ADAPTF.url;
   $('adaptfull').classList.remove('hide');
-  adaptWait('');
+  adaptWaitHanded(ADAPTF);
   if(adaptInline()) adaptFrame();
   ADAPT_TIMER = setInterval(() => { if(!document.hidden) adaptPoll(); }, 3000);
   await adaptPoll();
   return ADAPTF;
 }
 
+/* /api/adapt, held to a limit, with a connection lost said as one. The
+   server gives up on a start at five minutes and says so; this is for an
+   answer that never comes back at all. */
+const ADAPT_LIMIT_MS = 6 * 60 * 1000;
+async function adaptAsk(src, session){
+  let timer = 0;
+  const late = new Promise(done => {
+    timer = setTimeout(() => done({late: true}), ADAPT_LIMIT_MS); });
+  const asked = api('/api/adapt', {path: src.path || '', code: src.code || '',
+                                    session: session || ''})
+    .catch(e => ({lost: String((e && e.message) || e)}));
+  const r = await Promise.race([asked, late]);
+  clearTimeout(timer);
+  return r;
+}
+
+/* ===================== waiting for ADapt ============================= */
+/* The steps of opening a structure in ADapt, from what has actually
+   happened, so they can be checked on their own (tests/test_waiting.py runs
+   this under Node):
+     start   the server has ADapt's process up (/api/adapt/status says
+             "starting" or "running")
+     answer  ADapt has printed its address and answers a request the server
+             makes of it (/api/adapt/status, "answering")
+     hand    the structure was handed over: /api/adapt answered with a
+             session, after ADapt's api/upload or api/fetch
+     view    the frame's page loaded (its load event) and drew its tree; on a
+             wide page only, since a phone opens ADapt in a tab instead
+   A later event implies the earlier ones: no session comes from an ADapt
+   that never answered. The first step not done is the one under way; after
+   an error it is the one that failed, and nothing after it has begun. */
+const ADAPT_STEPS = ['start', 'answer', 'hand', 'view'];
+function adaptStartSteps(f){
+  f = f || {};
+  const order = f.inline === false ? ADAPT_STEPS.slice(0, 3) : ADAPT_STEPS;
+  const done = {view: !!f.view};
+  done.hand = !!f.session || done.view;
+  done.answer = !!f.answering || done.hand;
+  done.start = f.process === 'starting' || f.process === 'running' || done.answer;
+  const steps = {};
+  let at = '';
+  order.forEach(k => {
+    if(done[k]) steps[k] = 'ok';
+    else if(!at){ at = k; steps[k] = f.error ? 'no' : 'now'; }
+    else steps[k] = 'wait';
+  });
+  return {steps: steps, now: f.error ? '' : at, failed: f.error ? at : '',
+          ready: !at && !f.error};
+}
+
+/* What went wrong, in plain words, and whether trying again can help. `r` is
+   the server's answer to /api/adapt, {lost} when the page could not reach
+   its own server, or {late} when no answer came in time. */
+function adaptStartError(r, what){
+  r = r || {};
+  what = what || 'this structure';
+  const said = String(r.error || r.note || '').trim();
+  const out = (title, why, detail, retry) =>
+    ({what: title, why: why, detail: detail || '', retry: retry});
+  if(r.late) return out('ADapt is taking far too long',
+    'Six minutes have passed without an answer, which is much longer than a '
+    + 'start on a busy login node takes. Something is stuck.', '', true);
+  if(r.lost) return out('The page lost touch with its server',
+    'The request to start ADapt, or its answer, did not get through. The '
+    + 'connection to the cluster may have dropped.', r.lost, true);
+  if(/did not start/i.test(said)) return out('ADapt did not start',
+    'The cluster could not start ADapt. A busy or briefly broken login node is '
+    + 'the usual cause, and trying again usually works.', said, true);
+  if(/did not answer/i.test(said)) return out('ADapt stopped answering',
+    'ADapt started, then stopped answering this page.', said, true);
+  if(/reads PDB files only/i.test(said)) return out('ADapt cannot open this file',
+    'ADapt reads PDB files only, and ' + what + ' is not one. Load a PDB file, '
+    + 'or fetch the entry by its PDB id.', '', false);
+  if(/could not fetch/i.test(said)) return out('ADapt could not fetch ' + what,
+    'ADapt was asked to fetch the entry from the RCSB, and could not.', said, true);
+  if(/could not open/i.test(said)) return out('ADapt could not open ' + what,
+    'ADapt started, but could not read this structure.', said, true);
+  if(/not installed|older than|ADCP 1\.1/i.test(said)) return out(
+    'ADapt cannot run here', said, '', false);
+  return out('ADapt did not open ' + what, said || 'ADapt gave no reason.', '', true);
+}
+
+/* The wait for ADapt now on screen: {w, f, gen, src, session, tabs}, where
+   `f` holds the facts adaptStartSteps reads. */
+let ADAPT_W = null;
+function adaptWaitBegin(src, session, gen){
+  const was = ADAPT_W;
+  if(was) was.w.drop();
+  const what = src.code || baseName(src.path) || 'this structure';
+  const inline = adaptInline();
+  const steps = [['start', 'Starting ADapt on the cluster', 'ADapt started on the cluster'],
+                 ['answer', 'Waiting for ADapt to answer', 'ADapt answering'],
+                 ['hand', 'Handing ' + what + ' to ADapt', what + ' handed to ADapt']];
+  if(inline) steps.push(['view', 'Drawing ADapt’s view', 'View ready']);
+  const w = waitFor({
+    title: 'Starting ADapt', done: 'ADapt is ready',
+    why: 'Opening ' + what + ' so you can choose what stays in the receptor.',
+    steps: steps, keep: 'You can keep going below while it starts.',
+    slow: [20, 'A first start on a busy login node takes 1 to 2 minutes. '
+               + 'Later starts are quick.'],
+    label: 'Starting ADapt on ' + what});
+  ADAPT_W = {w: w, gen: gen, src: src, session: session || '', what: what,
+             f: {process: '', answering: false, session: false, view: false,
+                 error: false, inline: inline},
+             // A tab opened to wait in is carried over to a retry.
+             tabs: was ? was.tabs.filter(t => { try { return !t.closed; }
+                                                catch(e){ return false; } }) : []};
+  const wrap = $('adaptframewrap');
+  wrap.classList.remove('hide');
+  wrap.classList.add('ld-under');
+  w.show(wrap, 'stage');
+  // Open full screen works while it starts: the tab waits on the same card.
+  $('adaptfull').classList.remove('hide');
+  w.show($('adaptwait'), 'inline');       // seen when the frame is folded away
+  w.show($('adaptrowwait'), 'inline');    // and on a phone, under its button
+  ADAPT_W.tabs.forEach(t => adaptTabShow(t, ADAPT_W));
+  adaptWaitShow();
+  adaptBusy('start');
+  adaptWaitPoll(ADAPT_W);
+}
+/* How far the start has got, asked once a second until the structure is
+   handed over: the server reads it from ADapt's process without waiting on
+   the start itself, and asks ADapt to answer once it has an address. */
+async function adaptWaitPoll(A){
+  while(A === ADAPT_W && !A.f.session && !A.f.error){
+    const st = await api('/api/adapt/status').catch(() => null);
+    if(A !== ADAPT_W || A.f.session || A.f.error) return;
+    if(st && !st.error){
+      A.f.process = st.process || '';
+      A.f.answering = !!st.answering;
+      adaptWaitShow();
+    }
+    await new Promise(done => setTimeout(done, 1000));
+  }
+}
+function adaptWaitShow(){
+  const A = ADAPT_W;
+  if(!A) return;
+  const g = adaptStartSteps(A.f);
+  A.w.step(g.steps);
+  if(!g.ready) return;
+  ADAPT_W = null;
+  adaptBusy('');
+  A.w.finish(() => $('adaptframewrap').classList.remove('ld-under'));
+}
+/* Handed over: the tabs waiting for it go to ADapt now, and on a phone that
+   is the last step. */
+function adaptWaitHanded(f){
+  const A = ADAPT_W;
+  if(!A) return;
+  A.f.session = true;
+  if(A.tabs.length){
+    ADAPT_AWAY = true;
+    A.tabs.forEach(t => { try { t.location.href = f.url; } catch(e){} });
+    $('adaptnote').innerHTML = 'ADapt is open in a new tab on '
+      + esc(f.pdbid || A.what) + ' (<a href="' + esc(f.url)
+      + '" target=_blank rel=noopener>open it again</a>). Change what stays in the '
+      + 'receptor there; this card says which receptor will be docked.';
+  }
+  adaptWaitShow();
+}
+function adaptWaitFailed(r, src){
+  const A = ADAPT_W;
+  if(!A) return;
+  A.f.error = true;
+  adaptWaitShow();
+  const e = adaptStartError(r, A.what);
+  A.w.fail(e.what, e.why + ' Docking does not need ADapt: without it, this page '
+    + 'prepares the receptor itself.', e.detail,
+    e.retry ? () => adaptOpenFor(A.src, A.session) : null);
+  adaptBusy('bad');
+  $('adaptfull').classList.add('hide');
+  // The stage keeps its place, so the error is where the frame would be.
+  $('adaptframewrap').classList.remove('hide');
+}
+/* The badge in the Receptor card's heading and the strip's first step, while
+   ADapt starts: seen from anywhere on the page, and blocking nothing. */
+function adaptBusy(state){
+  GUIDE_BUSY.receptor = state === 'start' ? 'ADapt is starting' : '';
+  guideSoon();
+  let b = $('recbusy');
+  if(!state){ if(b) b.remove(); return; }
+  if(!b){
+    document.querySelector('#step-receptor > h2').insertAdjacentHTML('beforeend',
+      '<button type=button id=recbusy class=cardbusy></button>');
+    b = $('recbusy');
+    b.onclick = () => $('adaptsec').scrollIntoView({block: 'center',
+      behavior: matchMedia('(prefers-reduced-motion: reduce)').matches
+        ? 'auto' : 'smooth'});
+  }
+  b.className = 'cardbusy' + (state === 'bad' ? ' ld-bad' : '');
+  b.innerHTML = state === 'bad' ? LD_X2 + 'ADapt did not start'
+    : LD_MINI + 'ADapt starting';
+  b.title = state === 'bad' ? 'Show what went wrong' : 'Show ADapt starting';
+}
+/* A tab of its own, opened inside the click, where a browser allows it.
+   While ADapt starts it shows the same loading card, with the same steps,
+   and goes to ADapt the moment the structure is handed over. */
+function adaptTabOpen(){
+  let tab = null;
+  try { tab = window.open('', '_blank'); } catch(e){ tab = null; }
+  if(!tab) return null;
+  try {
+    const theme = document.documentElement.dataset.theme;
+    const css = Array.from(document.querySelectorAll('style'))
+      .map(x => x.textContent).join('\n');
+    const d = tab.document;
+    d.open();
+    d.write('<!doctype html><html' + (theme ? ' data-theme="' + esc(theme) + '"' : '')
+      + '><head><meta charset="utf-8"><meta name="viewport" '
+      + 'content="width=device-width,initial-scale=1"><title>Starting ADapt</title>'
+      + '<style>' + css.replace(/<\/style/gi, '<\\/style') + '</style></head>'
+      + '<body><div class=ld-page></div></body></html>');
+    d.close();
+  } catch(e){ /* a browser that refuses is still fine: the tab goes to ADapt */ }
+  return tab;
+}
+function adaptTabShow(tab, A){
+  try {
+    const host = tab.document.querySelector('.ld-page');
+    if(!host || !A) return;
+    A.w.show(host, 'stage');
+    /* In a tab of its own there is nothing below to carry on with, and no
+       frame to draw: the tab goes to ADapt once it has the structure. */
+    const keep = host.querySelector('.ld-keep span');
+    if(keep){
+      keep.textContent = 'This tab opens ADapt as soon as it is ready.';
+      const arrow = keep.parentNode.querySelector('svg');
+      if(arrow) arrow.remove();
+    }
+    const view = host.querySelector('.ld-step[data-k="view"]');
+    if(view) view.remove();
+  } catch(e){}
+}
 /* The frame onto the session, in this page's theme: ADapt reads its theme
    from this origin's storage when its page loads. */
 function adaptFrame(){
@@ -447,9 +1234,9 @@ function adaptFrame(){
   ADAPT_FRAMED = ADAPTF.session;
   $('adaptframe').dataset.loaded = '';
   /* Shown at once, at its full size, so ADapt's 3D view is made the size it
-     will be drawn at. */
+     will be drawn at; under the loading stage while there is one. */
   $('adaptframewrap').classList.remove('hide');
-  adaptWait('Loading ADapt\u2019s view of the structure\u2026');
+  if(!ADAPT_W) $('adaptframewrap').classList.remove('ld-under');
   $('adaptframe').src = ADAPTF.url;
   adaptLayout();
 }
@@ -461,16 +1248,17 @@ function adaptFrameClear(){
   if(fr.getAttribute('src')) fr.src = 'about:blank';
   $('adaptframewrap').classList.add('hide');
   $('adaptfull').classList.add('hide');
+  $('adaptfull').setAttribute('href', '#');
 }
 $('adaptframe').addEventListener('load', () => {
   const fr = $('adaptframe');
   if(!ADAPT_FRAMED || !fr.getAttribute('src') || fr.getAttribute('src') === 'about:blank')
     return;
-  adaptWait('');
   $('adaptframewrap').classList.remove('hide');
   fr.dataset.loaded = adaptFrameSession() || ADAPT_FRAMED;
   let doc = null;
   try { doc = fr.contentDocument; } catch(e){ doc = null; }
+  adaptViewDrawn(doc);
   if(!doc) return;
   /* Every click or change in ADapt may be an edit: asked after at once,
      and again once ADapt has had time to record it. */
@@ -483,6 +1271,27 @@ $('adaptframe').addEventListener('load', () => {
   doc.addEventListener('change', touched, true);
   adaptFrameTheme();
 });
+/* The last step: the frame's page has loaded, and ADapt has drawn its tree
+   and its view of the structure. A page that never draws them (ADapt saying
+   something went wrong, say) is shown after twenty seconds all the same, so
+   that what it says can be read. */
+function adaptViewDrawn(doc){
+  const A = ADAPT_W;
+  if(!A || A.f.view || !A.f.session) return;
+  const t0 = Date.now();
+  const look = () => {
+    if(A !== ADAPT_W || A.f.error) return;
+    let drawn = true;
+    try {
+      if(doc && doc.getElementById('tree'))
+        drawn = !!doc.querySelector('#tree li')
+          && (!doc.getElementById('viewer') || !!doc.querySelector('#viewer canvas'));
+    } catch(e){ drawn = true; }
+    if(drawn || Date.now() - t0 > 20000){ A.f.view = true; adaptWaitShow(); return; }
+    setTimeout(look, 250);
+  };
+  look();
+}
 /* ADapt has a light and dark switch of its own; the frame follows this page. */
 function adaptFrameTheme(){
   try {
@@ -503,11 +1312,6 @@ function adaptFrameSession(){
     return new URLSearchParams(fr.contentWindow.location.search).get('session') || '';
   } catch(e){ return ''; }
 }
-function adaptWait(text, bad){
-  const el = $('adaptwait');
-  if(!el) return;
-  el.innerHTML = bad ? '<span class=bad>' + esc(text) + '</span>' : esc(text || '');
-}
 /* The frame on a wide page, the button on a phone. */
 function adaptLayout(){
   const wide = adaptInline();
@@ -520,6 +1324,7 @@ PHONEQ.addEventListener('change', adaptLayout);
    and the card still says which receptor will be docked. */
 function adaptFold(folded){
   $('adaptframewrap').classList.toggle('folded', folded);
+  $('adaptpanel').classList.toggle('isfolded', folded);
   $('adaptfold').textContent = folded ? 'Show' : 'Hide';
   $('adaptfold').setAttribute('aria-expanded', folded ? 'false' : 'true');
   try { localStorage.setItem('adcp.adaptfold', folded ? '1' : ''); } catch(e){}
@@ -530,7 +1335,18 @@ try { if(localStorage.getItem('adcp.adaptfold') === '1') adaptFold(true); } catc
 /* Full screen is the same session in a tab of its own. What is changed there
    is seen here, and the frame is shown again on return, so its tree is not
    left behind. */
-$('adaptfull').addEventListener('click', () => { ADAPT_AWAY = true; });
+/* While ADapt is still starting, the tab opens on the loading card and goes
+   to ADapt when it is ready. */
+$('adaptfull').addEventListener('click', e => {
+  if(ADAPTF){ ADAPT_AWAY = true; return; }
+  e.preventDefault();
+  const A = ADAPT_W;
+  if(!A) return;
+  const tab = adaptTabOpen();
+  if(!tab) return;
+  A.tabs.push(tab);
+  adaptTabShow(tab, A);
+});
 window.addEventListener('focus', () => { if(ADAPTF) adaptPoll(); });
 
 /* What has been changed in ADapt, from its session. The first change makes
@@ -565,13 +1381,19 @@ async function adaptPoll(){
     }
     if(newest && newest.n > f.known && !newest.written_here){
       f.known = newest.n;
-      const a = await api('/api/adapt/saved?folder=' + encodeURIComponent(f.folder)
+      const a = await ask('/api/adapt/saved?folder=' + encodeURIComponent(f.folder)
         + '&save=' + newest.n);
       if(f === ADAPTF && a && a.found){
+        f.unread = null;
         a.session = f.session;
         a.edits = newest.edits_before;
         ADAPTMODE = 'adapt';
         await useAdapt(a);
+      } else if(f === ADAPTF){
+        /* Read by itself and refused: the card says so, with the reason,
+           and offers to read it again. */
+        f.unread = {n: newest.n, why: (a && (a.why || a.error)) || 'it could not be read'};
+        adaptApplied();
       }
     }
     adaptSays();
@@ -601,15 +1423,17 @@ async function adaptWriteNow(){
     return null;
   }
   ADAPT_BUSY = true;
-  $('adaptnow').disabled = $('adaptdrop').disabled = true;
-  $('adaptsays').innerHTML = 'ADapt is writing the receptor as set there, with '
-    + 'reduce\u2019s hydrogens. This takes a few seconds, longer for a large structure.';
+  const btns = ['adaptnow', 'adaptdrop', 'adaptupdate', 'adaptback'].map($);
+  btns.forEach(b => { b.disabled = true; });
+  const w = waitIn(ADAPTREC ? $('aunote') : $('adaptsays'),
+                   'ADapt is writing the receptor as set there', {delay: 0});
   let d;
   try {
-    d = await api('/api/adapt/write', {session: ADAPTF.session, folder: ADAPTF.folder});
+    d = await ask('/api/adapt/write', {session: ADAPTF.session, folder: ADAPTF.folder});
   } finally {
     ADAPT_BUSY = false;
-    $('adaptnow').disabled = $('adaptdrop').disabled = false;
+    btns.forEach(b => { b.disabled = false; });
+    w.finish();
   }
   if(!d || !d.found){
     adaptSays((d && (d.why || d.error)) || 'ADapt wrote nothing.');
@@ -629,6 +1453,7 @@ async function adaptWriteNow(){
   return d;
 }
 $('adaptnow').onclick = () => adaptWriteNow();
+$('adaptupdate').onclick = () => adaptWriteNow();
 
 /* The line that always says which receptor will be docked. */
 function adaptSays(problem){
@@ -637,90 +1462,66 @@ function adaptSays(problem){
   const now = $('adaptnow'), drop = $('adaptdrop');
   const show = (b, on) => b.classList.toggle('hide', !on);
   $('adaptsec').classList.toggle('adapton', ADAPTMODE === 'adapt');
-  if(!ADAPTF && !ADAPTREC){
+  /* With a receptor read back, the status card below says which receptor is
+     docked and offers what the state calls for; the line and its buttons
+     would only say it twice. */
+  el.classList.toggle('hide', !!ADAPTREC);
+  adaptCard(problem);
+  if(ADAPTREC){ show(now, false); show(drop, false); return; }
+  if(!ADAPTF){
     show(now, false); show(drop, false);
     if(problem) el.innerHTML = '<span class=bad>' + esc(problem) + '</span>';
     else if(RECEPTOR && ADAPT_GEN) el.innerHTML = 'Docking will use <b>this page\u2019s '
       + 'preparation</b> of the structure above.';
     return;
   }
-  const f = ADAPTF || {};
+  const f = ADAPTF;
   const edits = f.edits || 0;
   const last = f.changes && f.changes.length ? f.changes[f.changes.length - 1] : '';
   const what = (f.tab ? esc(f.tab) : '')
     + (edits ? (f.tab ? '; ' : '') + edits + (edits === 1 ? ' change' : ' changes')
        + (last ? (edits === 1 ? ': ' : ', the last: ') + esc(last) : '') : '');
   let html;
-  if(ADAPTMODE !== 'adapt'){
+  /* Writing ADapt's receptor is the thing to do once something was changed
+     there, so it is the filled button then; before that it is a choice
+     beside the page's own preparation. */
+  const main = ADAPTMODE === 'adapt';
+  now.classList.toggle('primary', main);
+  now.classList.toggle('secondary', !main);
+  if(!main){
     html = 'Docking will use <b>this page\u2019s preparation</b> of the structure above. '
       + 'Change anything in ADapt' + (adaptInline() ? ' below' : '') + ', such as '
       + 'unticking a chain or the waters, and docking will use the receptor as set '
       + 'there instead.';
-    show(now, !!ADAPTF); show(drop, false);
+    show(now, true); show(drop, false);
   } else {
-    const dirty = adaptDirty();
-    if(ADAPTREC && !dirty && ADAPTF && ADAPTREC.folder !== ADAPTF.folder){
-      html = 'Docking will use <b>receptor save ' + esc(ADAPTREC.save) + ' from ADapt</b>, '
-        + 'read back from its session folder. ADapt no longer holds the session it was '
-        + 'made in, so the view below starts from the structure as first opened; '
-        + 'changing anything there replaces save ' + esc(ADAPTREC.save)
-        + ' with the receptor as set there.';
-    } else if(ADAPTREC && !dirty){
-      html = 'Docking will use <b>the receptor as set in ADapt</b>'
-        + (what ? ' (' + what + ')' : '') + ', written as save ' + esc(ADAPTREC.save)
-        + ' and read back: what it holds is below.';
-    } else if(ADAPTREC){
-      html = 'Docking will use <b>the receptor as set in ADapt</b> (' + what + '). It has '
-        + 'changed since save ' + esc(ADAPTREC.save) + ' was written, so ADapt writes it '
-        + 'again when you submit.';
-    } else {
-      html = 'Docking will use <b>the receptor as set in ADapt</b>'
-        + (what ? ' (' + what + ')' : '') + '. ADapt writes it when you submit; '
-        + '<b>Use ADapt\u2019s receptor now</b> writes it at once, so the site can be '
-        + 'checked on it.';
-    }
-    html += ' The preparation settings above do not apply.';
-    show(now, !!ADAPTF && (!ADAPTREC || dirty)); show(drop, true);
+    html = 'Docking will use <b>the receptor as set in ADapt</b>'
+      + (what ? ' (' + what + ')' : '') + '. ADapt writes it when you submit; '
+      + '<b>Use ADapt\u2019s receptor now</b> writes it at once, so the site can be '
+      + 'checked on it. The preparation settings above do not apply.';
+    show(now, true); show(drop, true);
   }
   if(problem) html += '<br><span class=bad>' + esc(problem) + '</span>';
-  el.innerHTML = html;
+  if(!el._ldWait) el.innerHTML = html;
 }
 
 /* The phone's way in: ADapt in a tab of its own. The tab is opened inside the
-   click, where a browser allows it, and says what is happening: a first start
-   on a busy login node takes a minute or more, and a blank tab for that long
-   reads as broken. */
+   click, where a browser allows it, and while ADapt starts it shows the same
+   loading card as the frame: a blank tab for a minute reads as broken. */
 $('adaptopen').onclick = async () => {
-  const note = $('adaptnote'), btn = $('adaptopen');
-  const tab = window.open('', '_blank');
-  if(tab){
-    try {
-      tab.document.title = 'Starting ADapt';
-      tab.document.body.innerHTML = '<p style="font:16px/1.5 system-ui,sans-serif;'
-        + 'margin:48px auto;max-width:36em;padding:0 16px">Starting ADapt on the cluster. '
-        + 'The first start can take a minute or two on a busy login node. This tab '
-        + 'opens it as soon as it is ready.</p>';
-    } catch(e){ /* a browser that refuses is still fine: the tab opens later */ }
-  }
-  btn.disabled = true;
-  let f = ADAPTF;
-  try {
-    if(!f){
-      const src = ADAPTREC && ADAPTSRC ? ADAPTSRC : adaptSource();
-      f = await adaptOpenFor(src, ADAPTREC ? (ADAPTREC.session || '') : '');
-    }
-  } finally { btn.disabled = false; }
-  if(!f){
-    if(tab) tab.close();
-    note.innerHTML = '<span class=bad>' + esc($('adaptwait').textContent
-      || 'ADapt did not start.') + '</span>';
+  if(ADAPTF){
+    ADAPT_AWAY = true;
+    window.open(ADAPTF.url, '_blank');
     return;
   }
-  ADAPT_AWAY = true;
-  if(tab) tab.location.href = f.url;
-  note.innerHTML = 'ADapt is open in a new tab on ' + esc(f.pdbid || 'this receptor')
-    + ' (<a href="' + esc(f.url) + '" target=_blank rel=noopener>open it again</a>). '
-    + 'Change what stays in the receptor there; this card says which receptor will be docked.';
+  const tab = adaptTabOpen();
+  let A = ADAPT_W;
+  if(!A || A.f.error){
+    const src = ADAPTREC && ADAPTSRC ? ADAPTSRC : adaptSource();
+    adaptOpenFor(src, ADAPTREC ? (ADAPTREC.session || '') : '');
+    A = ADAPT_W;
+  }
+  if(tab && A){ A.tabs.push(tab); adaptTabShow(tab, A); }
 };
 
 /* The receptor ADapt wrote, read back again from its folder. */
@@ -767,7 +1568,32 @@ function leaveAdapt(reload){
   } else adaptChainsBack(kept);
 }
 $('adaptdrop').onclick = () => leaveAdapt(true);
-$('adaptread').onclick = () => checkAdaptSave(true);
+$('adaptback').onclick = () => leaveAdapt(true);
+/* A newer save that was not read by itself, read now, and said if it still
+   cannot be. */
+$('adaptread').onclick = async () => {
+  const f = ADAPTF, u = f && f.unread;
+  if(!f || !u) return checkAdaptSave(true);
+  const btn = $('adaptread');
+  btn.disabled = true;
+  const w = waitIn($('aunote'), 'Reading save ' + u.n, {delay: 0});
+  const a = await ask('/api/adapt/saved?folder=' + encodeURIComponent(f.folder)
+    + '&save=' + u.n);
+  btn.disabled = false;
+  w.finish();
+  if(f !== ADAPTF) return;
+  if(a && a.found){
+    const sv = (f.saves || []).find(x => x.n === u.n);
+    f.unread = null;
+    a.session = f.session;
+    a.edits = sv ? sv.edits_before : null;
+    ADAPTMODE = 'adapt';
+    await useAdapt(a);
+    return;
+  }
+  u.why = (a && (a.why || a.error)) || u.why;
+  adaptSays('Save ' + u.n + ' still cannot be read: ' + u.why);
+};
 /* Everything that depends on whether ADapt's receptor is the one docked: the
    card says so, and the settings that belong to a structure file are greyed
    out, since ADapt and AGFR make those choices. */
@@ -786,7 +1612,6 @@ function adaptChainsBack(ids){
 }
 function adaptApplied(){
   const on = adaptOn();
-  $('adaptuse').classList.toggle('hide', !ADAPTREC);
   if(on && ADAPT_CHAINS === null)
     ADAPT_CHAINS = Array.from(document.querySelectorAll('#chainbox .chk:checked'))
       .map(x => x.getAttribute('data-ch'));
@@ -806,25 +1631,129 @@ function adaptApplied(){
   prepNote();
   adaptSays();
   guideSoon();
-  if(!ADAPTREC){ $('adaptwhat').innerHTML = ''; return; }
-  const d = ADAPTREC;
-  const list = (o, f) => Object.keys(o || {}).length
-    ? Object.keys(o).map(k => esc(k) + (f ? ' ' + esc(f(o[k])) : '')).join(', ')
+}
+
+/* What the status card says, from the facts alone, so it can be checked on
+   its own (tests/test_waiting.py runs it under Node):
+     rec     the save in use, {save}, or null when there is none
+     dirty   ADapt holds changes that save does not have
+     edits   how many, when that is known
+     unread  a newer save that was not read back by itself, {n, why}
+     gone    the save was made in a session ADapt no longer holds
+   It gives {state}, one of
+     none     no save in use, and no card
+     newer    a newer save to read, with why it was not read
+     pending  changes in ADapt since the save: one button uses them now
+     earlier  a save from an earlier session, nothing changed since
+     current  up to date with ADapt: nothing to press */
+function adaptCardState(f){
+  if(!f || !f.rec) return {state: 'none'};
+  if(f.unread && +f.unread.n > +f.rec.save)
+    return {state: 'newer', n: +f.unread.n, why: f.unread.why || ''};
+  if(f.dirty) return {state: 'pending', edits: f.edits > 0 ? +f.edits : 0};
+  if(f.gone) return {state: 'earlier'};
+  return {state: 'current'};
+}
+
+/* The status card for the receptor ADapt wrote: the headline, the facts as
+   chips, the state and the one action it calls for, and the long details
+   folded under Details. */
+function adaptCard(problem){
+  const card = $('adaptuse'), d = ADAPTREC;
+  if(!card) return;
+  if(!d){ card.classList.add('hide'); $('adaptwhat').innerHTML = ''; return; }
+  // Shown wherever a save is in use, even where ADapt itself cannot run.
+  $('adaptsec').classList.remove('hide');
+  const f = ADAPTF;
+  const gone = !!(f && f.folder && d.folder && f.folder !== d.folder);
+  const dirty = adaptDirty();
+  let edits = 0;
+  if(f && f.edits != null){
+    if(!gone){
+      const sv = (f.saves || []).find(x => x.n === d.save);
+      edits = f.edits - (d.edits != null ? d.edits : (sv ? sv.edits_before : 0));
+    } else edits = f.edits - (f.seenAtOpen || 0);
+  }
+  const c = adaptCardState({rec: d, dirty: dirty, edits: edits,
+                            unread: f && f.unread, gone: gone});
+  card.classList.remove('hide');
+  card.className = 'aucard au-' + c.state;
+  /* The biomolecule line names the tab, which is said already, then its
+     chains. */
+  const bio = String(d.biomolecule || '');
+  const chains = (d.tab && bio.indexOf(d.tab + ':') === 0
+    ? bio.slice(d.tab.length + 1) : bio).replace(/^\s*chains?\s*/i, '').trim();
+  const kept = RECEPTOR && RECEPTOR.path === d.pdb
+    ? (RECEPTOR.chains || []).map(x => x.id).join(' ') : '';
+  $('ausub').textContent = ['save ' + d.save,
+    String(d.pdbid || d.input || '').toUpperCase(), d.tab || '',
+    d.at ? 'written ' + String(d.at).replace('T', ' ').slice(0, 16) : '']
+    .filter(Boolean).join(' \u00b7 ');
+  const st = $('austate');
+  const TICK = '<svg viewBox="0 0 24 24" aria-hidden=true><path d="M9.5 16.6 4.9 12l-1.6 '
+    + '1.6 6.2 6.2L21 8.3l-1.6-1.6z"/></svg>';
+  const DOT = '<svg viewBox="0 0 24 24" aria-hidden=true><circle cx=12 cy=12 r=5 /></svg>';
+  st.className = 'austate ' + (c.state === 'current' ? 'ok'
+    : c.state === 'earlier' ? 'info' : 'todo');
+  st.innerHTML = c.state === 'current' ? TICK + 'Up to date with ADapt'
+    : c.state === 'pending' ? DOT + 'Changed in ADapt since save ' + esc(d.save)
+    : c.state === 'newer' ? DOT + 'Save ' + esc(c.n) + ' not read yet'
+    : 'From an earlier session';
+  /* The facts that matter, as chips. */
+  const groups = {};
+  (d.hetero || []).forEach(h => {
+    const n = String(h).split(' ')[0];
+    groups[n] = (groups[n] || 0) + 1;
+  });
+  const het = Object.keys(groups).map(n => n + (groups[n] > 1 ? ' \u00d7' + groups[n] : ''));
+  const count = o => Object.keys(o || {}).length;
+  const chip = (label, value, title) => '<span class=auchip' + (title ? ' title="'
+    + esc(title) + '"' : '') + '><b>' + esc(label) + '</b>' + esc(value) + '</span>';
+  const changes = f && f.edits != null && !gone ? f.edits : null;
+  $('auchips').innerHTML = [
+    (kept || chains) ? chip('Chains', kept || chains) : '',
+    chip('Hetero groups kept', het.length ? het.slice(0, 4).join(', ')
+      + (het.length > 4 ? ' and ' + (het.length - 4) + ' more' : '') : 'none',
+      (d.hetero || []).join(', ')),
+    changes != null ? chip('Changes in this session', String(changes)) : '',
+    count(d.charges) ? chip('Ion charges', Object.keys(d.charges).map(k =>
+      String(k).split(':')[1] + ' ' + d.charges[k]).join(', ')) : '',
+    count(d.mutations) ? chip('Mutations', String(count(d.mutations))) : '',
+    count(d.altlocs) ? chip('Alternate locations', String(count(d.altlocs))) : '']
+    .join('');
+  /* What the state means, in a sentence, and its one action. */
+  const last = f && f.changes && f.changes.length ? f.changes[f.changes.length - 1] : '';
+  let note = '';
+  if(c.state === 'pending')
+    note = 'You changed ' + (c.edits ? c.edits + (c.edits === 1 ? ' thing' : ' things')
+      : 'something') + ' in ADapt since save ' + esc(d.save)
+      + (last ? ', the last: ' + esc(last) : '') + '. Docking will use the receptor '
+      + 'as it is set there now: ADapt writes it when you submit, or at once with '
+      + 'the button below, so the site can be checked on it.';
+  else if(c.state === 'newer')
+    note = 'ADapt holds a newer receptor, save ' + esc(c.n) + ', that was not read back'
+      + (c.why ? ': ' + esc(c.why) + '.' : '.') + ' Docking still uses save '
+      + esc(d.save) + '.';
+  else if(c.state === 'earlier')
+    note = 'ADapt no longer holds the session save ' + esc(d.save) + ' was made in, so '
+      + 'its view starts from the structure as first opened. Changing anything there '
+      + 'replaces save ' + esc(d.save) + '.';
+  if(problem) note += (note ? '<br>' : '') + '<span class=bad>' + esc(problem) + '</span>';
+  if(!$('aunote')._ldWait) $('aunote').innerHTML = note;
+  $('adaptupdate').classList.toggle('hide', c.state !== 'pending' || !f);
+  $('adaptread').classList.toggle('hide', c.state !== 'newer');
+  if(c.state === 'newer') $('adaptread').textContent = 'Read save ' + c.n;
+  /* The rest, folded away. */
+  const list = (o, fn) => count(o)
+    ? Object.keys(o).map(k => esc(k) + (fn ? ' ' + esc(fn(o[k])) : '')).join(', ')
     : 'none';
   const his = Object.keys(d.his || {});
   /* "A:HIS:96:_" as "His A96" */
   const resName = k => { const p = String(k).split(':');
     return p.length < 3 ? k : p[1].charAt(0) + p[1].slice(1).toLowerCase() + ' '
       + p[0] + p[2] + (p[3] && p[3] !== '_' ? p[3] : ''); };
-  /* The biomolecule line names the tab, which is already said, then its chains. */
-  const bio = String(d.biomolecule || '');
-  const chains = d.tab && bio.indexOf(d.tab + ':') === 0
-    ? bio.slice(d.tab.length + 1).trim() : bio;
-  /* The assembly's chains, and the chains the receptor kept of them. */
-  const kept = RECEPTOR && RECEPTOR.path === d.pdb
-    ? (RECEPTOR.chains || []).map(c => c.id).join(', ') : '';
   $('adaptwhat').innerHTML = '<b>' + esc(d.pdbid || d.input || 'receptor') + '</b>'
-    + (d.tab ? ', ' + esc(d.tab) : '') + (chains ? ' (' + esc(chains) + ')' : '')
+    + (d.tab ? ', ' + esc(d.tab) : '') + (bio ? ' (' + esc(bio) + ')' : '')
     + ', receptor save ' + esc(d.save)
     + (d.at ? ', written ' + esc(String(d.at).replace('T', ' ')) : '') + '.<br>'
     + 'Hetero groups kept: ' + esc((d.hetero || []).join(', ') || 'none')
@@ -833,10 +1762,13 @@ function adaptApplied(){
     + '. Mutations: ' + list(d.mutations, v => 'to ' + v) + '.'
     + (kept ? ' Chains in the receptor: ' + esc(kept) + '.' : '') + '<br>'
     + 'Hydrogens placed by ' + esc(d.reduce || 'reduce') + ', as AGFR places them'
-    + (his.length ? ': ' + his.slice(0, 8).map(k => esc(resName(k))
-        + ' ' + esc(d.his[k])).join(', ') + (his.length > 8 ? ', ...' : '') : '')
-    + '.<br>Session folder <code>' + esc(d.folder) + '</code>. The receptor PDBQT '
-    + 'is docked as ADapt wrote it, and the preparation settings above do not apply.';
+    + (his.length ? ': ' + his.map(k => esc(resName(k)) + ' ' + esc(d.his[k])).join(', ')
+       : '') + '.<br>'
+    + 'Session folder <code>' + esc(d.folder) + '</code>.<br>'
+    + 'Files: <code>' + esc(baseName(d.pdbqt || '')) + '</code>, docked as ADapt '
+    + 'wrote it, and <code>' + esc(baseName(d.pdb || '')) + '</code>, the same receptor '
+    + 'with its hydrogens, which the site, the viewers and MM-GBSA read. The '
+    + 'preparation settings above do not apply.';
 }
 /* The pH belongs to PROPKA: reduce takes none. */
 function protNote(){
@@ -883,16 +1815,21 @@ $('recfile').onchange = async () => {
     $('recfile').value = '';
     return;
   }
-  recmsg('sending ' + f.name + '…');
+  const w = waitIn($('recinfo'), 'Sending ' + f.name + ' to the cluster', {delay: 0});
   let text;
   try { text = await f.text(); }
-  catch(e){ recmsg('could not read that file: ' + e, true);
+  catch(e){ w.fail('Could not read ' + f.name, String(e));
             $('recfile').value = ''; return; }
-  const d = await api('/api/upload', {name: f.name, text: text});
+  const d = await ask('/api/upload', {name: f.name, text: text});
   /* Cleared either way, so choosing the same file again still fires a change
      event, and a failed upload can be retried. */
   $('recfile').value = '';
-  if(d.error){ recmsg(d.error, true); return; }
+  if(d.error){
+    w.fail('Could not send ' + f.name, d.error, '',
+           () => $('recfile').click());
+    return;
+  }
+  w.finish();
   leaveAdapt(false);
   $('recpath').value = d.path;
   loadReceptor();
@@ -901,10 +1838,17 @@ $('recfile').onchange = async () => {
 async function loadReceptor(){
   const p = $('recpath').value.trim();
   if(!p) return;
-  $('recinfo').textContent = 'reading…';
-  const d = await api('/api/receptor?path=' + encodeURIComponent(p));
-  if(d.error){ $('recinfo').innerHTML = '<span class=bad>' + esc(d.error) + '</span>';
-               guideSoon(); return; }
+  const w = waitIn($('recinfo'), 'Reading ' + baseName(p));
+  const d = await ask('/api/receptor?path=' + encodeURIComponent(p));
+  w.finish();
+  if(d.error){
+    // A file that is not there will not appear by trying again; a lost
+    // connection might.
+    if(d.lost) waitIn($('recinfo'), '', {delay: 0}).fail('Could not read '
+      + baseName(p), d.error, '', loadReceptor);
+    else $('recinfo').innerHTML = '<span class=bad>' + esc(d.error) + '</span>';
+    guideSoon(); return;
+  }
   gotReceptor(d);
 }
 
@@ -916,7 +1860,7 @@ function gotReceptor(d){
     + d.chains.map(c =>
       '<label class=why style="display:inline-flex;gap:6px;margin:0 16px 4px 0">'
       + '<input type=checkbox class=chk data-ch="' + esc(c.id) + '" style="width:auto">'
-      + esc(c.id) + ' <span class=pill>' + esc(c.kind) + ' · ' + c.residues
+      + esc(c.id) + ' <span class=tag>' + esc(c.kind) + ' · ' + c.residues
       + ' res ' + c.first + ' to ' + c.last + '</span></label>').join('');
   $('chainbox').querySelectorAll('.chk').forEach(x =>
     x.onchange = () => drawPicker());
@@ -939,10 +1883,13 @@ $('reccode').onkeydown = e => { if(e.key === 'Enter') fetchCode(); };
 async function fetchCode(){
   const c = $('reccode').value.trim().toUpperCase();
   if(!c) return;
-  $('recinfo').textContent = 'fetching ' + c + ' from the RCSB...';
-  const d = await api('/api/fetch?code=' + encodeURIComponent(c));
-  if(d.error){ $('recinfo').innerHTML = '<span class=bad>' + esc(d.error)
-    + '</span>'; return; }
+  const w = waitIn($('recinfo'), 'Fetching ' + c + ' from the RCSB', {delay: 0});
+  const d = await ask('/api/fetch?code=' + encodeURIComponent(c));
+  if(d.error){
+    w.fail('Could not fetch ' + c, d.error, '', fetchCode);
+    return;
+  }
+  w.finish();
   leaveAdapt(false);
   $('recpath').value = d.path;
   gotReceptor(d);
@@ -1379,6 +2326,7 @@ function siteSurface(){
   try { VD.removeAllSurfaces(); } catch(e){}
   const tick = $('sitesurf');
   if(!tick || !tick.checked || !RECEPTOR || TARGET){
+    waitDone($('surfnote'));
     $('surfnote').textContent = '';
     VD.render();
     return;
@@ -1393,9 +2341,10 @@ function siteSurface(){
     + '&chains=' + encodeURIComponent(chs.join(',')) + '&het=' + het + '&water=' + water,
     () => siteSurface());
   if(d === null){
-    $('surfnote').textContent = 'computing the surface with MSMS...';
+    waitKeep($('surfnote'), 'Computing the surface with MSMS');
     return;
   }
+  waitDone($('surfnote'));
   const style = {color: '#c3cedb', opacity: 1};
   if(d.source === 'msms'){
     const hot = {};
@@ -1495,12 +2444,16 @@ function markSeq(){
 // pressed, because the question it answers ("the box also reaches chain B,
 // include it?") must be seen before submitting. Debounced, because each check
 // reads the structure on the server.
-let SITE_T = null;
+let SITE_T = null, SITE_GEN = 0;
 function siteSoon(){
   clearTimeout(SITE_T);
   SITE_T = setTimeout(() => { refreshSite(); }, 400);
 }
 async function refreshSite(){
+  /* Each check makes any still under way out of date: only the newest
+     answer is shown. */
+  const gen = ++SITE_GEN;
+  waitDone($('sitenote'));
   /* A target file carries its own box and the run uses that one, so the
      residues here are not turned into another. */
   if(TARGET){ targetSite(); return; }
@@ -1520,13 +2473,18 @@ async function refreshSite(){
     drawBox();
     return;
   }
-  const d = await api('/api/site', {
+  const w = waitIn($('sitenote'), mode === 'pocket' ? 'Checking the site with AutoSite'
+    : 'Checking the site');
+  const d = await ask('/api/site', {
     receptor: $('recpath').value.trim(), chains: chosenChains(),
     hotspots: $('hotspots').value, box_padding:+$('pad').value,
     box_min:+$('bmin').value, box_max:+$('bmax').value,
     site_mode: mode, site_ligand: $('site_ligand').value,
     site_pocket: $('site_pocket').value,
     keep_hetatms: $('keep_hetatms').checked});
+  // A newer check is under way: its answer is the one to show.
+  if(gen !== SITE_GEN){ w.drop(); return; }
+  w.finish();
   // A target file set while this was waiting keeps its own box.
   if(TARGET){ targetSite(); return; }
   // The choice changed while this was waiting; the newer request draws.
@@ -1750,8 +2708,9 @@ async function loadTarget(){
     guideSoon();
     return;
   }
-  note.textContent = 'reading the target file…';
-  const d = await api('/api/target?path=' + encodeURIComponent(p));
+  const w = waitIn(note, 'Reading the target file', {delay: 0});
+  const d = await ask('/api/target?path=' + encodeURIComponent(p));
+  w.finish();
   // Typed over while the server was reading: that answer is for another path.
   if($('targetfile').value.trim() !== p) return;
   if(d.error){
@@ -2368,7 +3327,10 @@ $('mmgbsa').onchange = () =>
 
 /* ===================== estimate and steppers ========================= */
 $('autofill').onclick = async () => {
-  const d = await api('/api/estimate', {peptides: PEPS,
+  const btn = $('autofill');
+  btn.disabled = true;
+  const w = waitIn($('estnote'), 'Working out how long this will take');
+  const d = await ask('/api/estimate', {peptides: PEPS,
     replicas:+$('replicas').value, steps:+$('steps').value,
     cores:+$('cpus').value, mmgbsa: $('mmgbsa').checked,
     mmgbsa_poses:+$('mmposes').value, throttle:+$('throttle').value,
@@ -2396,10 +3358,15 @@ $('autofill').onclick = async () => {
     keep_trajectories: $('keep_trajectories').checked,
     // A target file's prepare job is booked differently: nothing is built.
     target_file: $('targetfile').value.trim()});
+  btn.disabled = false;
   if(d.error){
+    if(d.lost){ w.fail('Could not work out the estimate', d.error, '',
+                       () => btn.click()); return; }
+    w.finish();
     $('estnote').innerHTML = '<span class=bad>' + esc(d.error) + '</span>';
     return;
   }
+  w.finish();
   $('cpus').value = d.cores;
   $('walltime').value = d.walltime;
   /* What the queue is asked for, added up job by job: the prepare job, the
@@ -2577,8 +3544,10 @@ $('submit').onclick = async () => {
   /* The receptor as set in ADapt is written now, unless the one read back
      is still it, and read back like any other save: the run records it. */
   if(adaptOn() && !trg && (!ADAPTREC || adaptDirty())){
-    $('submsg').textContent = 'ADapt is writing the receptor as set there…';
+    const ww = waitIn($('submsg'), 'ADapt is writing the receptor as set there',
+                      {delay: 0});
     const w = await adaptWriteNow();
+    ww.finish();
     if(!w){
       $('submsg').innerHTML = '<span class=bad>The receptor as set in ADapt could '
         + 'not be written; the reason is in the Receptor card.</span>';
@@ -2586,14 +3555,16 @@ $('submit').onclick = async () => {
       return;
     }
   }
-  $('submsg').textContent = 'submitting…';
+  const sw = waitIn($('submsg'), 'Submitting to the queue', {delay: 0});
   // A path typed into the box has to work as well as one chosen in the
   // browser. It is applied here rather than on every keystroke, so a
   // half-typed path never becomes the output folder.
   const want = $('outdir').value.trim();
   if(want && want !== RUNS_ROOT){
-    const moved = await api('/api/runsroot', {path: want});
+    const moved = await api('/api/runsroot', {path: want})
+      .catch(e => ({error: 'the page could not reach its server (' + e + ')'}));
     if(moved.error){
+      sw.finish();
       $('outdir').classList.add('missing');
       $('submsg').innerHTML = '<span class=bad>' + esc(moved.error)
         + '</span>';
@@ -2604,7 +3575,7 @@ $('submit').onclick = async () => {
     $('outdir').value = moved.root;
     if($('runsroot')) $('runsroot').textContent = moved.root;
   }
-  const d = await api('/api/create', {
+  const d = await ask('/api/create', {
     label: $('label').value || 'run', receptor: $('recpath').value.trim(),
     target_file: $('targetfile').value.trim(),
     adcp_engine: $('adcp_engine').value, omm_minimize: +$('omm_minimize').value,
@@ -2631,6 +3602,7 @@ $('submit').onclick = async () => {
     throttle:+$('throttle').value,
     account: $('account').value.trim(),
     sbatch_extra: $('sbatch_extra').value.trim()});
+  sw.finish();
   if(d.error){
     $('submsg').innerHTML = '<span class=bad>' + esc(d.error) + '</span>'
       + (d.problems ? '<ul style="text-align:left">'
@@ -2863,15 +3835,15 @@ async function listRuns(){
   // run. Sizes are filled in after the table is drawn, because each needs a
   // walk of the directory and the table should not wait.
   $('runs').innerHTML = d.runs.length
-    ? '<table><tr><th>run</th><th class=c>created</th><th class=c>peptides</th>'
-      + '<th class=c>MM-GBSA</th><th class=c>state</th>'
-      + '<th class=c>actions</th></tr>'
+    ? '<table><tr><th data-ck=run data-min=90>run</th><th class=c>created</th>'
+      + '<th class=c>peptides</th><th class=c>MM-GBSA</th><th class=c>state</th>'
+      + '<th class=c data-ck=actions data-min=130>actions</th></tr>'
       + d.runs.map(r => '<tr><td>' + esc(r.label) + '</td><td class="why c">'
           + esc(r.created) + '</td><td class=c>' + r.peptides + '</td><td class=c>'
           + (r.mmgbsa ? 'yes' : 'no') + '</td><td class=c data-dot="'
           + esc(r.rundir) + '">' + esc(r.state)
           + '</td><td class="c acts">'
-          + '<button class=ghost data-open="' + esc(r.rundir) + '">open</button> '
+          + '<button class=secondary data-open="' + esc(r.rundir) + '">Open</button> '
           // A failed run is a settings file. Every run keeps the job.json it
           // was submitted with, so a run that failed can be reopened with its
           // receptor, chains, hotspots, box and peptides, and resubmitted
@@ -2889,7 +3861,7 @@ async function listRuns(){
           + '<button class="ghost sm" data-dl="all|' + esc(r.rundir)
           + '" title="the whole run directory, grid maps included">'
           + 'all<span class=sz data-size="' + esc(r.rundir) + ':all"></span></button> '
-          + '<button class=ghost data-issue="' + esc(r.rundir)
+          + '<button class="ghost sm" data-issue="' + esc(r.rundir)
           + '" title="send us the logs for this run">report an issue</button> '
           + '<button class="ghost sm" data-folder="' + esc(r.rundir)
           + '" title="where this run is on disk">folder</button> '
@@ -2921,6 +3893,7 @@ async function listRuns(){
                   + ' files, through the SSH tunnel.\n\nContinue?')) return;
       window.location = dlHref(dir, what);
     });
+  colResize($('runs').querySelector('table'), 'runs', {reset: $('runs')});
   d.runs.forEach(r => fillSizes(r.rundir));
   monitor();
 }
@@ -3319,8 +4292,8 @@ function colgroups(rows, tn, mm, omm){
               : '-')},
   ]});
   G.push({key: 'act', label: '', always: true, cols: [
-    {h: '', cls: 'c', f: r => '<button class="ghost sm" data-view="'
-      + esc(r.peptide) + '">view</button>'}]});
+    {h: '', cls: 'c', f: r => '<button class=secondary data-view="'
+      + esc(r.peptide) + '">View</button>'}]});
   return G;
 }
 
@@ -3347,14 +4320,15 @@ function resultsTable(rows, tn, mm, omm, res){
     : '';
   const cols = [];
   shown.forEach((g, gi) => g.cols.forEach((c, i) => cols.push(
-    Object.assign({}, c, {sep: i === 0 && gi > 0}))));
+    Object.assign({}, c, {sep: i === 0 && gi > 0,
+                          ck: g.key + ':' + (c.h || 'act')}))));
   const groupRow = '<tr class=groups>' + shown.map((g, gi) =>
     '<th class="' + (gi === 0 ? 'pin' : 'rt-grp') + (gi > 0 ? ' gsep' : '')
     + '" colspan=' + g.cols.length + '>' + esc(g.label || '') + '</th>')
     .join('') + '</tr>';
   const headRow = '<tr class=heads>' + cols.map(c => '<th class="'
     + (c.cls || '').split(' ').filter(k => k === 'c' || k === 'pin').join(' ')
-    + (c.sep ? ' gsep' : '') + '"'
+    + (c.sep ? ' gsep' : '') + '" data-ck="' + esc(c.ck) + '"'
     + (c.t ? ' title="' + esc(c.t) + '"' : '') + '>' + esc(c.h)
     + '</th>').join('') + '</tr>';
   const body = rows.map(r => '<tr class=pick data-pep="' + esc(r.peptide)
@@ -3373,7 +4347,7 @@ function resultsTable(rows, tn, mm, omm, res){
       ? '<div class=panelnote>' + missing + ' peptide(s) have no interface '
         + 'columns, because this run was docked before they existed. '
         + (can
-          ? '<button class="ghost sm" id=panelgo>Measure them</button> '
+          ? '<button class=secondary id=panelgo>Measure them</button> '
             + '<span class=why>Nothing is docked again: the cluster reads '
             + 'the structures this run already saved, in about half a minute '
             + 'per peptide, and the table fills in when it finishes.</span>'
@@ -3446,7 +4420,7 @@ function rescoreControl(rows){
     + '<select id=rescoreeng style="width:auto;margin:0 6px">'
     + can.map(e => '<option value="' + esc(e.name) + '">'
         + esc(GBLABEL[e.name] || e.label) + '</option>').join('')
-    + '</select><button class="ghost sm" id=rescorego>Rescore</button> '
+    + '</select><button class=secondary id=rescorego>Rescore</button> '
     + '<span class=why>Nothing is docked again. The same poses are scored '
     + 'with the other engine and appear beside the existing numbers; the '
     + 'table stays ranked on ' + esc(GBLABEL[base] || 'the original engine')
@@ -3563,7 +4537,7 @@ async function openRun(dir){
           + ' peptide(s) have no result</b> <span class=why>'
           + esc(d.outstanding.slice(0, 6).map(x => x.sequence).join(', '))
           + (d.outstanding.length > 6 ? '...' : '') + '</span><br>'
-          + '<button id=resume style="margin-top:8px">Run the missing ones '
+          + '<button class=secondary id=resume style="margin-top:8px">Run the missing ones '
           + 'again</button> <span class=why>the ones that finished are kept; '
           + 'only these go back to the queue</span>'
           + '<div class=why id=resumemsg style="margin-top:7px"></div></div>'
@@ -3581,8 +4555,11 @@ async function openRun(dir){
       show();
     };
     // The pinned columns can only be placed once the table is in the page,
-    // and the group switches redraw it.
+    // and the group switches redraw it. Widths a reader gave the columns are
+    // put back first, since the pins depend on them.
     pinResults(el);
+    colResize(el.querySelector('.rtable table.rt'), 'results',
+              {reset: el.querySelector('.rtable'), after: () => pinResults(el)});
     const now = el.querySelector('.rtable');
     if(now && keep){ now.scrollLeft = keep.left; now.scrollTop = keep.top; }
     if(picked && picked.pep){
@@ -3807,7 +4784,7 @@ async function showResidues(dir, pep){
       + esc(r.chain) + '" data-resi="' + esc(r.resnum) + '" data-i="' + i
       + '" title="Show this residue and what it touches in the 3D view">'
       + '<td class=resnm>' + esc(r.resname) + ' ' + esc(r.chain) + esc(r.resnum)
-      + (r.site === '1' ? ' <span class=pill title="One of the residues the '
+      + (r.site === '1' ? ' <span class=tag title="One of the residues the '
          + 'docking box was built around. Click the row to see its '
          + 'contacts in the 3D view.">site</span>' : '') + '</td>'
       + '<td>' + esc(kindText(r.kinds)) + '</td>'
@@ -3837,6 +4814,10 @@ async function showResidues(dir, pep){
     + 'map is in <code>metrics/</code>.</div>';
   box.querySelectorAll('tr.resgo').forEach(tr => tr.onclick = () =>
     focusResidue(tr, d.pose, pepRows));
+  box.querySelectorAll('.restbl').forEach((wrap, i) =>
+    colResize(wrap.querySelector('table'),
+              i === 0 && pepRows.length ? 'res-peptide' : 'res-receptor',
+              {reset: wrap}));
 }
 
 /* A residue in the table, shown in the 3D view with what it touches.
@@ -3899,10 +4880,11 @@ $('rposepick').onchange = () => loadPose(+$('rposepick').value);
 async function loadPose(rank){
   if(!WHICH) return;
   RANKNOW = rank;
-  $('viewmsg').textContent = 'loading pose ' + rank + '…';
-  const r = await api('/api/structure?dir=' + encodeURIComponent(WHICH.dir)
+  const w = waitIn($('viewmsg'), 'Loading pose ' + rank);
+  const r = await ask('/api/structure?dir=' + encodeURIComponent(WHICH.dir)
     + '&peptide=' + encodeURIComponent(WHICH.pep) + '&rank=' + rank
     + '&what=complex');
+  w.finish();
   if(r.error){ $('viewmsg').innerHTML = '<span class=bad>' + esc(r.error)
     + '</span>'; return; }
   const pdb = r.text != null ? r.text : r;
@@ -4081,7 +5063,7 @@ function applySurface(){
       + (pose ? '&what=pose&peptide=' + encodeURIComponent(WHICH.pep) + '&rank=' + RANKNOW
               : '&what=receptor');
     const d = surfaceFor(key, url, () => { if(VR) draw(false); });
-    if(d === null) return 'computing the ' + (pose ? 'peptide' : 'receptor') + ' surface with MSMS...';
+    if(d === null){ busy.push(pose ? 'peptide' : 'receptor'); return ''; }
     if(d.source === 'msms'){
       try { addSurfaceMesh(VR, d, surfStyle(mode, hex, pose)); } catch(e){}
       return '';
@@ -4091,11 +5073,19 @@ function applySurface(){
     return (pose ? 'peptide' : 'receptor') + ' surface drawn by the viewer: '
       + (d.why || 'MSMS gave none');
   };
+  const busy = [];
   const notes = [one(RSURF, 'rec', {model:MODEL, chain:PEPCHAIN, invert:true}, RCUSTOM.rec),
                  one(LSURF, 'pep', {model:MODEL, chain:PEPCHAIN}, RCUSTOM.lig)]
     .filter(Boolean);
   const el = $('surfmsg');
-  if(el) el.textContent = notes.join('; ');
+  if(!el) return;
+  if(busy.length){
+    waitKeep(el, 'Computing the ' + busy.join(' and the ') + ' surface'
+      + (busy.length > 1 ? 's' : '') + ' with MSMS');
+    return;
+  }
+  waitDone(el);
+  el.textContent = notes.join('; ');
 }
 
 function applyFocus(){
@@ -4711,15 +5701,16 @@ const VIEW_WORD = {structure: 'view', text: 'view', report: 'open results'};
 async function showFolderView(rel){
   const gen = ++FOLDER_GEN;
   const list = $('flist');
-  if(!list.innerHTML) list.innerHTML = '<div class=why>reading the folder</div>';
-  const d = await api('/api/folder?path=' + encodeURIComponent(rel || ''));
-  if(gen !== FOLDER_GEN) return;
+  const w = list.innerHTML ? null : waitIn(list, 'Reading the folder');
+  const d = await ask('/api/folder?path=' + encodeURIComponent(rel || ''));
+  if(gen !== FOLDER_GEN){ if(w) w.drop(); return; }
+  if(w) w.finish();
   if(d.error){
     // A folder deleted or moved since it was listed, or a runs folder that
     // changed: say so, and offer the top of the runs folder, which exists.
     $('fhere').innerHTML = '';
     list.innerHTML = '<div class=bad style="text-align:left">' + esc(d.error)
-      + '</div>' + (rel ? '<button class="ghost sm" data-rel=""'
+      + '</div>' + (rel ? '<button class=secondary data-rel=""'
         + ' style="margin-top:8px">Back to the runs folder</button>' : '');
     wireFolders();
     return;
@@ -4731,7 +5722,7 @@ async function showFolderView(rel){
         + '</button><span aria-hidden=true>/</span>').join('');
   $('fhere').innerHTML = d.run
     ? '<div class=panelnote>This folder is the run <b>' + esc(d.run)
-      + '</b>. <button class="ghost sm" data-openrun="' + esc(d.path)
+      + '</b>. <button class=secondary data-openrun="' + esc(d.path)
       + '">Open as a run</button> <span class=why>Its jobs, its results table '
       + 'and its poses open below, as they do from All runs.</span></div>'
     : '';
@@ -4742,7 +5733,7 @@ async function showFolderView(rel){
   d.dirs.forEach(x => rows.push('<tr><td class=fname><button type=button '
     + 'class=fgo data-rel="' + esc(x.rel) + '">' + FIC_DIR + '<span>'
     + esc(x.name) + '</span></button>'
-    + (x.run ? '<span class=pill title="this folder is a run">run</span>' : '')
+    + (x.run ? '<span class=tag title="this folder is a run">run</span>' : '')
     + '<div class=fmeta>' + esc(when(x.mtime)) + '</div></td>'
     + '<td class=fsz>' + (x.items == null ? ''
         : x.items >= (d.count_most || Infinity)
@@ -4750,8 +5741,8 @@ async function showFolderView(rel){
           : x.items.toLocaleString() + ' item' + (x.items === 1 ? '' : 's'))
     + '</td>'
     + '<td class=fmod>' + esc(when(x.mtime)) + '</td>'
-    + '<td class=facts>' + (x.run ? '<button class="ghost sm" data-openrun="'
-        + esc(x.path) + '">open run</button>' : '') + '</td></tr>'));
+    + '<td class=facts>' + (x.run ? '<button class=secondary data-openrun="'
+        + esc(x.path) + '">Open run</button>' : '') + '</td></tr>'));
   d.files.forEach(x => {
     const name = FIC_FILE + '<span>' + esc(x.name) + '</span>';
     const view = x.view ? ' data-view="' + esc(x.rel) + '" data-kind="'
@@ -4771,14 +5762,18 @@ async function showFolderView(rel){
       + '">download</button></td></tr>');
   });
   const empty = !d.dirs.length && !d.files.length;
-  list.innerHTML = '<div class=ftable><table><thead><tr><th>name</th>'
-    + '<th>size</th><th class=fmod>modified</th><th></th></tr></thead><tbody>'
+  list.innerHTML = '<div class=ftable><table><thead><tr>'
+    + '<th data-ck=name data-min=120>name</th><th data-ck=size>size</th>'
+    + '<th class=fmod data-ck=modified>modified</th>'
+    + '<th data-ck=actions data-min=90></th></tr></thead><tbody>'
     + rows.join('') + (empty ? '<tr><td colspan=4 class=why>nothing here'
       + '</td></tr>' : '') + '</tbody></table></div>'
     + (d.more ? '<div class=why style="margin-top:6px">' + d.more
       + ' more not listed: this folder holds more than the page shows at '
       + 'once. Download the run to see them all.</div>' : '');
   wireFolders(d);
+  colResize(list.querySelector('.ftable table'), 'folders',
+            {reset: list.querySelector('.ftable')});
 }
 
 function wireFolders(d){

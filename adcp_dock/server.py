@@ -403,6 +403,18 @@ class App:
         threading.Thread(target=self.adapt_open, daemon=True).start()
         return {"warming": True}
 
+    def adapt_status(self):
+        """How far ADapt's start has got, for the page's loading screen: its
+        process (none, starting, running or failed, with why), and whether
+        it answers a request. Read without waiting on a start in progress,
+        and never starts anything itself."""
+        from . import adapt as adaptmod
+        runner = getattr(self, "_adapt_runner", None)
+        out = runner.phase() if runner is not None else {"process": "none"}
+        out["answering"] = bool(out["process"] == "running"
+                                and adaptmod.answering(runner.url))
+        return out
+
     def _adapt(self):
         """Whether ADapt can be opened from here, and if not, why."""
         from . import adapt as adaptmod
@@ -2314,6 +2326,8 @@ class Handler(BaseHTTPRequestHandler):
                                             q.get("peptide", [""])[0]))
         if u.path == "/api/surface":
             return self._send(app.surface(q))
+        if u.path == "/api/adapt/status":
+            return self._send(app.adapt_status())
         if u.path == "/api/adapt/state":
             return self._send(app.adapt_state((q.get("session") or [""])[0],
                                               (q.get("folder") or [""])[0]))
