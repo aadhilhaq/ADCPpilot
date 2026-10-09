@@ -212,9 +212,11 @@ MSG
   # prefix is not optional. HOME itself points into the prefix for these
   # commands only: conda keeps a list of every environment it has made in
   # ~/.conda/environments.txt, and nothing about this install belongs there.
-  mkdir -p "$PREFIX/conda_shared/pkgs" "$PREFIX/conda_shared/home"
-  export CONDA_PKGS_DIRS="$PREFIX/conda_shared/pkgs"
-  export MAMBA_ROOT_PREFIX="$PREFIX/conda_shared/mamba"
+  # A cache already named by whoever ran this (HOPE Labs' Set up names its own)
+  # is used rather than a second one beside it.
+  export CONDA_PKGS_DIRS="${CONDA_PKGS_DIRS:-$PREFIX/conda_shared/pkgs}"
+  export MAMBA_ROOT_PREFIX="${MAMBA_ROOT_PREFIX:-$PREFIX/conda_shared/mamba}"
+  mkdir -p "$CONDA_PKGS_DIRS" "$PREFIX/conda_shared/home"
   SPECS=(python=3.11 "numpy<2" rdkit ambertools pdb2pqr pdbfixer openmm biopython)
   say "  this is the slow part: 15-40 minutes, almost all of it AmberTools"
   if [ -d "$ENVDIR/conda-meta" ]; then
@@ -289,7 +291,10 @@ MSG
   # `set -e`, ends the script with no message, immediately after a 100 MB
   # download.
   say "  unpacking"
-  SRC=$(tar tzf "$TAR" | head -1 | cut -d/ -f1)
+  # tar is still listing when head has its line and closes the pipe, so tar
+  # dies of SIGPIPE; under pipefail that would end the script here, so its
+  # status is not the pipeline's.
+  SRC=$( { tar tzf "$TAR" 2>/dev/null || true; } | head -1 | cut -d/ -f1)
   [ -n "$SRC" ] || { echo "  $TAR is not a readable tar.gz; delete it and retry" >&2; exit 1; }
   tar xzf "$TAR"
   [ -d "$SRC" ] || { echo "  $TAR did not unpack into $SRC" >&2; exit 1; }

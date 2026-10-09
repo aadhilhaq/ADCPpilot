@@ -61,7 +61,9 @@ SITES = {
         "hint": "Whatever you log in with",
         "label": "Username",
         "modules": ["Anaconda3", "Miniconda3"],
-        "note": "Any cluster with SLURM and the tools installed.",
+        "note": "Any cluster with SLURM. Install it there once: clone the repository and "
+                "run ./install.sh with a folder that has room (INSTALL.md, 1.2); then give "
+                "the clone's path below.",
     },
     THIS: {
         "host": "",

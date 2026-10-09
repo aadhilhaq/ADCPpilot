@@ -1102,7 +1102,8 @@ def submit(rundir, j=None, python=None, log=print):
     common = _scripts(rundir, j, python)
     s1 = slurm.write_script(os.path.join(rundir, "01_prepare.sbatch"),
                             name=job_name(rundir, j, "prep"), cpus=min(16, int(j.get("cpus", 48))),
-                            time=j.get("prep_time", "04:00:00"),
+                            time=slurm.within_limit(j.get("prep_time", "04:00:00"),
+                                                    j.get("partition"), j.get("sbatch_extra")),
                             stage="prepare", **common)
     id1 = slurm.submit(s1)
     log("prepare: %s" % id1)
@@ -1123,7 +1124,9 @@ def submit(rundir, j=None, python=None, log=print):
     log("dock: %s (%d task%s)" % (id2, n, "" if n == 1 else "s"))
 
     s3 = slurm.write_script(os.path.join(rundir, "03_report.sbatch"),
-                            name=job_name(rundir, j, "report"), cpus=2, time="01:00:00",
+                            name=job_name(rundir, j, "report"), cpus=2,
+                            time=slurm.within_limit("01:00:00", j.get("partition"),
+                                                    j.get("sbatch_extra")),
                             stage="report", **common)
     id3 = slurm.submit(s3, depends_on=id2, kind="afterany")
     log("report: %s" % id3)
@@ -1317,7 +1320,9 @@ def resume(rundir, j=None, python=None, log=print):
         s1 = slurm.write_script(os.path.join(rundir, "01_prepare.sbatch"),
                                 name=job_name(rundir, j, "prep"),
                                 cpus=min(16, int(j.get("cpus", 48))),
-                                time=j.get("prep_time", "04:00:00"),
+                                time=slurm.within_limit(j.get("prep_time", "04:00:00"),
+                                                        j.get("partition"),
+                                                        j.get("sbatch_extra")),
                                 stage="prepare", **common)
         dep = slurm.submit(s1)
         log("prepare: %s" % dep)
@@ -1330,7 +1335,9 @@ def resume(rundir, j=None, python=None, log=print):
     id2 = slurm.submit(s2, depends_on=dep) if dep else slurm.submit(s2)
     log("dock: %s for %d peptide(s), array %s" % (id2, len(todo), spec))
     s3 = slurm.write_script(os.path.join(rundir, "03_report.sbatch"),
-                            name=job_name(rundir, j, "report"), cpus=2, time="01:00:00",
+                            name=job_name(rundir, j, "report"), cpus=2,
+                            time=slurm.within_limit("01:00:00", j.get("partition"),
+                                                    j.get("sbatch_extra")),
                             stage="report", **common)
     id3 = slurm.submit(s3, depends_on=id2, kind="afterany")
     log("report: %s" % id3)

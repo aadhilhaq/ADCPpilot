@@ -96,6 +96,34 @@ def _limit_minutes(text):
     return days * 1440 + h * 60 + m + (1 if sec else 0)
 
 
+def target_partition(partition="", extra=""):
+    """The partition a run's jobs land in: the one named on the run, or in its
+    other Slurm options, or else the cluster's default."""
+    name = (partition or "").strip()
+    if not name:
+        found = re.search(r"(?:--partition=|-p\s*)(\S+)", extra or "")
+        name = found.group(1) if found else ""
+    return name or partitions()[1]
+
+
+def within_limit(hhmmss, partition="", extra=""):
+    """`hhmmss`, or the partition's own time limit when that is shorter.
+
+    For the stages whose length this package chooses rather than the person:
+    the preparation asks for four hours to be safe and takes minutes, and on a
+    cluster whose default partition allows two a four-hour request is refused
+    before anything has run. A limit that cannot be read leaves the request
+    as it is.
+    """
+    rows, _default = partitions()
+    name = target_partition(partition, extra)
+    limit = next((r["limit"] for r in rows if r["name"] == name), None)
+    asked = _limit_minutes(hhmmss)
+    if limit is None or asked is None or asked <= limit:
+        return hhmmss
+    return "%d:%02d:00" % (limit // 60, limit % 60)
+
+
 def fits(partition, minutes):
     """Whether `minutes` fits inside that partition's time limit.
 
