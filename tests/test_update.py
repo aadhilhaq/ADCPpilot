@@ -1,4 +1,4 @@
-"""update.sh against a history rewritten upstream.
+"""update.sh against a history rewritten upstream, and over ssh with the checkout's own key.
 
 By Aadhil Haq
 
@@ -93,6 +93,36 @@ check(git(deploys["edited"], "rev-parse", "--short", "HEAD") != new_head
       "a checkout with local edits was reset, and the edits discarded")
 check("local edits" in out["edited"],
       "a checkout with local edits was left without saying why:\n" + out["edited"][-600:])
+
+# A checkout that pulls over ssh with its own key pinned (core.sshCommand), as a cluster does
+# when its ~/.ssh/config gives github.com another repository's deploy key. update.sh must pull
+# with that key: a plain "ssh" would offer the other one and be told the repository does not
+# exist. The stand-in ssh below runs the command here and records that it was the one used.
+mark = os.path.join(tmp, "pinned_ssh_used")
+pinned = os.path.join(tmp, "pinned-ssh")
+with open(pinned, "w") as fh:
+    fh.write('#!/bin/sh\necho used >> "%s"\n'
+             'while [ $# -gt 0 ]; do case "$1" in -o|-p|-i) shift 2;; -*) shift;; *) break;; esac; done\n'
+             'shift\n'
+             'exec sh -c "$(printf "%%s" "$*" | sed "s|^git-upload-pack|%s upload-pack|")"\n'
+             % (mark, GIT))
+os.chmod(pinned, 0o755)
+viassh = os.path.join(tmp, "viassh")
+git(tmp, "clone", "-q", bare, viassh)
+git(viassh, "remote", "set-url", "origin", "fakehost:" + bare)
+git(viassh, "config", "core.sshCommand", pinned)
+git(work, "checkout", "-q", "-b", "third")
+open(os.path.join(work, "README"), "w").write("three\n")
+git(work, "commit", "-qam", "three")
+git(work, "push", "-q", "--force", "origin", "third:main")
+third = git(work, "rev-parse", "--short", "HEAD")
+plain_env = dict(env, ADCP_PYTHON=fakepy)
+p = subprocess.run(["bash", os.path.join(viassh, "update.sh")], cwd=viassh, env=plain_env,
+                   capture_output=True, text=True, timeout=120)
+said = p.stdout + p.stderr
+check(os.path.exists(mark), "update.sh did not pull with the checkout's own ssh key:\n" + said[-600:])
+check(git(viassh, "rev-parse", "--short", "HEAD") == third,
+      "a checkout pulling over ssh with a pinned key was not updated:\n" + said[-600:])
 shutil.rmtree(tmp, ignore_errors=True)
 
 if fails:
@@ -100,4 +130,5 @@ if fails:
     for f in fails:
         print("  FAIL " + f)
     sys.exit(1)
-print("ok  update.sh follows a history rewritten upstream, over https too, %d checks" % ran)
+print("ok  update.sh follows a history rewritten upstream, over https too, and pulls with "
+      "the checkout's own ssh key, %d checks" % ran)

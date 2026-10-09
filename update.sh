@@ -31,8 +31,13 @@ say "pulling"
 URL=$(git remote get-url origin 2>/dev/null)
 BEFORE=$(git rev-parse --short HEAD 2>/dev/null)
 # Never prompt: an https remote with a cached credential pulls normally, and
-# without one the pull fails at once instead of waiting for a password.
-OUT=$(GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="ssh -o BatchMode=yes" \
+# without one the pull fails at once instead of waiting for a password. The
+# checkout's own ssh command is kept when it has one (core.sshCommand): a
+# cluster whose ~/.ssh/config gives github.com another repository's deploy
+# key pins this repository's key that way, and a plain "ssh" would offer the
+# other key and be told the repository does not exist.
+SSH_CMD=$(git config --get core.sshCommand 2>/dev/null || true)
+OUT=$(GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="${SSH_CMD:-ssh} -o BatchMode=yes" \
       git pull --ff-only 2>&1); RC=$?
 REWRITTEN=""
 if [ "$RC" -ne 0 ] && printf '%s' "$OUT" | grep -qi \
