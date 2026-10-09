@@ -73,8 +73,8 @@ def box_warning(length, box_size, box_max=None):
            % (int(length), typical if worst else safe,
               "\u00c5", edge, "\u00c5"))
     if not worst:
-        msg = ("A %d-residue peptide needs %.0f-%.0f %s of box depending on "
-               "whether it binds as a helix or extended, and this run has "
+        msg = ("A %d-residue peptide needs %.0f to %.0f %s of box depending "
+               "on whether it binds as a helix or extended, and this run has "
                "%.0f %s. An extended pose may not fit."
                % (int(length), typical, safe, "\u00c5", edge, "\u00c5"))
     if box_max is not None and float(box_max) < safe:
@@ -115,24 +115,121 @@ PREP_PER_HETATM_KIND = 2.0
 # completing a side chain, so it is a multiplier rather than an addition.
 PREP_FILL_LOOPS = 1.5
 
-# agfr's grid, per 1,000 cubic Angstrom of box beyond a 20 A cube.
+# agfr's grid, per 1,000 cubic Angstrom of box beyond a 20 A cube. Fitted to
+# runs whose maps were built by ADFRsuite 1.0's agfr with its receptor
+# gradient on, so it is split below into the grid itself and the gradient,
+# and the two add back up to this for those runs.
 PREP_PER_1K_BOX = 0.15
 
+# The maps, measured on the MDM2 example's receptor (868 atoms) and its 30 A
+# box, agfr alone, one at a time on a compute node:
+#
+#     ADFRsuite 1.0, gradient on (its default)        151.8 s
+#     ADFRsuite 1.0, gradient off (-ng)                 13.9 s
+#     ADCP 1.1 suite, gradient off (its default)        13.6 s
+#     ADCP 1.1 suite, AutoSite 1.1 (-asv 1.1)            16.3 s
+#     ADCP 1.1 suite, gradient on (-g)                   36.9 s
+#     ADCP 1.1 suite, -b fill (the AutoSite pocket)       7.4 s
+#
+# Per 1,000 cubic Angstrom of box: the grid alone, about 0.009 min.
+GRID_PER_1K_BOX = 0.05
+# The receptor gradient: 0.085 min per 1,000 for ADFRsuite 1.0's agfr and
+# 0.014 for the 1.1 suite's. Over the whole box, not beyond 20 A: it is paid
+# on every grid point the receptor fills. For ADFRsuite 1.0 this and the
+# grid add up to PREP_PER_1K_BOX, the figure those runs were fitted with.
+GRADIENT_PER_1K_BOX = {"1.0": 0.10, "1.1": 0.03}
+# AutoSite 1.1 scans its cutoffs where 1.0 runs once: 2.7 s more on MDM2.
+AUTOSITE11_MINUTES = 0.25
+AUTOSITE11_PER_1K_BOX = 0.01
+# An AutoSite pocket: agfr -b fill searches the whole receptor at 1 A
+# before the box exists, which grows with the receptor rather than the box.
+# 7.4 s on MDM2; booked at 0.5 min plus 0.5 per 1,000 atoms.
+POCKET_MINUTES = 0.5
+POCKET_PER_1K_ATOMS = 0.5
 
-def prep_minutes(atoms=0, hetatm_kinds=0, fill_loops=False, box=None):
-    """What to book for preparation, given what is known about the receptor."""
+
+# The protonation, on top of the per atom slope above, which was fitted to
+# runs protonated by PDB2PQR with PROPKA. Measured on a compute node:
+#
+#                         MDM2 (706 atoms)   7A3R (5,912 atoms, 11 breaks)
+#     PDB2PQR + PROPKA         1.2 s              4.1 s
+#     reduce -BUILD            0.2 s              0.6 s
+#
+# Booked at several times that, and reduce with a minute more: its search of
+# a large network of Asn, Gln and His flips stops at 600 s a network.
+PROTONATE_PER_1K_ATOMS = {"propka": 0.1, "reduce": 0.05}
+PROTONATE_MINUTES = {"propka": 0.0, "reduce": 1.0}
+
+
+def prep_minutes(atoms=0, hetatm_kinds=0, fill_loops=False, box=None,
+                 agfr="1.0", gradient=True, autosite="1.0", pocket=False,
+                 protonation="propka", prepared=True):
+    """What to book for preparation, given what is known about the receptor.
+
+    The defaults are the maps every run used before they could be chosen
+    (ADFRsuite 1.0's agfr, its gradient on, AutoSite 1.0), which is what the
+    measurements this was fitted to ran. A box from an AutoSite pocket is
+    not known until the stage runs, so `box` is then the largest it may be.
+
+    `protonation` is "reduce" or "propka". `prepared` off is a receptor
+    prepared elsewhere (in ADapt): it is copied in, so only the maps cost
+    anything.
+    """
     m = PREP_FLOOR_MINUTES
-    m += (max(0, int(atoms)) / 1000.0) * PREP_PER_1K_ATOMS
-    m += max(0, int(hetatm_kinds)) * PREP_PER_HETATM_KIND
+    if prepared:
+        m += (max(0, int(atoms)) / 1000.0) * PREP_PER_1K_ATOMS
+        m += max(0, int(hetatm_kinds)) * PREP_PER_HETATM_KIND
+        how = protonation if protonation in PROTONATE_PER_1K_ATOMS else "propka"
+        m += PROTONATE_MINUTES[how]
+        m += (max(0, int(atoms)) / 1000.0) * PROTONATE_PER_1K_ATOMS[how]
+    vol = 0.0
     if box:
         try:
             vol = float(box[0]) * float(box[1]) * float(box[2])
         except (TypeError, ValueError, IndexError):
             vol = 0.0
-        m += max(0.0, (vol - 8000.0) / 1000.0) * PREP_PER_1K_BOX
+    m += max(0.0, (vol - 8000.0) / 1000.0) * GRID_PER_1K_BOX
+    if gradient:
+        m += (vol / 1000.0) * GRADIENT_PER_1K_BOX.get(str(agfr), 0.10)
+    if str(autosite) == "1.1":
+        m += AUTOSITE11_MINUTES + (vol / 1000.0) * AUTOSITE11_PER_1K_BOX
+    if pocket:
+        m += POCKET_MINUTES + (max(0, int(atoms)) / 1000.0) * POCKET_PER_1K_ATOMS
     if fill_loops:
         m *= PREP_FILL_LOOPS
     return max(PREP_FLOOR_MINUTES, m)
+
+
+# Docking options that change what one peptide costs, measured with 8
+# replicas of 300,000 steps on 4 cores (ADCP 1.1.21, MDM2):
+#
+#     linear                          77.2 s of search
+#     backbone cyclic (-cyc)         122.3 s   x 1.58
+#     disulfide (-cys), 2 cysteines   88.3 s   x 1.14 (another sequence)
+#     -p 25                           77.2 s   x 1.00
+#     every replica helical           82.3 s   x 1.07
+#
+# Booked with room on top of each.
+CYCLIC_FACTOR = {"none": 1.0, "backbone": 1.8, "disulfide": 1.3}
+# A share of helical starts is the same search from other starting shapes.
+HELICAL_FACTOR = 1.1
+# More poses: ADCP writes each one out with its side chains, and the run
+# splits them into files. 90 more poses took 3.3 s more on MDM2.
+POSE_SECONDS = 0.2
+# Keeping the trajectories: packing each replica's trajectory and logs into
+# one archive. The whole working folder of a 50 replica, 2,500,000 step run
+# (194 files, 231 MB with the unpacked maps) packed in 10.5 to 11.4 s; the
+# archive leaves the maps out.
+PACK_SECONDS_PER_REPLICA = 0.4
+
+
+def dock_option_minutes(replicas, poses=10, keep=False):
+    """What the docking options add to one peptide's task, beyond the
+    search itself: writing more poses, and packing the trajectories."""
+    m = max(0, int(poses) - 10) * POSE_SECONDS / 60.0
+    if keep:
+        m += max(1, int(replicas)) * PACK_SECONDS_PER_REPLICA / 60.0
+    return m
 
 
 #: Kept for anything that still names them.
@@ -143,16 +240,18 @@ BUFFER_MINUTES = 30.0
 CORES_DEFAULT = 48
 
 
-def dock_minutes(length, replicas, steps, cores):
+def dock_minutes(length, replicas, steps, cores, option_factor=1.0):
     """Wall minutes for one peptide's search.
 
     Waves, not core-minutes: `cores` replicas run side by side, so what
     matters is how many rounds are needed. Below the core count, adding
-    replicas costs no additional wall time.
+    replicas costs no additional wall time. `option_factor` is what a
+    cyclic peptide or helical starts cost on top (search_factor).
     """
     cores = max(1, int(cores or 1))
     replicas = max(1, int(replicas))
     factor = 1.0 + PER_RESIDUE * max(0, int(length) - REFERENCE_LENGTH)
+    factor *= max(1.0, float(option_factor or 1.0))
     per_replica = (REPLICA_SETUP_SECONDS
                    + REPLICA_SECONDS_PER_MSTEP * (float(steps) / 1e6)) * factor
     waves = -(-replicas // cores)                 # ceil
@@ -184,28 +283,61 @@ def per_task(length, replicas, steps, cores, mmgbsa=False, mm_poses=0,
     return t
 
 
-# The safety factor applied to every booking.
-SAFETY = 1.5
+# Every booking is twice the estimate and half an hour more (BUFFER_MINUTES):
+# a job killed at the wall has produced nothing and has already spent its
+# queue time, while a cluster charges for the time a job uses.
+SAFETY = 2.0
 
-# No job is booked for less than two hours, with the safety factor applied on
-# top for anything larger. The model accounts for the search and the
-# rescoring, but not for a cold filesystem, a slow module load, or a loaded
-# login node.
+# No job is booked for less than two hours. The model accounts for the
+# search and the rescoring, but not for a cold filesystem, a slow module
+# load, or a loaded node.
 FLOOR_MINUTES = 120.0
+
+# The prepare job is never booked for less than four hours, what every
+# prepare job was given before it was priced: AGFR's run time grows with the
+# box and the receptor in ways the model only roughly follows.
+PREP_FLOOR_MINUTES_BOOKED = 240.0
+
+
+def book_prep(minutes):
+    """The prepare job's booking in minutes: as _book, with a four hour floor."""
+    return max(PREP_FLOOR_MINUTES_BOOKED, _book(minutes))
 
 # Gathering the results: reading each peptide's JSON, ranking, writing three
 # files. Seconds in practice, but it is a queued job.
 REPORT_MINUTES = 2.0
+# What the report job books, whatever the estimate: the submission asks for
+# this, so it is what the page adds up when it states the total booked.
+REPORT_WALLTIME = "01:00:00"
+REPORT_BOOKED_MINUTES = 60.0
+
+
+def search_factor(cyclic="none", helical=0):
+    """How much longer one replica's search runs for these options."""
+    f = CYCLIC_FACTOR.get(str(cyclic or "none"), max(CYCLIC_FACTOR.values()))
+    try:
+        if float(helical or 0) > 0:
+            f *= HELICAL_FACTOR
+    except (TypeError, ValueError):
+        pass
+    return f
 
 
 def plan(peptides, replicas, steps, cores=None, mmgbsa=False, mm_poses=5,
-         throttle=0, atoms=0, hetatm_kinds=0, fill_loops=False, box=None):
+         throttle=0, atoms=0, hetatm_kinds=0, fill_loops=False, box=None,
+         options=None):
     """Every stage, added up, end to end.
 
     The estimate is cumulative: a run is three queued jobs in a chain, and
     what is wanted is when there will be an answer, not how long one array
     task takes.
+
+    `options` holds the run's settings that change the cost: agfr,
+    autosite, receptor_gradient, site_mode, cyclic, helical, poses,
+    keep_trajectories, box_max, protonation, from_adapt. Missing ones cost
+    what they did before the settings existed.
     """
+    o = dict(options or {})
     lengths = [len(p) if isinstance(p, str) else int(p) for p in peptides]
     lengths = [n for n in lengths if n > 0] or [14]
     cores = int(cores or CORES_DEFAULT)
@@ -214,8 +346,25 @@ def plan(peptides, replicas, steps, cores=None, mmgbsa=False, mm_poses=5,
     longest = max(lengths)
     n = len(lengths)
 
-    prep = prep_minutes(atoms, hetatm_kinds, fill_loops, box)
-    dock = dock_minutes(longest, replicas, steps, cores)
+    pocket = o.get("site_mode") == "pocket"
+    if pocket:
+        # The pocket's box is not known until AutoSite has run; the maps
+        # are booked for the largest it may be.
+        edge = float(o.get("box_max") or 30.0)
+        prep_box = (edge, edge, edge)
+    else:
+        prep_box = box
+    prep = prep_minutes(atoms, hetatm_kinds, fill_loops, prep_box,
+                        agfr=o.get("agfr", "1.0"),
+                        gradient=bool(o.get("receptor_gradient", True)),
+                        autosite=o.get("autosite", "1.0"), pocket=pocket,
+                        protonation=o.get("protonation", "propka"),
+                        prepared=not o.get("from_adapt"))
+    factor = search_factor(o.get("cyclic"), o.get("helical", 0))
+    dock = dock_minutes(longest, replicas, steps, cores, factor)
+    extra = dock_option_minutes(replicas, o.get("poses", 10),
+                                bool(o.get("keep_trajectories")))
+    dock += extra
     mm = mmgbsa_minutes(mm_poses, cores, atoms=atoms) if mmgbsa else 0.0
     task = dock + mm
     at_once = int(throttle) if int(throttle or 0) > 0 else n
@@ -231,8 +380,10 @@ def plan(peptides, replicas, steps, cores=None, mmgbsa=False, mm_poses=5,
         "array_minutes": round(array, 1),
         "report_minutes": round(REPORT_MINUTES, 1),
         "total_minutes": round(total, 1),
+        "options_minutes": round(extra, 2),
+        "search_factor": round(factor, 2),
         "core_hours": round(
-            sum(dock_minutes(x, replicas, steps, cores)
+            sum(dock_minutes(x, replicas, steps, cores, factor) + extra
                 + (mmgbsa_minutes(mm_poses, cores, atoms=atoms)
                    if mmgbsa else 0.0)
                 for x in lengths) * cores / 60.0, 1),
@@ -245,23 +396,41 @@ def plan(peptides, replicas, steps, cores=None, mmgbsa=False, mm_poses=5,
 
 
 def _book(minutes):
-    """A booking for one job: the safety factor, never under the floor."""
-    return max(FLOOR_MINUTES, SAFETY * float(minutes))
+    """A booking for one job: twice the estimate and the buffer, never under
+    the floor."""
+    return max(FLOOR_MINUTES, SAFETY * float(minutes) + BUFFER_MINUTES)
+
+
+def book(minutes):
+    """The walltime to ask for a job estimated at `minutes`, as hh:mm:ss."""
+    return hhmmss(_book(minutes))
 
 
 def suggest(peptides, replicas, steps, cores=None, mmgbsa=False, mm_poses=5,
             throttle=0, buffer_minutes=None, atoms=0, hetatm_kinds=0,
-            fill_loops=False, box=None):
+            fill_loops=False, box=None, options=None, prep_booked=None):
     """What to put in the form, and what to report to the user.
 
-    `buffer_minutes` is accepted and ignored: the safety margin is a
-    multiplier, and the floor does what a fixed addition used to.
+    `buffer_minutes` is accepted and ignored: the buffer is BUFFER_MINUTES.
+    `prep_booked` is what the prepare job will book, in minutes, when the
+    caller has worked it out the way the submission does (pipeline.prep_time
+    prices the maps for the largest box the run allows); without it, the
+    estimate's own booking is used.
+
+    The total booked is the sum of what the three jobs ask the queue for,
+    end to end: the prepare job, each wave of docking tasks, and the report.
+    It is not the chain's estimate booked as if it were one job, which is a
+    number no job asks for.
     """
     p = plan(peptides, replicas, steps, cores, mmgbsa, mm_poses, throttle,
-             atoms, hetatm_kinds, fill_loops, box)
+             atoms, hetatm_kinds, fill_loops, box, options)
     asked = _book(p["task_minutes"])
-    prep = _book(p["prep_minutes"])
-    end_to_end = _book(p["total_minutes"])
+    prep = (float(prep_booked) if prep_booked is not None
+            else book_prep(p["prep_minutes"]))
+    # Each docking task books the walltime the form is given, whole minutes,
+    # and a throttled array runs its tasks in waves, one after another.
+    end_to_end = (prep + math.ceil(asked) * p["waves"]
+                  + REPORT_BOOKED_MINUTES)
     # Written as the jobs that appear in the queue rather than as
     # internal stages: the docking and the rescoring are one SLURM task,
     # so quoting them separately invites comparison with a queue row that
@@ -282,20 +451,61 @@ def suggest(peptides, replicas, steps, cores=None, mmgbsa=False, mm_poses=5,
         "walltime": hhmmss(asked),
         "prep_walltime": hhmmss(prep),
         "end_to_end": hhmmss(end_to_end),
+        # What each job books, for the page to say what the total is made of.
+        "booked": {"prepare": hhmmss(prep), "dock": hhmmss(asked),
+                   "waves": p["waves"],
+                   "report": hhmmss(REPORT_BOOKED_MINUTES),
+                   "total": hhmmss(end_to_end)},
         "total_core_hours": p["core_hours"],
         "why": (
             "%s, for the longest peptide (%d residues). "
             "%d peptide%s in %s, so about %s end to end; "
-            "no job is booked for less than %s, and anything bigger gets "
-            "%.1fx its own stage, because a job killed at the wall has produced "
-            "nothing and has already spent its queue time."
+            "each job is booked for twice its own estimate and %s more, and "
+            "never less than %s (the prepare job %s), because a job "
+            "killed at the wall has produced nothing and has already spent "
+            "its queue time."
             % (", then ".join(stages), p["longest"], p["n"],
                "" if p["n"] == 1 else "s",
                "one wave" if p["waves"] == 1
                else "%d waves" % p["waves"],
-               human(p["total_minutes"]), human(FLOOR_MINUTES), SAFETY)),
+               human(p["total_minutes"]), human(BUFFER_MINUTES),
+               human(FLOOR_MINUTES), human(PREP_FLOOR_MINUTES_BOOKED))),
     })
     return out
+
+
+def receptor_cost(path, chains=()):
+    """(heavy atoms, distinct non-water heteroatom kinds) in a structure.
+
+    Counted over the chains that will be kept rather than the whole file: a
+    structure is routinely several copies of a complex, and costing a run by
+    the file means costing work it will never do.
+    """
+    want = {c.strip() for c in (chains or []) if c and c.strip()}
+    atoms, kinds = 0, set()
+    try:
+        with open(path, errors="replace") as fh:
+            for line in fh:
+                if line.startswith("ENDMDL"):
+                    break
+                if line[:4] not in ("ATOM", "HETA"):
+                    continue
+                if line[16] not in (" ", "A"):     # one altloc only
+                    continue
+                chain = line[21].strip() or "_"
+                if want and chain not in want:
+                    continue
+                res = line[17:20].strip()
+                if line.startswith("HETATM"):
+                    if res in ("HOH", "WAT", "DOD", "D2O"):
+                        continue
+                    kinds.add(res)
+                if (line[76:78].strip() or res[:1]).upper() == "H":
+                    continue
+                atoms += 1
+    except (OSError, TypeError):
+        return 0, 0
+    return atoms, len(kinds)
 
 
 def hhmmss(minutes):

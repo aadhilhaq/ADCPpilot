@@ -22,6 +22,35 @@ _AD2EL = {"A": "C", "C": "C", "N": "N", "NA": "N", "NS": "N", "OA": "O",
           "MN": "Mn", "Fe": "Fe", "FE": "Fe", "Zn": "Zn", "ZN": "Zn"}
 
 
+#: The suffix AGFR and AGFRGUI give a target file. The page's file browser
+#: lists these, and only these, when it is choosing a target.
+SUFFIX = ".trg"
+
+
+def is_target(path):
+    """Is this a target file, by name? The contents are target.check's
+    business."""
+    return str(path).lower().endswith(SUFFIX)
+
+
+def preview(src):
+    """(receptor as PDB text, centre, size) from a target file, for the page.
+
+    Nothing is copied or unpacked to disk. The file is held to the same check
+    import_target applies, so a target the page shows is one the run will
+    take, and one the run would refuse is refused here for the same reason.
+    Raises ValueError carrying that reason.
+    """
+    why = target.check(src)
+    if why:
+        raise ValueError(why)
+    z = zipfile.ZipFile(src)
+    rec = next(n for n in z.namelist() if n.endswith("rigidReceptor.pdbqt"))
+    text = z.read(rec).decode("utf8", "replace")
+    centre, size = read_box(src)
+    return pdbqt_to_pdb(text), centre, size
+
+
 def read_box(trg):
     """(centre, size) in Angstrom from the grid parameter file in the target."""
     z = zipfile.ZipFile(trg)

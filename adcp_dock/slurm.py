@@ -20,6 +20,7 @@ ARRAY = """#!/bin/bash
 #SBATCH --array={indices}{throttle}
 #SBATCH --output={logdir}/{name}_%a_%A.out
 {extra}
+{notes}
 cd {workdir}
 {env}
 {python} -m adcp_dock.worker {jobfile} ${{SLURM_ARRAY_TASK_ID}}
@@ -33,6 +34,7 @@ SINGLE = """#!/bin/bash
 #SBATCH --time={time}
 #SBATCH --output={logdir}/{name}_%j.out
 {extra}
+{notes}
 cd {workdir}
 {env}
 {python} -m adcp_dock.worker {jobfile} {stage}
@@ -296,9 +298,22 @@ def site_options(account="", extra=""):
     return "\n".join(lines), bad
 
 
+def notes(lines):
+    """Comment lines for a job script, one per entry. Every character that
+    could end a line or start a command is replaced, so a value typed into
+    the page can describe the run without becoming part of the script."""
+    out = []
+    for line in lines or []:
+        text = "".join(c if c >= " " and c != "\x7f" else " "
+                       for c in str(line))
+        out.append("# " + text if text else "#")
+    return "\n".join(out)
+
+
 def write_script(path, **kw):
     kw["partition"] = partition_line(kw.get("partition"))
     kw.setdefault("extra", "")
+    kw["notes"] = notes(kw.get("notes"))
     kw.setdefault("env", "")
     kw.setdefault("throttle", "")
     tmpl = ARRAY if "indices" in kw else SINGLE

@@ -10,7 +10,8 @@ structure needs more before it can be docked against:
 * waters removed, except any requested near the site
 * other heteroatoms removed unless wanted, since an arbitrary cofactor
   cannot be parameterised here
-* missing side-chain atoms rebuilt, and missing residues if requested
+* missing side-chain atoms rebuilt (or, if asked, left missing in the
+  result), and missing residues if requested
 * termini capped, so a chain break is not read as a charged terminus
 * disulfides found and named, so they are not reduced by accident
 * hydrogens and titration states at a stated pH
@@ -304,13 +305,39 @@ def disulfides(lines, steps, cutoff=2.5):
     return pairs
 
 
+# The heavy atoms of an amino acid's backbone, with the C terminal oxygen.
+# Every other heavy atom an amino acid carries is its side chain.
+BACKBONE_ATOMS = frozenset({"N", "CA", "C", "O", "OXT"})
+
+# The names an amino acid can carry between here and the prepared file: the
+# standard twenty, and the names pdb2pqr and the Amber force fields give to
+# protonation states and disulphides.
+AMINO_ACIDS = frozenset({
+    "ALA", "ARG", "ASN", "ASP", "CYS", "GLN", "GLU", "GLY", "HIS", "ILE",
+    "LEU", "LYS", "MET", "PHE", "PRO", "SER", "THR", "TRP", "TYR", "VAL",
+    "HID", "HIE", "HIP", "HSD", "HSE", "HSP", "CYX", "CYM", "ASH", "GLH",
+    "LYN", "ARN", "TYM"})
+
+
 def fix_structure(path, out_path, steps, fill_loops=False, cap_termini=True,
-                  log=print):
+                  log=print, rebuild_sidechains=True, model_missing=True):
     """Missing side-chain atoms rebuilt, and optionally missing residues.
 
     PDBFixer's findMissingResidues finds gaps between residues that are
     present. Filling them is off by default: a rebuilt loop is a prediction,
     and once written it is indistinguishable from measured coordinates.
+
+    With rebuild_sidechains off the same atoms are still built here when
+    model_missing is on, because pdb2pqr completes any residue it is given
+    whatever this step does, and the minimisation's force field has no
+    template for an incomplete one. strip_modelled_side_chains takes them
+    out again once both have run; the log says so instead of saying they
+    were rebuilt.
+
+    With model_missing off as well, the missing side-chain atoms are not
+    built at all. That is right only when nothing later needs whole
+    residues: reduce protonates a residue as it stands, so a receptor
+    protonated with reduce and not minimised never needs them.
     """
     try:
         from pdbfixer import PDBFixer
@@ -327,10 +354,27 @@ def fix_structure(path, out_path, steps, fill_loops=False, cap_termini=True,
             fixer.missingResidues = {}
         fixer.findMissingAtoms()
         n_side = sum(len(v) for v in fixer.missingAtoms.values())
+        # Of those, the ones on an amino acid's side chain. missingAtoms also
+        # holds missing backbone atoms and nucleic acid atoms, which are
+        # rebuilt whatever rebuild_sidechains says.
+        n_sc = sum(1 for res, atoms in fixer.missingAtoms.items()
+                   if res.name in AMINO_ACIDS
+                   for a in atoms if a.name not in BACKBONE_ATOMS)
         n_term = sum(len(v) for v in fixer.missingTerminals.values())
         if not cap_termini:
             fixer.missingTerminals = {}
             n_term = 0
+        if not rebuild_sidechains and not model_missing:
+            # Only what is not an amino acid's side chain: backbone atoms
+            # and nucleic acid atoms are still completed.
+            for res in list(fixer.missingAtoms):
+                keep = [a for a in fixer.missingAtoms[res]
+                        if res.name not in AMINO_ACIDS
+                        or a.name in BACKBONE_ATOMS]
+                if keep:
+                    fixer.missingAtoms[res] = keep
+                else:
+                    del fixer.missingAtoms[res]
         fixer.addMissingAtoms()
         with open(out_path, "w") as fh:
             PDBFile.writeFile(fixer.topology, fixer.positions, fh,
@@ -339,7 +383,17 @@ def fix_structure(path, out_path, steps, fill_loops=False, cap_termini=True,
         steps.append(Step("missing atoms", False, f"pdbfixer failed: {e}"))
         return None
 
-    detail = f"rebuilt {n_side} side-chain atom(s)"
+    if rebuild_sidechains:
+        detail = f"rebuilt {n_side} side-chain atom(s)"
+    elif not model_missing:
+        detail = (f"left {n_sc} missing side-chain atom(s) out, as the "
+                  f"structure has them; rebuilt {n_side - n_sc} other "
+                  f"missing atom(s)")
+    else:
+        detail = (f"modelled {n_sc} missing side-chain atom(s) only so "
+                  f"protonation and minimisation can run; they are taken out "
+                  f"again at the end. Rebuilt {n_side - n_sc} other missing "
+                  f"atom(s)")
     if n_term:
         detail += f", completed {n_term} terminal atom(s)"
     if gaps and not fill_loops:
@@ -350,6 +404,115 @@ def fix_structure(path, out_path, steps, fill_loops=False, cap_termini=True,
     elif gaps and fill_loops:
         detail += f"; built {sum(len(v) for v in gaps.values())} missing residue(s)"
     steps.append(Step("missing atoms", True, detail))
+    return out_path
+
+
+def strip_modelled_side_chains(measured, path, out_path, steps):
+    """Side chains left as the structure had them.
+
+    `measured` is the structure before anything was rebuilt (tidied.pdb) and
+    `path` the structure after protonation and minimisation. On every amino
+    acid that `measured` has, a side-chain heavy atom it lacks is taken out,
+    with the hydrogens on it. The backbone, the C terminal oxygen, residues
+    the structure did not have at all (a rebuilt loop, a cap) and anything
+    that is not an amino acid are left as they are.
+
+    An atom counts as measured if `measured` has one of that name in that
+    residue, or has a heavy atom of that residue within 0.9 A of it. The
+    second covers a measured atom the force field renamed: the restrained
+    minimisation moves a heavy atom a fraction of that, and a modelled atom
+    sits at least a bond length, 1.4 A, from every measured one.
+    """
+    import math
+
+    def heavy(l):
+        return not _is_hydrogen(l[12:16], l[76:78])
+
+    def key(l):
+        return (l[21], l[22:27])
+
+    def xyz(l):
+        return (float(l[30:38]), float(l[38:46]), float(l[46:54]))
+
+    had = {}
+    for l in open(measured, errors="replace"):
+        if (l.startswith(("ATOM", "HETATM")) and heavy(l)
+                and l[17:20].strip() in AMINO_ACIDS):
+            try:
+                had.setdefault(key(l), []).append((l[12:16].strip(), xyz(l)))
+            except ValueError:
+                continue
+
+    lines = open(path, errors="replace").read().splitlines()
+    by_res = {}
+    for i, l in enumerate(lines):
+        if l.startswith(("ATOM", "HETATM")):
+            by_res.setdefault(key(l), []).append(i)
+
+    drop, where, n_heavy, n_h = set(), [], 0, 0
+    for k, idx in by_res.items():
+        resname = lines[idx[0]][17:20].strip()
+        if k not in had or resname not in AMINO_ACIDS:
+            continue
+        names = {n for n, _p in had[k]}
+        places = [p for _n, p in had[k]]
+        try:
+            atoms = [(i, xyz(lines[i]), heavy(lines[i])) for i in idx]
+        except ValueError:
+            continue                    # a line this cannot read; left alone
+        gone = set()
+        for i, p, is_heavy in atoms:
+            name = lines[i][12:16].strip()
+            if (not is_heavy or name in BACKBONE_ATOMS or name in names
+                    or any(math.dist(p, q) < 0.9 for q in places)):
+                continue
+            gone.add(i)
+        if not gone:
+            continue
+        # A hydrogen goes with the heavy atom it sits on, its nearest.
+        heavies = [(i, p) for i, p, is_heavy in atoms if is_heavy]
+        for i, p, is_heavy in atoms:
+            if not is_heavy and min(heavies,
+                                    key=lambda t: math.dist(p, t[1]))[0] in gone:
+                drop.add(i)
+                n_h += 1
+        drop |= gone
+        n_heavy += len(gone)
+        where.append("%s:%s %s" % (k[0], k[1].strip(), resname))
+
+    if not drop:
+        steps.append(Step("side chains", True, "left as the structure has "
+                          "them; none had atoms missing"))
+        return None
+
+    # CONECT records naming an atom that is gone would point at nothing.
+    serials = set()
+    for i in drop:
+        try:
+            serials.add(int(lines[i][6:11]))
+        except ValueError:
+            pass
+
+    def stale(l):
+        if not l.startswith("CONECT"):
+            return False
+        for a in range(6, 31, 5):
+            try:
+                if int(l[a:a + 5]) in serials:
+                    return True
+            except ValueError:
+                continue
+        return False
+
+    _write(out_path, [l for i, l in enumerate(lines)
+                      if i not in drop and not stale(l)])
+    steps.append(Step(
+        "side chains", True,
+        f"left as the structure has them: {n_heavy} side-chain atom(s) it "
+        f"lacks, and the {n_h} hydrogen(s) on them, were modelled only for "
+        f"protonation and minimisation and are not in the prepared receptor; "
+        f"{len(where)} residue(s): {', '.join(where[:8])}"
+        + (", ..." if len(where) > 8 else "")))
     return out_path
 
 
@@ -714,12 +877,18 @@ def _unit(v):
     return v / n if n > 1e-6 else v
 
 
-def cap_breaks(path, out_path, gaps, steps, log=print):
+def cap_breaks(path, out_path, gaps, steps, log=print, amide_h=False):
     """ACE and NME on the ends a chain break creates. Returns out_path or None.
 
     A break is not a terminus. Splitting the chain so that pdb2pqr will
     protonate it leaves two artificial ends, and charging them as real termini
     puts a charge pair into the structure that the protein does not have.
+
+    With amide_h, the residue after each break is given the amide hydrogen
+    the cap makes it need. reduce, unlike pdb2pqr, puts no hydrogen on the
+    nitrogen of a residue that has nothing before it, so after reduce that
+    residue has none; any terminal hydrogens it was given go, and one is
+    placed on the bisector of the cap's carbon and CA, 1.01 A out.
     """
     import numpy as np
     if not gaps:
@@ -767,6 +936,7 @@ def cap_breaks(path, out_path, gaps, steps, log=print):
 
     add = {}          # (chain, resnum, icode) -> [lines to put after it]
     pre = {}          # (chain, resnum, icode) -> [lines to put before it]
+    add_h = {}        # (chain, resnum, icode) -> [its amide hydrogen]
     n_cap = 0
     for a, b, _d in gaps:
         A, B = at.get(a, {}), at.get(b, {})
@@ -809,8 +979,37 @@ def cap_breaks(path, out_path, gaps, steps, log=print):
     for a, b, _d in gaps:
         for nm in ("OXT", "HXT", "OT1", "OT2"):
             drop.add((a, nm))
-        for nm in ("H2", "H3"):
+        for nm in (("H1", "H2", "H3") if amide_h else ("H2", "H3")):
             drop.add((b, nm))
+
+    # The amide hydrogen, for the residues that will not keep one: placed
+    # from the cap's carbonyl carbon, which is the nitrogen's new neighbour.
+    if amide_h:
+        names = {}
+        for l in rows:
+            if l[:6].strip() in ("ATOM", "HETATM"):
+                try:
+                    _k = (l[21], int(l[22:26]), l[26])
+                except ValueError:
+                    continue
+                names.setdefault(_k, set()).add(l[12:16].strip())
+        for a, b, _d in gaps:
+            B = at.get(b, {})
+            if "H" in names.get(b, set()) or not {"N", "CA"} <= set(B):
+                continue
+            ace = [c for c in pre.get(b, []) if c[12:16].strip() == "C"]
+            if not ace:
+                continue
+            cpos = np.array([float(ace[0][30:38]), float(ace[0][38:46]),
+                             float(ace[0][46:54])])
+            hpos = B["N"] - 1.01 * _unit(_unit(cpos - B["N"])
+                                         + _unit(B["CA"] - B["N"]))
+            resname = next((l[17:20] for l in rows
+                            if l[:6].strip() in ("ATOM", "HETATM")
+                            and l[21] == b[0] and l[22:26].strip() == str(b[1])
+                            and l[26] == b[2]), "UNK")
+            add_h.setdefault(b, []).append(
+                rec(0, "H", resname.strip(), b[0], b[1], hpos, "H"))
 
     out, serial, seen = [], 0, None
     for l in rows:
@@ -845,7 +1044,11 @@ def cap_breaks(path, out_path, gaps, steps, log=print):
         seen = key
         serial += 1
         out.append(l[:6] + "%5d" % serial + l[11:])
-    for leftover in (add, pre):
+        if key in add_h and l[12:16].strip() == "N":
+            for c in add_h.pop(key):
+                serial += 1
+                out.append(c[:6] + "%5d" % serial + c[11:])
+    for leftover in (add, pre, add_h):
         for _k, lines in leftover.items():
             for c in lines:
                 serial += 1
@@ -969,6 +1172,188 @@ def protonate(path, out_path, steps, ph=7.4, forcefield="AMBER", log=print):
     return out_path
 
 
+#: How the receptor is protonated, by the names job.json and the page use:
+#: reduce, as ADFR's own preparation and ADapt do it, or PDB2PQR with PROPKA
+#: at a chosen pH.
+PROTONATION = ("reduce", "propka")
+#: What a job file written before the choice existed was protonated with.
+#: It has no protonation key, and must still be prepared the same way, so
+#: that an old run reproduces.
+PROTONATION_LEGACY = "propka"
+
+
+def protonation_of(job_or_value):
+    """'reduce' or 'propka' for a job dict or a stored value. Absent or
+    unknown reads as the legacy method, never as the new default."""
+    v = job_or_value.get("protonation") if isinstance(job_or_value, dict) \
+        else job_or_value
+    v = str(v or "").strip().lower()
+    return v if v in PROTONATION else PROTONATION_LEGACY
+
+
+def reduce_version(exe):
+    """reduce's own version line, such as 'reduce.3.23.130521', or ''."""
+    if not exe:
+        return ""
+    try:
+        p = subprocess.run([exe, "-version"], capture_output=True, text=True,
+                           timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    for line in (p.stdout + "\n" + p.stderr).splitlines():
+        if line.strip().startswith("reduce."):
+            return line.strip()
+    return ""
+
+
+def reduce_het_dict(exe):
+    """The het dictionary that ships beside reduce in ADFRsuite, which is
+    what ADFR's own protonation passes with -DB, or None."""
+    if not exe:
+        return None
+    for cand in (exe + "_wwPDB_het_dict.txt",
+                 os.path.join(os.path.dirname(exe),
+                              "reduce_wwPDB_het_dict.txt")):
+        if os.path.isfile(cand):
+            return cand
+    return None
+
+
+def his_states(path):
+    """{(chain, number with insertion code): 'HID' | 'HIE' | 'HIP' | 'HIS'}
+    for every histidine, read from the hydrogens on its ring nitrogens."""
+    hs = {}
+    for l in open(path, errors="replace"):
+        if not l.startswith(("ATOM", "HETATM")):
+            continue
+        if l[17:20] not in ("HIS", "HID", "HIE", "HIP"):
+            continue
+        hs.setdefault((l[21], l[22:27].strip()), set()).add(
+            l[12:16].strip().upper())
+    out = {}
+    for k, names in hs.items():
+        d, e = "HD1" in names, "HE2" in names
+        out[k] = "HIP" if d and e else "HID" if d else "HIE" if e else "HIS"
+    return out
+
+
+def reduce_decisions(text):
+    """reduce's USER MOD lines for His, Asn and Gln, as
+    [(chain, number, residue, decision, turned over)], for example
+    ('A', '149', 'HIS', 'no HD1', True)."""
+    out = []
+    for l in text.splitlines():
+        if not l.startswith("USER  MOD"):
+            continue
+        parts = l.split(":")
+        if len(parts) < 4 or len(parts[1]) < 3:
+            continue
+        field = parts[1][2:].split()
+        if len(field) < 2 or field[1] not in ("HIS", "ASN", "GLN"):
+            continue
+        what = parts[2].strip()
+        turned = what.startswith("FLIP")
+        out.append((parts[1][1], field[0], field[1],
+                    what[4:].strip() if turned else what, turned))
+    return out
+
+
+def _first_numbers(path):
+    """The number of the first residue of each chain, by chain."""
+    firsts = {}
+    for l in open(path, errors="replace"):
+        if l.startswith(("ATOM", "HETATM")) and l[21] not in firsts:
+            try:
+                firsts[l[21]] = int(l[22:26])
+            except ValueError:
+                continue
+    return firsts
+
+
+def protonate_reduce(path, out_path, steps, exe=None, log=print):
+    """Hydrogens placed by reduce, the way ADFR's own preparation and ADapt
+    place them.
+
+    reduce -BUILD adds every hydrogen, turns Asn and Gln amides and His rings
+    over where the hydrogen bonds say the file has them the wrong way round,
+    and chooses which histidine nitrogens carry a proton from the same
+    network. It takes no pH: Asp and Glu stay charged, Lys and Arg
+    positive, and a histidine is given two protons only when its
+    surroundings call for it. On the protein structures in the PDB solved
+    by neutron diffraction it placed histidine protons as deposited in 55%
+    of 1,457 cases, where pdb2pqr with PROPKA placed 31%.
+
+    The flags are ADFR's (-BUILD with the het dictionary beside reduce),
+    and one more: -Nterm set to the first residue number of the chains, so
+    a chain that starts at residue 25 is charged as a terminus there, as
+    pdb2pqr treats it. Without it reduce puts no hydrogen on that nitrogen
+    at all, and the minimisation's force field has no template for the
+    residue.
+
+    Returns out_path, or None when reduce could not be run or wrote no
+    hydrogens, with the reason in the step.
+    """
+    if not exe or not os.path.isfile(exe):
+        steps.append(Step("reduce", False,
+                          "reduce was not found beside ADFRsuite's programs"))
+        return None
+    het = reduce_het_dict(exe)
+    nterm = max([1] + list(_first_numbers(path).values()))
+    cmd = [exe, "-BUILD", "-Nterm%d" % nterm]
+    if het:
+        cmd += ["-DB", het]
+    cmd.append(path)
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
+    except (OSError, subprocess.SubprocessError) as e:
+        steps.append(Step("reduce", False, f"reduce could not be run: {e}"))
+        return None
+    # reduce's exit status is not a verdict: it returns 1 on structures it
+    # protonated completely. What it wrote is.
+    text = p.stdout or ""
+    try:
+        with open(os.path.splitext(out_path)[0] + ".reduce.txt", "w") as fh:
+            fh.write(" ".join(cmd) + "\n\nexit status: %s\n\n--- stderr ---\n%s"
+                     % (p.returncode, p.stderr or ""))
+    except OSError:
+        pass
+    if "USER  MOD reduce" not in text[:4000]:
+        said = [l.strip() for l in (p.stderr or "").splitlines() if l.strip()]
+        steps.append(Step("reduce", False, "reduce wrote no structure (%s)"
+                          % (" / ".join(said[-2:]) or "no output")[:300]))
+        return None
+    with open(out_path, "w") as fh:
+        fh.write(text)
+    n_h = sum(1 for l in text.splitlines()
+              if l.startswith(("ATOM", "HETATM"))
+              and _is_hydrogen(l[12:16], l[76:78]))
+    if n_h == 0:
+        steps.append(Step("reduce", False,
+                          "reduce wrote a structure with no hydrogens on it"))
+        return None
+    his = his_states(out_path)
+    counts = {}
+    for v in his.values():
+        counts[v] = counts.get(v, 0) + 1
+    flips = {}
+    for _c, _n, res, _d, flipped in reduce_decisions(text):
+        if flipped:
+            flips[res] = flips.get(res, 0) + 1
+    ver = reduce_version(exe) or "reduce"
+    detail = (f"{ver} -BUILD, as ADFR and ADapt run it, with -Nterm{nterm} "
+              f"so each chain's first residue is a terminus; {n_h} hydrogens "
+              f"added")
+    if his:
+        detail += "; histidines " + ", ".join(
+            f"{k} x{counts[k]}" for k in ("HID", "HIE", "HIP", "HIS")
+            if counts.get(k))
+    detail += ("; turned over " + ", ".join(f"{v} {k.capitalize()}"
+                                            for k, v in sorted(flips.items()))
+               if flips else "; nothing turned over")
+    steps.append(Step("protonation", True, detail))
+    return out_path
+
+
 def keep_chain(lines, chain, steps):
     """Only the chain(s) that will be docked against.
 
@@ -1018,7 +1403,8 @@ def keep_chain(lines, chain, steps):
 
 def _prep_key(pdb_in, ph, forcefield, chain, keep_waters_within,
               keep_hetatms, keep_ions, fill_loops, cap_termini,
-              minimise_structure, restraint):
+              minimise_structure, restraint, rebuild_sidechains=True,
+              protonation=PROTONATION_LEGACY):
     """Everything about a preparation that changes its result.
 
     The input file is identified by size and modification time as well as path,
@@ -1031,26 +1417,51 @@ def _prep_key(pdb_in, ph, forcefield, chain, keep_waters_within,
         stamp = [int(st.st_size), int(st.st_mtime)]
     except OSError:
         stamp = None
-    return {"receptor": os.path.abspath(pdb_in), "stamp": stamp,
-            "ph": round(float(ph), 3), "forcefield": str(forcefield),
-            "chain": str(chain), "waters": float(keep_waters_within),
-            "hetatms": bool(keep_hetatms), "ions": bool(keep_ions),
-            "loops": bool(fill_loops), "termini": bool(cap_termini),
-            "minimise": bool(minimise_structure),
-            "restraint": float(restraint)}
+    key = {"receptor": os.path.abspath(pdb_in), "stamp": stamp,
+           "ph": round(float(ph), 3), "forcefield": str(forcefield),
+           "chain": str(chain), "waters": float(keep_waters_within),
+           "hetatms": bool(keep_hetatms), "ions": bool(keep_ions),
+           "loops": bool(fill_loops), "termini": bool(cap_termini),
+           "minimise": bool(minimise_structure),
+           "restraint": float(restraint)}
+    # Recorded only when off. A preparation made before the setting existed
+    # rebuilt side chains and has no such entry, and it must still be
+    # recognised as made with the default.
+    if not rebuild_sidechains:
+        key["sidechains"] = False
+    # The same for the protonation: a preparation made before it could be
+    # chosen used PDB2PQR with PROPKA and has no entry. reduce takes no pH,
+    # so with it the pH is not part of what the result depends on.
+    if protonation_of(protonation) != PROTONATION_LEGACY:
+        key["protonation"] = protonation_of(protonation)
+        key["ph"] = None
+    return key
 
 
 def run(pdb_in, workdir, ph=7.4, forcefield="AMBER", log=print, chain="",
         keep_waters_within=0.0, site_points=None, keep_hetatms=False,
         keep_ions=True, fill_loops=False, cap_termini=True,
-        minimise_structure=True, restraint=10.0):
+        minimise_structure=True, restraint=10.0, rebuild_sidechains=True,
+        protonation=PROTONATION_LEGACY, reduce_exe=None):
     """Prepare a receptor. Returns the prepared PDB, or None if nothing ran.
 
     The order matters and is the wizard's: tidy the file first, rebuild what
     is missing, then protonate, then minimise. Protonating before rebuilding
     would put hydrogens on atoms that are about to move; minimising before
     protonating would minimise a structure with no hydrogens on it.
+
+    `protonation` is "reduce" (reduce_exe, ADFRsuite's) or "propka"
+    (PDB2PQR with PROPKA at `ph`, what every run made before the choice
+    existed used). Where reduce cannot run, PDB2PQR with PROPKA protonates
+    instead and the log says so.
+
+    Missing side chains with rebuild_sidechains off: PDB2PQR completes every
+    residue it is given and the minimisation needs whole residues, so they
+    are modelled for those two and taken out at the end. reduce protonates a
+    residue as it stands, so with reduce they are modelled only when the
+    minimisation will run, and not at all when it will not.
     """
+    protonation = protonation_of(protonation)
     os.makedirs(workdir, exist_ok=True)
 
     # Already prepared by an earlier attempt at this run? A job killed at
@@ -1058,7 +1469,8 @@ def run(pdb_in, workdir, ph=7.4, forcefield="AMBER", log=print, chain="",
     # otherwise repeat the whole preparation.
     want = _prep_key(pdb_in, ph, forcefield, chain, keep_waters_within,
                      keep_hetatms, keep_ions, fill_loops, cap_termini,
-                     minimise_structure, restraint)
+                     minimise_structure, restraint, rebuild_sidechains,
+                     protonation)
     out = os.path.join(workdir, "prepared.pdb")
     keyf = os.path.join(workdir, "prepared.json")
     if os.path.isfile(out) and os.path.getsize(out) > 0:
@@ -1125,13 +1537,36 @@ def run(pdb_in, workdir, ph=7.4, forcefield="AMBER", log=print, chain="",
     tidy = _write(os.path.join(workdir, "tidied.pdb"), lines)
     current = tidy
 
+    # Missing side-chain atoms that will not be kept are modelled only for
+    # what cannot work without them (see above).
+    modelled = (not rebuild_sidechains
+                and (protonation != "reduce" or minimise_structure))
     fixed = fix_structure(current, os.path.join(workdir, "rebuilt.pdb"), steps,
                           fill_loops=fill_loops, cap_termini=cap_termini,
-                          log=log)
+                          log=log, rebuild_sidechains=rebuild_sidechains,
+                          model_missing=rebuild_sidechains or modelled)
     current = fixed or current
 
-    prot = protonate(current, os.path.join(workdir, "protonated.pdb"), steps,
-                     ph=ph, forcefield=forcefield, log=log)
+    by_reduce = False
+    if protonation == "reduce":
+        prot = protonate_reduce(current,
+                                os.path.join(workdir, "protonated.pdb"),
+                                steps, exe=reduce_exe, log=log)
+        by_reduce = prot is not None
+        if not by_reduce:
+            log("  reduce could not protonate the receptor; PDB2PQR with "
+                "PROPKA does instead")
+            steps.append(Step("protonation fallback", True,
+                              f"PDB2PQR with PROPKA at pH {ph}, because "
+                              f"reduce could not run"))
+            prot = protonate(current, os.path.join(workdir, "protonated.pdb"),
+                             steps, ph=ph, forcefield=forcefield, log=log)
+            # pdb2pqr completes every residue it is given, so what it built
+            # comes out at the end, as it would have had it been chosen.
+            modelled = modelled or not rebuild_sidechains
+    else:
+        prot = protonate(current, os.path.join(workdir, "protonated.pdb"),
+                         steps, ph=ph, forcefield=forcefield, log=log)
     current = prot or current
 
     # The caps go on here: after pdb2pqr, which has no parameters for ACE
@@ -1141,7 +1576,7 @@ def run(pdb_in, workdir, ph=7.4, forcefield="AMBER", log=print, chain="",
         if _g:
             _capped = cap_breaks(current,
                                  os.path.join(workdir, "capped.pdb"), _g,
-                                 steps, log=log)
+                                 steps, log=log, amide_h=by_reduce)
             current = _capped or current
 
     if minimise_structure:
@@ -1150,6 +1585,14 @@ def run(pdb_in, workdir, ph=7.4, forcefield="AMBER", log=print, chain="",
         current = mini or current
     else:
         steps.append(Step("minimisation", False, "not asked for"))
+
+    # Last, so protonation and minimisation ran on whole residues, which
+    # neither can do without: what was modelled for them comes out here.
+    if modelled:
+        bare = strip_modelled_side_chains(
+            tidy, current, os.path.join(workdir, "sidechains_as_measured.pdb"),
+            steps)
+        current = bare or current
 
     # `out` was set above, where the reuse check needed it.
     if current != out:
@@ -1184,7 +1627,9 @@ def run(pdb_in, workdir, ph=7.4, forcefield="AMBER", log=print, chain="",
     with open(os.path.join(workdir, "preparation.log"), "w") as fh:
         fh.write("Protein preparation\n===================\n\n")
         fh.write(f"in  : {pdb_in}\nout : {out}\n"
-                 f"pH  : {ph}   force field: {forcefield}\n\n")
+                 + (f"protonation: reduce   force field: {forcefield}\n\n"
+                    if protonation == "reduce" else
+                    f"pH  : {ph}   force field: {forcefield}\n\n"))
         for s in steps:
             fh.write(str(s) + "\n")
         fh.write(f"\n{n_before} atoms in, {n_after} out\n")

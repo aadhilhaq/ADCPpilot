@@ -352,11 +352,10 @@ def panel_table(rows):
                           c(r.get("site_dg"), 1), c(r.get("gravy"), 2),
                           c(r.get("charge_ph7"), 1),
                           c(r.get("pe_verdict"))))
-    if any(r.get("site_dg") is not None for r in rows):
-        out.append("")
-        out.append("Site dG is the site residues' share of the per residue "
-                   "breakdown, which adds up to within a few per cent of "
-                   "MM-GBSA, not exactly. Per residue values are in metrics/.")
+    # What site dG is, and why the breakdown does not add up exactly to the
+    # MM-GBSA value, is explained in the documentation (results.html, "The
+    # limits on these columns"). results.txt is read by the people the run
+    # was for, and carries their numbers, not notes on method.
     return out
 
 

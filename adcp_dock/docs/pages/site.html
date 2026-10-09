@@ -1,6 +1,7 @@
 <h1>The site and the box</h1>
-<p class="lead">Name the residues a binder must touch. The box is built around
-them, and ADCP searches inside that box and nowhere else.</p>
+<p class="lead">Mark where a binder must go: residues you pick, a ligand or
+peptide already in the structure, or a pocket AutoSite finds. The box is built
+around it, and ADCP searches inside that box and nowhere else.</p>
 
 <figure>
 <img src="img/site-residues.png" alt="The Site card with 22 residues typed, and the note reporting the box it builds">
@@ -9,6 +10,19 @@ of the residues were found, how far they span, the box that was built and its
 centre. Here 22 residues of MDM2 span more than the 30 &Aring; maximum, so the
 box is clamped to 30 &Aring; on every axis.</figcaption>
 </figure>
+
+<h2 id="where-the-box-goes">Where the box goes</h2>
+<p><b>Build the box around</b> offers three ways to place it. Whichever you
+choose, the box spans what marks the site plus the padding on each side, and is
+held between the minimum and the maximum.</p>
+<table>
+<tr><th>Choice</th><th>The box spans</th><th>The site each pose is measured against</th></tr>
+<tr><td><b>residues you pick</b></td><td>the residues, plus the padding</td><td>those residues</td></tr>
+<tr><td><b>a ligand or peptide in the structure</b></td><td>the ligand, plus the padding, as AGFR places a box around a ligand</td><td>the residues the ligand touches, within 4 &Aring;</td></tr>
+<tr><td><b>a pocket AutoSite finds</b></td><td>the pocket, plus the padding, as AGFR places a box around AutoSite's points</td><td>the residues lining the pocket, within 4 &Aring; of its points</td></tr>
+</table>
+<p>Residues you pick is how every run made before the choice existed placed its
+box, and a run's settings reused from such a run come back that way.</p>
 
 <h2 id="residues">The residues</h2>
 <p>Type them as <code>CHAIN:NUMBER</code>, for instance <code>A:98</code>, or as
@@ -29,14 +43,76 @@ same search more thinly everywhere.</p>
 than ignored, which catches a chain letter that does not exist and a numbering
 that is not the one in the file.</p>
 
+<h2 id="ligand">Around a ligand or peptide in the structure</h2>
+<figure>
+<img src="img/site-ligand.png" alt="The Site card set to build the box around chain B of 1YCR, with the peptide drawn in orange inside the box">
+<figcaption><b>The box around the crystal peptide.</b> 1YCR holds MDM2 (chain A)
+and the p53 peptide bound to it (chain B). With the box built around chain B, the
+peptide is drawn in orange, the note gives the box and lists the 17 residues of
+MDM2 the peptide touches, and every pose will be measured against those.</figcaption>
+</figure>
+<p>When the structure was solved with something bound in the site, that is the
+most direct way to say where the site is. Once a receptor is loaded,
+<b>Ligand or peptide</b> lists what it holds that a box could be built around:</p>
+<ul>
+<li><b>peptides</b>, the protein chains of up to 50 residues, named by their
+chain, like <code>B</code>;</li>
+<li><b>hetero groups</b>, named <code>CHAIN:NAME:NUMBER</code>, like
+<code>A:NUT:201</code>. Crystallisation additives such as glycerol and sulfate
+come last, and waters are not listed.</li>
+</ul>
+<p>The box is centred on the middle of the ligand's extent and spans that extent
+plus the padding on each side, which is how AGFR places a box around a ligand
+(<code>-b ligand</code>), and then it is held between the minimum and the
+maximum. The residues the ligand touches, within 4 &Aring;, become the site
+each pose is measured against, so the results say how much of the crystal
+ligand's footprint a docked peptide covers.</p>
+<p>The ligand itself is never docked into. A peptide's chain is left out of the
+receptor; ticking that chain among the chains to keep is refused, because the
+peptide would then fill the site it marks. A hetero group is removed with the
+other heteroatoms, and with <b>Keep heteroatoms</b> on it would stay, so that is
+refused too.</p>
+<div class="note"><b>Why the box is worked out here and not by AGFR.</b> AGFR
+1.1 can pick a ligand out of a PDB itself (<code>--pdbLigand</code>), but only
+on a receptor it prepares itself, with its own protonation, in place of the
+preparation this tool does. And a peptide chosen that way stays in its receptor:
+on 1YCR with <code>--pdbLigand "chain B"</code> the target AGFR built held chain
+B's 132 atoms, so its maps had the peptide in the site. So the box is worked out
+here by AGFR's rule and given to AGFR as a box. AGFR's own box for chain B came
+within half an &Aring;ngstr&ouml;m of it; the difference is the hydrogens AGFR
+adds to the ligand before it measures it.</div>
+
+<h2 id="pocket">Around an AutoSite pocket</h2>
+<p>With no ligand in the structure and no residues in mind, AutoSite can find
+the site. Once the receptor is prepared, on the compute node, AutoSite searches
+the whole receptor for pockets: clusters of grid points where a carbon, an
+oxygen acceptor or a hydrogen donor binds well. It ranks them by how many points
+they hold, how strongly and how buried, and the box goes around the best scoring
+one (<code>agfr -b fill -p best</code>). <b>Every pocket it finds</b> puts one
+box around all of them (<code>-p all</code>), which on a whole protein is close
+to docking blind. The residues lining the pocket, within 4 &Aring; of its
+points, become the site.</p>
+<p>The pocket is found on the prepared receptor, so there is nothing to draw
+before the run. Afterwards, load the run's own target file,
+<code>target/receptor.trg</code> in its folder, in the target file box of the
+Receptor card: the site view then shows the receptor, the box and the AutoSite
+points in pink, and the run's <code>job.json</code> lists every pocket AutoSite
+found with its score.</p>
+<div class="note"><b>The maps for a pocket are built twice.</b> agfr builds the
+maps for <code>-b fill</code> at the 1 &Aring; spacing AutoSite searched at,
+which is too coarse to dock into, so the box it chose is kept and the maps are
+built over it again at the usual 0.375 &Aring;. On MDM2 the best scoring pocket
+was the p53 groove: 93% of its points lie within 4 &Aring; of the crystal
+peptide.</div>
+
 <h2 id="box-size">The size of the box</h2>
-<p>Along each axis the box spans the chosen residues plus the <b>padding</b> on
-each side, then it is clamped between the <b>minimum</b> and the
-<b>maximum</b>. The defaults are 8 &Aring; of padding, a 20 &Aring; minimum and
-a 30 &Aring; maximum.</p>
+<p>Along each axis the box spans the residues, the ligand or the pocket, plus
+the <b>padding</b> on each side, then it is clamped between the <b>minimum</b>
+and the <b>maximum</b>. The defaults are 8 &Aring; of padding, a 20 &Aring;
+minimum and a 30 &Aring; maximum.</p>
 <table>
 <tr><th>Setting</th><th>What it does</th><th>What goes wrong without it</th></tr>
-<tr><td><b>Padding</b></td><td>How far the box reaches beyond your residues. 8 &Aring; leaves room for a peptide to lie across the site.</td><td>Below about 5 &Aring;, a longer peptide has nowhere to put its ends.</td></tr>
+<tr><td><b>Padding</b></td><td>How far the box reaches beyond your residues, ligand or pocket. 8 &Aring; leaves room for a peptide to lie across the site.</td><td>Below about 5 &Aring;, a longer peptide has nowhere to put its ends.</td></tr>
 <tr><td><b>Min box</b></td><td>The smallest the box may be.</td><td>Two or three residues close together would give a box barely larger than they are, which a peptide cannot enter from any direction.</td></tr>
 <tr><td><b>Max box</b></td><td>The largest the box may be.</td><td>The search is spread over the whole box, so a wider box does not cost more time; it searches everywhere less thoroughly.</td></tr>
 </table>
@@ -66,6 +142,27 @@ site, add a residue there or raise the padding. If it covers far too much,
 lower the padding or the maximum. A box that is mostly solvent is a search
 spent mostly on solvent.</p>
 
+<h2 id="surface">The surface</h2>
+<figure>
+<img src="img/site-surface.png" alt="The site view with the receptor's surface drawn over the structure, the picked residues blue on it, and the box">
+<figcaption><b>The receptor's surface in the site view.</b> The residues picked
+for the site are blue on the surface, so the groove and the patch the box is
+built around show together, with the box over both.</figcaption>
+</figure>
+<p><b>Show the surface</b> draws the molecular surface of the chains you keep:
+the surface a probe of 1.5 &Aring;, a water molecule, traces as it rolls over the
+atoms. A groove shows as a groove, which a cartoon does not show. Waters are left
+out, and hetero groups too unless <b>Keep heteroatoms</b> is ticked, so the
+surface is the receptor the run will dock into.</p>
+<p>It is computed by MSMS, Michel Sanner's program, which ships with ADFRsuite.
+Each atom is given the radius MSMS's own converter, <code>pdb_to_xyzr</code>,
+gives it, and the surface is finer for a small receptor than for a large one.
+MDM2 takes a tenth of a second; GroEL with GroES, 58,870 atoms, takes a few. The
+surface is kept in the runs folder, so a structure is computed once. Where MSMS is
+not installed or cannot triangulate the structure, the viewer draws its own
+surface instead, and a line under the view says why.</p>
+<p>This changes only what you see; it has no effect on the docking.</p>
+
 <h2 id="other-chains">Other chains the box reaches</h2>
 <figure>
 <img src="img/site-other-chain.png" alt="The box summary, and the notice that the box also reaches another chain">
@@ -88,3 +185,54 @@ removed.</li>
 a chain is not a molecule. The grid maps are then built with it in place, so the
 decision changes the energies of every pose. <a href="case-two-chains.html">A
 site between two chains</a> works through both answers on one structure.</p>
+
+<h2 id="maps">The grid maps</h2>
+<figure>
+<img src="img/site-maps.png" alt="The Grid maps panel of the Site card: built by AGFR, newest installed; AutoSite 1.1; the receptor gradient unticked; and a line saying which program builds them">
+<figcaption><b>How the box is filled.</b> The line under the three settings says
+which AGFR will build the maps on this machine, which AutoSite places the points
+the search starts from, and whether the gradient is added.</figcaption>
+</figure>
+<p>ADCP does not dock into the receptor itself but into grid maps of it: for
+each atom type, the energy an atom of that type would have at each point of the
+box, 0.375 &Aring; apart. AGFR builds them. Two AGFR programs can:</p>
+<ul>
+<li><b>AGFR 1.1</b>, which comes with the ADCP 1.1 suite. <b>AGFR, newest
+installed</b> uses it wherever that suite is installed.</li>
+<li><b>AGFR 1.0</b>, which comes with ADFRsuite, and which every run made before
+this choice used.</li>
+</ul>
+<p>Over the MDM2 example's receptor and box, with the same settings, the two
+wrote the same box, the same receptor and the same starting points. Their maps
+differ slightly, because each runs its own build of AutoGrid: where a peptide
+atom can sit, by at most 0.15 kcal/mol in the atom type maps and by up to 1.2 in
+the hydrogen bond donor maps, with correlations of 0.998 and above. AGFR 1.1
+also writes a constriction map, which ADCP does not read. ADCP 1.0 and ADCP 1.1
+both dock into maps from either.</p>
+<p>The run records which AGFR built its maps, with the command it ran, in
+<code>job.json</code> under <code>maps</code>. A run made before the choice
+existed is rebuilt, if it ever needs to be, the way it was first built.</p>
+
+<h2 id="autosite">AutoSite</h2>
+<p>AutoSite marks the places in the box where a ligand is likely to bind:
+clusters of grid points where a carbon, an oxygen acceptor or a hydrogen donor
+binds well. ADCP's search starts its replicas from them, and for a box from a
+pocket they are the pocket.</p>
+<p>AutoSite 1.0 keeps only the grid points that bind most strongly, so it tends
+to miss the weakly bound parts of a large ligand such as a peptide. AutoSite 1.1
+relaxes those cutoffs and scans several, which is why the ADCP authors recommend
+it. It is the default here. It changes where the search starts, not the maps: on
+the MDM2 example the maps were identical either way, and AutoSite 1.0 placed 380
+points where 1.1 placed 246.</p>
+
+<h2 id="gradient">The receptor gradient</h2>
+<p>Inside the receptor no atom can be, and the maps hold very high values there.
+The gradient replaces them with values that slope toward the receptor's surface,
+so a peptide atom caught inside is pushed out rather than stuck. Where a peptide
+atom can actually sit the maps are unchanged: on the MDM2 example they were the
+same to the last digit with and without it.</p>
+<p>It is off unless you tick <b>Add the receptor gradient</b>, because the ADCP
+authors found it expensive and of no real help to the search. AGFR 1.0 adds it
+unless told not to, so every run made before this choice has it. On the MDM2
+example it took AGFR 1.0 two and a half minutes, against 14 seconds without it,
+and AGFR 1.1 23 seconds more. The walltime estimate prices it either way.</p>

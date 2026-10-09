@@ -14,6 +14,7 @@ import re
 import types
 
 from . import adcp11, job as jobmod, peptide, report, slurm, target, verify
+from . import sizing, structure, trajectories
 from . import tools as toolmod
 from ._vendor import adcp, metrics, mmgbsa, poseviewer, prep, receptor
 
@@ -22,19 +23,103 @@ def tools_for(j):
     return toolmod.discover(roots=j.get("tools_roots") or [])
 
 
+def site_mode(j):
+    """Where the run's box comes from. A job file written before the choice
+    existed built it around its residues."""
+    if str(j.get("target_file") or "").strip():
+        return "target"
+    mode = str(j.get("site_mode") or "residues")
+    return mode if mode in target.SITE_MODES else "residues"
+
+
+def docking_options(j):
+    """The docking settings a job asks for, with what an older job file
+    means: every replica started as coil, a linear peptide, and the
+    trajectories left as ADCP left them (keep None)."""
+    try:
+        h = int(round(float(j.get("helical", 0))))
+    except (TypeError, ValueError):
+        h = 0
+    keep = j.get("keep_trajectories")
+    return {"helical": max(0, min(100, h)),
+            "cyclic": str(j.get("cyclic") or "none"),
+            "keep": None if keep is None else bool(keep)}
+
+
+def describe_options(j):
+    """The docking settings in a line, for the logs and the batch script."""
+    o = docking_options(j)
+    seq_arg, start = adcp11.start_arguments("A", o["helical"])
+    start_txt = ("every replica starts as coil" if o["helical"] <= 0
+                 else "every replica starts as a helix" if o["helical"] >= 100
+                 else "%d%% of replicas start as a helix (adcp %s)"
+                 % (o["helical"], " ".join(start)))
+    keep_txt = {None: "trajectories as ADCP leaves them",
+                True: "trajectories kept, one archive per peptide",
+                False: "trajectories not kept"}[o["keep"]]
+    return "%s; %s; %d pose(s) per peptide; %s" % (
+        start_txt, peptide.CYCLIC_LABELS.get(o["cyclic"], o["cyclic"]),
+        int(j.get("poses", 10)), keep_txt)
+
+
+def receptor_chains(j, atoms=None):
+    """The chains the receptor is made of. As chosen; or, with none chosen,
+    every chain, except that a peptide setting the box is never part of the
+    receptor it is docked into."""
+    chosen = [c for c in (j.get("chains") or []) if c]
+    if chosen or site_mode(j) != "ligand":
+        return chosen
+    p = structure.parse_ligand(j.get("site_ligand"))
+    if not p or p[0] != "chain":
+        return chosen
+    if atoms is None:
+        atoms = structure.read(j["receptor"])
+    return [c["id"] for c in structure.chains(atoms) if c["id"] != p[1]]
+
+
+def _site_keys(j):
+    """The residues the site is made of, as "A:41,A:45": typed for a box
+    around residues, and worked out by the prepare stage for the others."""
+    typed = str(j.get("hotspots") or "").strip()
+    if typed and site_mode(j) == "residues":
+        return typed
+    keys = (j.get("site") or {}).get("hotspots") or []
+    return ",".join("%s:%d" % (c, int(n)) for c, n in keys)
+
+
+def _placeholder(path, chain_list):
+    """One residue of the receptor, for receptor.load, which builds the
+    site's shell from its hotspots and has nothing to build it from when a
+    run's box came from a target file or from AutoSite before the pocket is
+    known. Nothing measured against the site reads it."""
+    try:
+        atoms = structure.read(path)
+    except Exception:                                           # noqa: BLE001
+        return ""
+    want = set(chain_list or [])
+    for a in atoms:
+        if (not want or a.chain in want) and a.resname in structure.AA3:
+            return "%s:%d" % (a.chain, a.resnum)
+    return ""
+
+
 def _reccfg(j, prepared=None):
     """The fields receptor.load and receptor.box read, taken from the job file.
 
     A namespace rather than a dict, because the vendored modules read attributes
     while this tool stores its settings as JSON.
     """
+    path = prepared or j["receptor"]
+    chain_list = receptor_chains(j) if (j.get("receptor") or "") and \
+        os.path.isfile(j.get("receptor") or "") else list(j.get("chains") or [])
+    # The hotspot string is passed exactly as entered: receptor's own
+    # parser reads both "A:30,A:31" and "98-112", and parsing it here as
+    # well would let the two spellings diverge.
+    hot = _site_keys(j) or _placeholder(path, chain_list)
     return types.SimpleNamespace(
-        receptor=prepared or j["receptor"],
-        chain=",".join(j.get("chains") or []),
-        # The hotspot string is passed exactly as entered: receptor's
-        # own parser reads both "A:30,A:31" and "98-112", and parsing
-        # it here as well would let the two spellings diverge.
-        hotspots=j.get("hotspots") or "",
+        receptor=path,
+        chain=",".join(chain_list),
+        hotspots=hot,
         shell_radius=float(j.get("shell_radius", 10.0)),
         box_padding=float(j.get("box_padding", 8.0)),
         box_min=float(j.get("box_min", 20.0)),
@@ -44,6 +129,40 @@ def _reccfg(j, prepared=None):
         forcefield=j.get("forcefield", "AMBER"))
 
 
+def _clamp(size, j):
+    lo, hi = float(j.get("box_min", 20.0)), float(j.get("box_max", 30.0))
+    return [max(lo, min(hi, float(s))) for s in size]
+
+
+def _other_chains(rec, cfg, centre, size, exclude=(), log=print):
+    """What receptor.load_for_box does about other chains the box reaches,
+    for a box that was not built from the residues: report them, or load
+    them as box_chains says. A peptide that sets the box is never loaded."""
+    want = str(cfg.box_chains or "ignore").strip()
+    found = receptor.chains_in_box(
+        cfg.receptor, centre, size, exclude=set(rec.chains) | set(exclude),
+        min_atoms=int(cfg.box_chains_min_atoms or 0))
+    if not found:
+        return rec
+    listed = ", ".join("%s (%d atoms)" % (c, n)
+                       for c, n in sorted(found.items(), key=lambda x: -x[1]))
+    if want.lower() == "ignore":
+        log("  the docking box also reaches chain(s) %s, which are NOT loaded."
+            % listed)
+        return rec
+    extra = (sorted(found) if want.lower() == "include"
+             else [c for c in receptor.chains_wanted(want)
+                   if c not in rec.chains and c not in exclude])
+    if not extra:
+        return rec
+    import copy as _copy
+    c2 = _copy.copy(cfg)
+    c2.chain = ",".join(list(rec.chains) + extra)
+    log("  loaded chain(s) %s as well: the box covers %s"
+        % (", ".join(extra), listed))
+    return receptor.load(c2)
+
+
 def stage_prepare(rundir, j=None, log=print):
     """Receptor preparation and the grid maps."""
     j = j or jobmod.load(rundir)
@@ -51,30 +170,74 @@ def stage_prepare(rundir, j=None, log=print):
         return _prepare_from_target(rundir, j, log)
     T = tools_for(j)
     recdir = os.path.join(rundir, "receptor")
+    mode = site_mode(j)
+    maps = target.maps_for(j)
+    site = {"mode": mode}
+    exclude = []
+    if mode == "ligand":
+        # The ligand's own residues are the site: the box is built around
+        # the ligand and each pose is then measured against what it touched.
+        atoms_in = structure.read(j["receptor"])
+        chain_list = receptor_chains(j, atoms_in)
+        lig = structure.ligand_atoms(atoms_in, j.get("site_ligand"))
+        if not lig:
+            raise SystemExit("the ligand %s is not in %s"
+                             % (j.get("site_ligand"), j["receptor"]))
+        keys = structure.contacts(atoms_in, lig, chains_keep=chain_list)
+        if not keys:
+            raise SystemExit("the ligand %s touches none of the receptor's "
+                             "residues within %.0f A"
+                             % (j.get("site_ligand"), structure.CONTACT))
+        j.setdefault("site", {})["hotspots"] = [[c, int(n)] for c, n in keys]
+        p = structure.parse_ligand(j.get("site_ligand"))
+        if p and p[0] == "chain":
+            exclude = [p[1]]
+        lig_centre, lig_size, lig_note = structure.ligand_box(
+            lig, float(j.get("box_padding", 8.0)),
+            float(j.get("box_min", 20.0)), float(j.get("box_max", 30.0)))
+        site.update({"ligand": j.get("site_ligand"), "ligand_note": lig_note})
     cfg = _reccfg(j)
 
     # Load the receptor and build the box together: load_for_box reads
     # the chains, refuses a hotspot that is not in the structure, builds
     # the box from the hotspots, and reports any other chain the box
-    # reaches.
+    # reaches. A box from a ligand or an AutoSite pocket is placed below,
+    # and only the chains are taken from here.
     log("reading the receptor and sizing the box")
-    rec, centre, size = receptor.load_for_box(cfg, log=log)
-    log("  site: %d hotspot residue(s) on chain(s) %s, box %.1f x %.1f x %.1f A"
-        % (len(rec.hotspot_keys), ", ".join(rec.chains),
-           size[0], size[1], size[2]))
+    if mode != "residues":
+        cfg.box_chains = "ignore"
+    rec, centre, size = receptor.load_for_box(
+        cfg, log=log if mode == "residues" else (lambda *a: None))
+    if mode == "ligand":
+        centre, size = lig_centre, lig_size
+        cfg.box_chains = j.get("box_chains", "ignore")
+        rec = _other_chains(rec, cfg, centre, size, exclude=exclude, log=log)
+        log("  site: the box is around %s (%s), box %.1f x %.1f x %.1f \u00c5; "
+            "%d residue(s) of chain(s) %s touch it"
+            % ((j.get("site_ligand"), site["ligand_note"]) + tuple(size)
+               + (len(rec.hotspot_keys), ", ".join(rec.chains))))
+    elif mode == "residues":
+        log("  site: %d hotspot residue(s) on chain(s) %s, box %.1f x %.1f x "
+            "%.1f A" % (len(rec.hotspot_keys), ", ".join(rec.chains),
+                        size[0], size[1], size[2]))
+    else:
+        log("  site: the box is placed by AutoSite once the receptor is "
+            "prepared; chain(s) %s" % ", ".join(rec.chains))
     # Reported where the box is decided rather than only in the form's
     # estimate: a command-line run, a resumed run and a reused job.json
     # all arrive here without passing through the page.
     from . import sizing as _sz
     _longest = max((len(peptide.residues(peptide.clean(p.get("sequence") or "")))
                     for p in (j.get("peptides") or [])), default=0)
-    _w = _sz.box_warning(_longest, size, j.get("box_max"))
-    if _w:
-        log("  BOX: %s" % _w)
+    if mode != "pocket":
+        _w = _sz.box_warning(_longest, size, j.get("box_max"))
+        if _w:
+            log("  BOX: %s" % _w)
 
     # A site larger than box_max is clipped silently, and every pose is
     # then scored against a pocket that was not requested.
-    outside = receptor.hotspots_outside_box(rec, centre, size)
+    outside = (receptor.hotspots_outside_box(rec, centre, size)
+               if mode != "pocket" else [])
     if outside:
         log("  WARNING the box does not contain %d of the residues it was "
             "built from: %s"
@@ -83,63 +246,188 @@ def stage_prepare(rundir, j=None, log=print):
         log("    no pose can reach them. Raise box_max, or split the site "
             "into two runs.")
 
-    # The full preparation: alternate locations, modified residues,
-    # waters, cofactors, missing side chains, termini, disulphides,
-    # protonation at the chosen pH, then a restrained minimisation.
-    log("preparing the receptor (this is the full Amber preparation)")
-    prepared = prep.run(
-        j["receptor"], recdir, ph=float(j.get("ph", 7.4)),
-        forcefield=j.get("forcefield", "AMBER"), log=log,
-        chain=",".join(rec.chains),
-        keep_hetatms=bool(j.get("keep_hetatms", False)),
-        # Ions go with the other heteroatoms unless those are kept, as the
-        # page says: a kept ion has no template in the minimisation's force
-        # field, and the minimisation is then skipped.
-        keep_ions=bool(j.get("keep_hetatms", False)),
-        fill_loops=bool(j.get("fill_loops", False)),
-        minimise_structure=bool(j.get("minimise", True)),
-        restraint=float(j.get("restraint", 10.0)))
+    protonation = jobmod.protonation_of(j)
+    reduce_exe = T.adfr_program("reduce")
+    from_adapt = bool((j.get("adapt") or {}).get("folder"))
+    if from_adapt:
+        # ADapt chose what the receptor holds and AGFR's own code wrote it:
+        # its PDBQT is docked as it is, and its _rec_H.pdb, the same
+        # receptor with every hydrogen reduce placed, is the prepared one.
+        prepared, recq = _take_adapt(rundir, j, log)
+    else:
+        # The full preparation: alternate locations, modified residues,
+        # waters, cofactors, missing side chains, termini, disulphides,
+        # protonation (reduce, or PDB2PQR with PROPKA at the chosen pH),
+        # then a restrained minimisation.
+        log("preparing the receptor (this is the full Amber preparation), "
+            "protonated with %s"
+            % ("reduce" if protonation == "reduce"
+               else "PDB2PQR and PROPKA at pH %g" % float(j.get("ph", 7.4))))
+        prepared = prep.run(
+            j["receptor"], recdir, ph=float(j.get("ph", 7.4)),
+            forcefield=j.get("forcefield", "AMBER"), log=log,
+            chain=",".join(rec.chains),
+            keep_hetatms=bool(j.get("keep_hetatms", False)),
+            # Ions go with the other heteroatoms unless those are kept, as
+            # the page says: a kept ion has no template in the minimisation's
+            # force field, and the minimisation is then skipped.
+            keep_ions=bool(j.get("keep_hetatms", False)),
+            fill_loops=bool(j.get("fill_loops", False)),
+            # Absent from job files written before the setting existed, and
+            # those runs rebuilt side chains, so absent reads as on.
+            rebuild_sidechains=bool(j.get("rebuild_sidechains", True)),
+            minimise_structure=bool(j.get("minimise", True)),
+            restraint=float(j.get("restraint", 10.0)),
+            protonation=protonation, reduce_exe=reduce_exe)
 
-    # PDBQT from the prepared structure, then the grid maps over the box.
-    # The prepared file is passed in beside the loaded structure rather
-    # than reloaded, so the chains and hotspots remain the validated
-    # ones.
-    # prepare_receptor falls back to the chain as read when it cannot use
-    # the prepared structure, and says so only in this stage's log. The
-    # fallback is noted in preparation.log too, which the results page
-    # reads, so a receptor docked without its preparation is not presented
-    # as a prepared one.
-    fell_back = []
+        # PDBQT from the prepared structure, then the grid maps over the
+        # box. The prepared file is passed in beside the loaded structure
+        # rather than reloaded, so the chains and hotspots remain the
+        # validated ones.
+        # prepare_receptor falls back to the chain as read when it cannot
+        # use the prepared structure, and says so only in this stage's log.
+        # The fallback is noted in preparation.log too, which the results
+        # page reads, so a receptor docked without its preparation is not
+        # presented as a prepared one.
+        fell_back = []
 
-    def _log(*a):
-        if FALLBACK_SIGN in " ".join(str(x) for x in a):
-            fell_back.append(True)
-        log(*a)
+        def _log(*a):
+            if FALLBACK_SIGN in " ".join(str(x) for x in a):
+                fell_back.append(True)
+            log(*a)
 
-    recq = receptor.prepare_pdbqt(rec, recdir, T, prepared_pdb=prepared,
-                                  log=_log)
-    if fell_back:
-        with open(os.path.join(recdir, "preparation.log"), "a") as fh:
-            fh.write("  receptor pdbqt: skipped; prepare_receptor could not "
-                     "use the prepared structure, so the docking receptor was "
-                     "written from the chain as read, with hydrogens added "
-                     "geometrically\n")
-    # target.build is the vendored builder plus a check of what it
-    # produced: a truncated or mismatched .trg still docks, into empty
-    # maps.
-    trg = target.build(recq, centre, size, os.path.join(rundir, "target"), T,
-                       name="receptor", log=log)
+        recq = receptor.prepare_pdbqt(rec, recdir, T, prepared_pdb=prepared,
+                                      log=_log)
+        if fell_back:
+            with open(os.path.join(recdir, "preparation.log"), "a") as fh:
+                fh.write("  receptor pdbqt: skipped; prepare_receptor could "
+                         "not use the prepared structure, so the docking "
+                         "receptor was written from the chain as read, with "
+                         "hydrogens added geometrically\n")
+    tdir = os.path.join(rundir, "target")
+    hot_keys = [[c, int(n)] for c, n in rec.hotspot_keys]
+    if mode == "pocket":
+        # AutoSite on the prepared receptor, through agfr -b fill, for the
+        # box; the residues lining the pocket are then the site.
+        found = target.find_pocket(recq, tdir, T, maps,
+                                   pocket=j.get("site_pocket") or "best",
+                                   padding=float(j.get("box_padding", 8.0)),
+                                   log=log)
+        centre, size = found["centre"], _clamp(found["size"], j)
+        if size != found["size"]:
+            log("  the pocket's box, %s A, is held between the minimum and "
+                "maximum box: %s A"
+                % (" x ".join("%.1f" % s for s in found["size"]),
+                   " x ".join("%.1f" % s for s in size)))
+        lining = structure.near_points(
+            structure.read(prepared if prepared and os.path.isfile(prepared)
+                           else j["receptor"]),
+            found["points"], chains_keep=list(rec.chains))
+        hot_keys = [[c, int(n)] for c, n in lining]
+        site.update({"pocket": j.get("site_pocket") or "best",
+                     "pockets": found["pockets"][:20],
+                     "pocket_points": len(found["points"]),
+                     "pocket_box": found["size"],
+                     "pocket_command": found["command"]})
+        _w = _sz.box_warning(_longest, size, j.get("box_max"))
+        if _w:
+            log("  BOX: %s" % _w)
+        log("  %d residue(s) line the pocket: %s"
+            % (len(hot_keys), ", ".join("%s:%d" % (c, n)
+                                         for c, n in hot_keys[:30])))
+    # target.build is agfr plus a check of what it produced: a truncated or
+    # mismatched .trg still docks, into empty maps.
+    trg = target.build(recq, centre, size, tdir, T, name="receptor", log=log,
+                       maps=maps)
 
-    j["site"] = {"centre": [float(v) for v in centre],
+    site.update({"centre": [float(v) for v in centre],
                  "size": [float(v) for v in size],
-                 "hotspots": [[c, int(n)] for c, n in rec.hotspot_keys],
+                 "hotspots": hot_keys,
                  "chains": list(rec.chains),
-                 "outside_box": outside}
-    j["receptor_info"] = {"prepared_pdb": prepared, "pdbqt": recq}
+                 "outside_box": outside})
+    j["site"] = site
+    j["maps"] = dict(maps.record(), command=target.command(
+        maps, T, recq, "receptor", centre, size))
+    if maps.agfr == "1.1":
+        j["maps"]["agfr_version"] = adcp11.agfr_version(maps.exe)
+    j["receptor_info"] = {"prepared_pdb": prepared, "pdbqt": recq,
+                          "protonation": _protonation_record(
+                              j, recdir, reduce_exe, from_adapt)}
     j["target"] = trg
     j["state"] = "prepared"
     jobmod.save(rundir, j)
     return trg
+
+
+def _protonation_record(j, recdir, reduce_exe, from_adapt=False):
+    """How the prepared receptor was protonated, for job.json: the method,
+    the program's version, and, for PROPKA, the pH. Read from what the
+    preparation logged, so a reduce that could not run and was replaced by
+    PDB2PQR is recorded as what actually ran."""
+    if from_adapt:
+        a = j.get("adapt") or {}
+        return {"method": "reduce", "by": "ADapt (AGFR's protonate)",
+                "version": a.get("reduce") or prep.reduce_version(reduce_exe)}
+    method = jobmod.protonation_of(j)
+    try:
+        log_text = open(os.path.join(recdir, "preparation.log")).read()
+    except OSError:
+        log_text = ""
+    if method == "reduce" and "protonation fallback: done" in log_text:
+        method = "propka"
+    if method == "reduce":
+        return {"method": "reduce", "program": reduce_exe or "",
+                "version": prep.reduce_version(reduce_exe),
+                "flags": "-BUILD -Nterm<first residue> -DB "
+                         "reduce_wwPDB_het_dict.txt"}
+    return {"method": "propka", "program": "PDB2PQR with PROPKA",
+            "ph": float(j.get("ph", 7.4))}
+
+
+def _take_adapt(rundir, j, log=print):
+    """(prepared PDB, PDBQT) of a receptor ADapt saved, copied into the run.
+
+    Copied rather than read where ADapt left them, so the run holds what it
+    docked into even after the session folder is tidied away; and checked
+    against the md5 session.json records and the one the run was set up
+    with, so a file changed since is refused rather than docked into.
+    """
+    import shutil
+    from . import adapt as adaptmod
+    a = j.get("adapt") or {}
+    got = adaptmod.read_save(a.get("folder"), a.get("save"))
+    for k in ("pdbqt_md5", "pdb_md5"):
+        if a.get(k) and a[k] != got.get(k):
+            raise SystemExit("the receptor ADapt saved in %s has changed "
+                             "since this run was set up" % a.get("folder"))
+    recdir = os.path.join(rundir, "receptor")
+    os.makedirs(recdir, exist_ok=True)
+    recq = os.path.join(recdir, "receptor.pdbqt")
+    prepared = os.path.join(recdir, "prepared.pdb")
+    shutil.copy(got["pdbqt"], recq)
+    shutil.copy(got["pdb"], prepared)
+    shutil.copy(got["session_json"], os.path.join(recdir, "adapt_session.json"))
+    kept = ", ".join(got.get("hetero") or []) or "none"
+    with open(os.path.join(recdir, "preparation.log"), "w") as fh:
+        fh.write("Receptor preparation\n====================\n\n"
+                 "in  : %s\nout : %s\n\n" % (got["pdbqt"], prepared))
+        fh.write("  ADapt: done; receptor save %d of the session in %s, "
+                 "written by %s from %s, %s. ADapt chose the assembly, the "
+                 "hetero groups kept (%s), ion charges, alternate locations "
+                 "and mutations, and AGFR's own code wrote the receptor. This "
+                 "package's preparation was not run\n"
+                 % (got["save"], got["folder"], got.get("adapt_version", "ADapt"),
+                    got.get("input") or "its input", got.get("tab") or "",
+                    kept))
+        fh.write("  protonation: done; %s, as ADapt and AGFR run it, placed "
+                 "every hydrogen (%s)\n"
+                 % (got.get("reduce") or "reduce", os.path.basename(got["pdb"])))
+    log("  receptor from ADapt: save %d of %s (%s), hetero groups kept: %s"
+        % (got["save"], got["folder"], got.get("tab") or "", kept))
+    a.update({k: got[k] for k in ("save", "tab", "pdbqt", "pdb", "pdbqt_md5",
+                                  "pdb_md5", "reduce", "biomolecule", "hetero")})
+    j["adapt"] = a
+    return prepared, recq
 
 
 def _prepare_from_target(rundir, j, log=print):
@@ -172,11 +460,42 @@ def _rec_for_mmgbsa(j, log=print):
         try:
             rec = receptor.load(_reccfg(j, prepared))
             log("  MM-GBSA uses the prepared receptor")
+            _carry_protonation(rec, j, prepared, log)
             return rec
         except Exception as exc:                      # noqa: BLE001
             log("  could not load the prepared receptor (%s); using the "
                 "input structure" % exc)
     return receptor.load(_reccfg(j))
+
+
+def _carry_protonation(rec, j, prepared, log=print):
+    """Give a receptor read from the prepared PDB the protonation its
+    hydrogens record, for MM-GBSA to build the complex with.
+
+    The receptor is read as heavy atoms, so the residue names are all that
+    can carry a histidine's state to tleap. Under reduce (the default, and
+    every receptor from ADapt) the states are the ones reduce chose for the
+    receptor that was docked into: HID, HIE or HIP from where it put the
+    ring protons, CYX for a cysteine in a disulphide, and an Asn or Gln it
+    turned over is turned over in the coordinates themselves, which the
+    complex keeps. Under PDB2PQR with PROPKA nothing is attached, and the
+    complex is protonated again at the run's pH, as it always was.
+    """
+    # What actually ran, where the prepare stage recorded it: reduce asked
+    # for and replaced by PDB2PQR is recorded as PDB2PQR.
+    info = (j.get("receptor_info") or {}).get("protonation") or {}
+    if (info.get("method") or jobmod.protonation_of(j)) != "reduce":
+        return rec
+    states = mmgbsa.residue_states(prepared)
+    rec.protonation = {"method": "reduce", "states": states,
+                       "reduce": tools_for(j).adfr_program("reduce")}
+    changed = {}
+    for v in states.values():
+        changed[v] = changed.get(v, 0) + 1
+    if changed:
+        log("  the receptor's protonation from the prepared receptor: "
+            + ", ".join("%s x%d" % kv for kv in sorted(changed.items())))
+    return rec
 
 
 # What receptor.prepare_pdbqt logs when it falls back to the unprepared
@@ -208,9 +527,10 @@ def stage_dock(rundir, index, j=None, log=print):
     if engine == "missing":
         raise SystemExit("ADCP 1.1 was asked for but is not installed here")
     label = "ADCP " + ((adcp11.version(exe) or "1.1") if engine == "1.1" else "1.0")
-    log("docking %s (%s) with %s, %d replicas x %d steps on %d core(s)"
+    opts = docking_options(j)
+    log("docking %s (%s) with %s, %d replicas x %d steps on %d core(s); %s"
         % (name, seq, label, int(j.get("replicas", 50)),
-           int(j.get("steps", 2500000)), cpus or 1))
+           int(j.get("steps", 2500000)), cpus or 1, describe_options(j)))
     if engine == "1.1":
         modes, pdir = adcp11.dock(seq, trg, wd, exe, key=jobmod.key(seq),
                                   replicas=int(j.get("replicas", 50)),
@@ -218,12 +538,22 @@ def stage_dock(rundir, index, j=None, log=print):
                                   poses=keep, cpus=cpus,
                                   minimize=int(j.get("omm_minimize") or 0),
                                   omm_env=j.get("omm_env") or "implicit",
-                                  log=log)
+                                  log=log, helical=opts["helical"],
+                                  cyclic=opts["cyclic"],
+                                  keep=bool(opts["keep"]))
     else:
+        seq_arg, start = adcp11.start_arguments(seq, opts["helical"])
         modes, pdir = adcp.dock(seq, trg, wd, T,
                                 replicas=int(j.get("replicas", 50)),
                                 steps=int(j.get("steps", 2_500_000)),
-                                cpus=cpus, log=log)
+                                cpus=cpus, log=log, seq_arg=seq_arg,
+                                extra_args=start + adcp11.cyclic_flags(
+                                    opts["cyclic"]))
+    # One archive per peptide, or nothing: hundreds of trajectory files per
+    # peptide fill a cluster's file quota long before its byte quota.
+    if modes:
+        trajectories.finish(pdir, jobmod.key(seq), engine, opts["keep"],
+                            log=log)
     out = {"name": name, "peptide": seq, "engine": label,
            # The cluster size arrives with the score and was being dropped.
            # It is how many of the search's clustered solutions fall in this
@@ -258,6 +588,16 @@ def stage_dock(rundir, index, j=None, log=print):
             "ADCP 1.1's OpenMM minimization for these" % seq)
         out["mmgbsa"] = []
         out["mmgbsa_skipped"] = "non-standard or D residues"
+    elif j.get("mmgbsa") and out["modes"] and opts["cyclic"] != "none":
+        # The complex is built from the sequence as a linear chain, with free
+        # termini and no disulfide, so a ring's closing bond would be two
+        # atoms pressed together that the force field does not join.
+        log("  no MM-GBSA for %s: it was docked %s, and the rescoring builds "
+            "a linear peptide; use ADCP 1.1's OpenMM minimization, which "
+            "adds the ring's closing bond"
+            % (seq, peptide.CYCLIC_LABELS[opts["cyclic"]]))
+        out["mmgbsa"] = []
+        out["mmgbsa_skipped"] = "cyclic peptide"
     elif j.get("mmgbsa") and out["modes"]:
         rec = _rec_for_mmgbsa(j, log)
         n = min(int(j.get("mmgbsa_poses", 5)), keep)
@@ -272,10 +612,10 @@ def stage_dock(rundir, index, j=None, log=print):
             if pose is None:
                 break
             # At the run's pH, as the docking was. The complex is
-            # re-protonated by pdb2pqr before the energy in
-            # either case; this is passed so that anything
-            # written from this molecule carries the right
-            # charges.
+            # protonated again before the energy (by PDB2PQR, or
+            # under reduce named from the receptor's own states);
+            # this is passed so that anything written from this
+            # molecule carries the right charges.
             mol = poseviewer.transplant(seq, pose,
                                         ph=float(j.get("ph", 7.4)))
             if mol is None:
@@ -487,13 +827,29 @@ def _panel_geometry(rundir, j, seq, out, pdir, log=print):
         log("  no panel: the receptor could not be read (%s)" % exc)
         return
     n = min(int(j.get("mmgbsa_poses", 5)), len(out["modes"]))
+    # A histidine counts as a cation in the salt bridge rule only when it
+    # carries both protons, and a receptor read as heavy atoms names every
+    # one HIS, which the rule takes as protonated. Under reduce the names
+    # come from the prepared receptor's hydrogens, as MM-GBSA's do; a run
+    # protonated by PDB2PQR is measured as it always was.
+    rec_atoms = rec.atoms
+    states = (getattr(rec, "protonation", None) or {}).get("states") or {}
+    if states:
+        import copy as _copy
+        rec_atoms = []
+        for a in rec.atoms:
+            new = states.get((a.chain, a.resnum))
+            if a.resname == "HIS" and new in ("HID", "HIE", "HIP"):
+                a = _copy.copy(a)
+                a.resname = new
+            rec_atoms.append(a)
     poses, rows_best, best = [], [], None
     for k in range(1, n + 1):
         pose = adcp.read_pose(pdir, k)
         if pose is None:
             break
         try:
-            st = metrics.from_atoms(rec.atoms, pose)
+            st = metrics.from_atoms(rec_atoms, pose)
             m, per_res, per_pep = metrics.for_structure(st, hotspots=hot)
         except Exception as exc:                                # noqa: BLE001
             log("  pose %d: the panel could not be measured (%s)" % (k, exc))
@@ -1004,6 +1360,11 @@ def _constants(j, rundir=None):
                                "more negative than the reported total and not "
                                "to it exactly; the pairwise terms agree",
               "ph": float(j.get("ph", 7.4)),
+              # Which program placed the receptor's hydrogens, and so chose
+              # its histidines: the hydrogen bond and salt bridge columns
+              # depend on it.
+              "protonation": ((j.get("receptor_info") or {}).get("protonation")
+                              or {"method": jobmod.protonation_of(j)}),
               "site": [[c_, n] for c_, n in _hotspots(j)]})
     return c
 
@@ -1031,6 +1392,102 @@ def job_name(rundir, j, stage):
     # Trim after the cut, or a boundary that lands on a separator leaves
     # a trailing dash.
     return "%s-%s" % (name[:18].rstrip("-_.") or "adcp", stage)
+
+
+def prep_time(j):
+    """The prepare job's walltime: what the job file asks for, or the
+    estimate booked (twice it and the buffer, sizing.book), and never less
+    than the four hours every prepare job was given before it was priced.
+
+    The box is not known until the stage runs, so it is priced at the
+    largest it may be.
+    """
+    if j.get("prep_time"):
+        return j["prep_time"]
+    if str(j.get("target_file") or "").strip():
+        return "04:00:00"
+    from . import sizing
+    atoms, kinds = sizing.receptor_cost(j.get("receptor") or "",
+                                        j.get("chains") or [])
+    try:
+        maps = target.maps_for(j)
+    except target.TargetError:
+        maps = target.Maps()
+    edge = float(j.get("box_max", 30.0))
+    m = sizing.prep_minutes(atoms, kinds, bool(j.get("fill_loops")),
+                            (edge, edge, edge), agfr=maps.agfr,
+                            gradient=maps.gradient, autosite=maps.autosite,
+                            pocket=site_mode(j) == "pocket",
+                            protonation=jobmod.protonation_of(j),
+                            prepared=not (j.get("adapt") or {}).get("folder"))
+    return sizing.hhmmss(sizing.book_prep(m))
+
+
+def batch_notes(j, stage):
+    """What a job script's stage will do, as comment lines for the top of
+    the script. Read from job.json, which the stage itself reads too."""
+    out = ["What this stage does, as job.json sets it:"]
+    if stage == "prepare":
+        if str(j.get("target_file") or "").strip():
+            out.append("  receptor, maps and box from the target file %s"
+                       % j["target_file"])
+            return out
+        mode = site_mode(j)
+        try:
+            kept = receptor_chains(j)
+        except Exception:                                       # noqa: BLE001
+            kept = list(j.get("chains") or [])
+        chains = ", ".join(kept) or "all"
+        a = j.get("adapt") or {}
+        if a.get("folder"):
+            out.append("  receptor from ADapt: receptor save %s of the session "
+                       "in %s (%s); its PDBQT is docked as ADapt wrote it, "
+                       "and its _rec_H.pdb, protonated by reduce, is the "
+                       "prepared receptor. This package's preparation is not "
+                       "run" % (a.get("save") or "newest", a["folder"],
+                                a.get("tab") or "tab not recorded"))
+        else:
+            out.append("  receptor %s, chain(s) %s" % (j.get("receptor"),
+                                                      chains))
+            out.append("  protonation: %s" % (
+                "reduce -BUILD, ADFRsuite's (PDB2PQR with PROPKA if reduce "
+                "cannot run)" if jobmod.protonation_of(j) == "reduce"
+                else "PDB2PQR with PROPKA at pH %g" % float(j.get("ph", 7.4))))
+        if mode == "ligand":
+            where = "around the ligand %s" % j.get("site_ligand")
+        elif mode == "pocket":
+            where = ("around AutoSite's %s (agfr -b fill -p %s)"
+                     % ("best scoring pocket" if (j.get("site_pocket")
+                                                  or "best") == "best"
+                        else "pockets, all of them",
+                        j.get("site_pocket") or "best"))
+        else:
+            where = "around the residues %s" % (j.get("hotspots") or "")
+        out.append("  box %s, padding %g A, held between %g and %g A"
+                   % (where, float(j.get("box_padding", 8.0)),
+                      float(j.get("box_min", 20.0)),
+                      float(j.get("box_max", 30.0))))
+        try:
+            out.append("  maps %s" % target.maps_for(j).describe())
+        except target.TargetError as exc:
+            out.append("  maps: %s" % exc)
+        return out
+    engine, _exe = jobmod.resolve_engine(j)
+    out.append("  docking ADCP %s, %d replicas x %d steps"
+               % (engine, int(j.get("replicas", 50)),
+                  int(j.get("steps", 2_500_000))))
+    out.append("  " + describe_options(j))
+    if j.get("mmgbsa"):
+        out.append("  then MM-GBSA on %d pose(s), %s, %s; the complex keeps %s"
+                   % (int(j.get("mmgbsa_poses", 5)),
+                      j.get("mmgbsa_engine") or "amber",
+                      j.get("mmgbsa_model") or "obc2",
+                      "the receptor's protonation from reduce, and reduce "
+                      "protonates the peptide"
+                      if jobmod.protonation_of(j) == "reduce"
+                      else "is protonated again by PDB2PQR with PROPKA at "
+                      "pH %g" % float(j.get("ph", 7.4))))
+    return out
 
 
 def _scripts(rundir, j, python=None):
@@ -1102,9 +1559,9 @@ def submit(rundir, j=None, python=None, log=print):
     common = _scripts(rundir, j, python)
     s1 = slurm.write_script(os.path.join(rundir, "01_prepare.sbatch"),
                             name=job_name(rundir, j, "prep"), cpus=min(16, int(j.get("cpus", 48))),
-                            time=slurm.within_limit(j.get("prep_time", "04:00:00"),
-                                                    j.get("partition"), j.get("sbatch_extra")),
-                            stage="prepare", **common)
+                            time=slurm.within_limit(prep_time(j), j.get("partition"),
+                                                    j.get("sbatch_extra")),
+                            stage="prepare", notes=batch_notes(j, "prepare"), **common)
     id1 = slurm.submit(s1)
     log("prepare: %s" % id1)
 
@@ -1119,13 +1576,14 @@ def submit(rundir, j=None, python=None, log=print):
         name=job_name(rundir, j, "dock+mm" if j.get("mmgbsa") else "dock"),
         cpus=int(j.get("cpus", 48)), time=j.get("time", "08:00:00"),
         indices=slurm.index_spec(range(n)),
-        throttle=("%%%d" % thr) if thr else "", **common)
+        throttle=("%%%d" % thr) if thr else "",
+        notes=batch_notes(j, "dock"), **common)
     id2 = slurm.submit(s2, depends_on=id1)
     log("dock: %s (%d task%s)" % (id2, n, "" if n == 1 else "s"))
 
     s3 = slurm.write_script(os.path.join(rundir, "03_report.sbatch"),
                             name=job_name(rundir, j, "report"), cpus=2,
-                            time=slurm.within_limit("01:00:00", j.get("partition"),
+                            time=slurm.within_limit(sizing.REPORT_WALLTIME, j.get("partition"),
                                                     j.get("sbatch_extra")),
                             stage="report", **common)
     id3 = slurm.submit(s3, depends_on=id2, kind="afterany")
@@ -1253,7 +1711,7 @@ def submit_rescore(rundir, engine, j=None, python=None, log=print):
     log("rescore (%s): %s" % (eng.label, id1))
     s2 = slurm.write_script(os.path.join(rundir, "03_report.sbatch"),
                             name=job_name(rundir, j, "report"), cpus=2,
-                            time="01:00:00", stage="report", **common)
+                            time=sizing.REPORT_WALLTIME, stage="report", **common)
     id2 = slurm.submit(s2, depends_on=id1, kind="afterany")
     log("report: %s" % id2)
     j.setdefault("jobs", {}).update({"rescore": id1, "report": id2})
@@ -1286,7 +1744,7 @@ def submit_panel(rundir, j=None, python=None, log=print):
     log("panel: %s" % id1)
     s2 = slurm.write_script(os.path.join(rundir, "03_report.sbatch"),
                             name=job_name(rundir, j, "report"), cpus=2,
-                            time="01:00:00", stage="report", **common)
+                            time=sizing.REPORT_WALLTIME, stage="report", **common)
     id2 = slurm.submit(s2, depends_on=id1, kind="afterany")
     log("report: %s" % id2)
     j.setdefault("jobs", {}).update({"panel": id1, "report": id2})
@@ -1320,10 +1778,9 @@ def resume(rundir, j=None, python=None, log=print):
         s1 = slurm.write_script(os.path.join(rundir, "01_prepare.sbatch"),
                                 name=job_name(rundir, j, "prep"),
                                 cpus=min(16, int(j.get("cpus", 48))),
-                                time=slurm.within_limit(j.get("prep_time", "04:00:00"),
-                                                        j.get("partition"),
+                                time=slurm.within_limit(prep_time(j), j.get("partition"),
                                                         j.get("sbatch_extra")),
-                                stage="prepare", **common)
+                                stage="prepare", notes=batch_notes(j, "prepare"), **common)
         dep = slurm.submit(s1)
         log("prepare: %s" % dep)
     thr = int(j.get("throttle") or 0)
@@ -1331,12 +1788,13 @@ def resume(rundir, j=None, python=None, log=print):
     s2 = slurm.write_script(os.path.join(rundir, "02_dock_resume.sbatch"),
                             name=job_name(rundir, j, "dock"), cpus=int(j.get("cpus", 48)),
                             time=j.get("time", "08:00:00"), indices=spec,
-                            throttle=("%%%d" % thr) if thr else "", **common)
+                            throttle=("%%%d" % thr) if thr else "",
+                            notes=batch_notes(j, "dock"), **common)
     id2 = slurm.submit(s2, depends_on=dep) if dep else slurm.submit(s2)
     log("dock: %s for %d peptide(s), array %s" % (id2, len(todo), spec))
     s3 = slurm.write_script(os.path.join(rundir, "03_report.sbatch"),
                             name=job_name(rundir, j, "report"), cpus=2,
-                            time=slurm.within_limit("01:00:00", j.get("partition"),
+                            time=slurm.within_limit(sizing.REPORT_WALLTIME, j.get("partition"),
                                                     j.get("sbatch_extra")),
                             stage="report", **common)
     id3 = slurm.submit(s3, depends_on=id2, kind="afterany")

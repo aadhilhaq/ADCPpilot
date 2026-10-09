@@ -76,6 +76,10 @@ main{max-width:1180px;margin:0 auto;padding:20px 24px 80px}
 .embed header{padding:8px 18px;text-align:left}
 .embed .brandblock{max-width:none}
 .embed .brandblock h1,.embed .brandblock>.sub{display:none}
+/* Except what a paper must cite: the notebook's banner names ADCP but not
+   the papers, and this is the one line a methods section depends on. */
+.embed .brandblock>.sub.mustcite{display:block;text-align:left;margin-bottom:6px}
+.mustcite .ref{white-space:nowrap}
 .embed .headbar{margin-top:0;justify-content:flex-end}
 .embed main{max-width:none;padding:14px 18px 60px}
 /* Centred by default. Sequences, the residue strip, logs and the contact
@@ -223,6 +227,25 @@ textarea{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;min-height:76
 .checks .chk{display:inline-flex;align-items:center;gap:7px;margin:0;
   font-size:12.5px;color:var(--fg);cursor:pointer;line-height:1.2}
 .checks .chk input{width:auto;margin:0;flex:0 0 auto}
+/* The receptor's preparation, as one group under its chains. A panel rather
+   than a heading of its own: it belongs to the Receptor card, and a second
+   ribbon inside a card would read as a second card. */
+.prepgroup{margin-top:12px;padding:10px 14px 12px;background:var(--soft);
+  border:1px solid var(--line);border-radius:10px;text-align:left}
+.grouphead{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--dim);font-weight:650}
+.grouphead span{text-transform:none;letter-spacing:0;font-weight:400;
+  margin-left:6px}
+.prepgroup .checks{margin-top:8px}
+/* The pH is a number inside a step, so it is sized to its four characters
+   rather than to a form column. */
+.prepsteps input[type=number]{width:74px;padding:4px 8px}
+/* A choice inside a step is as wide as its words, not a form column, and
+   may wrap on a phone rather than push the panel wider than the screen. */
+.prepsteps select{width:auto;max-width:100%;padding:4px 8px}
+.prepsteps .chk{flex-wrap:wrap;max-width:100%}
+.prepgroup .why:empty{display:none}
+#prepnote,#mapsnote{margin-top:8px}
 /* The box switch sits on the viewer it draws into. The site row reports the
    box as a centre and edge lengths, which cannot be judged against a groove
    by eye, so the box is drawn in the picker over the structure, and the tick
@@ -240,6 +263,19 @@ textarea{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;min-height:76
   font-size:12px;color:var(--fg);cursor:pointer;line-height:1.2;
   white-space:nowrap}
 .pickhead label input{width:auto;margin:0;flex:0 0 auto}
+/* The two ticks that change what the view draws, side by side, wrapping
+   under each other on a phone rather than past the edge. */
+.pickticks{display:inline-flex;gap:6px 16px;flex-wrap:wrap;flex:0 1 auto}
+#surfnote{margin-top:4px;font-size:11.5px;text-align:left}
+#surfnote:empty{display:none}
+/* What stays a choice of the structure file and not of ADapt's receptor is
+   greyed out while ADapt's is used, as is the pH while reduce is chosen. */
+.prepsteps .chk.off{opacity:.45}
+#adaptuse .bar{margin-top:8px}
+/* A button in a row is laid out by .row button, which outranks .hide. */
+.row button.hide{display:none}
+#adaptwhat b{font-weight:600}
+#adaptwhat code{word-break:break-all}
 .row>div{flex:1 1 150px;min-width:0}
 /* Every control in a row has the same height. Otherwise a .ghost button (5px
    padding, 12.5px text) is shorter than the input beside it, and bottom
@@ -401,14 +437,29 @@ button.q:focus-visible{outline:1px dotted var(--accent);outline-offset:2px}
 .grp{position:relative;display:inline-block;margin-right:1.15em;
   letter-spacing:.19em}
 .grp::after{content:attr(data-n);position:absolute;right:.19em;top:-1.35em;
-  font-size:10px;letter-spacing:0;color:var(--dim);font-weight:500}
+  font-size:10px;letter-spacing:0;color:var(--dim);font-weight:500;
+  white-space:nowrap}
 .seq .h{color:var(--hydro)} .seq .p{color:var(--polar)}
+/* A non-standard or D residue is one residue in the ruler, so it reads as
+   one block: its characters close together rather than spaced like the
+   letters around it, with the same gap after it as after any letter. */
+.seq .mod{letter-spacing:0;padding:0 2px;margin-right:.19em}
 .seq .x{color:var(--bad);font-weight:700;background:rgba(192,57,43,.13);
   border-radius:2px}
 .seqmsg{font-size:12.5px;margin-top:6px;color:var(--warn)}
 .seqlen{font-size:11.5px;color:var(--dim);margin-top:5px}
 .bar{display:flex;gap:12px;align-items:center;margin-top:14px;
   justify-content:center}
+/* On a phone a peptide's row has no room for its four columns side by side:
+   the type and the name share a line, the sequence takes the next one whole,
+   and the buttons under the list wrap rather than run off the screen. */
+@media (max-width:600px){
+  .ent{flex-wrap:wrap}
+  .ent .nm,.ent .fixed{flex:1 1 110px}
+  .ent .sqwrap{flex:1 1 100%;order:3}
+  .ent .tools{order:2}
+  .bar{flex-wrap:wrap}
+}
 .centre{display:flex;justify-content:center;margin-top:18px}
 
 /* ---- results and the viewer ----------------------------------------- */
@@ -426,6 +477,9 @@ button.q:focus-visible{outline:1px dotted var(--accent);outline-offset:2px}
 .seq2 .no{color:var(--dim);font-size:10.5px;min-width:3.8em;text-align:right;
   user-select:none}
 .seq2 .r{cursor:pointer;border-radius:3px;padding:0 .5px}
+/* A sentence in the strip, where the residues would be, is prose: it is not
+   set in the strip's monospace. */
+.seq2 .why{font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
 .seq2 .r:hover{background:var(--accent2)}
 .seq2 .r.on{background:var(--accent);color:#fff;font-weight:700}
 .chip{display:inline-block;font-size:11.5px;padding:3px 10px;border-radius:999px;
@@ -594,6 +648,186 @@ footer{color:var(--dim);font-size:12px;text-align:center;padding:18px 0 4px;
 .stale .why2{opacity:.75;font-size:12px}
 .stale code{background:rgba(0,0,0,.14);padding:1px 6px;border-radius:5px;
   font-family:ui-monospace,Menlo,monospace}
+
+/* ---- the step guide --------------------------------------------------
+   Five numbers across the top, one per step to a run, in the order the
+   cards below take them. A number fills green, with a tick in place of the
+   digit, when the page's own checks say its step is done, so the state is
+   not carried by colour alone; the step to do next is filled in the accent
+   colour. Each number is a button that scrolls to its card.
+
+   It stays in view while the page scrolls, on a screen with room for it.
+   On a phone it stays at the top: there it would take a tenth of the screen
+   from the form for as long as the form is used.
+
+   The line between two numbers is drawn from the centre of one to the
+   centre of the next, short of both circles: 50% is the centre of a step,
+   and 20px is the circle's radius (15px) and a gap. */
+/* The band behind the strip is 6px wider than the strip on each side, so
+   the 3px ring of a lit card scrolling under it does not show beside it. */
+.guide{position:sticky;top:0;z-index:30;margin:-8px -6px 12px;
+  padding:8px 6px;background:var(--bg)}
+.guide ol{list-style:none;margin:0;padding:10px 12px 9px;display:flex;
+  background:var(--card);border:1px solid var(--line);border-radius:14px}
+.guide li{flex:1 1 0;min-width:0;position:relative;text-align:center}
+.guide li+li::before{content:"";position:absolute;top:15px;height:2px;
+  left:calc(-50% + 20px);right:calc(50% + 20px);border-radius:1px;
+  background:var(--line)}
+.guide li.done+li::before{background:var(--good)}
+/* No user agent box: the circle is the button's face. */
+.guide button{all:unset;box-sizing:border-box;width:100%;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:0 2px 1px;border-radius:10px}
+.guide button:hover .gnum{border-color:var(--accent)}
+.guide button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.gnum{width:30px;height:30px;border-radius:50%;flex:0 0 auto;
+  display:inline-flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;
+  border:2px solid var(--pill-line);background:var(--card);color:var(--dim);
+  transition:background-color .25s,border-color .25s,color .25s,
+    box-shadow .25s}
+.gtick{display:none;width:17px;height:17px;fill:currentColor}
+.glab{font-size:12px;line-height:1.25;color:var(--dim);
+  overflow-wrap:anywhere}
+.guide li.now .gnum{background:var(--accent);border-color:var(--accent);
+  color:var(--on-accent);box-shadow:0 0 0 4px var(--accent2)}
+.guide li.now .glab{color:var(--fg);font-weight:650}
+.guide li.done .gnum{background:var(--good);border-color:var(--good);
+  color:var(--on-accent)}
+.guide li.done .gn{display:none}
+.guide li.done .gtick{display:block}
+.guide li.done .glab{color:var(--good);font-weight:600}
+/* Words for a screen reader, which cannot see the fill or the tick. */
+.vh{position:absolute;width:1px;height:1px;margin:-1px;padding:0;
+  overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+@media (max-width:600px),(max-height:560px){.guide{position:static}}
+@media (max-width:600px){
+  .guide ol{padding:8px 4px 7px}
+  .gnum{width:26px;height:26px;font-size:12px}
+  .gtick{width:15px;height:15px}
+  .glab{font-size:10.5px}
+  .guide li+li::before{top:13px;left:calc(-50% + 17px);right:calc(50% + 17px)}
+}
+
+/* ---- the cards follow the guide --------------------------------------
+   The card of the step to do next is lit. The cards after it are grey, and
+   a finished card is green with a tick where its number was. The number in
+   a card's heading is a counter over the cards that are steps, so it cannot
+   disagree with the strip's order.
+
+   Grey is a cue and nothing more. Nothing in a grey card is disabled or
+   made unclickable: a target file fills two steps at once, and a reused
+   run fills four, and neither should have to be walked through. A grey
+   card comes back to full colour under the pointer or the keyboard.
+
+   scroll-margin-top keeps a card's heading clear of the strip when a step
+   number scrolls to it. */
+main{counter-reset:step}
+.card[data-step]{counter-increment:step;scroll-margin-top:96px;
+  transition:border-color .25s,box-shadow .25s}
+.card[data-step]>*{transition:opacity .25s,filter .25s}
+.card[data-step]>h2::before{content:counter(step);display:inline-flex;
+  align-items:center;justify-content:center;width:19px;height:19px;
+  margin-right:8px;border-radius:50%;border:1.5px solid currentColor;
+  box-sizing:border-box;font-size:10.5px;letter-spacing:0;
+  vertical-align:1px}
+.card.step-now{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent2)}
+.card.step-now>h2{box-shadow:inset 0 3px 0 var(--accent);color:var(--fg)}
+.card.step-now>h2::before{background:var(--accent);border-color:var(--accent);
+  color:var(--on-accent)}
+.card.step-done{border-color:var(--good);
+  border-color:color-mix(in srgb,var(--good) 55%,var(--line))}
+.card.step-done>h2{box-shadow:inset 0 2px 0 var(--good);
+  background:color-mix(in srgb,var(--good) 9%,var(--ribbon))}
+.card.step-done>h2::before{content:"\2713";background:var(--good);
+  border-color:var(--good);color:var(--on-accent);font-size:11.5px}
+.card.step-later>h2{box-shadow:inset 0 2px 0 var(--pill-line);
+  color:var(--dim)}
+.card.step-later>:not(h2){filter:grayscale(1);opacity:.8}
+.card.step-later:hover>:not(h2),
+.card.step-later:focus-within>:not(h2){filter:none;opacity:1}
+@media (prefers-reduced-motion:reduce){
+  .gnum,.card[data-step],.card[data-step]>*{transition:none}
+}
+
+/* ---- the runs: two views ---------------------------------------------- */
+.tabs{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;
+  margin:0 0 12px}
+.tabs button{font-size:12.5px;padding:6px 16px;color:var(--dim)}
+.tabs button[aria-selected=true]{background:var(--accent);
+  border-color:var(--accent);color:var(--on-accent);font-weight:600}
+/* A table of runs is wider than a phone, and scrolls in its own box rather
+   than pushing the page sideways. Its row buttons wrap onto a second line
+   before the table grows past its card, and a date is never broken at its
+   hyphens. */
+#runs{overflow-x:auto}
+#runs td.acts{white-space:normal;line-height:2.1;min-width:16em}
+#runs td.why.c{white-space:nowrap}
+/* A path has no spaces to break at. The runs folder beside Browse may break
+   anywhere; an open run's title and folder break only where a word cannot
+   fit, so "completed" beside a job is never split. */
+#runsroot{overflow-wrap:anywhere;min-width:0}
+#rundetail{overflow-wrap:break-word;min-width:0}
+@media (max-width:600px){
+  .jobrow .jname{flex-basis:64px}
+  .jobrow .jid{flex-basis:76px}
+}
+/* The Folders view: where it is, as a trail back to the runs folder, then
+   the folder's contents. Paths are long, so every part may wrap. */
+.fcrumbs{display:flex;flex-wrap:wrap;gap:2px 3px;align-items:baseline;
+  font-size:12.5px;color:var(--dim);margin:0 0 9px;text-align:left;
+  overflow-wrap:anywhere}
+.fcrumbs button{all:unset;cursor:pointer;color:var(--accent);
+  padding:1px 4px;border-radius:5px}
+.fcrumbs button:hover{background:var(--soft);text-decoration:underline}
+.fcrumbs button:focus-visible{outline:2px solid var(--accent)}
+.fcrumbs b{color:var(--fg);padding:1px 4px}
+.fhere{margin:0 0 10px;text-align:left}
+.ftable{overflow:auto;max-height:62vh;border:1px solid var(--line);
+  border-radius:10px}
+.ftable table{font-size:12.5px}
+.ftable th{position:sticky;top:0;z-index:1;background:var(--card)}
+.ftable td{vertical-align:middle}
+.ftable td.fname{overflow-wrap:anywhere;min-width:11em}
+.ftable .fgo{all:unset;cursor:pointer;display:inline-flex;gap:7px;
+  align-items:center;color:var(--fg)}
+.ftable .fgo:hover{color:var(--accent);text-decoration:underline}
+.ftable .fgo:focus-visible{outline:2px solid var(--accent);border-radius:4px}
+.ftable svg.fic{width:15px;height:15px;flex:0 0 auto;fill:var(--dim)}
+.ftable svg.fic.dir{fill:var(--accent)}
+.ftable td.fsz,.ftable td.fmod{white-space:nowrap;color:var(--dim);
+  font-variant-numeric:tabular-nums}
+.ftable td.facts{white-space:nowrap;text-align:right}
+.ftable .pill{margin-left:6px;vertical-align:1px}
+.fmeta{display:none;color:var(--dim);font-size:11px;margin-top:2px}
+@media (max-width:600px){
+  .ftable th.fmod,.ftable td.fmod{display:none}
+  .fmeta{display:block}
+  .ftable td.facts{white-space:normal}
+  .ftable td.facts button{margin:2px 0}
+}
+/* A file from the runs folder, shown in the page: a structure in the same
+   3D viewer the page uses, anything else as text. */
+#filedlg{width:min(980px,94vw)}
+#filedlg[open]{display:flex;flex-direction:column;max-height:92vh}
+#file3d{height:min(62vh,560px);position:relative;background:#fff;
+  flex:0 0 auto}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) #file3d{background:#0b0e14}}
+:root[data-theme=dark] #file3d{background:#0b0e14}
+#filetext{margin:0;border-radius:0;max-height:none;flex:1 1 auto;
+  min-height:0;white-space:pre;overflow:auto}
+#filedlg .dlg-f{flex-wrap:wrap}
+
+/* ---- a phone ----------------------------------------------------------
+   The residue strip lays a row of thirty residues on one line, wider than a
+   phone. There each row wraps at its groups of ten, beside its number,
+   instead of running out of its box on the right. */
+@media (max-width:600px){
+  .seq2 .ln>span:last-child{white-space:normal;min-width:0}
+  /* The Docs button sits in the corner; on a phone the title reaches the
+     corner, so the header starts lower and the two never overlap. */
+  header{padding-top:46px}
+}
 </style>
 
 __STALE__
@@ -609,6 +843,12 @@ __STALE__
       <a href="https://ccsb.scripps.edu/adcp/" target="_blank"
          rel="noopener">ADCP</a>, a product of the
       <b>Scripps Research Institute</b>. <b>Powered by HOPE Lab.</b></div>
+    <!-- What a paper has to cite, where it is seen before anything is run.
+         The sentence is cite.must_cite_sentence(), read from the same
+         entries as the How to cite list, so the two cannot name different
+         papers. The link opens that list. -->
+    <div class="sub mustcite">__MUST_CITE__
+      <a href="#" id=citehead>How to cite</a></div>
     <div class=sub>Authors: Aadhil Haq &middot; PI Dr. Sandun Fernando</div>
     <div class=sub>
       <a href="mailto:sfernando@tamu.edu">sfernando@tamu.edu</a> &middot;
@@ -628,10 +868,44 @@ __STALE__
 </header>
 
 <main>
-<div class=card>
+<!-- The steps to a run, in the order the cards below take them. app.js
+     (guide) marks each done, to do now or still to come, from the checks the
+     page already makes, and lights the cards to match. Each number scrolls
+     to its card. The tick drawn in a finished number is one path, inline,
+     so it needs no font that may be missing. -->
+<!-- The strip and its five cards share one box, so the strip follows the
+     page down only while one of those cards is in view, and leaves with the
+     last of them instead of covering the runs and their results. -->
+<div class=stepsflow>
+<nav class=guide id=guide aria-label="Steps to a run">
+  <ol>
+    <li data-step=receptor><button type=button data-goto=receptor><span
+      class=gnum aria-hidden=true><span class=gn>1</span><svg class=gtick
+      viewBox="0 0 24 24"><path d="M9.5 16.6 4.9 12l-1.6 1.6 6.2 6.2L21 8.3l-1.6-1.6z"/></svg></span><span
+      class=glab>Receptor</span><span class="vh gstate"></span></button></li>
+    <li data-step=site><button type=button data-goto=site><span
+      class=gnum aria-hidden=true><span class=gn>2</span><svg class=gtick
+      viewBox="0 0 24 24"><path d="M9.5 16.6 4.9 12l-1.6 1.6 6.2 6.2L21 8.3l-1.6-1.6z"/></svg></span><span
+      class=glab>Site</span><span class="vh gstate"></span></button></li>
+    <li data-step=peptides><button type=button data-goto=peptides><span
+      class=gnum aria-hidden=true><span class=gn>3</span><svg class=gtick
+      viewBox="0 0 24 24"><path d="M9.5 16.6 4.9 12l-1.6 1.6 6.2 6.2L21 8.3l-1.6-1.6z"/></svg></span><span
+      class=glab>Peptides</span><span class="vh gstate"></span></button></li>
+    <li data-step=docking><button type=button data-goto=docking><span
+      class=gnum aria-hidden=true><span class=gn>4</span><svg class=gtick
+      viewBox="0 0 24 24"><path d="M9.5 16.6 4.9 12l-1.6 1.6 6.2 6.2L21 8.3l-1.6-1.6z"/></svg></span><span
+      class=glab>Docking</span><span class="vh gstate"></span></button></li>
+    <li data-step=submit><button type=button data-goto=submit><span
+      class=gnum aria-hidden=true><span class=gn>5</span><svg class=gtick
+      viewBox="0 0 24 24"><path d="M9.5 16.6 4.9 12l-1.6 1.6 6.2 6.2L21 8.3l-1.6-1.6z"/></svg></span><span
+      class=glab>Submit</span><span class="vh gstate"></span></button></li>
+  </ol>
+</nav>
+
+<div class=card id=step-receptor data-step=receptor>
   <h2>Receptor</h2>
-  <p class=hint>The protein the peptides will be docked into. It is protonated
-    at the pH you choose before anything else happens.</p>
+  <p class=hint>The protein the peptides will be docked into, and how it is
+    prepared before anything is docked into it.</p>
   <div class=row>
     <div style="flex:0 0 150px">
       <label for=reccode>PDB id</label>
@@ -648,37 +922,111 @@ __STALE__
     <!-- From the user's own computer. "Browse" walks the cluster's
          filesystem; this reads a file on the user's machine and sends it
          through the connection that is already open. -->
+    <!-- No .pdbqt. A PDBQT is a receptor someone has already prepared, and
+         this workflow prepares its receptor from a PDB or mmCIF; nothing
+         here builds maps from a PDBQT as it stands. The way to dock into a
+         receptor prepared elsewhere is a target file, below. -->
     <div style="flex:0 0 auto">
       <button class=ghost id=recupload>From this computer&hellip;</button>
       <input type=file id=recfile style="display:none"
-             accept=".pdb,.ent,.cif,.mmcif,.pdbqt,.txt"></div>
+             accept=".pdb,.ent,.cif,.mmcif,.txt"></div>
   </div>
   <div id=recinfo class=why style="margin-top:9px"></div>
   <div id=chainbox class="hide" style="margin-top:10px"></div>
+  <!-- The preparation is the receptor's, so its choices are here rather than
+       among the docking settings, beside the chains they are applied to and
+       in the order prepare.run applies them: heteroatoms are dropped, missing
+       atoms are rebuilt, hydrogens go on at the pH, then the minimisation. -->
+  <div class=prepgroup id=prepgroup>
+    <div class=grouphead>Receptor preparation
+      <span>in the order it is done</span></div>
+    <div class="checks prepsteps">
+      <label class=chk><input type=checkbox id=keep_hetatms>
+        <span>Keep heteroatoms</span></label>
+      <!-- On by default, which is what every run before this setting did. -->
+      <label class=chk><input type=checkbox id=rebuild_sidechains checked>
+        <span>Rebuild missing side chains</span></label>
+      <label class=chk><input type=checkbox id=fill_loops>
+        <span>Rebuild missing loops</span></label>
+      <!-- reduce by default, as ADFR's own preparation and ADapt protonate;
+           PROPKA when the pH matters, and the pH box is for it alone. A run
+           made before the choice existed used PROPKA, and reusing its
+           settings sets it back. -->
+      <label class=chk for=protonation><span>Protonate with</span>
+        <select id=protonation>
+          <option value=reduce selected>reduce</option>
+          <option value=propka>PROPKA at a pH</option>
+        </select></label>
+      <label class=chk for=ph id=phlabel><span>pH</span>
+        <input type=number id=ph value="7.4" step="0.1" min="0" max="14"></label>
+      <label class=chk><input type=checkbox id=minimise checked>
+        <span>Minimise the receptor after protonation</span></label>
+    </div>
+    <div class=why id=prepnote></div>
+  </div>
   <!-- A target made in AGFR or AGFRGUI replaces the receptor preparation
        and the site: the run takes its receptor, maps and box from it. -->
-  <div class=row style="margin-top:10px">
+  <div class=row style="margin-top:12px">
     <div class=fieldwrap style="flex:3 1 280px">
       <label for=targetfile>or a target file made in AGFR or AGFRGUI (.trg)</label>
       <input type=text id=targetfile
              placeholder="/path/to/target.trg  (optional: its receptor, maps and box are used)"></div>
+    <div style="flex:0 0 auto"><button id=trgload>Load</button></div>
+    <div style="flex:0 0 auto"><button class=ghost id=trgbrowse>Browse&hellip;</button></div>
   </div>
+  <div id=targetnote class=why style="margin-top:9px"></div>
   <!-- ADapt, a separate tool, shown only when the server can find it. It
-       shows what a structure file holds before anything is docked into it. -->
+       shows what a structure file holds and prepares the receptor the way
+       AGFR does; a receptor saved there is read back and docked as it is. -->
   <div id=adaptrow class="row hide" style="margin-top:10px;align-items:center">
-    <div style="flex:0 0 auto"><button class=ghost id=adaptopen type=button>Open ADapt</button></div>
+    <div style="flex:0 0 auto"><button class=ghost id=adaptopen type=button>Open in ADapt</button>
+      <button class="ghost sm hide" id=adaptcheck type=button>Read the save now</button></div>
     <div class=why id=adaptnote style="flex:1 1 280px">ADapt, a separate tool by
-      Michel Sanner, shows what a structure file holds before you dock into it:
-      its assemblies, alternate locations, missing residues, ligands and metals.</div>
+      Michel Sanner, opens the receptor above and lets you choose what stays in
+      it: the assembly, which hetero groups stay, metal charges, alternate
+      locations and modified residues. Save the receptor there and it is read
+      back here.</div>
+  </div>
+  <!-- The receptor ADapt saved, once it is read back: where it came from,
+       what was chosen, and the way back to the structure file. -->
+  <div id=adaptuse class="prepgroup hide">
+    <div class=grouphead>Receptor from ADapt</div>
+    <div class=why id=adaptwhat style="margin-top:6px"></div>
+    <div class=bar style="margin-top:8px">
+      <button class="ghost sm" id=adaptread type=button>Read the newest save again</button>
+      <button class="ghost sm" id=adaptdrop type=button>Use the structure file instead</button>
+    </div>
   </div>
 </div>
 
-<div class=card>
+<div class=card id=step-site data-step=site>
   <h2>Site</h2>
-  <p class=hint>The residues the docking box should cover. Along each axis the box
-    spans them plus the padding, clamped between the minimum and maximum.</p>
+  <p class=hint>Where the docking box goes: around residues you pick, a ligand
+    or peptide in the structure, or a pocket AutoSite finds, padded and held
+    between the limits.</p>
+  <!-- Three ways to place the box. Residues is what every run before the
+       choice did. A ligand or peptide is listed from the structure loaded
+       above. An AutoSite pocket is found on the compute node once the
+       receptor is prepared, so it has no box to draw until then. -->
   <div class=row>
-    <div class=fieldwrap style="flex:3 1 300px">
+    <div style="flex:0 0 250px"><label for=site_mode>Build the box around</label>
+      <select id=site_mode>
+        <option value=residues selected>residues you pick</option>
+        <option value=ligand>a ligand or peptide</option>
+        <option value=pocket>an AutoSite pocket</option>
+      </select></div>
+    <div id=ligandfield class=hide style="flex:2 1 280px">
+      <label for=site_ligand>Ligand or peptide</label>
+      <select id=site_ligand><option value="">load a receptor first</option></select></div>
+    <div id=pocketfield class=hide style="flex:2 1 280px">
+      <label for=site_pocket>Pocket</label>
+      <select id=site_pocket>
+        <option value=best selected>the best scoring pocket</option>
+        <option value=all>every pocket it finds, in one box</option>
+      </select></div>
+  </div>
+  <div class=row style="margin-top:10px">
+    <div class=fieldwrap id=hotfield style="flex:3 1 300px">
       <label for=hotspots>Residues (CHAIN:NUMBER, or bare numbers)</label>
       <input type=text id=hotspots placeholder="A:41, A:45, A:78"></div>
     <div><label for=pad>Padding (&#8491;)</label>
@@ -700,20 +1048,44 @@ __STALE__
       <span id=otherchainstext></span>
     </label>
   </div>
+  <!-- How the grid maps over the box are built: three settings of one
+       program, agfr, in one panel like the receptor's preparation. -->
+  <div class=prepgroup id=mapsgroup>
+    <div class=grouphead>Grid maps <span>what the box is filled with</span></div>
+    <div class="checks prepsteps">
+      <label class=chk for=agfr><span>Built by</span>
+        <select id=agfr>
+          <option value=auto selected>AGFR, newest installed</option>
+          <option value="1.1">AGFR 1.1, from the ADCP 1.1 suite</option>
+          <option value="1.0">AGFR 1.0, from ADFRsuite</option>
+        </select></label>
+      <label class=chk for=autosite><span>AutoSite</span>
+        <select id=autosite>
+          <option value="1.1" selected>1.1</option>
+          <option value="1.0">1.0</option>
+        </select></label>
+      <label class=chk><input type=checkbox id=receptor_gradient>
+        <span>Add the receptor gradient</span></label>
+    </div>
+    <div class=why id=mapsnote></div>
+  </div>
   <div id=chips style="margin-top:9px"></div>
   <div class=sitegrid id=sitepick>
     <div>
       <div class=pickhead>
-        <span class=why>Click a residue in the structure to add it to the
-          site. Click it again to drop it.</span>
-        <label><input type=checkbox id=showbox checked>Show the
-          docking box</label>
+        <span class=why id=pickhint>Click a residue in the structure to add
+          it to the site. Click it again to drop it.</span>
+        <span class=pickticks>
+          <label><input type=checkbox id=sitesurf>Show the surface</label>
+          <label><input type=checkbox id=showbox checked>Show the
+            docking box</label></span>
       </div>
       <div id=viewD></div>
+      <div class=why id=surfnote></div>
     </div>
     <div>
       <div class=pickhead>
-        <span class=why>Or click it in the sequence.
+        <span class=why><span id=seqhint>Or click it in the sequence.</span>
           <span id=seqchain></span></span>
       </div>
       <div id=seqstrip class=seq2></div>
@@ -721,7 +1093,7 @@ __STALE__
   </div>
 </div>
 
-<div class=card>
+<div class=card id=step-peptides data-step=peptides>
   <h2>Peptides</h2>
   <p class=hint>One-letter codes; pasted FASTA, spaces and case are fine.
     For non-standard and D amino acids (ADCP 1.1), use a peptide's &#8942; menu.</p>
@@ -747,6 +1119,21 @@ __STALE__
     <label for=pastetext>One per line: <code>SEQUENCE</code>, <code>name: SEQUENCE</code>, or FASTA</label>
     <textarea id=pastetext placeholder="RWGPGAWGSGSGHY&#10;KDGGVDGPGDS"></textarea>
     <div style="margin-top:8px"><button class=ghost id=pasteadd>Add these</button></div>
+  </div>
+  <!-- How every peptide in the run is built and started: as a chain or a
+       ring, and how many replicas begin as a helix. Peptide settings rather
+       than search settings, so they sit with the peptides. -->
+  <div class=row style="margin-top:12px">
+    <div style="flex:0 0 250px"><label for=cyclic>Dock each peptide as</label>
+      <select id=cyclic>
+        <option value=none selected>a linear chain</option>
+        <option value=backbone>a ring, head to tail</option>
+        <option value=disulfide>a ring through a disulfide</option>
+      </select></div>
+    <div style="flex:0 0 210px"><label for=helical>Replicas that start helical (%)</label>
+      <input type=number id=helical value="25" min="0" max="100" step="5"></div>
+    <div class=why id=pepoptsnote style="flex:1 1 240px;align-self:center;
+         text-align:left"></div>
   </div>
 </div>
 
@@ -786,21 +1173,27 @@ __STALE__
      style="display:inline-block;margin-top:10px;font-size:13px">Read more in the Docs</a>
 </div>
 
-<div class=card>
+<div class=card id=step-docking data-step=docking>
   <h2>Docking and rescoring</h2>
-  <!-- Four equal fields, with nothing taller than the rest, so the labels
-       line up. The step guideline is its own line below the row. -->
+  <!-- Three equal fields, with nothing taller than the rest, so the labels
+       line up. The step guideline is its own line below the row. The
+       preparation pH was here and is now with the rest of the receptor's
+       preparation, in the Receptor card. -->
   <div class=row>
     <div><label for=poses>Poses per peptide</label>
-      <input type=number id=poses value="10" min="1" max="10"></div>
+      <input type=number id=poses value="10" min="1" max="100"></div>
     <div><label for=replicas>Search replicas</label>
       __REPLICA_OPTIONS__</div>
     <div><label for=steps>Steps per replica</label>
       __STEP_OPTIONS__</div>
-    <div><label for=ph>Preparation pH</label>
-      <input type=number id=ph value="7.4" step="0.1" min="0" max="14"></div>
   </div>
   <div class=why id=stepsguide style="margin-top:7px"></div>
+  <!-- Off by default: every replica's trajectory is hundreds of files and
+       tens of megabytes per peptide. On, they are kept as one archive. -->
+  <div class="checks" style="margin-top:10px">
+    <label class=chk><input type=checkbox id=keep_trajectories>
+      <span>Keep every replica's trajectory</span></label>
+  </div>
   <!-- Which ADCP. 1.1 adds non-standard and D amino acids (N<BHD>, &D in a
        sequence) and an OpenMM minimization of the top poses. -->
   <div class=row style="margin-top:12px">
@@ -815,15 +1208,10 @@ __STALE__
     <div class=why id=enginenote style="flex:2 1 260px;align-self:center"></div>
   </div>
   <div class=row style="margin-top:12px">
-    <!-- The checkboxes are their own row, evenly spaced: a group of four of
-         the same kind, laid out as one. -->
+    <!-- The rescoring is decided after the docking, so its switch stays here.
+         The three receptor preparation switches that shared this row are in
+         the Receptor card. -->
     <div class=checks>
-      <label class=chk><input type=checkbox id=minimise checked>
-        <span>Minimise the receptor after protonation</span></label>
-      <label class=chk><input type=checkbox id=keep_hetatms>
-        <span>Keep heteroatoms</span></label>
-      <label class=chk><input type=checkbox id=fill_loops>
-        <span>Rebuild missing loops</span></label>
       <!-- On by default. The docking score orders poses of the same
            peptide well and is a poor way to compare different peptides,
            which is what a screen is for, so a run without the rescoring
@@ -869,14 +1257,25 @@ __STALE__
         <button class=st data-step="throttle:1" type=button>+</button></div></div>
     <div style="flex:0 0 auto"><label>&nbsp;</label>
       <button id=autofill title="Work out how long this will take and ask
-the queue for one and a half times that, and at least two hours">Estimate &amp; fill</button></div>
+the queue for twice that and half an hour more, and at least two hours">Estimate &amp; fill</button></div>
   </div>
+  <!-- Under the button that writes it: what the estimate assumed, and what
+       the jobs will book. -->
+  <div id=estnote class=why style="margin-top:9px"></div>
+</div>
 
+<!-- The last step: what the run is called, where it is written, the
+     cluster's own options, and the button. A card of its own, so the guide's
+     fifth step has a card to light. -->
+<div class=card id=step-submit data-step=submit>
+  <h2>Submit</h2>
+  <p class=hint>Name the run, choose where it is written, and send it to the
+    queue.</p>
   <!-- Where the run goes: the output folder and the run name are the last
        decisions, so they sit beside the submit button. There is no partition
        field: a partition is a property of the cluster, and a default name
        fails on any cluster that does not have it. -->
-  <div class=row style="margin-top:12px">
+  <div class=row>
     <div class=fieldwrap style="flex:1 1 220px"><label for=label>Name this run *</label>
       <input type=text id=label placeholder="e.g. p53_screen"></div>
     <div class=fieldwrap style="flex:2 1 320px"><label for=outdir>Output folder *</label>
@@ -900,13 +1299,22 @@ the queue for one and a half times that, and at least two hours">Estimate &amp; 
              placeholder="e.g. --qos=normal --partition=short"></div>
   </div>
 
-  <div id=estnote class=why style="margin-top:9px"></div>
   <div class=centre><button class=primary id=submit>Submit to the queue</button></div>
   <div id=submsg class=why style="margin-top:11px;text-align:center"></div>
 </div>
+</div><!-- .stepsflow -->
 
 <div class=card>
   <h2>Runs</h2>
+  <!-- Two views of the same runs folder: every run in one table, or the
+       folder itself, walked folder by folder down to the files. Tabs in the
+       WAI-ARIA pattern: the arrow keys move between them. -->
+  <div class=tabs role=tablist aria-label="How the runs are shown">
+    <button type=button role=tab id=tab_runs aria-selected=true
+            aria-controls=runspanel data-tab=runs>All runs</button>
+    <button type=button role=tab id=tab_folders aria-selected=false
+            aria-controls=folderspanel data-tab=folders tabindex=-1>Folders</button>
+  </div>
   <div class=bar style="margin-top:0;margin-bottom:10px">
     <button class=ghost id=refresh>Refresh</button>
     <!-- Runs made elsewhere, or by someone else, are reached by pointing this
@@ -915,7 +1323,18 @@ the queue for one and a half times that, and at least two hours">Estimate &amp; 
     <button class=ghost id=runsbrowse>Browse&hellip;</button>
     <span class=why id=runsroot></span>
   </div>
-  <div id=runs></div>
+  <div id=runspanel role=tabpanel aria-labelledby=tab_runs>
+    <div id=runs></div>
+  </div>
+  <!-- The runs folder as folders and files. Only what is inside the runs
+       folder is listed: the server holds every path to it. A folder that is
+       a run opens as one; a structure, a log or a table opens in the page;
+       anything else downloads. -->
+  <div id=folderspanel role=tabpanel aria-labelledby=tab_folders class=hide>
+    <nav class=fcrumbs id=fcrumbs aria-label="Where in the runs folder"></nav>
+    <div id=fhere class=fhere></div>
+    <div id=flist></div>
+  </div>
   <div id=rundetail style="margin-top:14px"></div>
 </div>
 
@@ -945,8 +1364,8 @@ the queue for one and a half times that, and at least two hours">Estimate &amp; 
     <span class=vsep></span>
     <span class=vgrp>
     <span class=lb>surface</span>
-    <button class=pill id=rsurf title="A surface over the receptor, in the receptor's colour. Cycles solid, see-through, mesh, off.">rec off</button>
-    <button class=pill id=rsurfl title="A surface over the peptide, in the peptide's colour. Cycles solid, see-through, mesh, off.">pep off</button>
+    <button class="pill on" id=rsurf title="The receptor's molecular surface, computed by MSMS, in the receptor's colour. See-through to start with, so the peptide stays in view. Cycles mesh, off, solid, see-through.">rec see-through</button>
+    <button class=pill id=rsurfl title="The peptide's molecular surface, computed by MSMS, in the peptide's colour. Cycles solid, see-through, mesh, off.">pep off</button>
     </span>
     <span class=vsep></span>
     <span class=vgrp>
@@ -992,6 +1411,7 @@ larger of the two and takes a moment the first time.">
   <div id=viewR></div>
   <div id=viewM class=hide></div>
   <div class=why id=viewmsg style="margin-top:7px"></div>
+  <div class=why id=surfmsg style="margin-top:2px;font-size:11.5px"></div>
   <div id=contactbox style="margin-top:10px"></div>
   <div id=diagwrap style="margin-top:14px"></div>
   <div id=residuebox style="margin-top:16px"></div>
@@ -1037,6 +1457,21 @@ larger of the two and takes a moment the first time.">
     <span style="display:flex;gap:8px;align-items:center">
       <button class=ghost id=modcancel>Cancel</button>
       <button id=modsave disabled>Save</button>
+    </span>
+  </div>
+</dialog>
+<!-- A file from the runs folder, opened from the Folders view: a structure
+     in the 3D viewer, a log or a table as text. -->
+<dialog id=filedlg aria-labelledby=filetitle>
+  <div class=dlg-h><b id=filetitle>File</b>
+    <span class=crumbs id=filepath></span></div>
+  <div id=file3d class=hide></div>
+  <pre id=filetext class=hide></pre>
+  <div class=dlg-f>
+    <span class=why id=filenote></span>
+    <span style="display:flex;gap:8px;align-items:center">
+      <a class=btnlink id=filedl href="#">Download</a>
+      <button class=ghost id=fileclose>Close</button>
     </span>
   </div>
 </dialog>
@@ -1274,8 +1709,12 @@ def render(token):
     import json
     from . import helptext
     from . import docs
+    # "<" written as its escape, so a help text that names a path such as
+    # docking/<peptide>/ can never read as a tag, or close the script it is
+    # carried in.
     blob = json.dumps({k: {"title": t, "body": b, "docs": docs.HELP_LINKS.get(k, "")}
-                       for k, (t, b) in helptext.HELP.items()})
+                       for k, (t, b) in helptext.HELP.items()}).replace(
+                           "<", "\\u003c")
     # The bar the documentation draws along the bottom of every page, drawn
     # along the bottom of this one. Its How to cite opens the citation dialog
     # rather than a page, so app.js wires it by this id.
@@ -1284,7 +1723,9 @@ def render(token):
     limits = json.dumps({"min_length": _pep.MIN_LENGTH,
                          "max_length": _pep.MAX_LENGTH})
     from . import DISCLAIMER
+    from . import cite
     return (PAGE.replace("__DISCLAIMER__", DISCLAIMER)
+                .replace("__MUST_CITE__", cite.must_cite_sentence(html=True))
                 .replace("__LIMITS__", limits)
                 .replace("__STEP_OPTIONS__", step_options(**_local_pick("steps")))
                 .replace("__REPLICA_OPTIONS__",

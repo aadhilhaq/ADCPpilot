@@ -4,10 +4,11 @@ want, and let the preparation turn a crystal structure into something a force
 field will accept.</p>
 
 <figure>
-<img src="img/receptor-loaded.png" alt="The Receptor card with 1YCR loaded, its atom count and a tick box per chain">
+<img src="img/receptor-loaded.png" alt="The Receptor card with 1YCR loaded, a tick box per chain, and the receptor preparation settings under them">
 <figcaption><b>A loaded receptor.</b> The line under the controls reports the
 atoms read and the chains found. Below it, one tick box per chain: here chain A
-of 1YCR is kept, and chain B, the bound p53 peptide, is not.</figcaption>
+of 1YCR is kept, and chain B, the bound p53 peptide, is not. Under the chains,
+the receptor preparation, in the order it is done.</figcaption>
 </figure>
 
 <h2 id="loading">Loading a structure</h2>
@@ -25,8 +26,17 @@ and sends it through the connection that is already open. Use this when the
 cluster cannot see your file.</li>
 <li><b>A target file made in AGFR or AGFRGUI</b> (<code>.trg</code>). Its
 receptor, maps and box are used as they are, and none of the preparation
-below runs. Do not rename the file: ADCP finds the maps by its name.</li>
+below runs. See <a href="#target-file">a target file from AGFR</a>.</li>
+<li><b>A receptor prepared in ADapt.</b> Load a structure by any of the first
+three, press <b>Open in ADapt</b>, choose there what stays in the receptor and
+save it; the save is read back and docked as ADapt wrote it. See
+<a href="#adapt">a receptor prepared in ADapt</a>.</li>
 </ul>
+<p>A <code>.pdbqt</code> is not taken by any of the first three. It is a
+receptor already prepared for AutoDock, and this tool prepares its own from a
+PDB or mmCIF file; nothing here builds maps from a PDBQT as it stands. To dock
+into a receptor you prepared yourself, make a target file from it in AGFR or
+AGFRGUI and give that.</p>
 <p>An mmCIF is converted to PDB with OpenMM before anything else, because every
 later step reads fixed-column PDB.</p>
 <p>Once a structure is loaded, the chain boxes appear. Tick the chains you want
@@ -39,6 +49,10 @@ than preparation. The preparation stops with that message at the start of the
 run.</div>
 
 <h2 id="what-preparation-does">What preparation does</h2>
+<p>Its settings are in the Receptor card, under the chains, as one group in the
+order they are applied: <b>Keep heteroatoms</b>, <b>Rebuild missing side
+chains</b>, <b>Rebuild missing loops</b>, <b>Protonate with</b> (reduce, or
+PROPKA at a <b>pH</b>) and <b>Minimise the receptor after protonation</b>.</p>
 <p>The preparation runs as the first job of the run, not while you are typing.
 Every step is logged in <code>receptor/preparation.log</code> inside the run,
 and the results page reads that log back, so a step that was skipped is
@@ -57,31 +71,65 @@ selenomethionine as methionine, phosphoserine as serine, and so on.</li>
 <a href="#heteroatoms">heteroatoms</a>.</li>
 <li>Disulphides within 2.5 &Aring; are found and named in the log, so you can
 see which cysteines are paired. pdb2pqr works them out for itself.</li>
-<li>Missing side-chain atoms are rebuilt and the termini capped, so a chain
-break is not read as a charged terminus. Whole missing residues are left alone
-unless you ask for them: see <a href="#loops">loops</a>.</li>
-<li>Hydrogens and titration states at your pH: see
+<li>Missing atoms are rebuilt and the termini capped, so a chain break is not
+read as a charged terminus. Missing side-chain atoms can be left out of the
+result instead: see <a href="#side-chains">side chains</a>. Whole missing
+residues are left alone unless you ask for them: see
+<a href="#loops">loops</a>.</li>
+<li>Hydrogens, by reduce or by PDB2PQR with PROPKA at your pH: see
 <a href="#protonation">protonation</a>.</li>
 <li>A restrained minimisation: see <a href="#minimisation">minimisation</a>.</li>
 </ol>
 <p>Then <code>prepare_receptor</code> writes the PDBQT and <code>agfr</code>
-builds the grid maps over your box. The example's log reads, in part,
+builds the grid maps over your box (see <a href="site.html#maps">the grid
+maps</a>). The example's log reads, in part,
 <code>kept chain A, dropped B</code>, <code>rebuilt 0 side-chain atom(s),
 completed 1 terminal atom(s); LEFT 24 missing residue(s) alone</code> and
 <code>743 hydrogens added</code>, which is the kind of summary to read before
 trusting a run.</p>
 
-<h2 id="protonation">Protonation and pH</h2>
-<p>Hydrogens are placed by <code>pdb2pqr</code>, and PROPKA decides each
-titratable residue's state at the pH you set. That fixes the charges the
-docking sees: whether a histidine is neutral or positive, whether an aspartate
-is charged.</p>
-<p>7.4 is physiological and is the default. If your assay runs somewhere else,
-use that pH: an endosomal target at 5.5 presents a different surface. There is
-no per-residue control here, and the same pH is used again when a complex is
-built for MM-GBSA, so the docking and the rescoring agree with each other.
-What that means at a site with histidines in it is worth a page of its own:
-<a href="case-histidines.html">Histidines at the site</a>.</p>
+<h2 id="protonation">Protonation: reduce, or PROPKA at a pH</h2>
+<p><b>Protonate with</b> chooses the program that places the receptor's
+hydrogens, and with them decides each histidine and which way round each Asn
+and Gln amide sits.</p>
+<table>
+<tr><th></th><th>reduce (the default)</th><th>PROPKA at a pH</th></tr>
+<tr><td>what it is</td><td>ADFRsuite's <code>reduce</code>, run as ADFR's own
+preparation and ADapt run it</td><td><code>pdb2pqr</code>, with PROPKA predicting
+each residue's pKa</td></tr>
+<tr><td>histidines</td><td>protons placed where the hydrogen bonds around the ring
+call for them</td><td>a state chosen from the predicted pKa at your pH</td></tr>
+<tr><td>Asn, Gln and His</td><td>turned over where the hydrogen bonds say the file
+has them the wrong way round</td><td>turned over by PDB2PQR's own hydrogen bond
+optimisation</td></tr>
+<tr><td>Asp, Glu, Lys, Arg</td><td>charged, always</td><td>charged or not, at your
+pH</td></tr>
+<tr><td>the <b>pH</b> box</td><td>not used, and greyed out</td><td>used</td></tr>
+</table>
+<p>reduce is the default because it places histidine protons better. Checked
+against the protein structures in the PDB solved by neutron diffraction, where
+the hydrogens are seen, reduce placed the histidine protons as deposited in 55%
+of 1,457 histidines and PDB2PQR with PROPKA in 31%, and reduce turned fewer rings
+and amides the wrong way. What reduce does not do is pH: it never protonates an
+Asp or Glu, and it rarely puts protons on both nitrogens of a histidine. Choose
+<b>PROPKA at a pH</b> when the pH is part of your question, an endosomal target
+at 5.5 for example. 7.4 is the default pH.</p>
+<p>The log line says what was decided:
+<code>protonation: done; reduce.3.23.130521 -BUILD, as ADFR and ADapt run it,
+with -Nterm25 so each chain's first residue is a terminus; 743 hydrogens added;
+histidines HIE x2; nothing turned over</code> for the example's MDM2, whose chain
+starts at residue 25. reduce's own record of every decision, one line per histidine,
+Asn and Gln, is at the top of <code>receptor/protonated.pdb</code>. Where reduce
+cannot run, PDB2PQR with PROPKA protonates the receptor instead, and the results
+page says so.</p>
+<p>MM-GBSA keeps the choice. Under reduce its complexes take the receptor's own
+histidine states, named <code>HID</code>, <code>HIE</code> or <code>HIP</code>
+from where reduce put the protons, and reduce protonates the peptide in the
+complex. Under PROPKA each complex is protonated again at the same pH, as it
+always was. Runs made before this choice existed were protonated with PDB2PQR
+and PROPKA, and <b>reuse settings</b> on one of them sets PROPKA again, so it
+reproduces. What a site with histidines in it calls for is worth a page of its
+own: <a href="case-histidines.html">Histidines at the site</a>.</p>
 
 <h2 id="minimisation">Minimising after protonation</h2>
 <p><b>Minimise the receptor after protonation</b> runs a restrained
@@ -105,12 +153,90 @@ field has no parameters for most of what this keeps, metal ions included, so
 the minimisation cannot run and the results page says so. You are choosing
 between a site that is complete and a structure that has been relaxed.</div>
 
+<h2 id="side-chains">Rebuilding missing side chains</h2>
+<p>Many structures lack the ends of some side chains, usually lysines, arginines
+and glutamates on the surface, where the density was too weak to place them.
+<b>Rebuild missing side chains</b> is on by default: PDBFixer rebuilds the
+missing atoms from a template, they are protonated and minimised with the rest,
+and the peptide is docked against them. Every run made before this setting
+existed did the same.</p>
+<p>Turn it off when a rebuilt side chain would sit in your site and you would
+rather dock against what was measured. The receptor that is docked into then
+carries only the side-chain atoms the structure had.</p>
+<table>
+<tr><th>What is missing</th><th>On</th><th>Off</th></tr>
+<tr><td>side-chain atoms of a residue that is there</td><td>rebuilt</td><td>left out of the prepared receptor</td></tr>
+<tr><td>backbone atoms, and the C terminal oxygen</td><td>rebuilt</td><td>rebuilt</td></tr>
+<tr><td>whole residues</td><td colspan="2">only with <b>Rebuild missing loops</b>, and then built whole, side chains included</td></tr>
+<tr><td>hydrogens</td><td>on every atom</td><td>on every atom that is kept</td></tr>
+</table>
+<div class="note"><b>Off with reduce and no minimisation, nothing is
+modelled.</b> reduce places hydrogens on a residue as it stands, so the missing
+atoms are never built. The minimisation's force field has no template for an
+incomplete residue, and pdb2pqr completes any residue it is given, so with the
+minimisation on, or with PROPKA chosen, the missing atoms are built for a
+moment, protonation and minimisation run on whole residues, and then those atoms
+and the hydrogens on them are taken out. The preparation log names the residues
+on its <code>side chains</code> line. MM-GBSA builds a complex of its own and
+needs whole residues too, so the rescoring completes them again there.</div>
+
 <h2 id="loops">Rebuilding missing loops</h2>
-<p>Missing side-chain atoms are always rebuilt. <b>Rebuild missing loops</b> is
-about whole missing residues, the stretches the structure never resolved. It is
-off by default.</p>
+<p><b>Rebuild missing loops</b> is about whole missing residues, the stretches
+the structure never resolved. Missing side-chain atoms have their own setting,
+<a href="#side-chains">above</a>. It is off by default.</p>
 <p>A rebuilt loop is a model, and once it is written into the file it looks
 exactly like a measured one. Turn it on only when a gap sits against your site
 and leaving a hole there would be worse than filling it. The example leaves 24
 missing residues alone, in two stretches well away from the p53 groove, which
-is the ordinary case.</p>
+is the ordinary case. A loop is built from whole residues, side chains
+included, whichever way the side-chain setting is.</p>
+
+<h2 id="adapt">A receptor prepared in ADapt</h2>
+<figure>
+<img src="img/receptor-adapt.png" alt="The Receptor card using a receptor read back from ADapt, with the session folder and what was chosen">
+<figcaption><b>A receptor read back from ADapt.</b> The card names the entry,
+the assembly and the save, lists what was chosen there, and greys out the
+preparation settings, which do not apply to it.</figcaption>
+</figure>
+<p>ADapt, by Michel Sanner, shows what a structure file holds and prepares the
+receptor the way AGFR does, with AGFR's own code. Use it when the choice of what
+stays in the receptor matters: which biological assembly, which hetero groups
+stay (a lone catalytic zinc, for example), the charge a metal carries, which
+alternate location of a residue, and modified residues.</p>
+<ol class="steps">
+<li>Load the structure in the Receptor card, from a PDB id or a file. ADapt
+reads PDB files; an mmCIF fetched by its id is opened there by the id.</li>
+<li>Press <b>Open in ADapt</b>. ADapt opens in a new tab on that structure.</li>
+<li>Choose what stays in the receptor, then press <b>receptor PDBQT</b>.</li>
+<li>Back on this page, the save is read back within a few seconds and used as
+the receptor. Saving again in ADapt replaces it; <b>Read the newest save
+again</b> asks at once.</li>
+</ol>
+<p>What is read back is what ADapt wrote in its session folder: the receptor
+PDBQT, which is docked as it is; its <code>_rec_H.pdb</code>, the same receptor
+with every hydrogen reduce placed, which the site, the viewers and MM-GBSA read;
+and <code>session.json</code>, which records what was chosen. The run copies all
+three into its <code>receptor</code> folder and records the session folder, the
+save and the files' checksums in <code>job.json</code>, so a save changed later
+is refused rather than docked into, and <b>reuse settings</b> reads the same
+save back. The preparation settings above do not apply, and nothing of this
+package's preparation runs: no rebuilt side chains, no minimisation, and reduce
+placed the hydrogens in ADapt. From the command line the same is
+<code>adcp-dock new RUN --adapt-session FOLDER [--adapt-save N] -s ...</code>.</p>
+<p><b>Use the structure file instead</b> goes back to the structure the session
+was opened on, and the preparation here applies again.</p>
+
+<h2 id="target-file">A target file from AGFR</h2>
+<p>A target file (<code>.trg</code>) made in AGFR or AGFRGUI holds a receptor
+that was already prepared, the grid maps computed from it and the box they
+cover. Give one under <b>or a target file made in AGFR or AGFRGUI</b>: type its
+path and press <b>Load</b>, or find it with <b>Browse</b>, which lists only
+target files.</p>
+<p>Loading it checks the file the way the run will: that it is a complete
+archive, that it holds the maps and a receptor, and that the folder inside still
+carries the file's own name. A file that fails says why, under the box, and the
+run cannot be submitted with it. One that passes is shown in the Site card: its
+receptor, with its box drawn over it as a cage.</p>
+<p>The run then takes all three from the file. The preparation settings and the
+site residues are not used, so they are not asked for when you submit. Do not
+rename the file: ADCP finds the maps by its name.</p>

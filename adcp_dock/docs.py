@@ -51,10 +51,23 @@ HELP_LINKS = {
     "reccode": "receptor.html#loading",
     "recpath": "receptor.html#loading",
     "ph": "receptor.html#protonation",
+    "protonation": "receptor.html#protonation",
+    "sitesurf": "site.html#surface",
     "minimise": "receptor.html#minimisation",
     "keep_hetatms": "receptor.html#heteroatoms",
+    "rebuild_sidechains": "receptor.html#side-chains",
     "fill_loops": "receptor.html#loops",
+    "targetfile": "receptor.html#target-file",
     "hotspots": "site.html#residues",
+    "site_mode": "site.html#where-the-box-goes",
+    "site_ligand": "site.html#ligand",
+    "site_pocket": "site.html#pocket",
+    "agfr": "site.html#maps",
+    "autosite": "site.html#autosite",
+    "receptor_gradient": "site.html#gradient",
+    "cyclic": "peptides.html#cyclic",
+    "helical": "peptides.html#helical",
+    "keep_trajectories": "docking.html#trajectories",
     "pad": "site.html#box-size",
     "bmin": "site.html#box-size",
     "bmax": "site.html#box-size",
@@ -87,10 +100,12 @@ COPYRIGHT = ("Copyright (c) 2026, Aadhil Haq and Sandun Fernando, "
 CREDITS = [
     'docking by <a href="https://ccsb.scripps.edu/adcp/" target="_blank"'
     ' rel="noopener">ADCP</a> and ADFRsuite (Scripps Research)',
-    "receptor preparation pdb2pqr with PROPKA",
+    "receptor hydrogens by reduce (Word et al., J Mol Biol 1999), or "
+    "PDB2PQR with PROPKA when chosen",
     "MM-GBSA by AmberTools",
     "viewers 3Dmol.js (Rego &amp; Koes, Bioinformatics 2015) and Mol* "
-    "(Sehnal et al., Nucleic Acids Res 2021)",
+    "(Sehnal et al., Nucleic Acids Res 2021), surfaces by MSMS (Sanner et "
+    "al., Biopolymers 1996)",
 ]
 
 #: The interface's own colours, from the :root block in page.py, under the

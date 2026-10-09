@@ -111,6 +111,25 @@ references:
     doi: "10.1093/bioinformatics/btw367"
     notes: "AutoSite, run by agfr on every grid target."
   - type: article
+    title: "Asparagine and glutamine: using hydrogen atom contacts in the choice of side-chain amide orientation"
+    authors:
+      - family-names: "Word"
+        given-names: "J.Michael"
+      - family-names: "Lovell"
+        given-names: "Simon C."
+      - family-names: "Richardson"
+        given-names: "Jane S."
+      - family-names: "Richardson"
+        given-names: "David C."
+    journal: "Journal of Molecular Biology"
+    volume: "285"
+    issue: "4"
+    start: "1735"
+    end: "1747"
+    year: 1999
+    doi: "10.1006/jmbi.1998.2401"
+    notes: "reduce, the default receptor protonation, as ADFR and ADapt run it."
+  - type: article
     title: "Improvements to the APBS biomolecular solvation software suite"
     authors:
       - family-names: "Jurrus"
@@ -168,7 +187,7 @@ references:
     end: "128"
     year: 2017
     doi: "10.1002/pro.3280"
-    notes: "Receptor protonation at a chosen pH."
+    notes: "Receptor protonation at a chosen pH, when PROPKA is chosen."
   - type: article
     title: "PROPKA3: Consistent Treatment of Internal and Surface Residues in Empirical p Ka Predictions"
     authors:
@@ -469,7 +488,24 @@ references:
     end: "2034"
     year: 2013
     doi: "10.1021/ct3010485"
-    notes: "The GBn2 implicit solvent model of the receptor minimization and of ADCP 1.1's pose minimization."
+    notes: "The GBn2 implicit solvent model: the receptor minimization, ADCP 1.1's pose minimization, and MM-GBSA when GBn2 is chosen."
+  - type: article
+    title: "Reduced surface: An efficient way to compute molecular surfaces"
+    authors:
+      - family-names: "Sanner"
+        given-names: "Michel F."
+      - family-names: "Olson"
+        given-names: "Arthur J."
+      - family-names: "Spehner"
+        given-names: "Jean-Claude"
+    journal: "Biopolymers"
+    volume: "38"
+    issue: "3"
+    start: "305"
+    end: "320"
+    year: 1996
+    doi: "10.1002/(sici)1097-0282(199603)38:3<305::aid-bip4>3.0.co;2-y"
+    notes: "MSMS, the molecular surfaces the viewers draw."
   - type: article
     title: "3Dmol.js: molecular visualization with WebGL"
     authors:

@@ -16,13 +16,15 @@ import json
 import os
 import secrets
 import re
+import shutil
+import stat
 import threading
 import urllib.error
 import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import fetch, job as jobmod, page, peptide, pipeline, report
+from . import agfr_target, fetch, job as jobmod, page, peptide, pipeline, report
 from . import sizing
 from . import slurm, structure
 from . import tools as toolmod
@@ -32,6 +34,15 @@ MAX_BODY = 4 << 20
 # for which 4 MB is generous; a receptor with waters and several models can
 # run to tens of megabytes.
 MAX_UPLOAD = 64 << 20
+
+# A PDBQT is a receptor already prepared for AutoDock. This workflow prepares
+# its receptor itself, from a PDB or mmCIF, and has no step that builds maps
+# from a PDBQT as it stands, so one is refused with the way that does work.
+PDBQT_REFUSED = ("%s is a PDBQT receptor, which this tool cannot use as it "
+                 "stands: it prepares the receptor itself, from a PDB or "
+                 "mmCIF file. To dock into a receptor you prepared yourself, "
+                 "make a target file from it in AGFR or AGFRGUI and give that "
+                 ".trg in the target file box instead.")
 
 
 # Pending reasons that will not clear on their own. A job held for one of
@@ -81,10 +92,16 @@ def prep_warnings(rundir, j):
     for line in open(log, encoding="utf-8", errors="replace"):
         s = line.strip()
         for name in ("protonation", "protonation retry", "minimisation",
-                     "receptor pdbqt"):
+                     "receptor pdbqt", "reduce"):
             if s.startswith(name + ":"):
                 steps[name] = s[len(name) + 1:].strip()
     out = []
+    red = steps.get("reduce", "")
+    if red and not red.startswith("done"):
+        out.append("The receptor was not protonated with reduce, as the run "
+                   "asked (%s). PDB2PQR with PROPKA at pH %g protonated it "
+                   "instead. See receptor/preparation.log."
+                   % (_prep_detail(red), float(j.get("ph", 7.4))))
     prot = steps.get("protonation", "")
     retry = steps.get("protonation retry", "")
     if prot and not prot.startswith("done") and not retry.startswith("done"):
@@ -274,6 +291,48 @@ def _open_detached(cmd):
 OPENER = _open_detached
 
 
+def _mtime(path):
+    """When a path was last modified, in seconds, or None if it cannot be
+    read."""
+    try:
+        return os.path.getmtime(path)
+    except OSError:
+        return None
+
+
+#: Where counting a folder's entries stops. A folder of unpacked trajectories
+#: holds thousands of files, and on a shared filesystem each listing of a
+#: subfolder costs time the page spends waiting.
+COUNT_MOST = 5000
+
+
+def _count(folder, most=COUNT_MOST):
+    """How many entries a folder holds, hidden ones left out, as the
+    listing leaves them out, counted up to `most`. None when it cannot be
+    read."""
+    n = 0
+    try:
+        with os.scandir(folder) as it:
+            for e in it:
+                if not e.name.startswith("."):
+                    n += 1
+                    if n >= most:
+                        break
+    except OSError:
+        return None
+    return n
+
+
+def _attachment(name):
+    """A Content-Disposition for a download, safe for any file name: the
+    plain form with only printable ASCII and no quotes, and the UTF-8 form
+    beside it for a browser that reads it."""
+    plain = "".join(c if (32 <= ord(c) < 127 and c not in '"\\') else "_"
+                    for c in name) or "download"
+    return ('attachment; filename="%s"; filename*=UTF-8\'\'%s'
+            % (plain, urllib.parse.quote(name, safe="")))
+
+
 class App:
     def __init__(self, runs, tools_roots=()):
         self.runs = os.path.abspath(os.path.expanduser(runs))
@@ -313,9 +372,16 @@ class App:
                 # non-standard residue syntax and OpenMM minimization.
                 "adcp11": self._adcp11()[0],
                 "adcp11_version": self._adcp11()[1],
-                # ADapt, a separate tool for looking inside a structure,
-                # when it is installed where this can find it.
-                "adapt": self._adapt()}
+                # AGFR from the same suite, which builds the maps by default
+                # where it is installed.
+                "agfr11": self._agfr11(),
+                # ADapt, a separate tool for preparing the receptor, when it
+                # is installed where this can find it.
+                "adapt": self._adapt(),
+                # The two programs taken from ADFRsuite itself: reduce, the
+                # default protonation, and msms, for the viewers' surfaces.
+                "reduce": T.adfr_program("reduce") or "",
+                "msms": T.adfr_program("msms") or ""}
 
     def adapt_warm(self):
         """Start ADapt in the background, once, if it can run here.
@@ -346,38 +412,201 @@ class App:
         if not self._adcp11()[0]:
             return {"available": False, "repo": adaptmod.REPO,
                     "why": "ADapt runs on ADCP 1.1, which is not installed here."}
-        return {"available": True, "repo": adaptmod.REPO, "why": ""}
+        if not adaptmod.embeddable(home):
+            return {"available": False, "repo": adaptmod.REPO,
+                    "why": "The ADapt in %s (%s) is older than the version this "
+                           "interface works with (%s or later). Update it: git -C "
+                           "%s pull" % (home, adaptmod.commit(home) or "unknown",
+                                        adaptmod.EMBED_COMMIT, home)}
+        return {"available": True, "repo": adaptmod.REPO, "why": "",
+                "commit": adaptmod.commit(home)}
 
-    def adapt_open(self):
-        """Start ADapt if it is not running, and return its address.
-
-        Its sessions go into the runs folder, not the home directory, which
-        is where ADapt keeps them by default.
-        """
+    def _adapt_running(self):
+        """The running ADapt's address with its token, starting it if it is
+        not running. Raises RuntimeError saying why it cannot."""
         from . import adapt as adaptmod
         from . import adcp11
         home = adaptmod.find(self.tools_roots)
         exe = self._adcp11()[0]
-        if not home or not exe:
-            return {"error": self._adapt()["why"]}
+        st = self._adapt()
+        if not st.get("available"):
+            raise RuntimeError(st["why"])
         with _ADAPT_LOCK:
             if getattr(self, "_adapt_runner", None) is None:
                 import atexit
                 self._adapt_runner = adaptmod.Runner()
                 atexit.register(self._adapt_runner.stop)
         try:
-            url = self._adapt_runner.start(
-                home, adcp11.home_of(exe), os.path.join(self.runs, "adapt_sessions"))
-        except (OSError, RuntimeError) as exc:
+            return self._adapt_runner.start(
+                home, adcp11.home_of(exe), self.adapt_outdir())
+        except OSError as exc:
+            raise RuntimeError(str(exc))
+
+    def adapt_outdir(self):
+        """Where ADapt keeps its sessions: in the runs folder, not in the
+        home directory, which is where ADapt keeps them by default."""
+        return os.path.join(self.runs, "adapt_sessions")
+
+    def adapt_open(self, body=None):
+        """Start ADapt if it is not running, and return its address.
+
+        With a receptor (body["path"]), ADapt is handed the file through its
+        own api/upload and the page is opened on that session (session= in
+        the URL, as its README's "Embedding ADapt" describes). ADapt reads
+        PDB files only; for an mmCIF fetched by its id, ADapt fetches the
+        entry itself (pdb=). The answer names the session and its folder,
+        which the page then watches for a receptor save.
+        """
+        from . import adapt as adaptmod
+        body = body or {}
+        try:
+            url = self._adapt_running()
+        except RuntimeError as exc:
             return {"error": str(exc)}
+        out = {"direct": url}
+        path = str(body.get("path") or "").strip()
+        code = str(body.get("code") or "").strip().upper()
+        session = None
+        # A session this page opened before, while ADapt still holds it, is
+        # opened again with what was chosen in it rather than started anew.
+        again = str(body.get("session") or "").strip()
+        if again:
+            try:
+                got = adaptmod.call(url, "api/session", {"s": again})
+                session = again
+                out.update(session=again, folder=got.get("folder") or "",
+                           tab=got.get("current") or "",
+                           pdbid=got.get("pdbid") or "")
+            except RuntimeError:
+                session = None
+        if session:
+            pass
+        elif path and os.path.isfile(path):
+            low = path.lower()
+            if low.endswith(adaptmod.READS):
+                # Named by the entry's id where the file is one, in lower
+                # case as the RCSB names its files: ADFR takes the PDB id
+                # from the file name and looks the entry's ligands up by it.
+                name = os.path.basename(path)
+                if fetch.looks_like_code(name.split(".")[0]):
+                    name = name.lower()
+                try:
+                    got = adaptmod.upload(url, path, name)
+                except (OSError, RuntimeError) as exc:
+                    return {"error": "ADapt could not open %s: %s"
+                                     % (os.path.basename(path), exc)}
+                session = got.get("session")
+                out.update(session=session, folder=got.get("folder") or "",
+                           tab=got.get("current") or "",
+                           pdbid=got.get("pdbid") or "")
+            elif fetch.looks_like_code(code):
+                out["pdb"] = code
+            else:
+                out["note"] = ("ADapt reads PDB files only, and this receptor "
+                               "is %s; load a PDB file in ADapt with Open PDB "
+                               "or Fetch." % os.path.basename(path))
+        elif fetch.looks_like_code(code):
+            out["pdb"] = code
+        if session:
+            self._adapt_last = {"session": session, "folder": out["folder"]}
         # ADapt listens on a port of its own on this machine, which a browser
         # elsewhere cannot reach through the one port the launcher or an ssh
         # tunnel forwards. So the page is sent to /adapt/ on THIS server,
         # which passes each request on (Handler._adapt_proxy). ADapt's own
         # token travels with it and ADapt checks it, as it always did.
-        q = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
-        return {"url": "/adapt/?t=" + urllib.parse.quote(q.get("t", [""])[0]),
-                "direct": url}
+        out["url"] = adaptmod.page_url(url, session=session, pdb=out.get("pdb"))
+        return out
+
+    def adapt_saved(self, session="", folder="", save=None):
+        """The receptor ADapt saved, read back from the session folder it
+        wrote: its PDBQT, its _rec_H.pdb, and what session.json says was
+        chosen (adapt.read_save). The folder is asked of ADapt when only the
+        session is known, and taken from the last session opened from this
+        page when neither is."""
+        from . import adapt as adaptmod
+        folder = str(folder or "").strip()
+        session = str(session or "").strip()
+        if not folder and session:
+            runner = getattr(self, "_adapt_runner", None)
+            if runner is not None and runner.running():
+                try:
+                    folder = adaptmod.call(runner.url, "api/session",
+                                           {"s": session}).get("folder") or ""
+                except RuntimeError:
+                    folder = ""
+            last = getattr(self, "_adapt_last", None) or {}
+            if not folder and last.get("session") == session:
+                folder = last.get("folder") or ""
+        if not folder:
+            folder = (getattr(self, "_adapt_last", None) or {}).get("folder") or ""
+        if not folder:
+            return {"found": False,
+                    "why": "no ADapt session has been opened from this page"}
+        try:
+            got = adaptmod.read_save(folder, save)
+        except adaptmod.NoSave as exc:
+            return {"found": False, "why": str(exc), "folder": folder}
+        got["found"] = True
+        got["session"] = session
+        return got
+
+    def surface(self, q):
+        """A molecular surface for a viewer, computed by MSMS (surface.py).
+
+        For the site view, the receptor file as the run will keep it: the
+        chains asked for, without waters, and without hetero groups unless
+        they are kept. For a run, its prepared receptor, or one pose's
+        peptide. The answer is cached in the runs folder by what it was
+        computed from. Where MSMS cannot give one, the answer says why and
+        the viewer draws its own.
+        """
+        from . import surface as surf
+        exe = toolmod.discover(roots=self.tools_roots).adfr_program("msms")
+        one = lambda k: (q.get(k) or [""])[0]                # noqa: E731
+        rundir, what = one("dir"), one("what") or "receptor"
+        try:
+            if rundir:
+                if not os.path.isfile(jobmod.path_of(rundir)):
+                    return {"source": "fallback", "why": "no such run"}
+                if what == "pose":
+                    text, err = self.structure_text(
+                        rundir, one("peptide") or None, one("rank") or "1",
+                        "pose")
+                else:
+                    text, err = self.structure_text(rundir, None, 1, "receptor")
+                if err:
+                    return {"source": "fallback", "why": err}
+                import tempfile
+                with tempfile.NamedTemporaryFile("w", suffix=".pdb",
+                                                 delete=False) as fh:
+                    fh.write(text)
+                    tmp = fh.name
+                try:
+                    atoms = structure.read(tmp)
+                finally:
+                    os.unlink(tmp)
+            else:
+                path = one("path")
+                if not path or not os.path.isfile(path) \
+                        or not structure.is_structure(path):
+                    return {"source": "fallback", "why": "no such structure"}
+                chains = [c for c in one("chains").split(",") if c]
+                het = one("het") in ("1", "true", "yes")
+                # Modified residues the preparation reads as the residue they
+                # stand in for stay, as they stay in the receptor.
+                from ._vendor import prepare as _prep
+                part = set(structure.AA3) | set(_prep.STANDIN)
+                atoms = [a for a in structure.read(path)
+                         if (not chains or a.chain in chains)
+                         and (het or not a.hetatm or a.resname in part)]
+            got = surf.cached(atoms, exe, os.path.join(self.runs, "_surfaces"))
+            got["msms"] = exe
+            return got
+        except surf.SurfaceError as exc:
+            return {"source": "fallback", "why": str(exc)}
+        except Exception as exc:                                # noqa: BLE001
+            return {"source": "fallback",
+                    "why": "the surface could not be computed (%s)" % exc}
 
     def adapt_stop(self):
         runner = getattr(self, "_adapt_runner", None)
@@ -422,6 +651,12 @@ class App:
             self._a11 = (exe, adcp11.version(exe) if exe else "")
             self._a11lib = adcp11.library(exe) if exe else set()
         return self._a11
+
+    def _agfr11(self):
+        """Whether the ADCP 1.1 suite here carries its own AGFR."""
+        from . import adcp11
+        exe = self._adcp11()[0]
+        return bool(exe and adcp11.agfr_script(exe))
 
     def modifications(self):
         """What the Modifications dialog may offer: ADCP 1.1's non-standard
@@ -549,9 +784,30 @@ class App:
         self.runs = path
         return {"root": self.runs, "runs": self.list_runs()["runs"]}
 
-    def browse(self, path, dirs_only=False):
+    #: What the file browser can be asked to list. A receptor is the common
+    #: case; the target file box asks for AGFR's .trg files instead. Each is
+    #: its own filter, so asking for one never loosens the other.
+    BROWSE_KINDS = ("structure", "trg")
+
+    @staticmethod
+    def _listed(name, kind):
+        if kind == "trg":
+            return agfr_target.is_target(name)
+        return structure.is_structure(name)
+
+    def browse(self, path, dirs_only=False, kind="structure",
+               every_file=False):
         """A directory listing. Structures first, then directories: the
-        person is looking for a receptor, not for a filesystem."""
+        person is looking for a receptor, not for a filesystem. With
+        kind="trg", target files instead of structures.
+
+        every_file lists every regular file, whatever its name. Only the
+        Folders view asks for that, through runs_folder, which has already
+        held the path to the runs folder; /api/browse never passes it, so
+        the picker still lists only what it was asked for."""
+        kind = kind or "structure"
+        if kind not in self.BROWSE_KINDS:
+            return {"error": "the browser cannot list %r files" % kind}
         path = os.path.abspath(os.path.expanduser(path or self.runs))
         if os.path.isfile(path):
             path = os.path.dirname(path)
@@ -564,28 +820,193 @@ class App:
                     continue
                 full = os.path.join(path, n)
                 if os.path.isdir(full):
-                    dirs.append({"name": n, "path": full})
-                elif structure.is_structure(n):
+                    # The time costs a second look at each folder, so only
+                    # the Folders view, which shows it, pays for it.
+                    dirs.append({"name": n, "path": full,
+                                 "mtime": _mtime(full) if every_file
+                                 else None})
+                elif every_file or self._listed(n, kind):
                     # A broken symlink must not empty the
-                    # listing: getsize raises
+                    # listing: stat raises
                     # FileNotFoundError for a link with
                     # no target, so that error is caught
                     # for each entry.
                     try:
-                        size = os.path.getsize(full)
+                        st = os.stat(full)
                     except OSError:
                         continue
-                    files.append({"name": n, "path": full, "size": size})
+                    # A pipe or a socket is not a file anyone can open
+                    # or download.
+                    if not stat.S_ISREG(st.st_mode):
+                        continue
+                    files.append({"name": n, "path": full,
+                                  "size": st.st_size, "mtime": st.st_mtime})
         except PermissionError:
             return {"error": "no permission to read %s" % path}
         return {"path": path, "parent": os.path.dirname(path),
                 "dirs": dirs, "files": [] if dirs_only else files,
                 "writable": os.access(path, os.W_OK | os.X_OK)}
 
+    # ---- the runs folder, walked ----------------------------------------
+    #: The most entries the Folders view lists from one folder. A docking
+    #: folder whose trajectories were not packed holds thousands of files,
+    #: and nobody reads a listing that long in a page.
+    FOLDER_MAX = 2000
+    #: The largest text or structure the page shows itself. Anything larger
+    #: is downloaded instead, so a log of hundreds of megabytes is never
+    #: pulled into a browser tab to be drawn.
+    VIEW_MAX = 8 << 20
+    #: Files the page shows as text.
+    TEXT_VIEW = (".txt", ".log", ".out", ".err", ".tsv", ".csv", ".json",
+                 ".sbatch", ".sh", ".bib", ".ris", ".fasta", ".fa", ".seq",
+                 ".md", ".dlg", ".gpf", ".dat", ".in", ".py")
+    #: Files the page draws in its 3D viewer besides the structures
+    #: structure.is_structure names: what docking and preparation write.
+    #: The structure suffixes themselves are structure's, never a second
+    #: list here.
+    DOCKED_VIEW = (".pdbqt", ".pqr", ".sdf", ".mol2")
+    #: A run's report: opened as the run's own results table.
+    REPORT_FILES = ("results.txt", "results.tsv", "results.json",
+                    "results_combined.tsv")
+
+    def _in_runs(self, raw):
+        """(real path, path relative to the runs folder), or (None, why).
+
+        The path comes from a query string, so it is resolved before it is
+        trusted. Symbolic links and ".." are followed to where they really
+        lead, and only the runs folder itself or something inside it is
+        accepted. A link inside the runs folder that points out of it is
+        refused like any other path outside it. A relative path is taken
+        from the runs folder; an absolute one must still end up inside it.
+        """
+        root = os.path.realpath(self.runs)
+        raw = "" if raw is None else str(raw).strip()
+        if "\x00" in raw:
+            return None, "that is not a path"
+        cand = raw or root
+        if not os.path.isabs(cand):
+            cand = os.path.join(root, cand)
+        try:
+            real = os.path.realpath(cand)
+            inside = os.path.commonpath([root, real]) == root
+        except (OSError, ValueError):
+            return None, "that is not a path"
+        if not inside:
+            return None, ("only the runs folder, %s, and what is inside it "
+                          "can be shown here" % self.runs)
+        rel = os.path.relpath(real, root)
+        return real, ("" if rel == os.curdir else rel)
+
+    def _run_label(self, folder):
+        """A run folder's name for itself, or None when it is not a run."""
+        jf = jobmod.path_of(folder)
+        if not os.path.isfile(jf):
+            return None
+        try:
+            label = jobmod.load(folder).get("label")
+        except (OSError, ValueError):
+            label = None
+        return str(label or os.path.basename(folder))
+
+    def _view_kind(self, name, size, in_run):
+        """How the page shows a file: as the run's results ("report"), in
+        its 3D viewer ("structure"), as text ("text"), or not at all ("")."""
+        low = name.lower()
+        if in_run and low in self.REPORT_FILES:
+            return "report"
+        if size > self.VIEW_MAX:
+            return ""
+        # A gzipped structure is read by the receptor box, not by the
+        # viewer, so it is downloaded.
+        if ((structure.is_structure(low) and not low.endswith(".gz"))
+                or low.endswith(self.DOCKED_VIEW)):
+            return "structure"
+        if low.endswith(self.TEXT_VIEW):
+            return "text"
+        return ""
+
+    def runs_folder(self, path=""):
+        """One folder of the runs folder, for the Folders view: the folders
+        in it, then every file in it, with sizes and modification times, and
+        whether it, or any folder in it, is a run.
+
+        The listing is the file picker's own (browse), asked for every file
+        instead of structures. Nothing outside the runs folder is listed:
+        the folder asked for is held to it first, and an entry that is a
+        link leading out of it is left out.
+        """
+        real, rel = self._in_runs(path)
+        if real is None:
+            return {"error": rel}
+        if not os.path.isdir(real):
+            return {"error": "there is no folder %s in the runs folder"
+                             % (rel or os.curdir)}
+        got = self.browse(real, every_file=True)
+        if got.get("error"):
+            return got
+        root = os.path.realpath(self.runs)
+
+        def inside(p):
+            try:
+                r = os.path.realpath(p)
+                return r if os.path.commonpath([root, r]) == root else None
+            except (OSError, ValueError):
+                return None
+
+        here_run = self._run_label(real)
+        dirs, files = [], []
+        for d in got["dirs"]:
+            r = inside(d["path"])
+            if r is None:
+                continue
+            drel = os.path.relpath(r, root)
+            dirs.append({"name": d["name"], "rel": drel,
+                         "path": os.path.join(self.runs, drel),
+                         "mtime": d.get("mtime"), "items": _count(r),
+                         "run": self._run_label(r)})
+        for f in got["files"]:
+            r = inside(f["path"])
+            if r is None:
+                continue
+            files.append({"name": f["name"],
+                          "rel": os.path.relpath(r, root),
+                          "size": f["size"], "mtime": f.get("mtime"),
+                          "view": self._view_kind(f["name"], f["size"],
+                                                  bool(here_run))})
+        more = max(0, len(dirs) + len(files) - self.FOLDER_MAX)
+        if more:
+            dirs = dirs[:self.FOLDER_MAX]
+            files = files[:max(0, self.FOLDER_MAX - len(dirs))]
+        crumbs = [{"name": os.path.basename(self.runs.rstrip(os.sep))
+                   or self.runs, "rel": ""}]
+        at = ""
+        for part in (rel.split(os.sep) if rel else []):
+            at = os.path.join(at, part) if at else part
+            crumbs.append({"name": part, "rel": at})
+        return {"root": self.runs, "rel": rel,
+                "path": os.path.join(self.runs, rel) if rel else self.runs,
+                "parent": (os.path.dirname(rel) if rel else None),
+                "crumbs": crumbs, "run": here_run,
+                "dirs": dirs, "files": files, "more": more,
+                "count_most": COUNT_MOST}
+
+    def run_file(self, path):
+        """(real path, path inside the runs folder, status) for a file the
+        Folders view may send, or (None, why, status) when it may not."""
+        real, rel = self._in_runs(path)
+        if real is None:
+            return None, rel, 403
+        if not os.path.isfile(real):
+            return None, ("there is no file %s in the runs folder"
+                          % (rel or os.curdir)), 404
+        return real, rel, 200
+
     def receptor(self, path):
         """Chains and residues, so the page can offer them."""
         if not path or not os.path.isfile(path):
             return {"error": "no such file: %s" % path}
+        if path.lower().endswith(".pdbqt"):
+            return {"error": PDBQT_REFUSED % os.path.basename(path)}
         try:
             atoms = structure.read(path)
         except Exception as exc:                            # noqa: BLE001
@@ -596,7 +1017,51 @@ class App:
         ch = structure.chains(atoms)
         return {"path": path, "atoms": len(atoms), "chains": ch,
                 "residues": {c["id"]: structure.residues(atoms, c["id"])
-                             for c in ch if c["kind"] == "protein"}}
+                             for c in ch if c["kind"] == "protein"},
+                # What a box could be built around instead of residues: the
+                # peptides and hetero groups the file holds, waters left out.
+                "ligands": structure.ligands(atoms)}
+
+    def target_file(self, path):
+        """A target file's receptor and box, for the site view.
+
+        Held to the check the run itself applies (agfr_target.preview), so a
+        file shown here is one the run will take, and one it would refuse is
+        refused now, with the reason, rather than at the start of the run.
+        """
+        raw = (path or "").strip()
+        if not raw:
+            return {"error": "give the path to a target file"}
+        path = os.path.abspath(os.path.expanduser(raw))
+        name = os.path.basename(path)
+        if not agfr_target.is_target(path):
+            return {"error": "%s is not a target file. AGFR and AGFRGUI write "
+                             "targets as .trg files; a structure goes in the "
+                             "box above instead." % name}
+        if not os.path.isfile(path):
+            return {"error": "There is no file at %s." % path}
+        try:
+            pdb, centre, size = agfr_target.preview(path)
+        except Exception as exc:                            # noqa: BLE001
+            return {"error": "%s cannot be used as a target file: %s. Make it "
+                             "again in AGFR or AGFRGUI, or leave this box "
+                             "empty and prepare the receptor here."
+                             % (name, str(exc).rstrip("."))}
+        from . import target as _t
+        atoms = [L for L in pdb.splitlines() if L.startswith(("ATOM", "HETATM"))]
+        pts = _t.translation_points(path)
+        return {"path": path, "name": name, "pdb": pdb,
+                "centre": [round(float(c), 3) for c in centre],
+                "size": [round(float(v), 3) for v in size],
+                "atoms": len(atoms),
+                "chains": sorted({L[21] for L in atoms if L[21].strip()}),
+                "maps": _t.maps_in(path),
+                # The AutoSite points the docking starts from, as agfr put
+                # them in the file: drawn in the view so the pocket can be
+                # seen. Thinned past a few thousand, which a view cannot
+                # tell apart anyway.
+                "points": pts[::max(1, len(pts) // 3000)],
+                "n_points": len(pts)}
 
     def fetch_code(self, code):
         """Pull an entry from the RCSB into the cache and read it back."""
@@ -611,37 +1076,9 @@ class App:
 
     @staticmethod
     def receptor_cost(path, chains=()):
-        """(heavy atoms, distinct non-water heteroatom kinds).
-
-        Counted over the chains that will be kept rather than the whole file: a
-        structure is routinely several copies of a complex, and costing a run by
-        the file means costing work it will never do.
-        """
-        want = {c.strip() for c in (chains or []) if c and c.strip()}
-        atoms, kinds = 0, set()
-        try:
-            with open(path, errors="replace") as fh:
-                for line in fh:
-                    if line.startswith("ENDMDL"):
-                        break
-                    if line[:4] not in ("ATOM", "HETA"):
-                        continue
-                    if line[16] not in (" ", "A"):     # one altloc only
-                        continue
-                    chain = line[21].strip() or "_"
-                    if want and chain not in want:
-                        continue
-                    res = line[17:20].strip()
-                    if line.startswith("HETATM"):
-                        if res in ("HOH", "WAT", "DOD", "D2O"):
-                            continue
-                        kinds.add(res)
-                    if (line[76:78].strip() or res[:1]).upper() == "H":
-                        continue
-                    atoms += 1
-        except OSError:
-            return 0, 0
-        return atoms, len(kinds)
+        """(heavy atoms, distinct non-water heteroatom kinds), counted over
+        the chains that will be kept (sizing.receptor_cost)."""
+        return sizing.receptor_cost(path, chains)
 
     def estimate_run(self, body):
         """What to ask the queue for, from what the form currently holds."""
@@ -666,7 +1103,46 @@ class App:
             mm_poses=int(body.get("mmgbsa_poses") or 5),
             throttle=int(body.get("throttle") or 0),
             atoms=atoms, hetatm_kinds=kinds,
-            fill_loops=bool(body.get("fill_loops")), box=box)
+            fill_loops=bool(body.get("fill_loops")), box=box,
+            options=self.cost_options(body),
+            prep_booked=self._prep_booked(body))
+
+    def _prep_booked(self, body):
+        """What the prepare job will book, in minutes, worked out the way
+        the submission works it out (pipeline.prep_time), so the total the
+        page states is what the queue is actually asked for. None when it
+        cannot be worked out, and the estimate's own booking stands."""
+        try:
+            j = jobmod.default(**{k: v for k, v in body.items()
+                                  if k in jobmod.default()})
+            j["tools_roots"] = self.tools_roots
+            # Capped at the partition's limit, as the submission caps it.
+            booked = slurm.within_limit(pipeline.prep_time(j), j.get("partition"),
+                                        j.get("sbatch_extra"))
+            h, m, s = (int(x) for x in booked.split(":"))
+            return h * 60 + m + (1 if s else 0)
+        except Exception:                                      # noqa: BLE001
+            return None
+
+    def cost_options(self, body):
+        """The settings that change what a run costs, as the page holds them,
+        with "auto" resolved to the agfr this server would use."""
+        from . import target as _t
+        j = jobmod.default(**{k: v for k, v in body.items()
+                              if k in jobmod.default()})
+        j["tools_roots"] = self.tools_roots
+        agfr = _t.resolve_agfr(j)[0]
+        return {"agfr": agfr if agfr != "missing" else "1.1",
+                "autosite": str(j.get("autosite") or "1.1"),
+                "receptor_gradient": bool(j.get("receptor_gradient")),
+                "site_mode": str(j.get("site_mode") or "residues"),
+                "cyclic": str(j.get("cyclic") or "none"),
+                "helical": j.get("helical", 0),
+                "poses": int(j.get("poses") or 10),
+                "keep_trajectories": bool(j.get("keep_trajectories")),
+                "box_max": float(j.get("box_max") or 30.0),
+                "protonation": jobmod.protonation_of(j),
+                "from_adapt": bool((j.get("adapt") or {}).get("folder"))}
 
     def sequence(self, path, chain):
         """The chain as residues, for the strip people click residues in."""
@@ -982,15 +1458,53 @@ class App:
             return {"error": "choose a receptor first"}
         all_atoms = structure.read(path)
         keep = body.get("chains") or []
-        atoms = [a for a in all_atoms if a.chain in keep] if keep else all_atoms
-        hs = structure.parse_hotspots(body.get("hotspots"),
-                                      (keep or [None])[0])
-        if not hs:
-            return {"error": "no residues chosen"}
-        centre, size, note = structure.box_for(
-            atoms, hs, padding=float(body.get("box_padding", 8.0)),
-            minimum=float(body.get("box_min", 20.0)),
-            maximum=float(body.get("box_max", 30.0)))
+        mode = str(body.get("site_mode") or "residues")
+        if mode == "pocket":
+            # AutoSite runs on the prepared receptor, on a compute node, so
+            # there is no box to draw before the run has prepared it.
+            return {"mode": "pocket", "pending": True,
+                    "note": "AutoSite places this box when the receptor has "
+                            "been prepared, on a compute node, around the %s. "
+                            "Load the run's target file afterwards to see the "
+                            "pocket and its box."
+                    % ("best scoring pocket it finds"
+                       if (body.get("site_pocket") or "best") == "best"
+                       else "pockets it finds, all of them")}
+        exclude = set()
+        contacts = []
+        if mode == "ligand":
+            spec = str(body.get("site_ligand") or "").strip()
+            if not spec:
+                return {"error": "choose the ligand or peptide the box should "
+                                 "be built around"}
+            probs = structure.ligand_problems(all_atoms, spec, keep,
+                                              bool(body.get("keep_hetatms")))
+            if probs:
+                return {"error": probs[0]}
+            lig = structure.ligand_atoms(all_atoms, spec)
+            p = structure.parse_ligand(spec)
+            if p and p[0] == "chain":
+                exclude = {p[1]}
+            chains_rec = keep or sorted({a.chain for a in all_atoms} - exclude)
+            centre, size, note = structure.ligand_box(
+                lig, padding=float(body.get("box_padding", 8.0)),
+                minimum=float(body.get("box_min", 20.0)),
+                maximum=float(body.get("box_max", 30.0)))
+            contacts = structure.contacts(all_atoms, lig,
+                                          chains_keep=chains_rec)
+            hs = contacts
+            keep = chains_rec
+        else:
+            atoms = ([a for a in all_atoms if a.chain in keep] if keep
+                     else all_atoms)
+            hs = structure.parse_hotspots(body.get("hotspots"),
+                                          (keep or [None])[0])
+            if not hs:
+                return {"error": "no residues chosen"}
+            centre, size, note = structure.box_for(
+                atoms, hs, padding=float(body.get("box_padding", 8.0)),
+                minimum=float(body.get("box_min", 20.0)),
+                maximum=float(body.get("box_max", 30.0)))
         if centre is None:
             return {"error": note}
         # Which other chains the box reaches, so that the decision
@@ -1003,7 +1517,8 @@ class App:
             # chain when none is ticked. Only chains outside that set are
             # "other"; with none ticked there are none.
             loaded = set(keep) if keep else {a.chain for a in all_atoms}
-            found = _rec.chains_in_box(path, centre, size, exclude=loaded,
+            found = _rec.chains_in_box(path, centre, size,
+                                       exclude=loaded | exclude,
                                        min_atoms=20)
             # Both numbers are reported: the box may reach a few
             # hundred atoms of another chain, but including it
@@ -1016,16 +1531,27 @@ class App:
                       for c, n in sorted(found.items(), key=lambda x: -x[1])]
         except Exception:                                       # noqa: BLE001
             others = []
-        return {"centre": [round(c, 3) for c in centre],
-                "size": list(size), "note": note, "n": len(hs),
-                "other_chains": others}
+        out = {"centre": [round(c, 3) for c in centre],
+               "size": list(size), "note": note, "n": len(hs),
+               "other_chains": others, "mode": mode}
+        if mode == "ligand":
+            # The residues the ligand touches: the site every pose is then
+            # measured against.
+            out["contacts"] = ["%s:%d" % (c, n) for c, n in contacts]
+        return out
 
     def peptides(self, body):
         """Live validation. Positions come back so the box can underline."""
         kw = self._pepcheck(body)
         out = []
+        cyclic = str(body.get("cyclic") or "none")
         for row in body.get("peptides") or []:
             seq, probs = peptide.check(row.get("sequence", ""), **kw)
+            # A ring this peptide cannot close, said at the box: ADCP would
+            # dock it as a linear peptide and say nothing.
+            ring = peptide.cyclic_problem(seq, cyclic) if seq else None
+            if ring:
+                probs = list(probs) + [ring]
             out.append({"name": row.get("name", ""), "sequence": seq,
                         "length": len(peptide.residues(seq)),
                         "ok": not probs,
@@ -1062,9 +1588,11 @@ class App:
         if not safe:
             return {"error": "that filename cannot be used here"}
         lists = (".txt", ".csv", ".fasta", ".fa", ".seq")
+        if safe.lower().endswith(".pdbqt"):
+            return {"error": PDBQT_REFUSED % safe}
         if not (structure.is_structure(safe) or safe.lower().endswith(lists)):
             return {"error": "%s is not a structure or a peptide list. "
-                             "Structures: .pdb, .cif, .ent, .pdbqt; lists: "
+                             "Structures: .pdb, .ent, .cif or .mmcif; lists: "
                              "%s" % (safe, ", ".join(lists))}
         data = text.encode("utf-8", "replace")
         if len(data) > MAX_UPLOAD:
@@ -1112,7 +1640,8 @@ class App:
                                   if k in jobmod.default()})
             j["label"] = label
             j["tools_roots"] = self.tools_roots
-            problems = jobmod.validate(j)
+            problems = jobmod.take_adapt(j)
+            problems += jobmod.validate(j) if not problems else []
             if j.get("mmgbsa") and not toolmod.discover(
                     roots=self.tools_roots).can_rescore():
                 problems.append("MM-GBSA needs AmberTools (tleap, sander, "
@@ -1338,34 +1867,25 @@ def _tail(logdir, n=40):
 
 _ADAPT_LOCK = threading.Lock()
 
-#: ADapt's page asks for /api/..., /static/... and /docs/... from the root of
-#: the server it came from. Served under /adapt/ on this server, those have
-#: to say /adapt/ too, or they would reach this tool's own /api/ instead.
-#: Only these three prefixes exist in ADapt's page and script, and a path
-#: starting // is another host, so it is left alone.
-_ADAPT_ATTR = re.compile(rb"""((?:href|src|action)=["'])/(?!/)""")
-_ADAPT_JS = re.compile(rb"""(['"`])/(api|static|docs)/""")
-_ADAPT_CSS = re.compile(rb"""url\((["']?)/(?!/)""")
 #: How long one request to ADapt may take. Reading a large structure runs
 #: AGFR's own processing and is not quick.
 ADAPT_PROXY_SECONDS = 600
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """A redirect from ADapt goes back to the browser as it is. ADapt sends
+    /adapt?t=... to /adapt/?t=..., because its page's paths are relative and
+    need the slash; followed here instead, the browser would keep the
+    address without it."""
+
+    def redirect_request(self, *a, **kw):
+        return None
+
+
 #: No proxy for a connection to this same machine. A cluster that sets
 #: http_proxy for the outside world would otherwise send 127.0.0.1 there.
-_ADAPT_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-
-
-def _rebase_adapt(body, ctype, path=""):
-    """ADapt's own absolute paths, moved under /adapt/."""
-    c = (ctype or "").lower()
-    if "html" in c:
-        body = _ADAPT_ATTR.sub(rb"\1/adapt/", body)
-        return _ADAPT_JS.sub(rb"\1/adapt/\2/", body)
-    if "javascript" in c and "3dmol" not in path.lower():
-        # 3Dmol is a library: its strings are its own business.
-        return _ADAPT_JS.sub(rb"\1/adapt/\2/", body)
-    if "css" in c:
-        return _ADAPT_CSS.sub(rb"url(\1/adapt/", body)
-    return body
+_ADAPT_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}),
+                                            _NoRedirect)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -1390,8 +1910,50 @@ class Handler(BaseHTTPRequestHandler):
         return (q.get("t", [""])[0] or
                 self.headers.get("X-Token", "")) == self.server.app.token
 
+    def _send_file(self, real, download):
+        """A file from the runs folder, already held to it by run_file.
+
+        Opened without following a link at its last step, and sent only if
+        what was opened is a regular file, so a file swapped for a link
+        after it was checked is not followed. To be shown, it goes as plain
+        text whatever it holds, so a page in the runs folder can never run
+        as part of this one; to be saved, as an attachment. Neither is
+        allowed to load anything.
+        """
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        try:
+            fd = os.open(real, flags)
+        except OSError as exc:
+            return self._send("could not open it: %s" % exc.strerror, 404,
+                              "text/plain")
+        with os.fdopen(fd, "rb") as fh:
+            st = os.fstat(fh.fileno())
+            if not stat.S_ISREG(st.st_mode):
+                return self._send("that is not a file", 404, "text/plain")
+            if not download and st.st_size > App.VIEW_MAX:
+                return self._send("that file is too large to show here; "
+                                  "download it instead", 413, "text/plain")
+            self.send_response(200)
+            if download:
+                self.send_header("Content-Type", "application/octet-stream")
+                self.send_header("Content-Disposition",
+                                 _attachment(os.path.basename(real)))
+            else:
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(st.st_size))
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Content-Security-Policy",
+                             "default-src 'none'; sandbox")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            shutil.copyfileobj(fh, self.wfile, 1 << 20)
+
     def _adapt_proxy(self, method, u):
         """Pass a request under /adapt/ to ADapt, and its answer back.
+
+        ADapt runs with --base-path /adapt and its page uses relative paths
+        only, so the path is forwarded as it is, prefix and all, and nothing
+        in the answer is rewritten (its README, "Embedding ADapt").
 
         This tool's own token is not asked for here: ADapt's pages carry
         ADapt's token, and ADapt checks it on everything but its static
@@ -1400,10 +1962,9 @@ class Handler(BaseHTTPRequestHandler):
         runner = getattr(self.server.app, "_adapt_runner", None)
         if runner is None or not runner.running():
             return self._send("ADapt is not running. Go back to the docking page "
-                              "and press Open ADapt.", 503, "text/plain")
+                              "and press Open in ADapt.", 503, "text/plain")
         base = urllib.parse.urlparse(runner.url)
-        rest = u.path[len("/adapt"):] or "/"
-        target = "%s://%s%s%s" % (base.scheme, base.netloc, rest,
+        target = "%s://%s%s%s" % (base.scheme, base.netloc, u.path or "/",
                                   ("?" + u.query) if u.query else "")
         data = None
         if method == "POST":
@@ -1420,14 +1981,14 @@ class Handler(BaseHTTPRequestHandler):
         except urllib.error.HTTPError as exc:
             code, body, rh = exc.code, exc.read(), exc.headers
         except (urllib.error.URLError, OSError) as exc:
-            return self._send("ADapt did not answer (%s). Press Open ADapt again."
+            return self._send("ADapt did not answer (%s). Press Open in ADapt again."
                               % getattr(exc, "reason", exc), 502, "text/plain")
         ctype = rh.get("Content-Type", "application/octet-stream")
-        body = _rebase_adapt(body, ctype, rest)
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
-        for k in ("Content-Disposition", "Cache-Control", "Last-Modified"):
+        for k in ("Content-Disposition", "Cache-Control", "Last-Modified",
+                  "Location"):
             if rh.get(k):
                 self.send_header(k, rh.get(k))
         self.send_header("X-Content-Type-Options", "nosniff")
@@ -1535,7 +2096,10 @@ class Handler(BaseHTTPRequestHandler):
             if (q.get("dirs") or [""])[0] in ("1", "true", "yes"):
                 return self._send(app.browse(
                     (q.get("path") or [""])[0], dirs_only=True))
-            return self._send(app.browse(q.get("path", [""])[0]))
+            return self._send(app.browse(q.get("path", [""])[0],
+                                         kind=(q.get("kind") or [""])[0]))
+        if u.path == "/api/target":
+            return self._send(app.target_file((q.get("path") or [""])[0]))
         if u.path == "/api/receptor":
             return self._send(app.receptor(q.get("path", [""])[0]))
         if u.path == "/api/fetch":
@@ -1584,6 +2148,18 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(svg, ctype="image/svg+xml")
         if u.path == "/api/runs":
             return self._send(app.list_runs())
+        if u.path == "/api/folder":
+            # The Folders view: one folder of the runs folder, and nothing
+            # outside it.
+            return self._send(app.runs_folder((q.get("path") or [""])[0]))
+        if u.path == "/api/runfile":
+            # A file from the runs folder, to show in the page or, with
+            # dl=1, to save. Held to the runs folder the same way.
+            real, why, code = app.run_file((q.get("path") or [""])[0])
+            if real is None:
+                return self._send(why, code, "text/plain")
+            return self._send_file(real, (q.get("dl") or [""])[0]
+                                   in ("1", "true", "yes"))
         if u.path == "/api/run":
             return self._send(app.run_status(q.get("dir", [""])[0]))
         if u.path == "/api/residues":
@@ -1592,6 +2168,12 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/api/poses":
             return self._send(app.pose_list(q.get("dir", [""])[0],
                                             q.get("peptide", [""])[0]))
+        if u.path == "/api/surface":
+            return self._send(app.surface(q))
+        if u.path == "/api/adapt/saved":
+            one = lambda k: (q.get(k) or [""])[0]            # noqa: E731
+            return self._send(app.adapt_saved(one("session"), one("folder"),
+                                              one("save") or None))
         if u.path == "/api/structure":
             text, err = app.structure_text(
                 q.get("dir", [""])[0], q.get("peptide", [""])[0] or None,
@@ -1685,7 +2267,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(app.rescore_run(body.get("rundir"),
                                               body.get("engine")))
         if u.path == "/api/adapt":
-            return self._send(app.adapt_open())
+            return self._send(app.adapt_open(body))
         return self._send({"error": "no such endpoint"}, 404)
 
 

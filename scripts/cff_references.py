@@ -22,7 +22,8 @@ NOTES = {"adcp": "The docking engine. Scripps Research Institute.",
          "adfr": "ADFRsuite: agfr and prepare_receptor. Scripps Research Institute.",
          "autogrid": "AutoGrid4, which agfr uses to compute the affinity maps.",
          "autosite": "AutoSite, run by agfr on every grid target.",
-         "pdb2pqr": "Receptor protonation at a chosen pH.",
+         "reduce": "reduce, the default receptor protonation, as ADFR and ADapt run it.",
+         "pdb2pqr": "Receptor protonation at a chosen pH, when PROPKA is chosen.",
          "propka": "The pKa prediction PDB2PQR uses.",
          "pdbfixer": "Rebuilding missing atoms (PDBFixer is part of OpenMM).",
          "openmm": "Restrained receptor minimization; ADCP 1.1's pose minimization.",
@@ -35,6 +36,7 @@ NOTES = {"adcp": "The docking engine. Scripps Research Institute.",
          "gaff": "GAFF, the parameters ADCP 1.1 minimizes non-standard residues with.",
          "ff99sb": "The Amber ff99SB force field ADCP 1.1 minimizes poses with.",
          "gbn2": "The GBn2 implicit solvent model: the receptor minimization, ADCP 1.1's pose minimization, and MM-GBSA when GBn2 is chosen.",
+         "msms": "MSMS, the molecular surfaces the viewers draw.",
          "3dmol": "The 3Dmol.js structure viewer.",
          "molstar": "The Mol* structure viewer.",
          "numpy": "Array arithmetic.",
@@ -54,6 +56,9 @@ def crossref(doi):
 
 def clean(t):
     t = re.sub(r"\s*<(sub|sup)>\s*([^<]*?)\s*</\1>", r"\2", t or "")
+    # A footnote Crossref keeps in some titles: "... orientation 1 1Edited
+    # by J. Thornton".
+    t = re.sub(r"\s+\d+\s*\d*\s*Edited by .*$", "", t)
     return re.sub(r"\s+([:;,])", r"\1", re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", t))).strip()
 
 

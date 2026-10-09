@@ -12,9 +12,19 @@ import time
 
 VERSION = 1
 NAME = "job.json"
-# ADCP builds side chains, and so writes an all-atom ranked pose, for its
-# ten best clusters only (clusterADCP.py), so a run cannot keep more.
+# ADCP 1.0 builds side chains, and so writes an all-atom ranked pose, for its
+# ten best clusters only (clusterADCP.py), so a run on it cannot keep more.
 MAX_POSES = 10
+# ADCP 1.1 writes every pose it reports with its side chains, up to -m, and
+# its own default for -m is 100.
+MAX_POSES_11 = 100
+#: The share of replicas that start as a helix in a new run, in per cent.
+HELICAL_DEFAULT = 25
+
+
+def max_poses(engine):
+    """The most ranked poses the engine writes per peptide."""
+    return MAX_POSES_11 if engine == "1.1" else MAX_POSES
 
 
 def _max_length():
@@ -42,14 +52,48 @@ def default(**kw):
         "restraint": 10.0,       # kcal/mol/A^2 on the heavy atoms
         "forcefield": "AMBER",
         "keep_hetatms": False,   # cofactors: out unless they are the site
+        # Side chain atoms the structure lacks are rebuilt by default, which
+        # is what every run made before this setting existed did, so a job
+        # file without it reads as on. Off, the receptor that is docked into
+        # keeps its side chains as the structure has them.
+        "rebuild_sidechains": True,
         "fill_loops": False,     # rebuilding whole missing loops is a guess
+        # How the receptor is protonated: "reduce", ADFRsuite's, as ADFR's
+        # own preparation and ADapt do it, or "propka", PDB2PQR with PROPKA
+        # at the pH above, which the pH applies to. A job file without the
+        # setting was protonated with PDB2PQR and PROPKA, and still is.
+        "protonation": "reduce",
+        # A receptor prepared in ADapt: its session folder and the receptor
+        # save to use ({"folder": ..., "save": n}, with what was read back
+        # from it). Its PDBQT is docked as ADapt wrote it, its _rec_H.pdb is
+        # the prepared receptor, and this package's preparation is not run.
+        # Empty for a receptor prepared here.
+        "adapt": {},
         # site
+        # Where the box comes from. "residues" builds it around the residues
+        # below, which is what every run made before the choice existed did,
+        # so a job file without it reads as that. "ligand" builds it around a
+        # ligand or peptide in the structure, named in site_ligand as a chain
+        # ("B") or as CHAIN:NAME:NUMBER ("A:NUT:201"). "pocket" builds it
+        # around the pocket AutoSite finds: the best scoring one, or every
+        # one it finds merged (site_pocket).
+        "site_mode": "residues",
+        "site_ligand": "",
+        "site_pocket": "best",
         "hotspots": "",          # "A:41, A:45" or "41,45"
         "shell_radius": 10.0,    # what counts as "near the site"
         "box_padding": 8.0,
         "box_min": 20.0,
         "box_max": 30.0,
         "spacing": 0.375,
+        # The grid maps. Which agfr builds them: "auto" is the ADCP 1.1
+        # suite's where it is installed and ADFRsuite 1.0's otherwise. A job
+        # file without the setting was built with ADFRsuite 1.0's, with its
+        # defaults: AutoSite 1.0 and the receptor gradient on. New runs say
+        # all three, so a rebuilt target always matches the one it replaces.
+        "agfr": "auto",
+        "autosite": "1.1",
+        "receptor_gradient": False,
         # A box built around an interface groove reaches into the
         # chain on the far side. Including it means docking against a
         # complete wall; omitting it means docking against a gap.
@@ -62,11 +106,22 @@ def default(**kw):
         # The same limit the page and the peptide checks use, so a peptide
         # the page accepts is not refused at submission.
         "max_length": _max_length(),
+        # Linear ("none"), or closed head to tail ("backbone", ADCP's -cyc)
+        # or through a disulfide between two cysteines ("disulfide", -cys).
+        "cyclic": "none",
+        # The per cent of replicas that start as a helix, the rest as coil
+        # (ADCP's -p). A job file without it was docked with every replica
+        # starting as coil, so it reads as 0.
+        "helical": HELICAL_DEFAULT,
         # docking
         "replicas": 50,
         "steps": 2_500_000,
         "poses": 10,             # how many ranked poses to keep per peptide
         "seed": None,
+        # Every replica's trajectory, packed into one archive per peptide
+        # (ADCP's -k). Off, they are not kept. A job file without it leaves
+        # whatever ADCP left, as runs made before it did.
+        "keep_trajectories": False,
         # Which ADCP: "auto" uses 1.1 where it is installed and 1.0
         # (ADFRsuite) otherwise; "1.0" or "1.1" asks for one.
         "adcp_engine": "auto",
@@ -182,6 +237,137 @@ def _gb_engine_names():
 GB_ENGINES = _gb_engine_names()
 
 
+def site_problems(j):
+    """[str] why the job's site cannot place a box."""
+    from . import structure, target
+    mode = str(j.get("site_mode") or "residues")
+    if mode not in target.SITE_MODES:
+        return ["The site must come from %s, not %r."
+                % (", ".join(target.SITE_MODES), mode)]
+    if mode == "residues":
+        if not str(j.get("hotspots") or "").strip():
+            return ["No site chosen. Pick the residues the box should cover."]
+        return []
+    if mode == "pocket":
+        pocket = str(j.get("site_pocket") or "best")
+        if pocket not in target.POCKET_CHOICES:
+            return ["The pocket must be %s, not %r."
+                    % (" or ".join(target.POCKET_CHOICES), pocket)]
+        return []
+    spec = str(j.get("site_ligand") or "").strip()
+    if not spec:
+        return ["No ligand chosen. Pick the ligand or peptide in the structure "
+                "the box should be built around."]
+    rec = j.get("receptor") or ""
+    if not os.path.isfile(rec):
+        return []
+    try:
+        atoms = structure.read(rec)
+    except Exception as exc:                                    # noqa: BLE001
+        return ["The receptor could not be read: %s" % exc]
+    return structure.ligand_problems(atoms, spec, j.get("chains") or [],
+                                     bool(j.get("keep_hetatms")))
+
+
+def protonation_of(j):
+    """'reduce' or 'propka' for a job: what it asks for, or what a job file
+    written before the choice existed was protonated with."""
+    from ._vendor import prepare
+    if (j.get("adapt") or {}).get("folder"):
+        return "reduce"
+    return prepare.protonation_of(j)
+
+
+def adapt_problems(j):
+    """[str] why the job's ADapt receptor cannot be used."""
+    a = j.get("adapt") or {}
+    if not a.get("folder"):
+        return []
+    from . import adapt as adaptmod
+    try:
+        got = adaptmod.read_save(a["folder"], a.get("save"))
+    except adaptmod.NoSave as exc:
+        return ["The receptor from ADapt cannot be used: %s." % str(exc).rstrip(".")]
+    out = []
+    for k in ("pdbqt_md5", "pdb_md5"):
+        if a.get(k) and a[k] != got.get(k):
+            out.append("The receptor ADapt saved (%s, save %s) has changed since "
+                       "this run was set up. Read it back again."
+                       % (a["folder"], got.get("save")))
+            break
+    return out
+
+
+def take_adapt(j):
+    """A receptor from ADapt, read back and recorded in the job: its save,
+    the md5 of its two files so a later change is caught, and the
+    _rec_H.pdb as the receptor the site and the viewers read. Returns [str]
+    of problems, empty when it is fine or there is none."""
+    a = j.get("adapt") or {}
+    if not a.get("folder"):
+        j["adapt"] = {}
+        return []
+    from . import adapt as adaptmod
+    try:
+        got = adaptmod.read_save(a["folder"], a.get("save"))
+    except adaptmod.NoSave as exc:
+        return ["The receptor from ADapt cannot be used: %s"
+                % str(exc).rstrip(".")]
+    j["adapt"] = {k: got[k] for k in (
+        "folder", "save", "tab", "pdbid", "input", "pdbqt", "pdb",
+        "pdbqt_md5", "pdb_md5", "reduce", "biomolecule", "hetero",
+        "adapt_version", "adapt_commit")}
+    if a.get("session"):
+        j["adapt"]["session"] = a["session"]
+    j["receptor"] = got["pdb"]
+    j["protonation"] = "reduce"
+    return []
+
+
+def map_problems(j):
+    """[str] why the grid maps cannot be built as the job asks."""
+    from . import target
+    out = []
+    agfr = str(j.get("agfr") or "1.0")
+    if agfr not in target.AGFR_CHOICES:
+        out.append("The maps must be built by AGFR %s, not %r."
+                   % (" or ".join(c for c in target.AGFR_CHOICES
+                                  if c != "auto"), agfr))
+    elif target.resolve_agfr(j)[0] == "missing":
+        out.append("AGFR 1.1 was asked for, and it comes with the ADCP 1.1 "
+                   "suite, which is not installed here. Install it (see "
+                   "INSTALL.md) or build the maps with AGFR 1.0.")
+    autosite = str(j.get("autosite") or "1.0")
+    if autosite not in target.AUTOSITE_CHOICES:
+        out.append("AutoSite must be %s, not %r."
+                   % (" or ".join(target.AUTOSITE_CHOICES), autosite))
+    return out
+
+
+def peptide_option_problems(j):
+    """[str] why the job's cyclic or helical setting cannot be used."""
+    from . import peptide as pep
+    out = []
+    try:
+        h = float(j.get("helical", 0))
+        if not 0 <= h <= 100:
+            raise ValueError
+    except (TypeError, ValueError):
+        out.append("The share of replicas that start as a helix must be a "
+                   "number from 0 to 100, not %r." % j.get("helical"))
+    mode = str(j.get("cyclic") or "none")
+    if mode not in pep.CYCLIC:
+        out.append("Cyclic must be %s, not %r." % (", ".join(pep.CYCLIC), mode))
+        return out
+    for i, p in enumerate(j.get("peptides") or [], 1):
+        seq = pep.clean(p.get("sequence", ""))
+        pr = pep.cyclic_problem(seq, mode)
+        if pr:
+            out.append("Peptide %d (%s): %s"
+                       % (i, p.get("name") or seq[:10] or "?", pr.message))
+    return out
+
+
 def validate(j):
     """[str] of things that would stop the run, in the order worth fixing."""
     from . import peptide as pep
@@ -202,12 +388,19 @@ def validate(j):
             out.append("No receptor structure chosen.")
         elif not os.path.isfile(j["receptor"]):
             out.append("The receptor file does not exist: %s" % j["receptor"])
-        if not str(j.get("hotspots") or "").strip():
-            out.append("No site chosen. Pick the residues the box should cover.")
+        out.extend(adapt_problems(j))
+        prot = j.get("protonation")
+        if prot is not None and str(prot).strip().lower() not in ("reduce",
+                                                                  "propka"):
+            out.append("Protonation must be reduce or propka (PDB2PQR with "
+                       "PROPKA at the pH given), not %r." % prot)
+        out.extend(site_problems(j))
+        out.extend(map_problems(j))
     engine, exe = resolve_engine(j)
     if engine == "missing":
         out.append("ADCP 1.1 was asked for but is not installed here. Install "
                    "it (see INSTALL.md) or choose ADCP 1.0.")
+    out.extend(peptide_option_problems(j))
     lib = None
     if engine == "1.1" and exe:
         from . import adcp11 as _a
@@ -251,11 +444,13 @@ def validate(j):
                     % (names[key], i, label))
             else:
                 names[key] = i
+    most = max_poses(engine)
     if int(j.get("poses", 0)) < 1:
         out.append("Ask for at least one pose per peptide.")
-    elif int(j.get("poses", 0)) > MAX_POSES:
-        out.append("ADCP writes at most %d ranked poses per peptide; ask for "
-                   "%d or fewer." % (MAX_POSES, MAX_POSES))
+    elif int(j.get("poses", 0)) > most:
+        out.append("%s writes at most %d ranked poses per peptide; ask for %d "
+                   "or fewer." % ("ADCP " + engine if engine in ("1.0", "1.1")
+                                  else "ADCP", most, most))
     if j.get("mmgbsa_model", "obc2") not in ("obc2", "gbn2"):
         out.append("The MM-GBSA model must be obc2 (GB-OBC(II)) or gbn2 "
                    "(GBn2), not %r." % j.get("mmgbsa_model"))

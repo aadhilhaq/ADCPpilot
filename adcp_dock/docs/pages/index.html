@@ -4,10 +4,10 @@ browser: prepare the receptor, place the box, paste the sequences, submit, and
 read the ranked results with the poses.</p>
 
 <figure>
-<img src="img/interface.png" alt="The interface as it opens, with the Receptor and Site cards">
-<figcaption><b>The page as it opens.</b> You work down it, one card at a time.
-The parts are explained <a href="#the-page">below</a>, in the order you meet
-them.</figcaption>
+<img src="img/interface.png" alt="The interface as it opens: the five numbered steps across the top, the Receptor card lit as the step to do now, and the Site card grey below it">
+<figcaption><b>The page as it opens.</b> You work down it, one card at a time,
+and the five numbers across the top show where you are. The parts are explained
+<a href="#the-page">below</a>, in the order you meet them.</figcaption>
 </figure>
 
 <h2 id="what-it-does">What it does</h2>
@@ -16,7 +16,7 @@ prepares the receptor, builds the grid maps around the site you nominate,
 docks every peptide with <b>ADCP</b>, can rescore the poses with MM-GBSA, and
 writes a ranked table with the structures beside it.</p>
 <p>The search itself is ADCP, a product of the Scripps Research Institute,
-with the grid maps and the PDBQT files from ADFRsuite. This page is an
+with the grid maps from AGFR and the PDBQT files from ADFRsuite. This page is an
 interface to them: it makes the choices explicit, checks them before anything
 is submitted, and keeps a record of what each run did. The energies come from
 AmberTools.</p>
@@ -26,20 +26,26 @@ in order, one after another.</p>
 
 <h2 id="the-page">The page</h2>
 <ol class="legend">
-<li><b>The header</b>: what this is an interface to, who wrote it, and the
-addresses to write to.</li>
+<li><b>The header</b>: what this is an interface to, the papers a published
+result must cite, who wrote it, and the addresses to write to.</li>
 <li><b>Docs</b>, in the top right corner, opens this documentation.</li>
 <li>Under the title: <b>How to cite</b> lists every program a run used.
 <b>Send feedback</b> collects the version and the machine for a report.
 <b>Dark</b> switches the colours, in the interface and in these pages.</li>
 <li>The word beside those buttons: <b>ready</b> when the programs it needs were
 found, or the names of the ones that are missing.</li>
+<li><b>The steps</b> across the top: Receptor, Site, Peptides, Docking and
+Submit. A number fills green with a tick when its step is done. Click one to go
+to its card. <a href="#the-steps">How each step is decided</a> is below.</li>
 <li><b>Receptor</b>: a PDB id to fetch from the RCSB, or a path to a file the
 cluster can already see, or a file sent from your own computer.</li>
+<li>Under the chains, the <b>receptor preparation</b>: heteroatoms, missing side
+chains and loops, the pH and the minimisation, in the order they are done.</li>
 <li>Or <b>a target file made in AGFR or AGFRGUI</b>, which brings its own
 receptor, maps and box, and skips the preparation here.</li>
-<li><b>Open ADapt</b>, shown when ADapt is installed beside this: it shows what a
-structure file holds before you dock into it.</li>
+<li><b>Open in ADapt</b>, shown when ADapt is installed beside this: it opens the
+receptor in ADapt, where you choose what stays in it, and the receptor you save
+there is read back and docked as ADapt wrote it.</li>
 <li><b>Site</b>: the residues the box must cover, the padding around them, and
 the smallest and largest the box may be.</li>
 <li><b>Check site</b> reports the box it would build, its centre and its size,
@@ -54,6 +60,39 @@ these pages.</li>
 do the work.</li>
 </ol>
 
+<h2 id="the-steps">The steps across the top</h2>
+<figure>
+<img src="img/guide.png" alt="The five steps with Receptor and Site done, each a green circle with a tick, Peptides filled in blue as the step to do now with its card lit below, and Docking and Submit still to come">
+<figcaption><b>Two steps done, the third to do now.</b> A done step is a green
+circle with a tick in place of its number. The step to do now is filled in blue,
+and its card, under the strip, is lit.</figcaption>
+</figure>
+<p>The strip follows the checks the page already makes. Nothing turns green
+because a card was looked at or a number was clicked.</p>
+<table>
+<tr><th>Step</th><th>Done when</th></tr>
+<tr><td>1 Receptor</td><td>a structure is loaded from the path in its box, or a
+target file is loaded and accepted, since a target file brings its own prepared
+receptor</td></tr>
+<tr><td>2 Site</td><td>the site is checked, in whichever way the box is built:
+around the residues you pick, around a ligand or peptide, or around an AutoSite
+pocket, which is found once the receptor is prepared. A target file brings its
+own box, so it completes this step too</td></tr>
+<tr><td>3 Peptides</td><td>there is at least one peptide and every row is
+accepted. One refused row keeps the run from being submitted, so it keeps this
+step open as well</td></tr>
+<tr><td>4 Docking</td><td>every search setting is inside its limits. The
+defaults already are, so this step is marked done once the three before it
+are</td></tr>
+<tr><td>5 Submit</td><td>the run is submitted. Change anything in the form
+afterwards and the step opens again, because that is a new run to
+submit</td></tr>
+</table>
+<p>The card for the first step that is not done is lit, finished cards are green,
+and the cards after it are grey. <b>Grey is only a hint.</b> Every card can be
+used at any time, in any order: a target file completes the first two steps at
+once, and <b>reuse settings</b> on an old run fills four.</p>
+
 <h2 id="the-path-through-a-run">The path through a run</h2>
 <ol class="steps">
 <li><b>Load the receptor</b> and keep the chains you want to dock against.</li>
@@ -61,8 +100,8 @@ do the work.</li>
 <li><b>Add the peptides</b>, one per line or pasted as a list.</li>
 <li><b>Set the search</b>: how many replicas, how many steps each, how many
 poses to keep, and whether to rescore with MM-GBSA.</li>
-<li><b>Ask for resources</b>, name the run, choose where it is written, and
-submit.</li>
+<li><b>Ask for resources</b>, then name the run, choose where it is written,
+and submit.</li>
 <li><b>Follow it</b> in the Runs card, then open it and read the table.</li>
 </ol>
 <p>Everything a run produces stays in its own folder: the prepared receptor,

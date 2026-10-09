@@ -1504,26 +1504,37 @@ for _id in ("steps", "replicas"):
 # up to meet it: the row is bottom-aligned
 _i = _html.index("<h2>Docking and rescoring</h2>")
 _card = _html[_i:_html.index("Name this run")]
-_row = _card[_card.index("<div class=row>"):_card.index("</div>", _card.index("id=ph"))]
+# Three fields since the preparation pH moved to the Receptor card.
+_row = _card[_card.index("<div class=row>"):
+             _card.index("</div>", _card.index("<select id=steps>"))]
 check("id=stepsguide" not in _row,
       "the guideline line is inside the field row again, which makes that "
       "column taller than its neighbours and staggers every label")
-check(_card.index("id=stepsguide") > _card.index("id=ph"),
+check(_card.index("id=stepsguide") > _card.index("<select id=steps>"),
       "the guideline is not below the row")
-for _f in ("poses", "replicas", "steps", "ph"):
+for _f in ("poses", "replicas", "steps"):
     _m = _re2.search(r'<div( style="[^"]*")?><label for=%s>' % _f, _card)
     check(_m and not _m.group(1),
-          "the %s field carries its own width, so the four are not equal" % _f)
+          "the %s field carries its own width, so the three are not equal" % _f)
 
-# the checkboxes are one group, not four fields held apart by blank labels
-check("<div class=checks>" in _card,
-      "the checkboxes are not laid out as a group")
-_checks = _card[_card.index("<div class=checks>"):]
+# The receptor's preparation switches are one group, in the Receptor card,
+# not fields held apart by blank labels; the rescoring switch keeps its own
+# group in this card.
+_rcard = _html[_html.index("<h2>Receptor</h2>"):_html.index("<h2>Site</h2>")]
+check('<div class="checks prepsteps">' in _rcard,
+      "the preparation settings are not laid out as a group")
+_checks = _rcard[_rcard.index('<div class="checks prepsteps">'):]
 _checks = _checks[:_checks.index("</div>")]
 check("&nbsp;" not in _checks,
       "a checkbox is still shoved into place by an empty label, which moves "
       "the moment anything near it changes height")
-check(_checks.count("class=chk") == 4, "not every checkbox is in the group")
+# Keep heteroatoms, rebuild side chains, rebuild loops, protonate with, its
+# pH, and the minimisation.
+check(_checks.count("class=chk") == 6,
+      "not every preparation setting is in the group")
+check("<div class=checks>" in _card
+      and "id=mmgbsa" in _card[_card.index("<div class=checks>"):],
+      "the rescoring switch is not in its group")
 
 
 # --- the page says when it is older than the install ----------------------
@@ -1746,6 +1757,8 @@ check(_before("loadReceptor", "$(\'hotspots\').value"),
       "reuse sets the hotspots before loadReceptor, which clears them")
 # Every setting, or the next one added would be dropped from reuse.
 _uionly = {"reccode", "pastetext", "issuenote", "issuemail", "showbox",
+           # What the site view draws, like the box tick beside it.
+           "sitesurf",
            # The folder picker's filter box. It narrows what the dialog is
            # showing while it is open and is cleared on every navigation, so
            # there is nothing about it a run could restore.
@@ -2301,11 +2314,19 @@ _why = [x for x in _jobmod.validate(_jobmod.default(peptides=[
     if "limit" in x]
 check(not _why, "a 27 residue peptide the page accepts is refused when the "
       "run is created: %s" % _why)
-_why = [x for x in _jobmod.validate(_jobmod.default(poses=11))
+_why = [x for x in _jobmod.validate(_jobmod.default(poses=11,
+                                                    adcp_engine="1.0"))
         if "at most" in x]
-check(_why, "11 poses per peptide were accepted; ADCP writes at most 10")
-check('id=poses value="10" min="1" max="10"' in html,
-      "the page offers more poses than ADCP can write")
+check(_why, "11 poses per peptide were accepted for ADCP 1.0, which writes "
+      "at most 10")
+_why = [x for x in _jobmod.validate(_jobmod.default(poses=101))
+        if "at most" in x]
+check(_why, "101 poses per peptide were accepted; ADCP 1.1 writes at most 100")
+# The page's limit follows the engine: 10 for ADCP 1.0, 100 for 1.1.
+check('id=poses value="10" min="1" max="100"' in html
+      and "function posesLimit()" in appjs and "? 10 : 100" in appjs,
+      "the page offers more poses than ADCP can write, or does not lower "
+      "the limit to 10 for ADCP 1.0")
 
 # --- the Modifications dialog draws each choice ------------------------------
 # The drawings come from the server. A D residue is the mirror image of the
@@ -2453,6 +2474,184 @@ check(not ({"amber", "mmpbsa", "gbmodel"} & _k),
 _k = _cite.used_by({"peptides": [{"sequence": "GAF<KYN>AG"}, {"sequence": "GAWAG"}], "mmgbsa": True})
 check({"amber", "ff14sb", "mmpbsa", "gbmodel"} <= _k,
       "MM-GBSA is not cited for a run where a standard peptide was rescored")
+
+# --- the header says what a published result must cite ---------------------
+#
+# ADCP, AutoDockFR (whose agfr builds the maps) and AutoSite, read from the
+# same entries as the citation list, so the two cannot name different papers.
+import re as _re4                                                   # noqa: E402
+_hdr = html[html.index("<header>"):html.index("</header>")]
+_flat_hdr = " ".join(_re4.sub(r"<[^>]+>", " ", _hdr).split())
+_flat_hdr = _re4.sub(r"\s+([,.;:!?)])", r"\1", _flat_hdr)
+check(_cite.must_cite_sentence() in _flat_hdr,
+      "the header does not carry the sentence the citation list carries: %r"
+      % _cite.must_cite_sentence())
+check(_cite.must_cite_sentence() in _cite.as_text(),
+      "the citation list does not carry the header's sentence")
+_always = {k for k, w, *_ in _cite.REFERENCES if w == "always"}
+check({k for k, _n in _cite.MUST_CITE} <= _always,
+      "a paper the header says must be cited is not cited by every run")
+check("id=citehead" in _hdr and "$('citehead')" in appjs,
+      "the header's line has no link to the citation list")
+
+# --- a run from a target file alone ----------------------------------------
+#
+# job.validate takes a .trg alone; the page's submit check used to demand a
+# receptor and residues anyway, so such a run could not be submitted.
+import tempfile as _tf5                                             # noqa: E402
+import zipfile as _zf5                                              # noqa: E402
+_tdir = _tf5.mkdtemp()
+
+
+def _trg(path, prefix, n_maps=20):
+    with _zf5.ZipFile(path, "w") as z:
+        for k in range(n_maps):
+            z.writestr("%s/rigidReceptor.T%d.map" % (prefix, k), "0\n")
+        z.writestr("%s/rigidReceptor.pdbqt" % prefix,
+                   "ATOM      1  N   ALA A   1      1.000   2.000   3.000  1.00  0.00    -0.300 N \n"
+                   "ATOM      2  CA  ALA A   1      2.000   2.000   3.000  1.00  0.00     0.100 C \n")
+        z.writestr("%s/rigidReceptor.gpf" % prefix,
+                   "npts 80 60 40\nspacing 0.375\ngridcenter 1.0 2.0 3.0\n")
+
+
+_good = os.path.join(_tdir, "mytarget.trg")
+_trg(_good, "mytarget")
+_few = os.path.join(_tdir, "few.trg")
+_trg(_few, "few", n_maps=3)
+open(os.path.join(_tdir, "x.pdb"), "w").write("ATOM\n")
+_g = get("/api/target", path=_good)
+check(not _g.get("error") and _g.get("centre") == [1.0, 2.0, 3.0]
+      and _g.get("size") == [30.0, 22.5, 15.0] and _g.get("atoms") == 2
+      and "ATOM" in _g.get("pdb", ""),
+      "a good target file is not read back with its receptor and box: %r"
+      % {k: v for k, v in _g.items() if k != "pdb"})
+_b = get("/api/target", path=_few)
+check("only 3 grid maps" in (_b.get("error") or ""),
+      "a target with too few maps is not refused with the run's own reason: %r"
+      % _b)
+_b = get("/api/target", path=os.path.join(_tdir, "x.pdb"))
+check("not a target file" in (_b.get("error") or ""),
+      "a structure given as a target is not refused: %r" % _b)
+# The browser lists target files when asked for them, and only then.
+_l = get("/api/browse", path=_tdir, kind="trg")
+check(sorted(f["name"] for f in _l.get("files", [])) == ["few.trg", "mytarget.trg"],
+      "the browser asked for target files lists %r"
+      % [f["name"] for f in _l.get("files", [])])
+_l = get("/api/browse", path=_tdir)
+check([f["name"] for f in _l.get("files", [])] == ["x.pdb"],
+      "the receptor browser lists %r; it must still list structures only"
+      % [f["name"] for f in _l.get("files", [])])
+check("error" in get("/api/browse", path=_tdir, kind="sdf"),
+      "the browser lists a kind of file it has no filter for")
+_mf = appjs[appjs.index("function missingFields"):appjs.index("function refreshMissing")]
+check("targetfile" in _mf and "TARGET.path" in _mf,
+      "the submit check does not let a loaded target file stand in for the "
+      "receptor and the site")
+check("kind: 'trg'" in appjs and "id=trgbrowse" in html,
+      "there is no way to browse for a target file")
+check("/api/target?path=" in appjs and "drawTarget" in appjs,
+      "a chosen target file is not shown in the site view")
+
+# --- a PDBQT is not offered, and refused with a sentence that is true ------
+_rf = _re4.search(r"<input type=file id=recfile[^>]*>", html)
+check(_rf and ".pdbqt" not in _rf.group(0),
+      "From this computer still offers .pdbqt, which the upload refuses")
+_up = post("/api/upload", {"name": "rec.pdbqt", "text": "ATOM\n"})
+check("target file" in (_up.get("error") or ""),
+      "a PDBQT upload is not refused with the way that works: %r" % _up)
+check(".pdbqt" not in (post("/api/upload", {"name": "n.docx", "text": "x"})
+                       .get("error") or ""),
+      "the upload's list of structures still names .pdbqt")
+
+# --- receptor preparation, in the Receptor card -----------------------------
+_rc = html[html.index("<h2>Receptor</h2>"):html.index("<h2>Site</h2>")]
+_dc = html[html.index("<h2>Docking and rescoring</h2>"):html.index("<h2>Runs</h2>")]
+_order = [_rc.find("id=" + i) for i in ("chainbox", "keep_hetatms",
+                                        "rebuild_sidechains", "fill_loops")] \
+    + [_rc.find("id=ph "), _rc.find("id=minimise")]
+check(all(x >= 0 for x in _order) and _order == sorted(_order),
+      "the preparation settings are not in the Receptor card, after the "
+      "chains, in the order they are applied: %r" % _order)
+for _id in ("ph", "minimise", "keep_hetatms", "fill_loops"):
+    check("id=%s " % _id not in _dc and "id=%s>" % _id not in _dc,
+          "%s is still in the Docking and rescoring card" % _id)
+check("id=mmgbsa" in _dc, "MM-GBSA left the Docking and rescoring card")
+check(_re4.search(r"<input type=checkbox id=rebuild_sidechains checked>", _rc),
+      "Rebuild missing side chains is not on by default")
+from adcp_dock import job as _J5, helptext as _H5, pipeline as _P5   # noqa: E402
+import inspect as _in5                                              # noqa: E402
+check(_J5.default()["rebuild_sidechains"] is True,
+      "a new run does not rebuild side chains by default")
+check('rebuild_sidechains=bool(j.get("rebuild_sidechains", True))'
+      in _in5.getsource(_P5.stage_prepare),
+      "the side chain setting does not reach the preparation, or an old job "
+      "file without it does not read as on")
+check("rebuild_sidechains: $('rebuild_sidechains').checked" in appjs
+      and "rebuild_sidechains:'rebuild_sidechains'" in appjs,
+      "the side chain setting is not submitted, or not restored by reuse")
+check("rebuild_sidechains" in _H5.HELP and "targetfile" in _H5.HELP
+      and "always rebuilt" not in _H5.HELP["fill_loops"][1],
+      "the help text does not cover the side chain setting and the target file")
+
+# The preparation: off takes out what was modelled, and only that.
+from adcp_dock._vendor import prepare as _pp                        # noqa: E402
+_k_on = _pp._prep_key(__file__, 7.4, "AMBER", "A", 0.0, False, False, False,
+                      True, True, 10.0)
+check("sidechains" not in _k_on,
+      "the default preparation's reuse key changed, so every earlier "
+      "preparation would be redone")
+check(_pp._prep_key(__file__, 7.4, "AMBER", "A", 0.0, False, False, False,
+                    True, True, 10.0, False).get("sidechains") is False,
+      "switching side chains off does not invalidate a prepared receptor")
+
+
+def _pdbline(serial, name, res, num, x, y, z, el):
+    return ("ATOM  %5d %-4s %3s A%4d    %8.3f%8.3f%8.3f  1.00  0.00          %2s"
+            % (serial, name if len(name) == 4 else " " + name, res, num,
+               x, y, z, el))
+
+
+_meas = os.path.join(_tdir, "measured.pdb")
+_full = os.path.join(_tdir, "full.pdb")
+_lys = [("N", 0, 0, 0, "N"), ("CA", 1.46, 0, 0, "C"), ("C", 2.0, 1.4, 0, "C"),
+        ("O", 1.3, 2.4, 0, "O"), ("CB", 2.0, -0.8, 1.2, "C"),
+        ("CG", 3.5, -0.8, 1.3, "C"), ("CD", 4.0, -1.6, 2.5, "C"),
+        ("CE", 5.5, -1.6, 2.6, "C"), ("NZ", 6.0, -2.4, 3.8, "N")]
+open(_meas, "w").write("\n".join(_pdbline(i + 1, n, "LYS", 5, x, y, z, e)
+                                 for i, (n, x, y, z, e) in enumerate(_lys[:6]))
+                       + "\nEND\n")
+_rows = [_pdbline(i + 1, n, "LYS", 5, x, y, z, e)
+         for i, (n, x, y, z, e) in enumerate(_lys)]
+_rows += [_pdbline(20, "HG2", "LYS", 5, 3.8, 0.2, 1.3, "H"),     # on CG: kept
+          _pdbline(21, "HD2", "LYS", 5, 3.7, -2.6, 2.5, "H"),    # on CD: out
+          _pdbline(22, "HZ1", "LYS", 5, 7.0, -2.4, 3.8, "H"),    # on NZ: out
+          _pdbline(23, "H", "LYS", 5, -0.5, -0.8, 0, "H")]       # on N: kept
+open(_full, "w").write("\n".join(_rows) + "\nCONECT    9   22\nEND\n")
+_steps = []
+_got = _pp.strip_modelled_side_chains(_meas, _full,
+                                      os.path.join(_tdir, "bare.pdb"), _steps)
+_left = ([L[12:16].strip() for L in open(_got) if L.startswith("ATOM")]
+         if _got else [])
+check(_left == ["N", "CA", "C", "O", "CB", "CG", "HG2", "H"],
+      "leaving side chains as measured kept or took the wrong atoms: %r" % _left)
+check(_got and "CONECT" not in open(_got).read(),
+      "a CONECT record naming a removed atom was kept")
+check(_steps and "3 side-chain atom(s)" in _steps[-1].detail
+      and "2 hydrogen(s)" in _steps[-1].detail,
+      "the log does not say what was left out: %r"
+      % (_steps[-1].detail if _steps else None))
+
+# --- two small fixes ---------------------------------------------------------
+_tb = appjs[appjs.index("/* the toolbar */"):]
+_tb = _tb[:_tb.index("if(!b || !VR) return;")]
+check("#rdist" in _tb,
+      "the distances toggle is not in the toolbar's click delegate, so it "
+      "does nothing")
+_rs = appjs[appjs.index("function renderSeq("):appjs.index("function caretOffset(")]
+check("seqUnits(" in _rs and "text.length; i += 10" not in _rs,
+      "the sequence ruler numbers characters, not residues")
+check("raw.length > MAXLEN" not in appjs and "residueTotal(raw)" in appjs,
+      "the length limit is checked in characters, not residues")
 
 if fails:
     print("test_api FAILED (%d)" % len(fails))

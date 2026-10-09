@@ -440,8 +440,14 @@ check("and states the contact rules it measured with",
       "3.5 A" in (doc.get("constants", {}).get("contact_rules") or ""))
 txt = open(os.path.join(out, "results.txt")).read()
 check("the printed table has the panel block", "Interface and sequence" in txt)
-check("and says a site energy does not add up exactly",
-      "not exactly" in txt)
+# What site dG is and why it does not add up exactly is method, which is in
+# the documentation; results.txt carries the numbers only.
+check("and leaves the note on how site dG adds up to the documentation",
+      "not exactly" not in txt and "per residue breakdown" not in txt)
+_res = open(os.path.join(ROOT, "adcp_dock", "docs", "pages",
+                         "results.html")).read()
+check("the documentation says the breakdown does not sum exactly",
+      "does not sum to the reported energy" in _res and "site dG" in _res)
 # Notes for a methods section do not belong in a results table.
 check("the printed table does not lecture about engines",
       "OpenMM" not in txt and "tleap" not in txt)

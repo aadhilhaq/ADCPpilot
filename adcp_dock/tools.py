@@ -26,6 +26,16 @@ NEEDED = {
     "ante-MMPBSA.py": "splitting the complex topology for MM-GBSA",
 }
 
+# Programs that ship inside ADFRsuite and are taken from there and nowhere
+# else: another copy on PATH may be another version (AmberTools has its own
+# reduce), and the point of using these is that they are the ones ADFR's own
+# preparation and ADapt use. Optional: the page says what is missing.
+ADFR_PROGRAMS = {
+    "reduce": "protonating the receptor (the default) and, with it, each "
+              "complex for MM-GBSA",
+    "msms": "the molecular surfaces the viewers draw",
+}
+
 # Docking cannot run without these. The rest are optional: the Amber tools
 # are needed only for MM-GBSA rescoring.
 REQUIRED = ("adcp", "agfr", "prepare_receptor", "pdb2pqr")
@@ -69,6 +79,12 @@ class Tools:
 
     def report(self):
         return [(n, self._found.get(n) or "") for n in sorted(NEEDED)]
+
+    def adfr_program(self, name):
+        """reduce or msms from the ADFRsuite whose prepare_receptor, agfr or
+        adcp this found, or from the ADCP 1.1 suite, or None. Never from
+        PATH: see ADFR_PROGRAMS."""
+        return adfr_program(name, self, self.roots)
 
     def missing_required(self):
         return [n for n in REQUIRED if not self._found.get(n)]
@@ -129,6 +145,36 @@ def discover(roots=(), env=True):
                 if os.path.isfile(p) and os.access(p, os.X_OK):
                     found[n] = p
     return Tools(found, roots)
+
+
+def adfr_program(name, tools=None, roots=()):
+    """A program that ships in ADFRsuite's bin folder (ADFR_PROGRAMS), found
+    beside the ADFRsuite programs this package already uses, or in the ADCP
+    1.1 suite's bin folder, which carries the same build. None when neither
+    has it."""
+    tools = tools or discover(roots=roots)
+    dirs = []
+    for n in ("prepare_receptor", "agfr", "adcp"):
+        p = tools.get(n)
+        if p:
+            d = os.path.dirname(os.path.realpath(p))
+            if d not in dirs:
+                dirs.append(d)
+    home = os.environ.get("ADFRSUITE_HOME")
+    if home:
+        dirs.append(os.path.join(home, "bin"))
+    try:
+        from . import adcp11
+        exe = adcp11.find(list(roots) or list(getattr(tools, "roots", [])))
+        if exe:
+            dirs.append(os.path.join(adcp11.home_of(exe), "bin"))
+    except Exception:                                          # noqa: BLE001
+        pass
+    for d in dirs:
+        p = os.path.join(d, name)
+        if os.path.isfile(p) and os.access(p, os.X_OK):
+            return p
+    return None
 
 
 def amber_home(tools=None):

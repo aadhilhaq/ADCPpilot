@@ -45,12 +45,20 @@ REFERENCES = [
      "pseudo-ligands prediction—from ligand-binding sites identification "
      "to predicting key ligand atoms. Bioinformatics 32(20):3142-3149, 2016.",
      "10.1093/bioinformatics/btw367"),
-    ("pdb2pqr", "receptor preparation, or MM-GBSA",
+    ("reduce", "receptor preparation with reduce (the default), a receptor "
+     "from ADapt, or MM-GBSA in such a run",
+     "the receptor's hydrogens: the histidine protons and the Asn, Gln and "
+     "His flips",
+     "Word JM, Lovell SC, Richardson JS, Richardson DC. Asparagine and "
+     "glutamine: using hydrogen atom contacts in the choice of side-chain "
+     "amide orientation. J Mol Biol 285(4):1735-1747, 1999.",
+     "10.1006/jmbi.1998.2401"),
+    ("pdb2pqr", "receptor preparation with PROPKA, or MM-GBSA in such a run",
      "protonation states and titration at the chosen pH",
      "Jurrus E, Engel D, Star K, et al. Improvements to the APBS "
      "biomolecular solvation software suite. Protein Sci 27(1):112-128, 2018.",
      "10.1002/pro.3280"),
-    ("propka", "receptor preparation, or MM-GBSA",
+    ("propka", "receptor preparation with PROPKA, or MM-GBSA in such a run",
      "the pKa prediction pdb2pqr uses",
      "Olsson MHM, Sondergaard CR, Rostkowski M, Jensen JH. PROPKA3: "
      "consistent treatment of internal and surface residues in empirical "
@@ -123,6 +131,11 @@ REFERENCES = [
      "parameters for protein simulations. J Chem Theory Comput "
      "9(4):2020-2034, 2013.",
      "10.1021/ct3010485"),
+    ("msms", "if a figure with a surface from the viewer is used",
+     "the molecular surfaces the viewers draw, computed by MSMS",
+     "Sanner MF, Olson AJ, Spehner JC. Reduced surface: an efficient way to "
+     "compute molecular surfaces. Biopolymers 38(3):305-320, 1996.",
+     "10.1002/(SICI)1097-0282(199603)38:3<305::AID-BIP4>3.0.CO;2-Y"),
     ("3dmol", "if a figure from the viewer is used",
      "the interactive structure viewer",
      "Rego N, Koes D. 3Dmol.js: molecular visualization with WebGL. "
@@ -187,6 +200,22 @@ BIB = {
               "suite",
         journal="Protein Science", year=2018, volume="27", number="1",
         pages="112--128"),
+    "reduce": dict(
+        bibkey="Word1999",
+        author="Word, J. Michael and Lovell, Simon C. and Richardson, Jane S. "
+               "and Richardson, David C.",
+        title="Asparagine and glutamine: using hydrogen atom contacts in the "
+              "choice of side-chain amide orientation",
+        journal="Journal of Molecular Biology", year=1999, volume="285",
+        number="4", pages="1735--1747"),
+    "msms": dict(
+        bibkey="Sanner1996",
+        author="Sanner, Michel F. and Olson, Arthur J. and Spehner, "
+               "Jean-Claude",
+        title="Reduced surface: an efficient way to compute molecular "
+              "surfaces",
+        journal="Biopolymers", year=1996, volume="38", number="3",
+        pages="305--320"),
     "propka": dict(
         bibkey="Olsson2011",
         author="Olsson, Mats H. M. and S{\\o}ndergaard, Chresten R. and "
@@ -310,6 +339,61 @@ BIB = {
         pages="1322--1324"),
 }
 
+# The papers every published result must cite, whatever else the run used:
+# the docking search, the grid maps it docks into (agfr, from the AutoDockFR
+# paper), and the AutoSite points agfr places on every target. Each is named
+# here only by its key and by the name it is known by; the reference itself is
+# the entry above, so the page's header and the citation list cannot name
+# different papers.
+MUST_CITE = (("adcp", ENGINE), ("adfr", "AutoDockFR / AGFR"),
+             ("autosite", "AutoSite"))
+
+
+def _authors_short(author):
+    """'Zhang and Sanner', or 'Ravindranath et al.', from a BibTeX author
+    field."""
+    names = [a.strip() for a in author.split(" and ") if a.strip()]
+    family = [n.split(",")[0].strip() for n in names]
+    if len(family) > 2 or (family and family[-1] == "others"):
+        return family[0] + " et al."
+    return " and ".join(family)
+
+
+def must_cite():
+    """[(name, short reference, full reference, doi)] for MUST_CITE, read
+    from REFERENCES and BIB."""
+    full = {k: (ref, doi) for k, _w, _d, ref, doi in REFERENCES}
+    out = []
+    for key, name in MUST_CITE:
+        b = BIB[key]
+        ref, doi = full[key]
+        out.append((name, "%s, %s" % (_authors_short(b["author"]), b["year"]),
+                     ref, doi))
+    return out
+
+
+def must_cite_sentence(html=False):
+    """The sentence the page's header and the citation list both carry.
+
+    With `html`, escaped for the page, each program's name in bold with its
+    DOI on hover, and each reference kept on one line, so a narrow header
+    breaks between papers rather than inside "et al.". The words are the
+    same either way.
+    """
+    import html as _html
+    e = _html.escape if html else (lambda s: s)
+    parts = []
+    for name, short, _ref, doi in must_cite():
+        if html:
+            parts.append('<b title="doi:%s">%s</b> <span class=ref>(%s)</span>'
+                         % (e(doi), e(name), e(short)))
+        else:
+            parts.append("%s (%s)" % (name, short))
+    listed = ", ".join(parts[:-1]) + " and " + parts[-1]
+    return ("Results published using this tool must cite the %s papers."
+            % listed)
+
+
 # This package's DOI, once a release is archived. Left blank rather than
 # filled with a placeholder.
 SELF_DOI = ""
@@ -327,17 +411,33 @@ def used_by(job):
     """The keys a given run actually used, from its job.json."""
     keys = {k for k, when, *_ in REFERENCES if when == "always"}
     seqs = [(p.get("sequence") or "").upper() for p in job.get("peptides") or []]
-    # A run given a target file skips this package's preparation.
-    if not str(job.get("target_file") or "").strip():
+    # Which program placed the receptor's hydrogens: what the prepare stage
+    # recorded where it ran (reduce replaced by PDB2PQR when reduce could
+    # not run), else what the job asks for. A job file written before the
+    # choice existed was protonated with PDB2PQR and PROPKA.
+    from_adapt = bool((job.get("adapt") or {}).get("folder"))
+    done = ((job.get("receptor_info") or {}).get("protonation") or {})
+    if from_adapt:
+        prot = "reduce"
+    else:
+        from . import job as _jobmod
+        prot = done.get("method") or _jobmod.protonation_of(job)
+    by = {"reduce"} if prot == "reduce" else {"pdb2pqr", "propka"}
+    # A run given a target file skips this package's preparation, and so
+    # does a receptor from ADapt, which reduce protonated there.
+    if from_adapt:
+        keys |= by
+    elif not str(job.get("target_file") or "").strip():
         # PDBFixer checks every receptor for missing atoms, and the
         # minimization is OpenMM with ff14SB and GBn2 (prepare.minimise).
-        keys |= {"pdb2pqr", "propka", "pdbfixer"}
+        keys |= by | {"pdbfixer"}
         if job.get("minimise", True):
             keys |= {"openmm", "ff14sb", "gbn2"}
     # MM-GBSA runs only on peptides without non-standard or D residues, and
-    # protonates each complex with PDB2PQR and PROPKA first.
+    # protonates each complex first: with PDB2PQR and PROPKA, or under
+    # reduce with the receptor's own states and reduce for the peptide.
     if job.get("mmgbsa") and (not seqs or any(not peptide.is_extended(s) for s in seqs)):
-        keys |= {"amber", "ff14sb", "mmpbsa", "pdb2pqr", "propka"}
+        keys |= {"amber", "ff14sb", "mmpbsa"} | by
         # The paper for the generalised Born model the energies were computed
         # in: OBC(II) by default, GBn2 when the run asked for it.
         keys.add("gbn2" if job.get("mmgbsa_model") == "gbn2" else "gbmodel")
@@ -365,6 +465,9 @@ def text(job=None, out=print):
     out("%s is a product of the %s and is not ours. It must be cited "
         "whatever else is:" % (ENGINE, ENGINE_OWNER))
     out("  %s" % ENGINE_URL)
+    out("")
+    # The sentence the page's header carries, built from the same entries.
+    out(must_cite_sentence())
     out("")
     if keys is not None:
         out("For this run, from its job.json:")

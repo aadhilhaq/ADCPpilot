@@ -167,17 +167,123 @@ def openmm_set_for(exe, seq):
     return None
 
 
-def adcp_sequence(seq):
-    """Lower case, which starts every replica as coil, except the library
-    names, which ADCP matches as written."""
+def adcp_sequence(seq, case="lower"):
+    """The sequence with every letter in one case, except the library names
+    inside angle brackets, which ADCP matches as written. ADCP reads a lower
+    case letter as a residue that starts as coil and an upper case one as a
+    residue that starts as helix."""
     out, inside = [], False
     for c in seq:
         if c == "<":
             inside = True
-        out.append(c if inside else c.lower())
+        out.append(c if inside else (c.upper() if case == "upper"
+                                     else c.lower()))
         if c == ">":
             inside = False
     return "".join(out)
+
+
+def start_arguments(seq, helical):
+    """(sequence as ADCP is given it, [flags]) for a share of helical starts.
+
+    runADCP.py, in both 1.0 and 1.1, reads -p as a percentage: it clamps it
+    to 0 to 100, works out numHelix = replicas * p / 100, and only when
+    0 < p < 100 rewrites the sequence for every replica it starts, upper
+    case for replica numbers up to numHelix and lower case for the rest
+    (pepSeqStr in 1.1 leaves the names in angle brackets alone). At 0 and at
+    100 it does nothing, and the case of the sequence as passed decides, one
+    residue at a time. So 0 and 100 are spelled out here rather than passed
+    as -p: all lower case starts every replica as coil, which is what every
+    run before this setting did, and all upper case starts every replica as
+    a helix.
+    """
+    try:
+        h = int(round(float(helical)))
+    except (TypeError, ValueError):
+        h = 0
+    if h <= 0:
+        return adcp_sequence(seq, "lower"), []
+    if h >= 100:
+        return adcp_sequence(seq, "upper"), []
+    # The case is ADCP's to set, replica by replica, so the sequence goes
+    # as it is written.
+    return seq, ["-p", str(h)]
+
+
+def helical_replicas(replicas, helical):
+    """How many of `replicas` start as a helix at `helical` per cent: ADCP
+    starts replica numbers 1 to replicas * p / 100 as a helix (jobNum <=
+    numHelix in runADCP.py), so the count is rounded down."""
+    try:
+        h = int(round(float(helical)))
+    except (TypeError, ValueError):
+        h = 0
+    if h <= 0:
+        return 0
+    if h >= 100:
+        return int(replicas)
+    return int(int(replicas) * h / 100.0)
+
+
+#: ADCP's flags for a cyclic peptide, the same in 1.0 and 1.1. runADCP.py
+#: adds a head to tail restraint for -cyc (external2=4) and a disulfide
+#: potential between cysteines for -cys (SSbond=50,2.2,50,0.35).
+CYCLIC_FLAGS = {"none": [], "backbone": ["-cyc"], "disulfide": ["-cys"]}
+
+
+def cyclic_flags(mode):
+    return list(CYCLIC_FLAGS.get(str(mode or "none"), []))
+
+
+# ---- AGFR from the same environment ------------------------------------
+#
+# The ADCP 1.1 suite carries its own AGFR, newer than ADFRsuite 1.0's: it
+# takes a PDB as well as a PDBQT, offers AutoSite 1.1 (-asv 1.1), and adds
+# the receptor gradient to the maps only when asked (-g), where ADFRsuite
+# 1.0's agfr adds it unless told not to (-ng). It is found from the same
+# installation as adcp, so wherever ADCP 1.1 is, its AGFR is too.
+
+def agfr_script(exe):
+    """runAGFR.py inside the environment `exe` belongs to, or None."""
+    if not exe:
+        return None
+    found = glob.glob(os.path.join(home_of(exe), "lib", "python3*",
+                                   "site-packages", "ADFR", "bin",
+                                   "runAGFR.py"))
+    return found[0] if found else None
+
+
+def find_agfr(roots=()):
+    """(the ADCP 1.1 executable, its runAGFR.py), or (None, None)."""
+    exe = find(roots)
+    script = agfr_script(exe)
+    return (exe, script) if script else (None, None)
+
+
+def agfr_command(exe):
+    """How to start this environment's AGFR: its own Python on runAGFR.py,
+    for the same reason command() does not use the bin/adcp launcher."""
+    return [os.path.join(home_of(exe), "bin", "python"), agfr_script(exe)]
+
+
+def agfr_env(exe):
+    """The environment AGFR 1.1 runs in: the one ADCP 1.1 runs in."""
+    return _env(exe)
+
+
+def agfr_version(exe):
+    """The version string AGFR writes into the targets it makes, read from
+    Support/version.py rather than by importing it."""
+    for f in glob.glob(os.path.join(home_of(exe), "lib", "python3*",
+                                    "site-packages", "Support",
+                                    "version.py")):
+        try:
+            m = re.search(r"__version__\s*=\s*['\"]([^'\"]+)", open(f).read())
+        except OSError:
+            continue
+        if m:
+            return m.group(1)
+    return ""
 
 
 def _env(exe):
@@ -197,8 +303,37 @@ def _env(exe):
     return env
 
 
+#: The folder ADCP 1.1 searches in, inside the peptide's docking folder: -w
+#: is "." and -o is "out", and runADCP.py works in <-w>/<-o>. It is deleted
+#: when the docking ends unless -k is given.
+WORKING = "out"
+
+
+def dock_arguments(sequence, trg_name, replicas, steps, poses, cpus=0,
+                   helical=0, cyclic="none", keep=False):
+    """runADCP.py's arguments for one peptide, before any OpenMM flags.
+
+    -m is the number of poses ADCP writes (its default is 100). -k keeps the
+    working folder with every replica's trajectory, which the caller packs
+    into one archive afterwards.
+    """
+    seq_arg, start = start_arguments(sequence, helical)
+    args = ["-T", trg_name, "-s", seq_arg, "-N", str(replicas),
+            "-n", str(steps), "-m", str(poses), "-o", WORKING, "-w", ".", "-O"]
+    args += start
+    args += cyclic_flags(cyclic)
+    if keep:
+        args += ["-k"]
+    if cpus:
+        args += ["-c", str(cpus)]
+    if peptide.nonstandard(sequence):
+        args += ["-L", "swiss"]
+    return args
+
+
 def dock(sequence, trg, workdir, exe, key=None, replicas=100, steps=5_000_000,
-         poses=10, cpus=0, minimize=0, omm_env="implicit", log=print):
+         poses=10, cpus=0, minimize=0, omm_env="implicit", log=print,
+         helical=0, cyclic="none", keep=False):
     """Run ADCP 1.1 for one peptide. Returns (modes, workdir) like adcp.dock."""
     wd = os.path.join(workdir, key or sequence)
     os.makedirs(wd, exist_ok=True)
@@ -210,13 +345,15 @@ def dock(sequence, trg, workdir, exe, key=None, replicas=100, steps=5_000_000,
     marker = os.path.join(wd, ".adcp_finished")
     if not (os.path.isfile(marker)
             and os.path.isfile(os.path.join(wd, "out_ranked_1.pdb"))):
-        cmd = command(exe) + ["-T", os.path.basename(trg), "-s", adcp_sequence(sequence),
-               "-N", str(replicas), "-n", str(steps), "-m", str(poses),
-               "-o", "out", "-w", ".", "-O"]
-        if cpus:
-            cmd += ["-c", str(cpus)]
-        if peptide.nonstandard(sequence):
-            cmd += ["-L", "swiss"]
+        # A working folder left by an attempt that was stopped part way
+        # would be searched in again and its old replicas packed with the
+        # new ones; and an archive packed before describes another search.
+        from . import trajectories
+        shutil.rmtree(os.path.join(wd, WORKING), ignore_errors=True)
+        trajectories.forget(wd)
+        cmd = command(exe) + dock_arguments(
+            sequence, os.path.basename(trg), replicas, steps, poses, cpus=cpus,
+            helical=helical, cyclic=cyclic, keep=keep)
         ffset = openmm_set_for(exe, sequence) if minimize else ""
         if minimize and ffset is None:
             # ADCP stops the whole docking, not just the minimization, when

@@ -9,7 +9,8 @@ By Aadhil Haq
 Starts the interface with a fresh runs folder holding the shipped example
 run, drives the page the way a person would (loads the example's receptor,
 sets its site, pastes its peptides, opens a help box, opens the finished run,
-opens ADapt when it is installed) and saves each view the docs show. Run it
+opens ADapt on the receptor when it is installed, and reads its save back)
+and saves each view the docs show. Run it
 again after the page changes, so the pictures never describe an older page.
 
 Each view is taken inside its own step: one that fails is reported by name at
@@ -38,10 +39,12 @@ EXAMPLE = os.path.join(HERE, "adcp_dock", "example_run")
 #: Every picture the pages use. Reported as missing when a step did not
 #: produce it, so the docs and this script cannot drift apart silently.
 WANT = ["interface.png", "receptor-loaded.png", "site-residues.png",
-        "site-box.png", "site-other-chain.png", "peptides.png",
-        "peptides-refused.png", "docking-settings.png", "help-box.png",
+        "site-box.png", "site-other-chain.png", "site-ligand.png",
+        "site-maps.png", "peptides.png", "peptides-refused.png",
+        "peptide-options.png", "docking-settings.png", "help-box.png",
         "runs.png", "results-table.png", "pose-viewer.png", "cite.png",
-        "adapt.png"]
+        "adapt.png", "guide.png", "submit.png", "runs-folders.png",
+        "file-viewer.png", "site-surface.png", "receptor-adapt.png"]
 
 
 def start_server(python, runs, roots):
@@ -83,9 +86,23 @@ def main():
     print("interface at", url, flush=True)
     made, errors, failed = [], [], []
 
+    def bar(shown):
+        """The bar along the bottom is fixed to the window, so in a picture
+        of one part of the page it would lie across that part's foot. It is
+        hidden for those, and kept in pictures of the whole window."""
+        pg.evaluate("document.querySelectorAll('.creditbar').forEach("
+                    "b => b.style.visibility = %s)" % ("''" if shown else "'hidden'"))
+
     def shot(target, name):
         path = os.path.join(a.out, name)
-        target.screenshot(path=path)
+        whole = target is pg
+        if not whole:
+            bar(False)
+        try:
+            target.screenshot(path=path)
+        finally:
+            if not whole:
+                bar(True)
         made.append(name)
         print("  saved %-24s %6d bytes" % (name, os.path.getsize(path)), flush=True)
 
@@ -109,7 +126,11 @@ def main():
                 "width": min(x1, vw) - max(0.0, x0),
                 "height": min(y1, vh) - max(0.0, y0)}
         path = os.path.join(a.out, name)
-        pg.screenshot(path=path, clip=clip)
+        bar(False)
+        try:
+            pg.screenshot(path=path, clip=clip)
+        finally:
+            bar(True)
         made.append(name)
         print("  saved %-24s %6d bytes" % (name, os.path.getsize(path)), flush=True)
 
@@ -133,6 +154,14 @@ def main():
             pg.wait_for_timeout(2500)
             card = lambda sel: pg.locator(sel).locator(
                 "xpath=ancestor-or-self::div[contains(@class,'card')][1]")
+            # The steps across the top follow the page down. In a picture of
+            # one card that would lay the strip over the card's top, so the
+            # strip is held at the top of the page for every picture but its
+            # own.
+            sticky = lambda on: pg.evaluate(
+                "document.getElementById('guide').style.position = %s"
+                % ("''" if on else "'static'"))
+            sticky(False)
 
             # the page as it opens
             def opening():
@@ -177,12 +206,74 @@ def main():
                 shot(pg.locator("#sitepick"), "site-box.png")
             step("box", box)
 
+            # the receptor's surface, from MSMS, over the same view
+            def site_surface():
+                pg.check("#sitesurf")
+                pg.wait_for_function(
+                    "() => !/computing/.test(document.getElementById('surfnote').textContent)",
+                    timeout=180000)
+                pg.locator("#sitepick").scroll_into_view_if_needed()
+                pg.wait_for_timeout(5000)
+                shot(pg.locator("#sitepick"), "site-surface.png")
+                pg.uncheck("#sitesurf")
+                pg.wait_for_timeout(1500)
+            step("site surface", site_surface)
+
             def other_chain():
                 pg.wait_for_selector("#otherchains:not(.hide)", timeout=30000)
+                pg.evaluate("document.getElementById('sitenote')"
+                            ".scrollIntoView({block: 'center'})")
+                pg.wait_for_timeout(400)
                 # The notice, with the box summary above it, so the picture
                 # says which box reached that chain.
                 shot_clip(["#sitenote", "#otherchains"], "site-other-chain.png")
             step("other chain", other_chain)
+
+            # the box around the crystal peptide instead, then back again
+            def site_ligand():
+                pg.select_option("#site_mode", "ligand")
+                pg.wait_for_function(
+                    "() => document.getElementById('site_ligand').value === 'B'",
+                    timeout=30000)
+                pg.wait_for_function(
+                    "() => /touch it/.test("
+                    "document.getElementById('sitenote').textContent)",
+                    timeout=60000)
+                card("#site_mode").scroll_into_view_if_needed()
+                # The viewer redraws the peptide in sticks and the new box.
+                pg.wait_for_timeout(4000)
+                shot(card("#site_mode"), "site-ligand.png")
+            step("site ligand", site_ligand)
+
+            def site_maps():
+                pg.locator("#mapsgroup").scroll_into_view_if_needed()
+                pg.wait_for_timeout(500)
+                shot_clip(["#mapsgroup"], "site-maps.png", pad=14, least=760)
+            step("maps", site_maps)
+
+            def residues_again():
+                pg.select_option("#site_mode", "residues")
+                pg.wait_for_function(
+                    "() => /box/.test(document.getElementById('sitenote').textContent)",
+                    timeout=60000)
+                pg.wait_for_timeout(1500)
+            step("residues again", residues_again)
+
+            # the steps across the top: the receptor and the site done, the
+            # peptides to do now, with the Peptides card lit under the strip
+            def guide():
+                pg.wait_for_function(
+                    "() => document.querySelector('#guide li[data-step=site]')"
+                    ".classList.contains('done') && document.querySelector("
+                    "'#guide li[data-step=peptides]').classList.contains('now')",
+                    timeout=30000)
+                sticky(True)
+                pg.evaluate("document.getElementById('step-peptides')"
+                            ".scrollIntoView({block: 'start'})")
+                pg.wait_for_timeout(800)
+                shot_clip(["#guide", "#step-peptides .hint"], "guide.png", pad=10)
+                sticky(False)
+            step("guide", guide)
 
             # the peptides, pasted, and one line the page refuses
             def peptides():
@@ -212,12 +303,30 @@ def main():
                 shot(card("#peps"), "peptides-refused.png")
             step("refused", refused)
 
+            # how every peptide is built and started
+            def peptide_options():
+                # Centred, so the labels above the fields are on screen too.
+                pg.evaluate("document.getElementById('cyclic')"
+                            ".scrollIntoView({block: 'center'})")
+                pg.wait_for_timeout(500)
+                shot_clip(['label[for="cyclic"]', "#cyclic",
+                           'label[for="helical"]', "#helical", "#pepoptsnote"],
+                          "peptide-options.png", pad=8, least=760)
+            step("peptide options", peptide_options)
+
             # the docking and rescoring settings, and one help box
             def settings():
                 card("#poses").scroll_into_view_if_needed()
                 pg.wait_for_timeout(500)
                 shot(card("#poses"), "docking-settings.png")
             step("settings", settings)
+
+            # the last step: the run's name, its folder, and the button
+            def submit_card():
+                card("#submit").scroll_into_view_if_needed()
+                pg.wait_for_timeout(500)
+                shot(card("#submit"), "submit.png")
+            step("submit card", submit_card)
 
             def helpbox():
                 # The "?" buttons are added by the page to each label that has
@@ -260,6 +369,43 @@ def main():
                 shot(pg.locator("#viewcard"), "pose-viewer.png")
             step("pose viewer", viewer)
 
+            # the runs folder walked: inside the example run, then one pose
+            # drawn from its docking folder
+            def folders():
+                pg.click("#tab_folders")
+                pg.wait_for_selector("#flist .ftable", timeout=60000)
+                pg.locator("#flist tr:has(.pill) button.fgo").first.click()
+                pg.wait_for_function(
+                    "() => /This folder is the run/.test("
+                    "document.getElementById('fhere').textContent)", timeout=60000)
+                # The tabs, the trail and the run's folder, without the run
+                # opened below it by the step before.
+                pg.evaluate("document.querySelector('.tabs')"
+                            ".scrollIntoView({block: 'start'})")
+                pg.wait_for_timeout(800)
+                shot_clip([".tabs", "#flist"], "runs-folders.png", pad=14,
+                          least=760)
+            step("folders", folders)
+
+            def file_viewer():
+                pg.locator("#flist button.fgo", has_text="docking").first.click()
+                at = ("() => (document.querySelector('#fcrumbs b') || {})"
+                      ".textContent")
+                pg.wait_for_function(at + " === 'docking'", timeout=60000)
+                pg.locator("#flist tbody button.fgo").nth(1).click()
+                pg.wait_for_function(at + " !== 'docking'", timeout=60000)
+                pg.wait_for_selector("#flist button[data-kind=structure]",
+                                     timeout=60000)
+                pg.locator("#flist button.ghost[data-kind=structure]").first.click()
+                pg.wait_for_selector("#filedlg[open] #file3d:not(.hide)",
+                                     timeout=60000)
+                # drawn in software
+                pg.wait_for_timeout(5000)
+                shot(pg.locator("#filedlg"), "file-viewer.png")
+                pg.click("#fileclose")
+                pg.click("#tab_runs")
+            step("file viewer", file_viewer)
+
             # how to cite
             def cite():
                 pg.evaluate("window.scrollTo(0, 0)")
@@ -276,17 +422,31 @@ def main():
                     print("  ADapt is not offered here, so no adapt.png",
                           flush=True)
                     return
+                # The receptor goes with the click: ADapt opens on it.
+                pg.evaluate("window.scrollTo(0, 0)")
                 with ctx.expect_page(timeout=60000) as popup:
                     pg.click("#adaptopen")
                 tab = popup.value
-                tab.wait_for_url("**/adapt/?t=*", timeout=330000)
+                tab.wait_for_url("**/adapt/?t=*session=*", timeout=330000)
                 tab.wait_for_load_state("load")
-                tab.set_input_files("#file", receptor)
                 tab.wait_for_function(
                     "() => !document.body.innerText.includes('No structure loaded')",
                     timeout=240000)
                 tab.wait_for_timeout(5000)
                 shot(tab, "adapt.png")
+                # Saved there, it is read back here and used as the receptor.
+                tab.wait_for_selector("#saverec:not([disabled])", timeout=120000)
+                tab.click("#saverec")
+                pg.bring_to_front()
+                pg.wait_for_selector("#adaptuse:not(.hide)", timeout=240000)
+                pg.wait_for_function(
+                    "() => /atoms/.test(document.getElementById('recinfo').textContent)",
+                    timeout=120000)
+                pg.wait_for_timeout(2000)
+                pg.evaluate("document.getElementById('step-receptor')"
+                            ".scrollIntoView({block: 'start'})")
+                pg.wait_for_timeout(800)
+                shot(card("#reccode"), "receptor-adapt.png")
             step("adapt", adapt)
             br.close()
     finally:

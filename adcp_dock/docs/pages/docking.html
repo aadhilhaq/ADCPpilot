@@ -4,7 +4,7 @@ three settings decide whether a result is reproducible, and they are the ones
 most often left at a default that no published work uses.</p>
 
 <figure>
-<img src="img/docking-settings.png" alt="The Docking and rescoring card with poses, replicas, steps and pH">
+<img src="img/docking-settings.png" alt="The Docking and rescoring card with poses, replicas and steps">
 <figcaption><b>The card, with the search settings along the top.</b> Replicas
 and steps are dropdowns of numbers rather than free boxes, because the number is
 what ADCP is given and what a paper quotes. The line under them says what your
@@ -62,13 +62,36 @@ as any other, and only a repeat run shows that it was noise. Decide the settings
 before you read the numbers.</div>
 
 <h2 id="poses">Poses per peptide</h2>
-<p>How many of ADCP's ranked poses to keep, up to ten. They are what you look at
-afterwards and what MM-GBSA rescores, so this sets the size of the answer rather
-than the size of the search.</p>
+<p>How many of ADCP's ranked poses to write and keep (ADCP's <code>-m</code>).
+They are what you look at afterwards and what MM-GBSA rescores, so this sets the
+size of the answer rather than the size of the search.</p>
 <p>Ten is the default and is enough to see whether a peptide's poses agree on
 where it binds. Keeping one pose hides that question entirely: the results table
 reports the spread across poses, and with a single pose there is none to
 report.</p>
+<p>ADCP 1.0 writes at most ten. ADCP 1.1 writes as many as you ask for, up to
+100, one for each cluster its search found, best first, so a search that found
+fewer clusters writes fewer. More poses cost a few seconds to write, not a
+longer search, and the estimate includes them.</p>
+
+<h2 id="trajectories">Keeping the trajectories</h2>
+<p>Each replica of the search writes its trajectory, every pose it accepted on
+the way. ADCP 1.1 deletes them when the docking ends unless told to keep them
+(its <code>-k</code>). ADCP 1.0 always leaves them in the peptide's folder, and
+they are deleted there once its poses are written. Either way a run keeps only
+its ranked poses, unless <b>Keep every replica's trajectory</b> is ticked.</p>
+<p>Ticked, each peptide's trajectories are packed into one archive beside its
+poses, <code>docking/&lt;peptide&gt;/&lt;peptide&gt;_trajectories.tar.gz</code>,
+and the loose files are removed: for a 50 replica run, about 150 files become
+one, which matters on a cluster that limits the number of files as well as their
+size. Two copies are left out of the archive: the maps ADCP unpacked from the
+target, and <code>out.pdb</code>, which is every trajectory again in one file.
+ADCP writes both again when the archive is unpacked in the peptide's folder and
+it is asked to recluster (<code>-r</code>).</p>
+<p>Packing adds a few seconds to each peptide and the archive is tens of
+megabytes, so leave it off unless you will look at the trajectories. A run that
+stops part way through packing finishes the archive when it is resumed, and a
+peptide whose archive is complete is not docked again.</p>
 
 <h2 id="the-engine">Which ADCP, and the minimisation</h2>
 <p><b>Docking engine</b> chooses between the versions installed here.
@@ -94,7 +117,9 @@ which is the part that is hard to find again six months later when you are
 writing the methods section. It is the same text wherever the setting appears, and
 it is the text this documentation is written against.</p>
 
-<h2 id="pH-here">The pH in this card</h2>
-<p><b>Preparation pH</b> sits with the search settings because it is part of the
-same submission, but it belongs to the receptor. What it decides is covered under
-<a href="receptor.html#protonation">protonation</a>.</p>
+<h2 id="pH-here">The pH and the receptor's other settings</h2>
+<p>The pH, and the switches for heteroatoms, side chains, loops and the
+minimisation, are not in this card. They decide the receptor rather than the
+search, so they are in the Receptor card under the chains they apply to, in the
+order they are applied. What each does is covered in
+<a href="receptor.html#what-preparation-does">what preparation does</a>.</p>

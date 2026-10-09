@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from .prepare import (  # noqa: F401
     run, summarise, looks_like_trace, keep_chain, find_tool,
+    PROTONATION, PROTONATION_LEGACY, protonation_of, reduce_version,
+    his_states,
 )
 
 

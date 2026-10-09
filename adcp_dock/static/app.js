@@ -28,7 +28,159 @@ async function api(path, body){
   catch(e){ return {error:'the server did not answer with JSON (' + r.status + ')'}; }
 }
 
-let ADCP11 = false;
+/* ===================== the step guide ================================ */
+/* Five steps across the top, and the cards that take them. Each step is
+   decided by a check the page already makes, never by a click on the strip:
+     receptor  a structure loaded from the path in its box, or a target file
+               loaded and accepted (it brings its own prepared receptor)
+     site      the site checked in the chosen way (residues, a ligand or a
+               pocket) against that receptor without a complaint, or a target
+               file, whose box is the site
+     peptides  the server's verdict on the list: at least one peptide, and
+               every row accepted
+     docking   every docking setting inside its limits. Its defaults are a
+               valid run, so it would be done on an empty page; it counts as
+               done only once the three steps before it are
+     submit    the run was submitted, and nothing in the form has changed
+               since
+   The first step not done is the one to do now. Later cards are grey, and
+   stay usable: a target file or a reused run fills several steps at once,
+   and nobody should be walked through steps that are already done. */
+const STEPS = ['receptor', 'site', 'peptides', 'docking', 'submit'];
+let PEPS_READY = false, SUBMITTED = false, GUIDE_T = 0;
+const GUIDE_HINT = {
+  receptor: ['Load a receptor, fetch one by PDB id, or load a target file',
+             'A receptor is loaded'],
+  site: ['Check the site: residues you pick, a ligand or a pocket. A target '
+         + 'file brings its own', 'The site is checked'],
+  peptides: ['Add at least one peptide, with every row accepted',
+             'Every peptide is accepted'],
+  docking: ['The search settings, valid once the steps before them are done',
+            'The search settings are valid'],
+  submit: ['Name the run, choose its folder, and submit it',
+           'Submitted']};
+
+/* Which steps are done and which one is next, from the facts alone, so it
+   can be checked on its own: guideSteps({receptor, site, peptides, docking,
+   submitted}) is {done: {step: true or false}, now: a step, or '' when every
+   step is done}. */
+function guideSteps(f){
+  const before = !!(f.receptor && f.site && f.peptides);
+  const done = {receptor: !!f.receptor, site: !!f.site,
+                peptides: !!f.peptides, docking: !!f.docking && before,
+                submit: !!f.submitted};
+  return {done: done, now: STEPS.find(k => !done[k]) || ''};
+}
+
+/* The docking settings, held to the limits their boxes carry: '' when they
+   are all valid, else what is wrong with the first one that is not. Whole
+   numbers inside min and max; the step a box moves by is a convenience, not
+   a rule, so 48 cores is valid though the stepper moves in fours. Tasks at
+   once and poses to minimize may be left empty, which means none. A choice
+   greyed out because this machine cannot run it is not valid. */
+function dockingProblem(){
+  const whole = (id, empty) => {
+    const el = $(id);
+    if(!el || el.disabled) return '';
+    const name = (document.querySelector('label[for="' + id + '"]') || {})
+      .textContent || id;
+    const say = name.replace(/\?/g, '').trim() + ' must be a whole number'
+      + (el.min !== '' && el.max !== '' ? ' from ' + el.min + ' to ' + el.max
+         : '') + '.';
+    const v = el.value.trim();
+    if(v === '') return empty ? '' : say;
+    if(!/^\d+$/.test(v)) return say;
+    const n = +v;
+    return ((el.min !== '' && n < +el.min) || (el.max !== '' && n > +el.max))
+      ? say : '';
+  };
+  const mm = $('mmgbsa') && $('mmgbsa').checked;
+  const ids = [['poses'], ['cpus'], ['throttle', true], ['omm_minimize', true]]
+    .concat(mm ? [['mmposes'], ['topn']] : []);
+  for(const [id, empty] of ids){
+    const why = whole(id, empty);
+    if(why) return why;
+  }
+  const wt = $('walltime') ? $('walltime').value.trim() : '';
+  if(!/^\d+:[0-5]\d:[0-5]\d$/.test(wt) || hhmmToMin(wt) < 1)
+    return 'The walltime must be hours, minutes and seconds, like 02:00:00.';
+  for(const id of ['adcp_engine', 'replicas', 'steps'].concat(mm ? ['mmengine'] : [])){
+    const el = $(id);
+    const o = el && el.selectedOptions ? el.selectedOptions[0] : null;
+    if(el && (!o || o.disabled))
+      return 'The choice for ' + ((document.querySelector('label[for="' + id
+        + '"]') || {}).textContent || id).replace(/\?/g, '').trim()
+        + ' cannot run here.';
+  }
+  return '';
+}
+
+function guideFacts(){
+  const trg = $('targetfile').value.trim();
+  const target = !!(trg && TARGET && TARGET.path === trg);
+  const receptor = trg ? target
+    : !!(RECEPTOR && $('recpath').value.trim() === RECEPTOR.path);
+  return {receptor: receptor,
+          site: trg ? target : (receptor && SITE_OK === siteMode()),
+          peptides: PEPS_READY, docking: !dockingProblem(),
+          submitted: SUBMITTED};
+}
+
+function guide(){
+  const g = guideSteps(guideFacts());
+  STEPS.forEach(k => {
+    const state = g.done[k] ? 'done' : k === g.now ? 'now' : 'later';
+    const li = document.querySelector('#guide li[data-step="' + k + '"]');
+    if(li){
+      li.classList.toggle('done', state === 'done');
+      li.classList.toggle('now', state === 'now');
+      const b = li.querySelector('button');
+      if(state === 'now') b.setAttribute('aria-current', 'step');
+      else b.removeAttribute('aria-current');
+      // What is wrong, on the step that is waiting for it.
+      const why = k === 'docking' && state === 'now' ? dockingProblem() : '';
+      b.title = why || GUIDE_HINT[k][state === 'done' ? 1 : 0];
+      const st = li.querySelector('.gstate');
+      if(st) st.textContent = state === 'done' ? ', done'
+        : state === 'now' ? ', to do now' : ', still to do';
+    }
+    const card = $('step-' + k);
+    if(card){
+      card.classList.toggle('step-done', state === 'done');
+      card.classList.toggle('step-now', state === 'now');
+      card.classList.toggle('step-later', state === 'later');
+    }
+  });
+}
+/* Once per frame at most: one change can set off several checks. */
+function guideSoon(){
+  if(GUIDE_T) return;
+  GUIDE_T = requestAnimationFrame(() => { GUIDE_T = 0; guide(); });
+}
+/* A number scrolls to its card. Smoothly, unless less motion was asked
+   for. Focus goes to the card's heading, so the keyboard carries on from
+   there. */
+document.querySelectorAll('#guide button[data-goto]').forEach(b => {
+  b.onclick = () => {
+    const card = $('step-' + b.getAttribute('data-goto'));
+    if(!card) return;
+    const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    card.scrollIntoView({behavior: calm ? 'auto' : 'smooth', block: 'start'});
+    const h = card.querySelector('h2');
+    if(h){ h.tabIndex = -1; try { h.focus({preventScroll: true}); } catch(e){} }
+  };
+});
+/* Anything typed, ticked or chosen can change a step. A change inside one of
+   the five cards after a submission is the start of another run, so the last
+   step is no longer done. */
+['input', 'change'].forEach(type => document.addEventListener(type, e => {
+  const t = e.target;
+  if(SUBMITTED && t && t.closest && t.closest('.card[data-step]'))
+    SUBMITTED = false;
+  guideSoon();
+}, true));
+
+let ADCP11 = false, AGFR11 = false;
 api('/api/tools').then(d => {
   if(d.error) return;
   const miss = d.missing || [];
@@ -127,6 +279,12 @@ function gbEngines(rows){
     $('adcp_engine').querySelector('option[value="1.1"]').disabled = true;
     $('omm_minimize').disabled = true;
   }
+  /* AGFR 1.1 comes with the ADCP 1.1 suite; without it the maps are built
+     by ADFRsuite's AGFR 1.0, which "newest installed" then means. */
+  AGFR11 = !!d.agfr11;
+  if(!AGFR11) $('agfr').querySelector('option[value="1.1"]').disabled = true;
+  posesLimit();
+  mapsNote();
   gbEngines(d.gb_engines);
   // ADapt, a separate tool, when the server can find it.
   if(d.adapt && d.adapt.available){
@@ -150,17 +308,28 @@ function gbEngines(rows){
     // which never fires for a box that starts ticked.
     $('mmopts').classList.toggle('hide', !$('mmgbsa').checked);
   }
+  // Choices this machine cannot run are greyed out now, which the docking
+  // step reads.
+  guideSoon();
 });
 
 /* ===================== receptor ====================================== */
 let RECEPTOR = null;
-$('recload').onclick = loadReceptor;
+/* A target file read by loadTarget, and why the last one was refused. Declared
+   here, beside the receptor, because the site view reads it from the start. */
+let TARGET = null, TARGET_ERR = '';
+$('recload').onclick = () => { leaveAdapt(false); loadReceptor(); };
 
 /* ADapt runs as its own program, started by the server on request. The tab is
    opened inside the click, where a browser allows it, and pointed at ADapt
-   once the server has it running. Its address is on the machine running this
-   interface, so a browser reaching this page through a forwarded port needs
-   ADapt's port forwarded too. */
+   once the server has it running. ADapt comes through this page's own server,
+   under /adapt/, so nothing else needs forwarding.
+
+   The receptor above goes with it: the server hands the file to ADapt
+   (its api/upload) and the tab opens on that session. Once a receptor is
+   saved there, this page reads back what ADapt wrote, the receptor PDBQT, its
+   _rec_H.pdb and session.json, and uses it as the receptor: ADAPTREC. */
+let ADAPTREC = null, ADAPT_WATCH = null, ADAPT_TIMER = null, ADAPTSRC = null;
 $('adaptopen').onclick = async () => {
   const note = $('adaptnote'), btn = $('adaptopen');
   /* The tab is opened inside the click, where a browser allows it, and says
@@ -184,8 +353,13 @@ $('adaptopen').onclick = async () => {
   };
   tick();
   const timer = setInterval(tick, 1000);
+  /* The structure the receptor came from: the file above, or, once ADapt's
+     receptor is in use, the structure that session was opened on. */
+  const src = ADAPTREC ? (ADAPTSRC || {}) : {path: $('recpath').value.trim(),
+    code: RECEPTOR && RECEPTOR.fetched ? $('reccode').value.trim() : ''};
   let r;
-  try { r = await api('/api/adapt', {}); }
+  try { r = await api('/api/adapt', {path: src.path || '', code: src.code || '',
+                                     session: ADAPTREC ? (ADAPTREC.session || '') : ''}); }
   finally { clearInterval(timer); btn.disabled = false; }
   if(r.error || !r.url){
     if(tab) tab.close();
@@ -197,11 +371,149 @@ $('adaptopen').onclick = async () => {
      new tab began as about:blank. */
   const url = new URL(r.url, location.href).href;
   if(tab) tab.location.href = url;
-  note.innerHTML = 'ADapt is open in a new tab (<a href="' + esc(url)
-    + '" target=_blank rel=noopener>open it again</a>). Load the receptor there '
-    + 'with Open PDB or Fetch.';
+  const again = ' (<a href="' + esc(url) + '" target=_blank rel=noopener>open it again</a>)';
+  if(r.session){
+    if(!ADAPTREC) ADAPTSRC = src;
+    ADAPT_WATCH = {session: r.session, folder: r.folder || ''};
+    startAdaptWatch();
+    note.innerHTML = 'ADapt is open in a new tab on ' + esc(r.pdbid || 'this receptor')
+      + again + '. Choose what stays in the receptor there and press '
+      + '<b>receptor PDBQT</b>: this page reads the save back and uses it.';
+  } else {
+    note.innerHTML = 'ADapt is open in a new tab' + again + '. '
+      + esc(r.note || 'Load the receptor there with Open PDB or Fetch.');
+  }
 };
-$('recpath').onkeydown = e => { if(e.key === 'Enter') loadReceptor(); };
+/* ADapt's saves are looked for every few seconds while a session opened from
+   here is open, and the newest receptor save is taken as it appears. */
+function startAdaptWatch(){
+  $('adaptcheck').classList.remove('hide');
+  clearInterval(ADAPT_TIMER);
+  ADAPT_TIMER = setInterval(() => { if(!document.hidden) checkAdaptSave(false); }, 4000);
+}
+async function checkAdaptSave(manual){
+  if(!ADAPT_WATCH) return;
+  const d = await api('/api/adapt/saved?session='
+    + encodeURIComponent(ADAPT_WATCH.session || '') + '&folder='
+    + encodeURIComponent(ADAPT_WATCH.folder || ''));
+  if(!d || !d.found){
+    if(manual) $('adaptnote').innerHTML = '<span class=bad>'
+      + esc((d && (d.why || d.error)) || 'nothing was read back') + '</span>';
+    return;
+  }
+  ADAPT_WATCH.folder = d.folder;
+  if(ADAPTREC && ADAPTREC.folder === d.folder && ADAPTREC.save === d.save
+     && ADAPTREC.pdb_md5 === d.pdb_md5){
+    if(manual) $('adaptnote').textContent = 'Save ' + d.save
+      + ' is still the newest receptor ADapt saved in this session.';
+    return;
+  }
+  await useAdapt(d);
+}
+async function useAdapt(d){
+  ADAPTREC = d;
+  $('recpath').value = d.pdb;
+  await loadReceptor();
+  adaptApplied();
+  $('adaptnote').textContent = 'Read back receptor save ' + d.save
+    + ' from ADapt. Saving the receptor again in ADapt replaces it here.';
+}
+/* Leaving ADapt's receptor: for the structure it was made from, or because
+   another structure was loaded above. */
+function leaveAdapt(reload){
+  if(!ADAPTREC && !ADAPT_WATCH) return;
+  const src = ADAPTSRC;
+  ADAPTREC = null; ADAPT_WATCH = null; ADAPTSRC = null;
+  clearInterval(ADAPT_TIMER);
+  $('adaptcheck').classList.add('hide');
+  adaptApplied();
+  if(reload && src && src.path){
+    $('recpath').value = src.path;
+    loadReceptor();
+  }
+}
+$('adaptdrop').onclick = () => leaveAdapt(true);
+$('adaptcheck').onclick = () => checkAdaptSave(true);
+$('adaptread').onclick = () => {
+  if(!ADAPT_WATCH && ADAPTREC) ADAPT_WATCH = {session: ADAPTREC.session || '',
+                                              folder: ADAPTREC.folder};
+  checkAdaptSave(true);
+};
+/* Everything that depends on whether the receptor is ADapt's: the card says
+   where it came from, and the settings that belong to a structure file are
+   greyed out, since ADapt and AGFR made those choices. */
+const PREP_IDS = ['keep_hetatms', 'rebuild_sidechains', 'fill_loops',
+                  'protonation', 'ph', 'minimise'];
+function adaptApplied(){
+  const on = !!ADAPTREC;
+  $('adaptuse').classList.toggle('hide', !on);
+  // Once a save is in use, its own block reads the next one.
+  $('adaptcheck').classList.toggle('hide', on || !ADAPT_WATCH);
+  document.querySelectorAll('#chainbox .chk').forEach(x => {
+    if(on) x.checked = false;
+    x.disabled = on;
+  });
+  PREP_IDS.forEach(id => {
+    const el = $(id);
+    if(!el) return;
+    el.disabled = on;
+    const lab = el.closest('label');
+    if(lab) lab.classList.toggle('off', on);
+  });
+  if(on) $('protonation').value = 'reduce';
+  protNote();
+  prepNote();
+  if(!on){ $('adaptwhat').innerHTML = ''; return; }
+  const d = ADAPTREC;
+  const list = (o, f) => Object.keys(o || {}).length
+    ? Object.keys(o).map(k => esc(k) + (f ? ' ' + esc(f(o[k])) : '')).join(', ')
+    : 'none';
+  const his = Object.keys(d.his || {});
+  /* "A:HIS:96:_" as "His A96" */
+  const resName = k => { const p = String(k).split(':');
+    return p.length < 3 ? k : p[1].charAt(0) + p[1].slice(1).toLowerCase() + ' '
+      + p[0] + p[2] + (p[3] && p[3] !== '_' ? p[3] : ''); };
+  /* The biomolecule line names the tab, which is already said, then its chains. */
+  const bio = String(d.biomolecule || '');
+  const chains = d.tab && bio.indexOf(d.tab + ':') === 0
+    ? bio.slice(d.tab.length + 1).trim() : bio;
+  $('adaptwhat').innerHTML = '<b>' + esc(d.pdbid || d.input || 'receptor') + '</b>'
+    + (d.tab ? ', ' + esc(d.tab) : '') + (chains ? ' (' + esc(chains) + ')' : '')
+    + ', receptor save ' + esc(d.save)
+    + (d.at ? ', written ' + esc(String(d.at).replace('T', ' ')) : '') + '.<br>'
+    + 'Hetero groups kept: ' + esc((d.hetero || []).join(', ') || 'none')
+    + '. Ion charges set: ' + list(d.charges, v => '= ' + v)
+    + '. Alternate locations chosen: ' + list(d.altlocs, v => v)
+    + '. Mutations: ' + list(d.mutations, v => 'to ' + v) + '.<br>'
+    + 'Hydrogens placed by ' + esc(d.reduce || 'reduce') + ', as AGFR places them'
+    + (his.length ? ': ' + his.slice(0, 8).map(k => esc(resName(k))
+        + ' ' + esc(d.his[k])).join(', ') + (his.length > 8 ? ', ...' : '') : '')
+    + '.<br>Session folder <code>' + esc(d.folder) + '</code>. The receptor PDBQT '
+    + 'is docked as ADapt wrote it, and the preparation settings above do not apply.';
+}
+/* The pH belongs to PROPKA: reduce takes none. */
+function protNote(){
+  const red = $('protonation').value === 'reduce';
+  $('ph').disabled = red || !!ADAPTREC;
+  $('phlabel').classList.toggle('off', red || !!ADAPTREC);
+}
+$('protonation').addEventListener('change', () => { protNote(); guideSoon(); });
+protNote();
+/* The line under the preparation settings, for the two cases in which they do
+   not apply. */
+function prepNote(){
+  $('prepnote').textContent = TARGET
+    ? 'Not used with a target file: its receptor was prepared when the file was made.'
+    : ADAPTREC
+      ? 'Not used with a receptor from ADapt: ADapt chose what stays in it, and reduce placed its hydrogens there.'
+      : '';
+}
+/* What the run is told about ADapt's receptor: where to find the save. */
+function adaptBody(){
+  return ADAPTREC ? {folder: ADAPTREC.folder, save: ADAPTREC.save,
+                     session: ADAPTREC.session || ''} : {};
+}
+$('recpath').onkeydown = e => { if(e.key === 'Enter'){ leaveAdapt(false); loadReceptor(); } };
 
 /* From the user's own computer. The page is served from the cluster and
    reached through the launcher's tunnel, so the browser is on the laptop and
@@ -233,6 +545,7 @@ $('recfile').onchange = async () => {
      event, and a failed upload can be retried. */
   $('recfile').value = '';
   if(d.error){ recmsg(d.error, true); return; }
+  leaveAdapt(false);
   $('recpath').value = d.path;
   loadReceptor();
 };
@@ -243,7 +556,7 @@ async function loadReceptor(){
   $('recinfo').textContent = 'reading…';
   const d = await api('/api/receptor?path=' + encodeURIComponent(p));
   if(d.error){ $('recinfo').innerHTML = '<span class=bad>' + esc(d.error) + '</span>';
-               return; }
+               guideSoon(); return; }
   gotReceptor(d);
 }
 
@@ -259,9 +572,17 @@ function gotReceptor(d){
       + ' res ' + c.first + ' to ' + c.last + '</span></label>').join('');
   $('chainbox').querySelectorAll('.chk').forEach(x =>
     x.onchange = () => drawPicker());
+  if(ADAPTREC) $('chainbox').querySelectorAll('.chk').forEach(x => x.disabled = true);
   HOT = [];
+  fillLigands(d.ligands || []);
   drawChips();
   drawPicker();
+  /* A new structure means the site has not been checked against it. It is
+     checked now where there is something to check: a ligand the list chose
+     on its own, a pocket, or residues already typed. */
+  SITE_OK = null;
+  if(siteMode() !== 'residues' || $('hotspots').value.trim()) siteSoon();
+  guideSoon();
 }
 $('recfetch').onclick = fetchCode;
 $('reccode').onkeydown = e => { if(e.key === 'Enter') fetchCode(); };
@@ -272,9 +593,72 @@ async function fetchCode(){
   const d = await api('/api/fetch?code=' + encodeURIComponent(c));
   if(d.error){ $('recinfo').innerHTML = '<span class=bad>' + esc(d.error)
     + '</span>'; return; }
+  leaveAdapt(false);
   $('recpath').value = d.path;
   gotReceptor(d);
 }
+/* ===================== molecular surfaces ============================ */
+/* Surfaces are computed by MSMS on the server (/api/surface) and drawn here as
+   a mesh: its vertices, normals and triangles, with the residue each vertex
+   lies over. Where MSMS cannot give one, the answer says why, and the viewer
+   draws its own surface as it always did, with a quiet note under the view.
+   Kept per structure for the session, so a view redrawn is not asked again. */
+const SURFS = {};
+function b64bytes(t){
+  const b = atob(t), u = new Uint8Array(b.length);
+  for(let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i);
+  return u.buffer;
+}
+/* The answer for a key: null while it is being fetched, then the surface. */
+function surfaceFor(key, url, then){
+  if(key in SURFS) return SURFS[key];
+  SURFS[key] = null;
+  api(url).then(d => {
+    SURFS[key] = d && !d.error ? d : {source: 'fallback',
+      why: (d && d.error) || 'no answer'};
+    if(then) then(SURFS[key]);
+  });
+  return null;
+}
+/* The mesh in 3Dmol's terms, built once per surface. */
+function surfaceMesh(d){
+  if(d._mesh) return d._mesh;
+  const v = new Float32Array(b64bytes(d.verts)), n = new Float32Array(b64bytes(d.norms));
+  const f = new Uint32Array(b64bytes(d.faces)), r = new Uint32Array(b64bytes(d.res));
+  const va = [], na = [];
+  for(let i = 0; i < v.length; i += 3){
+    va.push({x: v[i], y: v[i+1], z: v[i+2]});
+    na.push({x: n[i], y: n[i+1], z: n[i+2]});
+  }
+  d._mesh = {vertexArr: va, normalArr: na, faceArr: Array.from(f), res: r};
+  return d._mesh;
+}
+/* One surface into a viewer, as a custom shape. `colourOf` gives a residue's
+   colour ("A:96") or null for the surface's own; per vertex colours are used
+   only below 64,000 vertices, where 3Dmol keeps a mesh in one piece. */
+function addSurfaceMesh(viewer, d, style, colourOf){
+  const m = surfaceMesh(d);
+  const spec = Object.assign({vertexArr: m.vertexArr, normalArr: m.normalArr,
+                              faceArr: m.faceArr}, style);
+  if(colourOf && m.vertexArr.length < 64000){
+    const base = $3Dmol.CC.color(style.color || '#9fb3c8');
+    const memo = {};
+    spec.colorArr = Array.from(m.res, i => {
+      if(!(i in memo)){
+        const c = colourOf(d.residues[i]);
+        memo[i] = c ? $3Dmol.CC.color(c) : base;
+      }
+      return memo[i];
+    });
+  }
+  const shape = viewer.addCustom(spec);
+  /* 3Dmol paints every vertex with the shape's colour when it draws it,
+     unless the shape has none, which is how it colours a surface by value
+     itself; without this the residues' colours never reach the screen. */
+  if(spec.colorArr) delete shape.color;
+  return shape;
+}
+
 /* ===================== the picker ==================================== */
 /* One dialog for both jobs: choosing a receptor and choosing where runs go. It
    opens on "Places": the group allocation first, then the user's scratch, then
@@ -290,7 +674,7 @@ async function roots(){
 }
 
 function openPicker(opts){
-  PICK = opts;                       // {dirs, title, start, onPick}
+  PICK = opts;                       // {dirs, kind, title, start, onPick}
   $('pickertitle').textContent = opts.title;
   $('pickeruse').style.display = opts.dirs ? '' : 'none';
   $('pickernew').style.display = opts.dirs ? '' : 'none';
@@ -341,7 +725,12 @@ function crumbsFor(path){
 
 async function showDir(path){
   if(!path) return showPlaces();
-  const q = PICK && PICK.dirs ? '/api/browse?dirs=1&path=' : '/api/browse?path=';
+  /* Structures unless the opener asked for another kind: the target file box
+     asks for .trg files, and the server filters for each kind on its own, so
+     asking for one never widens the other. */
+  const q = PICK && PICK.dirs ? '/api/browse?dirs=1&path='
+          : '/api/browse?' + (PICK && PICK.kind ? 'kind=' + encodeURIComponent(PICK.kind)
+                              + '&' : '') + 'path=';
   const d = await api(q + encodeURIComponent(path));
   if(d.error){
     $('listing').innerHTML = '<div class=why style="padding:12px 16px">'
@@ -473,6 +862,9 @@ async function useRuns(path){
   $('outmsg').textContent = 'New runs go to ' + d.root
     + '. Runs already started stay where they are.';
   listRuns();
+  // The Folders view walks the runs folder, so it starts again at its top.
+  FOLDER_AT = '';
+  if(RUNSVIEW === 'folders') showFolderView('');
 }
 
 const chosenChains = () => Array.from(document.querySelectorAll('.chk:checked'))
@@ -482,6 +874,9 @@ const chosenChains = () => Array.from(document.querySelectorAll('.chk:checked'))
 /* A hotspot is a chain and a residue number, held as "A:56". A bare number
    would land on whichever chain carries that number. */
 let HOT = [], VD = null, SEQRES = [], SITE = null;
+/* The box mode the site was last checked in without a complaint, or null:
+   what the step guide reads to decide whether the site is done. */
+let SITE_OK = null;
 const keyOf = (c, r) => c + ':' + r;
 
 function activeChains(){
@@ -491,6 +886,8 @@ function activeChains(){
     .filter(c => c.kind === 'protein').map(c => c.id);
 }
 function toggleHot(k){
+  // Picking residues places the box only when the box is built around them.
+  if(siteMode() !== 'residues') return;
   const i = HOT.indexOf(k);
   if(i < 0) HOT.push(k); else HOT.splice(i, 1);
   HOT.sort((a, b) => a.split(':')[0].localeCompare(b.split(':')[0])
@@ -502,11 +899,14 @@ function toggleHot(k){
   drawChips(); markSeq(); stylePicker(); siteSoon();
 }
 function drawChips(){
+  if(siteMode() !== 'residues' && !TARGET){ $('chips').innerHTML = ''; return; }
   $('chips').innerHTML = HOT.length
     ? HOT.map(k => '<span class=chip data-k="' + esc(k) + '">' + esc(k)
         + ' ✕</span>').join('')
       + '<button class=ghost id=hotclear style="margin-left:4px">clear</button>'
-    : '<span class=why>no residues picked yet</span>';
+    // With a target file the site is the file's own box, which the site note
+    // already says, so "no residues picked yet" would read as something missing.
+    : (TARGET ? '' : '<span class=why>no residues picked yet</span>');
   $('chips').querySelectorAll('.chip').forEach(c =>
     c.onclick = () => toggleHot(c.getAttribute('data-k')));
   const cl = $('hotclear');
@@ -522,17 +922,29 @@ $('hotspots').oninput = () => {
   drawChips(); markSeq(); stylePicker(); siteSoon();
 };
 
+/* Each draw is numbered, and only the newest one writes the strip and the
+   view: loading a receptor and ticking a chain both start one, and two of
+   them filling one list in turn would show both chains' residues. */
+let PICK_GEN = 0;
 async function drawPicker(){
+  /* A target file is what the run docks into when one is set, so the view
+     shows its receptor and box rather than the structure above. */
+  if(TARGET){ drawTarget(); return; }
   if(!RECEPTOR) return;
+  const gen = ++PICK_GEN;
   const chs = activeChains();
   $('seqchain').textContent = chs.length > 1 ? '(' + chs.join(', ') + ')'
     : (chs[0] ? '(chain ' + chs[0] + ')' : '');
-  SEQRES = [];
+  const seq = [];
   for(const c of chs){
     const d = await api('/api/sequence?path='
       + encodeURIComponent(RECEPTOR.path) + '&chain=' + encodeURIComponent(c));
-    (d.residues || []).forEach(r => SEQRES.push(r));
+    (d.residues || []).forEach(r => seq.push(r));
   }
+  if(gen !== PICK_GEN) return;
+  SEQRES = seq;
+  // A target file loaded while this was reading takes the view.
+  if(TARGET){ drawTarget(); return; }
   drawSeqStrip();
   if(typeof $3Dmol === 'undefined'){
     $('viewD').innerHTML = '<div class=why style="padding:14px">the 3D viewer '
@@ -542,6 +954,8 @@ async function drawPicker(){
   const r = await fetch('/api/rawstructure?t=' + encodeURIComponent(T)
     + '&path=' + encodeURIComponent(RECEPTOR.path));
   const pdb = await r.text();
+  if(TARGET){ drawTarget(); return; }
+  if(gen !== PICK_GEN) return;
   if(!pdb || pdb.indexOf('ATOM') < 0){
     $('viewD').innerHTML = '<div class=why style="padding:14px">'
       + esc(pdb.slice(0, 200)) + '</div>';
@@ -560,16 +974,32 @@ async function drawPicker(){
   VD.zoomTo({chain: chs});
   VD.render();
   drawBox();
+  siteSurface();
 }
 function stylePicker(){
   if(!VD) return;
+  if(TARGET){
+    VD.setStyle({}, {cartoon:{color:'spectrum'}});
+    // The AutoSite points keep their spheres (addPoints).
+    VD.setStyle({resn:'PTS'}, POINT_STYLE);
+    VD.render();
+    return;
+  }
   const chs = activeChains();
   VD.setStyle({}, {cartoon:{color:'#cfd8e3'}});
   VD.setStyle({chain: chs}, {cartoon:{color:'spectrum'}});
   const by = {};
-  HOT.forEach(k => { const b = k.split(':'); (by[b[0]] = by[b[0]] || []).push(+b[1]); });
+  // The residues picked place the box only in that mode; in the others they
+  // are not drawn, so the view shows what the box is built around instead.
+  if(siteMode() === 'residues')
+    HOT.forEach(k => { const b = k.split(':'); (by[b[0]] = by[b[0]] || []).push(+b[1]); });
   Object.keys(by).forEach(c => VD.setStyle({chain:c, resi:by[c]},
     {cartoon:{color:'#1a56db'}, stick:{radius:0.22, color:'#1a56db'}}));
+  if($('sitesurf') && $('sitesurf').checked && SITESURF.length) siteSurface();
+  // The ligand or peptide the box is built around, as sticks: it is not
+  // part of the receptor, and a cartoon would not show a hetero group at all.
+  const lig = siteMode() === 'ligand' ? ligandSel($('site_ligand').value) : null;
+  if(lig) VD.setStyle(lig, {stick:{radius:0.25, colorscheme:'orangeCarbon'}});
   VD.render();
 }
 /* The box, drawn where it is decided.
@@ -585,6 +1015,50 @@ function stylePicker(){
    because removeAllShapes() would also remove anything else the viewer is
    given. */
 let BOXSHAPES = [];
+/* The receptor's surface in the site view, as the run will keep it: the
+   chains in use, waters out, hetero groups only when they are kept. Opaque,
+   with the residues picked for the site in the site's blue, so the groove and
+   the patch the box is built around are seen together. (3Dmol draws a see-
+   through surface under everything opaque, so a see-through one would hide
+   that patch behind the residues' own sticks.) */
+let SITESURF = [];
+function siteSurface(){
+  if(!VD) return;
+  SITESURF.forEach(sh => { try { VD.removeShape(sh); } catch(e){} });
+  SITESURF = [];
+  try { VD.removeAllSurfaces(); } catch(e){}
+  const tick = $('sitesurf');
+  if(!tick || !tick.checked || !RECEPTOR || TARGET){
+    $('surfnote').textContent = '';
+    VD.render();
+    return;
+  }
+  const chs = activeChains();
+  const het = $('keep_hetatms').checked && !ADAPTREC ? 1 : 0;
+  const key = 'site|' + RECEPTOR.path + '|' + chs.join(',') + '|' + het;
+  const d = surfaceFor(key, '/api/surface?path=' + encodeURIComponent(RECEPTOR.path)
+    + '&chains=' + encodeURIComponent(chs.join(',')) + '&het=' + het,
+    () => siteSurface());
+  if(d === null){
+    $('surfnote').textContent = 'computing the surface with MSMS...';
+    return;
+  }
+  const style = {color: '#c3cedb', opacity: 1};
+  if(d.source === 'msms'){
+    const hot = {};
+    if(siteMode() === 'residues') HOT.forEach(k => { hot[k] = 1; });
+    SITESURF.push(addSurfaceMesh(VD, d, style,
+      k => hot[k] ? '#1a56db' : null));
+    $('surfnote').textContent = '';
+  } else {
+    try { VD.addSurface($3Dmol.SurfaceType.VDW, style, {chain: chs}); } catch(e){}
+    $('surfnote').textContent = 'Surface drawn by the viewer: ' + (d.why || 'MSMS gave none') + '.';
+  }
+  VD.render();
+}
+$('sitesurf').addEventListener('change', siteSurface);
+$('keep_hetatms').addEventListener('change', siteSurface);
+
 function drawBox(){
   if(!VD) return;
   BOXSHAPES.forEach(sh => { try { VD.removeShape(sh); } catch(e){} });
@@ -620,6 +1094,10 @@ function drawSeqStrip(){
   let cur = [], n = 0;
   SEQRES.forEach((r, i) => {
     const prev = i ? SEQRES[i - 1] : null;
+    // Each chain starts its own row, so a row's label names every residue on it.
+    if(prev && prev.chain !== r.chain && cur.length){
+      rows.push(cur); cur = []; n = 0;
+    }
     if(prev && prev.chain === r.chain && r.resnum > prev.resnum + 1){
       cur.push({gap: r.resnum - prev.resnum - 1,
                 from: prev.resnum + 1, to: r.resnum - 1});
@@ -655,7 +1133,7 @@ function drawSeqStrip(){
 }
 function markSeq(){
   const on = {};
-  HOT.forEach(k => { on[k] = 1; });
+  if(siteMode() === 'residues') HOT.forEach(k => { on[k] = 1; });
   $('seqstrip').querySelectorAll('.r').forEach(el =>
     el.classList.toggle('on', !!on[el.getAttribute('data-k')]));
 }
@@ -670,15 +1148,56 @@ function siteSoon(){
   SITE_T = setTimeout(() => { refreshSite(); }, 400);
 }
 async function refreshSite(){
+  /* A target file carries its own box and the run uses that one, so the
+     residues here are not turned into another. */
+  if(TARGET){ targetSite(); return; }
+  const mode = siteMode();
+  if(mode === 'residues' && !$('hotspots').value.trim()){
+    SITE = null; SITE_OK = null; guideSoon();
+    $('sitenote').textContent = '';
+    $('otherchains').classList.add('hide');
+    drawBox();
+    return;
+  }
+  if(mode === 'ligand' && !$('site_ligand').value){
+    SITE = null; SITE_OK = null; guideSoon();
+    $('sitenote').textContent = RECEPTOR
+      ? 'Choose the ligand or peptide the box should be built around.' : '';
+    $('otherchains').classList.add('hide');
+    drawBox();
+    return;
+  }
   const d = await api('/api/site', {
     receptor: $('recpath').value.trim(), chains: chosenChains(),
     hotspots: $('hotspots').value, box_padding:+$('pad').value,
-    box_min:+$('bmin').value, box_max:+$('bmax').value});
+    box_min:+$('bmin').value, box_max:+$('bmax').value,
+    site_mode: mode, site_ligand: $('site_ligand').value,
+    site_pocket: $('site_pocket').value,
+    keep_hetatms: $('keep_hetatms').checked});
+  // A target file set while this was waiting keeps its own box.
+  if(TARGET){ targetSite(); return; }
+  // The choice changed while this was waiting; the newer request draws.
+  if(mode !== siteMode()) return;
+  /* What the guide counts as a checked site: a box the server built, or,
+     for an AutoSite pocket, its word that the pocket will be found once the
+     receptor is prepared. Kept with the mode it was checked in. */
+  SITE_OK = d.error ? null : mode;
+  guideSoon();
+  if(d.pending){
+    SITE = null;
+    $('sitenote').textContent = d.note;
+    $('otherchains').classList.add('hide');
+    drawBox();
+    return;
+  }
   SITE = d.error ? null : d;
   $('sitenote').innerHTML = d.error
     ? '<span class=bad>' + esc(d.error) + '</span>'
     : esc(d.note) + '<br>centre ' + d.centre.join(', ') + '; box '
-      + d.size.map(x => x.toFixed(1)).join(' × ') + ' Å';
+      + d.size.map(x => x.toFixed(1)).join(' × ') + ' Å'
+      + (d.contacts ? '<br>' + d.contacts.length + ' residue'
+         + (d.contacts.length === 1 ? '' : 's') + ' touch it, and each pose '
+         + 'is measured against them: ' + esc(d.contacts.join(', ')) : '');
   // What else the box reaches, offered as a choice. Unticked, the docking
   // loads only the chains chosen above, so the peptide is placed against a gap
   // where the far wall of the groove should be; ticked, those chains are
@@ -722,6 +1241,274 @@ document.addEventListener('change', e => {
     siteSoon();
 });
 
+/* ===================== where the box comes from ===================== */
+/* Around residues you pick, which is what every run before this choice did;
+   around a ligand or peptide the structure holds; or around the pocket
+   AutoSite finds. The first two are drawn here before anything runs. AutoSite
+   runs on the prepared receptor, on a compute node, so a pocket's box is seen
+   afterwards, by loading the run's target file (its points are drawn too). */
+function siteMode(){ return ($('site_mode') && $('site_mode').value) || 'residues'; }
+
+/* What the structure holds that a box could be built around, from
+   /api/receptor: peptides by their chain, hetero groups as CHAIN:NAME:NUMBER,
+   additives last. A choice already made is kept if it is still there. */
+function fillLigands(list){
+  const sel = $('site_ligand'), was = sel.value;
+  if(!list.length){
+    sel.innerHTML = '<option value="">nothing in this structure could set the box</option>';
+    return;
+  }
+  sel.innerHTML = '<option value="">choose one</option>' + list.map(l =>
+    '<option value="' + esc(l.id) + '">' + esc(l.label) + '</option>').join('');
+  if(was && list.some(l => l.id === was)) sel.value = was;
+  // One candidate that is not an additive is the obvious choice.
+  const real = list.filter(l => l.kind !== 'additive');
+  if(!sel.value && real.length === 1) sel.value = real[0].id;
+}
+
+/* The viewer's selection for a ligand named as the server names it. */
+function ligandSel(spec){
+  spec = String(spec || '').trim();
+  if(!spec) return null;
+  const p = spec.split(':');
+  if(p.length === 1) return {chain: p[0]};
+  if(p.length === 3){
+    const m = p[2].match(/^(-?\d+)/);
+    return m ? {chain: p[0], resn: p[1], resi: parseInt(m[1], 10)} : null;
+  }
+  return null;
+}
+
+const PICKHINT = {
+  residues: 'Click a residue in the structure to add it to the site. Click '
+    + 'it again to drop it.',
+  ligand: 'The ligand or peptide the box is built around is drawn in orange.',
+  pocket: 'AutoSite finds the pocket when the receptor is prepared; the view '
+    + 'shows the structure until then.'};
+
+/* The lines over the view and the strip. With a target file the view shows
+   the file's receptor and its own box, so neither line may invite a click on
+   a residue: nothing there can be picked. */
+function pickHints(){
+  const m = siteMode();
+  if($('pickhint')) $('pickhint').textContent = TARGET
+    ? 'The target file\'s receptor and its box'
+      + (TARGET.n_points ? ', with its AutoSite points in pink' : '')
+      + '. The box is the file\'s own, so no residues are picked.'
+    : (PICKHINT[m] || PICKHINT.residues);
+  if($('seqhint')) $('seqhint').textContent = TARGET ? ''
+    : m === 'residues' ? 'Or click it in the sequence.'
+    : 'The receptor\'s sequence.';
+}
+
+function siteModeChanged(){
+  const m = siteMode();
+  $('hotfield').classList.toggle('hide', m !== 'residues');
+  $('ligandfield').classList.toggle('hide', m !== 'ligand');
+  $('pocketfield').classList.toggle('hide', m !== 'pocket');
+  pickHints();
+  drawChips();
+  markSeq();
+  stylePicker();
+  if(typeof refreshMissing === 'function') refreshMissing();
+  return refreshSite();
+}
+$('site_mode').onchange = siteModeChanged;
+$('site_ligand').onchange = () => {
+  stylePicker();
+  if(typeof refreshMissing === 'function') refreshMissing();
+  refreshSite();
+};
+$('site_pocket').onchange = refreshSite;
+// Keeping heteroatoms decides whether a hetero group could stay in the site.
+$('keep_hetatms').addEventListener('change', () => {
+  if(siteMode() === 'ligand') refreshSite();
+});
+
+/* ===================== the grid maps ================================ */
+/* Which AGFR builds the maps, which AutoSite places the translation points,
+   and whether the receptor gradient is added. Said in one line under the
+   three, because "newest installed" means a different program on a machine
+   without the ADCP 1.1 suite. */
+function mapsNote(){
+  const el = $('mapsnote');
+  if(!el) return;
+  const want = $('agfr').value;
+  const agfr = want === 'auto' ? (AGFR11 ? '1.1' : '1.0') : want;
+  el.textContent = 'AGFR ' + agfr + (agfr === '1.1' ? ', from the ADCP 1.1 '
+    + 'suite,' : ', from ADFRsuite,') + ' builds the maps; AutoSite '
+    + $('autosite').value + ' places the points the search starts from'
+    + ($('receptor_gradient').checked
+       ? '; the receptor gradient is added, which takes longer.'
+       : '; no receptor gradient.');
+}
+['agfr', 'autosite', 'receptor_gradient'].forEach(id =>
+  $(id).addEventListener('change', mapsNote));
+
+/* ===================== peptide options ============================== */
+/* ADCP 1.0 writes at most ten ranked poses per peptide; 1.1 writes as many
+   as asked for, up to its own default of 100. */
+function posesLimit(){
+  const eng = $('adcp_engine').value;
+  const most = (eng === '1.0' || (eng === 'auto' && !ADCP11)) ? 10 : 100;
+  const el = $('poses');
+  el.max = most;
+  if(+el.value > most) el.value = most;
+}
+/* How many replicas start as a helix, worked out the way ADCP does it:
+   replicas 1 to N x p / 100, rounded down. At 0 every replica starts as a
+   coil, and at 100 every one as a helix. */
+function pepOptsNote(){
+  const el = $('pepoptsnote');
+  if(!el) return;
+  const n = +$('replicas').value || 0;
+  const h = Math.max(0, Math.min(100, Math.round(+$('helical').value || 0)));
+  const k = h <= 0 ? 0 : h >= 100 ? n : Math.floor(n * h / 100);
+  const ring = $('cyclic').value;
+  el.textContent = k + ' of ' + n + ' replicas start as a helix, the rest '
+    + 'as a coil.' + (ring === 'disulfide'
+      ? ' A disulfide ring needs two cysteines in every peptide.'
+      : ring === 'backbone' ? ' Each peptide is closed head to tail.' : '');
+}
+$('cyclic').addEventListener('change', () => { pepOptsNote(); validate(); });
+pepOptsNote();
+['helical', 'replicas'].forEach(id => {
+  $(id).addEventListener('input', pepOptsNote);
+  $(id).addEventListener('change', pepOptsNote);
+});
+
+/* ===================== a target file from AGFR ====================== */
+/* A .trg holds a prepared receptor, its grid maps and the box they cover, and
+   a run given one takes all three from it (job.validate accepts it alone). So
+   once one is loaded the site view shows that receptor and that box, the
+   submit check stops asking for a receptor and residues, and the preparation
+   and site settings say they are not used. The server reads the file with
+   the same check the run applies, so one the run would refuse is refused
+   here, with the reason, before anything is submitted. */
+async function loadTarget(){
+  const p = $('targetfile').value.trim();
+  const note = $('targetnote');
+  if(!p){
+    const had = !!TARGET;
+    TARGET = null; TARGET_ERR = '';
+    note.textContent = '';
+    clearMissingOn('targetfile');
+    if(had) targetChanged(); else refreshMissing();
+    guideSoon();
+    return;
+  }
+  note.textContent = 'reading the target file…';
+  const d = await api('/api/target?path=' + encodeURIComponent(p));
+  // Typed over while the server was reading: that answer is for another path.
+  if($('targetfile').value.trim() !== p) return;
+  if(d.error){
+    const had = !!TARGET;
+    TARGET = null; TARGET_ERR = d.error;
+    note.innerHTML = '<span class=bad>' + esc(d.error) + '</span>';
+    if(had) targetChanged();
+    guideSoon();
+    return;
+  }
+  TARGET = d; TARGET_ERR = '';
+  $('targetfile').value = d.path;
+  clearMissingOn('targetfile');
+  note.innerHTML = '<b>' + esc(d.name) + '</b>: ' + Number(d.atoms).toLocaleString()
+    + ' receptor atoms' + (d.chains && d.chains.length
+        ? ' in chain' + (d.chains.length === 1 ? ' ' : 's ') + esc(d.chains.join(', ')) : '')
+    + ', ' + d.maps + ' grid maps'
+    + (d.n_points ? ', ' + Number(d.n_points).toLocaleString() + ' AutoSite '
+       + 'points, drawn in pink in the site view' : '')
+    + '. The run docks into this receptor and box as '
+    + 'they are, so the preparation above and the site residues below are not used.';
+  targetChanged();
+}
+
+/* Everything that depends on whether a target is set, redone in one place. */
+function targetChanged(){
+  const on = !!TARGET;
+  prepNote();
+  pickHints();
+  if(on){ targetSite(); drawTarget(); }
+  else {
+    SITE = null; SITE_OK = null;
+    $('sitenote').textContent = '';
+    if(RECEPTOR){
+      drawPicker();
+      if($('hotspots').value.trim()) refreshSite();
+    } else {
+      SEQRES = [];
+      drawSeqStrip();
+      if(VD){ VD.removeAllModels(); drawBox(); }
+    }
+  }
+  drawChips();
+  refreshMissing();
+  guideSoon();
+}
+
+/* The box the run will use, from the file, written where the site's own box
+   is reported, and drawn by the same drawBox. */
+function targetSite(){
+  if(!TARGET) return;
+  SITE = {centre: TARGET.centre, size: TARGET.size};
+  $('sitenote').innerHTML = 'The box is the target file\'s own: centre '
+    + TARGET.centre.map(x => (+x).toFixed(2)).join(', ') + '; box '
+    + TARGET.size.map(x => (+x).toFixed(1)).join(' × ') + ' Å. '
+    + '<span class=why>The residues, padding and limits here are not used '
+    + 'while a target file is set.</span>';
+  $('otherchains').classList.add('hide');
+  drawBox();
+}
+
+/* The target's receptor in the picker's viewer, with its box over it. Not
+   clickable: the site is the file's box, so there are no residues to pick. */
+function drawTarget(){
+  if(!TARGET) return;
+  $('seqchain').textContent = '';
+  $('seqstrip').innerHTML = '<span class=why>The site is the box inside the '
+    + 'target file, so no residues are picked for this run.</span>';
+  if(typeof $3Dmol === 'undefined'){
+    $('viewD').innerHTML = '<div class=why style="padding:14px">the 3D viewer '
+      + 'did not load</div>';
+    return;
+  }
+  if(!VD) VD = $3Dmol.createViewer($('viewD'), {backgroundColor: viewBg(false)});
+  VD.removeAllModels();
+  VD.addModel(TARGET.pdb, 'pdb');
+  stylePicker();
+  addPoints(TARGET.points || []);
+  VD.zoomTo();
+  VD.render();
+  drawBox();
+}
+
+/* The AutoSite points inside the target, the places its search starts from,
+   as small spheres: for a box from an AutoSite pocket they are the pocket.
+   One model of pseudo atoms rather than a shape per point, which a view of a
+   few thousand points draws without stalling. */
+function addPoints(pts){
+  if(!pts.length || !VD) return;
+  const lines = pts.map((p, i) => {
+    const f = v => (+v).toFixed(3).padStart(8);
+    return 'HETATM' + String(i + 1).padStart(5) + '  C   PTS P   1    '
+      + f(p[0]) + f(p[1]) + f(p[2]) + '  1.00  0.00           C';
+  });
+  const m = VD.addModel(lines.join('\n') + '\nEND\n', 'pdb');
+  m.setStyle({}, POINT_STYLE);
+}
+/* A colour the receptor's rainbow cartoon never takes, large enough to see
+   at the distance the whole receptor is shown from. */
+const POINT_STYLE = {sphere:{radius:0.7, color:'#d61f69'}};
+
+$('trgload').onclick = loadTarget;
+$('targetfile').addEventListener('keydown', e => { if(e.key === 'Enter') loadTarget(); });
+// Leaving the box after typing or clearing a path reads it, as Load would.
+$('targetfile').addEventListener('change', loadTarget);
+$('trgbrowse').onclick = () => openPicker({
+  dirs: false, kind: 'trg', title: 'Choose a target file (.trg)',
+  start: $('targetfile').value.trim() || $('recpath').value.trim(),
+  onPick: v => { $('targetfile').value = v; loadTarget(); }});
+
 /* ===================== peptides ====================================== */
 /* The sequence editor is contenteditable, so residues can be numbered and
    coloured as they are typed. The numbers live in a ::after pseudo-element
@@ -742,19 +1529,59 @@ const LIMITS = (() => {
 const MAXLEN = LIMITS.max_length;
 const MINLEN = LIMITS.min_length;
 
+/* A typed sequence as residues, counted the way the server counts them
+   (peptide.residues): with ADCP 1.1's syntax present, N<BHD> and &D are one
+   residue each; without it, every character is one. Every character is kept,
+   a stray one ('<' with no name after it) as a unit of its own that is not a
+   residue, so the units put back together are exactly what was typed and the
+   caret can still be restored by character offset.
+     {text, at: its first character's offset, res: whether it is a residue,
+      letter: the one-letter code it is built on, mod: whether it is a
+      non-standard or D residue} */
+const RESIDUE = /&?[A-Z](?:<[A-Z0-9]{1,4}>)?/y;
+function seqUnits(text){
+  const units = [], ext = isModified(text);
+  for(let i = 0; i < text.length;){
+    let m = null;
+    if(ext){ RESIDUE.lastIndex = i; m = RESIDUE.exec(text); }
+    const t = m ? m[0] : text[i];
+    units.push({text: t, at: i, res: !ext || !!m,
+                letter: m ? t.replace('&', '')[0] : t,
+                mod: !!m && t.length > 1});
+    i += t.length;
+  }
+  return units;
+}
+function residueTotal(text){
+  return seqUnits(text).filter(u => u.res).length;
+}
+
+/* The box's ruler numbers residues, not characters, in groups of ten: a
+   modified residue such as N<BHD> is one unit, numbered once and marked as a
+   whole, so N<BHD>PIS&DVD reads as the seven residues the server counts.
+   `bad` holds character offsets, as the server's problems give them; a unit
+   is marked if any of its characters is. */
 function renderSeq(el, text, bad){
   if(!text){ el.innerHTML = ''; return; }
-  const out = [];
-  for(let i = 0; i < text.length; i += 10){
-    const chunk = text.slice(i, i + 10);
-    out.push('<span class=grp data-n="' + Math.min(i + 10, text.length) + '">'
-      + Array.from(chunk).map((c, k) => {
-          const j = i + k;
-          const cls = bad.has(j) ? 'x' : (HYDRO.has(c) ? 'h' : 'p');
-          return '<span class=' + cls + '>' + esc(c) + '</span>';
-        }).join('') + '</span>');
-  }
-  el.innerHTML = out.join('');
+  const groups = [];
+  let cur = null, n = 0;
+  seqUnits(text).forEach(u => {
+    // A group opens at the start and before a group's eleventh residue; a
+    // character that is no residue stays in the group it follows.
+    if(!cur || (u.res && cur.res === 10)){
+      cur = {html: '', res: 0, n: 0};
+      groups.push(cur);
+    }
+    let marked = false;
+    for(let k = 0; k < u.text.length; k++) if(bad.has(u.at + k)) marked = true;
+    const cls = (marked || !u.res) ? 'x' : u.mod ? 'mod'
+              : (HYDRO.has(u.letter) ? 'h' : 'p');
+    cur.html += '<span class=' + cls + '>' + esc(u.text) + '</span>';
+    if(u.res){ cur.res++; n++; }
+    cur.n = n;
+  });
+  el.innerHTML = groups.map(g => '<span class=grp data-n="' + (g.res ? g.n : '')
+    + '">' + g.html + '</span>').join('');
 }
 /* The caret position, counted in characters of the plain text: the only
    measure that survives the box being re-rendered. */
@@ -828,18 +1655,26 @@ function drawPeps(){
       const off = caretOffset(el);
       const raw = el.textContent.replace(/\s+/g, '').toUpperCase();
       PEPS[i].sequence = raw;
+      /* Marked by residue, not by character: in N<BHD> the brackets and the
+         name belong to the residue, and only a letter ADCP cannot build, or
+         a character that belongs to no residue, is wrong. */
       const bad = new Set();
-      Array.from(raw).forEach((c, k) => { if(!STD.has(c)) bad.add(k); });
+      seqUnits(raw).forEach(u => {
+        if(!u.res || !STD.has(u.letter))
+          for(let k = 0; k < u.text.length; k++) bad.add(u.at + k);
+      });
       renderSeq(el, raw, bad);
       setCaret(el, off == null ? raw.length : Math.min(off, raw.length));
       // A sequence that is too long is flagged at the box, not at submission,
       // since ADCP will not build a peptide longer than MAXLEN residues.
-      const over = raw.length > MAXLEN;
+      // Residues, counted as the server counts them, not characters.
+      const nres = residueTotal(raw);
+      const over = nres > MAXLEN;
       el.classList.toggle('toolong', over);
       const m = el.parentElement ? el.parentElement.querySelector('.seqmsg') : null;
       if(m){
         m.classList.toggle('stop', over);
-        if(over) m.textContent = 'sequence too long: ' + raw.length
+        if(over) m.textContent = 'sequence too long: ' + nres
                                + ' residues, and ADCP folds at most ' + MAXLEN;
         else if(m.classList.contains('stop')) m.textContent = '';
       }
@@ -866,6 +1701,9 @@ function drawPeps(){
     b.onclick = e => { e.stopPropagation(); openPepMenu(+b.getAttribute('data-menu'), b); };
   });
   validate();
+  // The guideline is per residue, so a pasted or uploaded list changes it as
+  // typing does.
+  if(window.stepsGuide) stepsGuide();
 }
 
 /* ============ non-standard and D amino acids (ADCP 1.1) ============ */
@@ -1068,12 +1906,13 @@ $('addpep').onclick = () => { PEPS.push({name:'', sequence:''}); drawPeps();
 
 let VT = null;
 // A different engine accepts a different syntax, so the list is checked again.
-$('adcp_engine').onchange = () => validate();
+$('adcp_engine').onchange = () => { posesLimit(); validate(); };
 function validate(){
   clearTimeout(VT);
   VT = setTimeout(async () => {
     const d = await api('/api/peptides', {peptides: PEPS, max_length: MAXLEN,
-                                          adcp_engine: $('adcp_engine').value});
+                                          adcp_engine: $('adcp_engine').value,
+                                          cyclic: $('cyclic').value});
     if(d.error) return;
     d.peptides.forEach((p, i) => {
       const row = $('peps').querySelector('.ent[data-i="' + i + '"]');
@@ -1095,6 +1934,11 @@ function validate(){
     const n = d.peptides.filter(p => p.ok && p.sequence).length;
     $('pepcount').textContent = n + ' valid peptide' + (n === 1 ? '' : 's');
     $('submit').disabled = !d.ready;
+    /* The guide's third step: the server's own verdict, the one that
+       decides whether the run can be submitted. At least one peptide, and
+       every row accepted, since one refused row stops the submission. */
+    PEPS_READY = !!d.ready && n > 0;
+    guideSoon();
   }, 160);
 }
 $('pastepep').onclick = () => $('pastebox').classList.toggle('hide');
@@ -1184,15 +2028,40 @@ $('autofill').onclick = async () => {
     // the run never does.
     chains: chosenChains(),
     fill_loops: $('fill_loops').checked,
-    box: (SITE && SITE.size) || null});
+    // reduce and PROPKA cost different times, and a receptor from ADapt is
+    // copied rather than prepared.
+    protonation: $('protonation').value, adapt: adaptBody(),
+    box: (SITE && SITE.size) || null,
+    // What the options cost: the maps, a pocket found by AutoSite, a ring,
+    // helical starts, more poses and kept trajectories.
+    agfr: $('agfr').value, autosite: $('autosite').value,
+    receptor_gradient: $('receptor_gradient').checked,
+    site_mode: siteMode(), box_max: +$('bmax').value,
+    cyclic: $('cyclic').value, helical: +$('helical').value,
+    poses: +$('poses').value,
+    keep_trajectories: $('keep_trajectories').checked,
+    // A target file's prepare job is booked differently: nothing is built.
+    target_file: $('targetfile').value.trim()});
   if(d.error){
     $('estnote').innerHTML = '<span class=bad>' + esc(d.error) + '</span>';
     return;
   }
   $('cpus').value = d.cores;
   $('walltime').value = d.walltime;
+  /* What the queue is asked for, added up job by job: the prepare job, the
+     docking tasks (once, or once per wave when a limit on tasks at once
+     makes them take turns) and the report. Not the chain's own estimate
+     booked as though it were one job, which is a number no job asks for. */
+  const b = d.booked || {};
   $('estnote').innerHTML = esc(d.why)
-    + '<br>about ' + esc(d.end_to_end) + ' of queue time booked in total, '
+    + (b.total
+       ? '<br>The jobs book ' + esc(b.total) + ' in all, one after another: '
+         + esc(b.prepare) + ' to prepare, ' + esc(b.dock)
+         + (b.waves > 1 ? ' for each of the ' + b.waves + ' waves of docking '
+                          + 'tasks'
+                        : ' for the docking tasks, which run side by side')
+         + ', and ' + esc(b.report) + ' for the report. '
+       : '<br>')
     + d.total_core_hours + ' core-hours of work.'
     // The box is part of the estimate. A run whose box cannot hold its own
     // longest peptide costs as much as one that can, and returns a pose folded
@@ -1201,6 +2070,7 @@ $('autofill').onclick = async () => {
     + (d.box_warning
        ? '<br><span class=bad>\u26a0 ' + esc(d.box_warning) + '</span>'
        : '');
+  guideSoon();
 };
 /* The up and down buttons. Walltime steps in half hours and never goes below
    one minute. */
@@ -1269,10 +2139,25 @@ function markMissing(id, why){
 }
 function missingFields(){
   const out = [];
-  if(!$('recpath').value.trim())
-    out.push(['recpath', 'Choose a receptor, or fetch one by PDB id.']);
-  if(!$('hotspots').value.trim())
-    out.push(['hotspots', 'Pick the residues the docking box should cover.']);
+  /* A target file brings its own receptor, maps and box, and the server
+     takes it alone (job.validate), so a valid one stands in for both the
+     receptor and the site. One that was refused, or not read yet, is what
+     is missing instead; the reason is under its box. */
+  const trg = $('targetfile').value.trim();
+  if(trg){
+    if(!TARGET || TARGET.path !== trg)
+      out.push(['targetfile', TARGET_ERR
+        ? 'This target file cannot be used; the reason is below.'
+        : 'Press Load to check this target file.']);
+  } else {
+    if(!$('recpath').value.trim())
+      out.push(['recpath', 'Choose a receptor, or fetch one by PDB id.']);
+    const mode = siteMode();
+    if(mode === 'residues' && !$('hotspots').value.trim())
+      out.push(['hotspots', 'Pick the residues the docking box should cover.']);
+    if(mode === 'ligand' && !$('site_ligand').value)
+      out.push(['site_ligand', 'Choose the ligand or peptide the box is built around.']);
+  }
   if(!PEPS.length)
     out.push(['peps', 'Add at least one peptide.']);
   if(!$('label').value.trim())
@@ -1301,7 +2186,7 @@ function missingFields(){
  * keystrokes, and everything that is no longer missing is cleared. */
 function refreshMissing(){
   const still = new Set(missingFields().map(m => m[0]));
-  ['recpath','hotspots','peps','label','outdir'].forEach(id => {
+  ['recpath','hotspots','site_ligand','targetfile','peps','label','outdir'].forEach(id => {
     if(!still.has(id)) clearMissingOn(id);
   });
   const msg = $('submsg');
@@ -1311,13 +2196,17 @@ function refreshMissing(){
       + (still.size === 1 ? ' thing is' : ' things are') + ' still needed</span>';
   }
 }
-['recpath','hotspots','label','outdir'].forEach(id => {
+['recpath','hotspots','targetfile','label','outdir'].forEach(id => {
   const e = $(id);
   if(e) e.addEventListener('input', refreshMissing);
 });
 
 $('submit').onclick = async () => {
   clearMissing();
+  /* A target path typed and submitted without Load is read now, so it is
+     judged on what the file holds rather than reported as unread. */
+  const trg = $('targetfile').value.trim();
+  if(trg && (!TARGET || TARGET.path !== trg)) await loadTarget();
   const missing = missingFields();
   if(missing.length){
     missing.forEach(([id, why]) => markMissing(id, why));
@@ -1354,11 +2243,19 @@ $('submit').onclick = async () => {
     target_file: $('targetfile').value.trim(),
     adcp_engine: $('adcp_engine').value, omm_minimize: +$('omm_minimize').value,
     chains: chosenChains(), hotspots: $('hotspots').value, ph:+$('ph').value,
+    protonation: $('protonation').value, adapt: adaptBody(),
     minimise: $('minimise').checked, box_padding:+$('pad').value,
     keep_hetatms: $('keep_hetatms').checked,
+    rebuild_sidechains: $('rebuild_sidechains').checked,
     fill_loops: $('fill_loops').checked,
     box_min:+$('bmin').value, box_max:+$('bmax').value, peptides: PEPS,
     box_chains: $('box_chains').checked ? 'include' : 'ignore',
+    site_mode: siteMode(), site_ligand: $('site_ligand').value,
+    site_pocket: $('site_pocket').value,
+    agfr: $('agfr').value, autosite: $('autosite').value,
+    receptor_gradient: $('receptor_gradient').checked,
+    cyclic: $('cyclic').value, helical: +$('helical').value,
+    keep_trajectories: $('keep_trajectories').checked,
     poses:+$('poses').value, replicas:+$('replicas').value, steps:+$('steps').value,
     mmgbsa: $('mmgbsa').checked, mmgbsa_poses:+$('mmposes').value,
     mmgbsa_model: $('mmmodel').value,
@@ -1377,6 +2274,8 @@ $('submit').onclick = async () => {
   $('submsg').innerHTML = '<span class=good>submitted</span>: '
     + esc(d.rundir) + '<br>' + Object.entries(d.jobs)
         .map(([k, v]) => esc(k) + ' ' + esc(v)).join(' · ');
+  SUBMITTED = true;
+  guide();
   listRuns();
 };
 
@@ -1428,6 +2327,9 @@ function applyViewBg(){
     if(typeof VD !== 'undefined' && VD){
       VD.setBackgroundColor(viewBg(false)); VD.render();
     }
+    if(typeof VF !== 'undefined' && VF){
+      VF.setBackgroundColor(viewBg(false)); VF.render();
+    }
     if(typeof MV !== 'undefined' && MV && MV.plugin && MV.plugin.canvas3d){
       MV.plugin.canvas3d.setProps({renderer: {backgroundColor:
         parseInt(viewBg(false).slice(1), 16)}});
@@ -1449,6 +2351,8 @@ $('themebtn').onclick = () => {
 DARKQ.addEventListener('change', themeChanged);
 themeButton();
 if($('citefoot')) $('citefoot').onclick = e => { e.preventDefault(); showCite(); };
+/* The header's line on what a paper must cite ends in a link to the list. */
+if($('citehead')) $('citehead').onclick = e => { e.preventDefault(); showCite(); };
 if($('citebar')) $('citebar').onclick = e => { e.preventDefault(); showCite(); };
 $('citeclose').onclick = () => $('citedlg').close();
 $('citecopy').onclick = () => copyText($('citetext').textContent, $('citetext'),
@@ -1576,7 +2480,10 @@ function cssEsc(v){
   return String(v).replace(/["\\]/g, '\\$&');
 }
 
-$('refresh').onclick = () => { listRuns(); monitor(); };
+$('refresh').onclick = () => {
+  listRuns(); monitor();
+  if(RUNSVIEW === 'folders') showFolderView(FOLDER_AT);
+};
 async function listRuns(){
   const d = await api('/api/runs');
   if(d.error) return;
@@ -1596,7 +2503,7 @@ async function listRuns(){
           + esc(r.created) + '</td><td class=c>' + r.peptides + '</td><td class=c>'
           + (r.mmgbsa ? 'yes' : 'no') + '</td><td class=c data-dot="'
           + esc(r.rundir) + '">' + esc(r.state)
-          + '</td><td class=c style="white-space:nowrap">'
+          + '</td><td class="c acts">'
           + '<button class=ghost data-open="' + esc(r.rundir) + '">open</button> '
           // A failed run is a settings file. Every run keeps the job.json it
           // was submitted with, so a run that failed can be reopened with its
@@ -1661,16 +2568,36 @@ let WATCH = null, RUN = null;
 const REUSE_FIELDS = {
   recpath:'receptor', hotspots:'hotspots', label:'label', outdir:'outdir',
   pad:'box_padding', bmin:'box_min', bmax:'box_max',
-  ph:'ph', poses:'poses', replicas:'replicas', steps:'steps',
+  ph:'ph', protonation:'protonation', poses:'poses', replicas:'replicas', steps:'steps',
   cpus:'cpus', walltime:'time', throttle:'throttle',
   mmposes:'mmgbsa_poses', mmmodel:'mmgbsa_model',
   mmengine:'mmgbsa_engine', topn:'top_n',
   adcp_engine:'adcp_engine',
   omm_minimize:'omm_minimize', targetfile:'target_file',
-  account:'account', sbatch_extra:'sbatch_extra'
+  account:'account', sbatch_extra:'sbatch_extra',
+  site_mode:'site_mode', site_pocket:'site_pocket',
+  // Set again once the receptor is loaded, since its choices come from it.
+  site_ligand:'site_ligand',
+  agfr:'agfr', autosite:'autosite', cyclic:'cyclic', helical:'helical'
 };
 const REUSE_TICKS = {minimise:'minimise', keep_hetatms:'keep_hetatms',
-                     fill_loops:'fill_loops', mmgbsa:'mmgbsa'};
+                     rebuild_sidechains:'rebuild_sidechains',
+                     fill_loops:'fill_loops', mmgbsa:'mmgbsa',
+                     receptor_gradient:'receptor_gradient',
+                     keep_trajectories:'keep_trajectories'};
+/* What a tick means when the run's job file does not mention it: a run made
+   before the setting existed did what it describes, which is not always what
+   the default does now. Without this the tick would keep whatever this
+   session last left it at. Runs made before the maps could be chosen were
+   built by AGFR 1.0, whose receptor gradient is on unless turned off. */
+const REUSE_TICK_DEFAULTS = {rebuild_sidechains: true, receptor_gradient: true,
+                             keep_trajectories: false};
+/* The same for the other settings: those runs built the box around residues
+   with ADFRsuite's AGFR and AutoSite 1.0, docked linear peptides, and started
+   every replica as a coil. */
+const REUSE_FIELD_DEFAULTS = {site_mode: 'residues', site_pocket: 'best',
+                              agfr: '1.0', autosite: '1.0', cyclic: 'none',
+                              helical: 0, protonation: 'propka'};
 
 function reuseSet(id, v){
   const el = $(id);
@@ -1683,7 +2610,8 @@ function reuseSet(id, v){
      && !Array.from(el.options).some(o => o.value === String(v))){
     const o = document.createElement('option');
     o.value = String(v);
-    o.textContent = Number(v).toLocaleString() + ' (from this run)';
+    o.textContent = (isNaN(Number(v)) || String(v).trim() === ''
+                     ? String(v) : Number(v).toLocaleString()) + ' (from this run)';
     el.appendChild(o);
   }
   el.value = v;
@@ -1697,22 +2625,48 @@ async function reuseRun(dir){
     return;
   }
   const j = d.job;
-  for(const id in REUSE_FIELDS) reuseSet(id, j[REUSE_FIELDS[id]]);
+  for(const id in REUSE_FIELDS){
+    const v = j[REUSE_FIELDS[id]];
+    reuseSet(id, v === undefined && id in REUSE_FIELD_DEFAULTS
+                 ? REUSE_FIELD_DEFAULTS[id] : v);
+  }
   for(const id in REUSE_TICKS){
     const el = $(id);
-    if(el && j[REUSE_TICKS[id]] !== undefined) el.checked = !!j[REUSE_TICKS[id]];
+    if(!el) continue;
+    if(j[REUSE_TICKS[id]] !== undefined) el.checked = !!j[REUSE_TICKS[id]];
+    else if(id in REUSE_TICK_DEFAULTS) el.checked = REUSE_TICK_DEFAULTS[id];
   }
   if($('box_chains')) $('box_chains').checked = j.box_chains === 'include';
+  /* The target file before the receptor and the site, so the view and the
+     site note know whether the run's box is the file's or the residues'. */
+  if(String(j.target_file || '').trim() || TARGET) await loadTarget();
 
   PEPS = (j.peptides && j.peptides.length)
     ? j.peptides.map(p => ({name: p.name || '', sequence: p.sequence || ''}))
     : [{name:'', sequence:''}];
   drawPeps();
 
-  // The receptor first, because the chain ticks are drawn from it.
+  // The receptor first, because the chain ticks are drawn from it. One from
+  // ADapt is read back from its session folder again, so a save that has
+  // gone or changed is said here rather than at submission.
+  leaveAdapt(false);
   if(j.receptor){
     clearMissingOn('recpath');
     await loadReceptor();
+    if(j.adapt && j.adapt.folder){
+      const a = await api('/api/adapt/saved?folder=' + encodeURIComponent(j.adapt.folder)
+        + '&save=' + encodeURIComponent(j.adapt.save || ''));
+      if(a && a.found){
+        ADAPTREC = a;
+        ADAPTSRC = {path: a.input ? a.folder + '/' + a.input : ''};
+        if(j.adapt.session) ADAPTREC.session = j.adapt.session;
+        adaptApplied();
+      } else {
+        $('adaptnote').innerHTML = '<span class=bad>This run\'s receptor came from '
+          + 'ADapt, and it cannot be read back: ' + esc((a && a.why) || 'unknown')
+          + '</span>';
+      }
+    }
     (j.chains || []).forEach(c => {
       const el = document.querySelector('.chk[data-ch="' + c + '"]');
       if(el) el.checked = true;
@@ -1725,10 +2679,26 @@ async function reuseRun(dir){
       .map(x => x.indexOf(':') >= 0 ? x : ((activeChains()[0] || 'A') + ':' + x));
     drawChips(); markSeq(); stylePicker();
   }
-  await refreshSite();
+  // The ligand after the receptor, whose loading lists what it may be.
+  const lig = String(j.site_ligand || '');
+  if(lig){
+    const sel = $('site_ligand');
+    if(!Array.from(sel.options).some(o => o.value === lig)){
+      const o = document.createElement('option');
+      o.value = lig; o.textContent = lig + ' (from this run)';
+      sel.appendChild(o);
+    }
+    sel.value = lig;
+  }
+  protNote();
+  posesLimit(); mapsNote(); pepOptsNote(); validate();
+  await siteModeChanged();
   drawBox();
   $('outmsg').textContent = 'Settings loaded from ' + (j.label || dir)
     + '. Nothing has been submitted; change what went wrong and create the run.';
+  // A form filled from a run is a new run to submit, whatever was last sent.
+  SUBMITTED = false;
+  guideSoon();
   $('recpath').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
@@ -1873,7 +2843,7 @@ function colgroups(rows, tn, mm, omm){
     cols: [
     {h: 'BSA', cls: 'c', t: 'Buried surface area in square angstroms: the '
       + 'total both partners lose. Half of it is the interface area on one '
-      + 'side. Shrake and Rupley with Bondi radii and a 1.4 A probe.',
+      + 'side. Shrake and Rupley with Bondi radii and a 1.4 \u00c5 probe.',
      f: r => fmt(r.bsa, 0)},
     {h: 'per res', cls: 'c', t: 'The peptide’s buried area divided by its '
       + 'residues.', f: r => fmt(r.bsa_per_res, 0)},
@@ -1882,17 +2852,17 @@ function colgroups(rows, tn, mm, omm){
     {h: 'apolar', cls: 'c', t: 'The share of the peptide’s buried area '
       + 'that is carbon or sulphur, with each hydrogen’s area folded onto '
       + 'the heavy atom it hangs off.', f: r => fmt(r.f_hydrophobic, 2)},
-    {h: 'HB', cls: 'c', t: 'Atom pairs of N or O within 3.5 A across the '
+    {h: 'HB', cls: 'c', t: 'Atom pairs of N or O within 3.5 \u00c5 across the '
       + 'interface. A distance test between the two atoms; no '
       + 'angle is checked.', f: r => r.n_hbond},
     {h: 'SB', cls: 'c', t: 'Residue pairs with a basic side chain tip within '
-      + '4.0 A of an acidic one. A bidentate arginine counts once.',
+      + '4.0 \u00c5 of an acidic one. A bidentate arginine counts once.',
      f: r => r.n_ionic},
     {h: 'stack', cls: 'c', t: 'Aromatic residue pairs with ring atoms within '
-      + '5.0 A. Proximity only: an edge to face pair and a parallel stack are '
+      + '5.0 \u00c5. Proximity only: an edge to face pair and a parallel stack are '
       + 'not told apart.', f: r => r.n_stack},
     {h: 'contacts', cls: 'c', t: 'Residue pairs with any heavy atom pair '
-      + 'within 4.0 A.', f: r => r.n_contact},
+      + 'within 4.0 \u00c5.', f: r => r.n_contact},
     {h: 'clash', cls: 'c', t: 'Heavy atom pairs across the interface closer '
       + 'than 0.80 of the sum of their radii. On a minimised complex this '
       + 'should be zero: the receptor is restrained, so an overlap cannot '
@@ -2356,7 +3326,9 @@ let RCOLOR = 'element', RDRAW = 'cartoon', RCONTACT = true, RPUB = false;
    difference between a hydrogen bond at 2.8 A and two atoms in the same
    neighbourhood at 4.4 A. */
 let RDIST = true;
-let RSURF = 0, LSURF = 0, RLABEL = 'auto', RSPIN = false;
+/* The receptor's surface is drawn on a pose's page from the start, see-
+   through, so the groove shows and the peptide stays visible in it. */
+let RSURF = 2, LSURF = 0, RLABEL = 'auto', RSPIN = false, RANKNOW = 1;
 let RFOCUS = [], RFOCUSFRAMED = false, RPUBFRAMED = false;
 const RCUSTOM = {rec:'#4A6FA5', lig:'#D4763A', bg:'#DFE3E6'};
 const SURFNAME = ['off', 'solid', 'see-through', 'mesh'];
@@ -2545,6 +3517,7 @@ $('rposepick').onchange = () => loadPose(+$('rposepick').value);
 
 async function loadPose(rank){
   if(!WHICH) return;
+  RANKNOW = rank;
   $('viewmsg').textContent = 'loading pose ' + rank + '…';
   const r = await api('/api/structure?dir=' + encodeURIComponent(WHICH.dir)
     + '&peptide=' + encodeURIComponent(WHICH.pep) + '&rank=' + rank
@@ -2716,13 +3689,32 @@ function draw(frame){
 
 function applySurface(){
   if(!VR || MODEL === null) return;
-  const draw1 = (mode, sel, hex) => {
-    if(!mode) return;
+  /* The receptor's surface is the prepared receptor's own, computed once per
+     run; the peptide's is the pose's. A surface still being computed is drawn
+     when it arrives. */
+  const one = (mode, which, sel, hex) => {
+    if(!mode || !WHICH) return '';
+    const pose = which === 'pep';
+    const key = 'run|' + WHICH.dir + '|' + (pose ? WHICH.pep + '|' + RANKNOW : 'receptor');
+    const url = '/api/surface?dir=' + encodeURIComponent(WHICH.dir)
+      + (pose ? '&what=pose&peptide=' + encodeURIComponent(WHICH.pep) + '&rank=' + RANKNOW
+              : '&what=receptor');
+    const d = surfaceFor(key, url, () => { if(VR) draw(false); });
+    if(d === null) return 'computing the ' + (pose ? 'peptide' : 'receptor') + ' surface with MSMS...';
+    if(d.source === 'msms'){
+      try { addSurfaceMesh(VR, d, surfStyle(mode, hex)); } catch(e){}
+      return '';
+    }
     try { VR.addSurface($3Dmol.SurfaceType.VDW, surfStyle(mode, hex), sel); }
     catch(e){}
+    return (pose ? 'peptide' : 'receptor') + ' surface drawn by the viewer: '
+      + (d.why || 'MSMS gave none');
   };
-  draw1(RSURF, {model:MODEL, chain:PEPCHAIN, invert:true}, RCUSTOM.rec);
-  draw1(LSURF, {model:MODEL, chain:PEPCHAIN}, RCUSTOM.lig);
+  const notes = [one(RSURF, 'rec', {model:MODEL, chain:PEPCHAIN, invert:true}, RCUSTOM.rec),
+                 one(LSURF, 'pep', {model:MODEL, chain:PEPCHAIN}, RCUSTOM.lig)]
+    .filter(Boolean);
+  const el = $('surfmsg');
+  if(el) el.textContent = notes.join('; ');
 }
 
 function applyFocus(){
@@ -3029,7 +4021,7 @@ document.addEventListener('change', e => {
 document.addEventListener('click', e => {
   const b = e.target.closest ? e.target.closest(
     '#rvbar .pill[data-rcol],#rvbar .pill[data-rdraw],#rsurf,#rsurfl,'
-    + '#rcontact,#rpub,#rreset,#rspin,#rshot') : null;
+    + '#rcontact,#rdist,#rpub,#rreset,#rspin,#rshot') : null;
   if(!b || !VR) return;
   if(b.hasAttribute('data-rcol')){
     RCOLOR = b.getAttribute('data-rcol');
@@ -3105,6 +4097,7 @@ document.addEventListener('change', e => {
 drawPeps();
 listRuns();
 showEngine();
+guide();
 // Opened on a run, when HOPE Labs' Results asked for one: that run's
 // results, scrolled to. Runs are opened here by their folder, which is
 // what Results hands over.
@@ -3265,6 +4258,259 @@ function openIssue(dir){
 if($('issueclose')) $('issueclose').onclick = () =>
   $('issuebox').classList.add('hide');
 
+/* ===================== the runs, as folders ========================== */
+/* Two views of one runs folder. All runs is the table above, one row per
+   run. Folders walks the folder itself: its folders and their folders, the
+   files in each with their sizes and times, and a trail of the folders
+   passed through, to go back up. Everything comes from /api/folder, which
+   lists only what is inside the runs folder and refuses any path that leads
+   out of it, through a link or through "..".
+
+   A folder that is a run (it holds a job.json) opens as one, exactly as
+   open does in All runs. A structure opens in the page's 3D viewer, a log
+   or a table as text, and a run's results files open its results table;
+   anything else, and any of those, can be downloaded. */
+let RUNSVIEW = 'runs', FOLDER_AT = '', FOLDER_GEN = 0, VF = null;
+
+function setRunsView(view, focus){
+  RUNSVIEW = view === 'folders' ? 'folders' : 'runs';
+  document.querySelectorAll('.tabs [role=tab]').forEach(t => {
+    const on = t.getAttribute('data-tab') === RUNSVIEW;
+    t.setAttribute('aria-selected', on ? 'true' : 'false');
+    t.tabIndex = on ? 0 : -1;
+    if(on && focus) t.focus();
+  });
+  $('runspanel').classList.toggle('hide', RUNSVIEW !== 'runs');
+  $('folderspanel').classList.toggle('hide', RUNSVIEW !== 'folders');
+  // Remembered in this browser only, as a convenience.
+  try { localStorage.setItem('adcp.runsview', RUNSVIEW); } catch(e){}
+  if(RUNSVIEW === 'folders') showFolderView(FOLDER_AT);
+}
+document.querySelectorAll('.tabs [role=tab]').forEach(t => {
+  t.onclick = () => setRunsView(t.getAttribute('data-tab'));
+  // The arrow keys move between tabs, Home and End to the first and last.
+  t.onkeydown = e => {
+    const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+    if(keys.indexOf(e.key) < 0) return;
+    e.preventDefault();
+    const tabs = Array.from(document.querySelectorAll('.tabs [role=tab]'));
+    let i = tabs.indexOf(t);
+    i = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1
+      : (i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length;
+    setRunsView(tabs[i].getAttribute('data-tab'), true);
+  };
+});
+
+function humanSize(n){
+  if(n == null) return '';
+  return n >= 1073741824 ? (n / 1073741824).toFixed(1) + ' GB'
+       : n >= 1048576    ? (n / 1048576).toFixed(1) + ' MB'
+       : n >= 1024       ? Math.round(n / 1024) + ' kB'
+                         : n + ' B';
+}
+/* A modification time as the runs table writes its dates. */
+function when(t){
+  if(t == null) return '';
+  const d = new Date(t * 1000), p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
+    + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+function fileHref(rel, download){
+  return '/api/runfile?path=' + encodeURIComponent(rel)
+    + (download ? '&dl=1' : '') + '&t=' + encodeURIComponent(T);
+}
+const FIC_DIR = '<svg class="fic dir" viewBox="0 0 24 24" aria-hidden=true>'
+  + '<path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 '
+  + '0 0-2-2h-8l-2-2z"/></svg>';
+const FIC_FILE = '<svg class=fic viewBox="0 0 24 24" aria-hidden=true>'
+  + '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z'
+  + 'm-1 7V3.5L18.5 9H13z"/></svg>';
+const VIEW_WORD = {structure: 'view', text: 'view', report: 'open results'};
+
+async function showFolderView(rel){
+  const gen = ++FOLDER_GEN;
+  const list = $('flist');
+  if(!list.innerHTML) list.innerHTML = '<div class=why>reading the folder</div>';
+  const d = await api('/api/folder?path=' + encodeURIComponent(rel || ''));
+  if(gen !== FOLDER_GEN) return;
+  if(d.error){
+    // A folder deleted or moved since it was listed, or a runs folder that
+    // changed: say so, and offer the top of the runs folder, which exists.
+    $('fhere').innerHTML = '';
+    list.innerHTML = '<div class=bad style="text-align:left">' + esc(d.error)
+      + '</div>' + (rel ? '<button class="ghost sm" data-rel=""'
+        + ' style="margin-top:8px">Back to the runs folder</button>' : '');
+    wireFolders();
+    return;
+  }
+  FOLDER_AT = d.rel || '';
+  $('fcrumbs').innerHTML = d.crumbs.map((c, i) => i === d.crumbs.length - 1
+      ? '<b aria-current=location>' + esc(c.name) + '</b>'
+      : '<button type=button data-rel="' + esc(c.rel) + '">' + esc(c.name)
+        + '</button><span aria-hidden=true>/</span>').join('');
+  $('fhere').innerHTML = d.run
+    ? '<div class=panelnote>This folder is the run <b>' + esc(d.run)
+      + '</b>. <button class="ghost sm" data-openrun="' + esc(d.path)
+      + '">Open as a run</button> <span class=why>Its jobs, its results table '
+      + 'and its poses open below, as they do from All runs.</span></div>'
+    : '';
+  const rows = [];
+  if(d.parent !== null && d.parent !== undefined)
+    rows.push('<tr><td class=fname colspan=4><button type=button class=fgo '
+      + 'data-rel="' + esc(d.parent) + '">\u2191 up</button></td></tr>');
+  d.dirs.forEach(x => rows.push('<tr><td class=fname><button type=button '
+    + 'class=fgo data-rel="' + esc(x.rel) + '">' + FIC_DIR + '<span>'
+    + esc(x.name) + '</span></button>'
+    + (x.run ? '<span class=pill title="this folder is a run">run</span>' : '')
+    + '<div class=fmeta>' + esc(when(x.mtime)) + '</div></td>'
+    + '<td class=fsz>' + (x.items == null ? ''
+        : x.items >= (d.count_most || Infinity)
+          ? x.items.toLocaleString() + ' or more'
+          : x.items.toLocaleString() + ' item' + (x.items === 1 ? '' : 's'))
+    + '</td>'
+    + '<td class=fmod>' + esc(when(x.mtime)) + '</td>'
+    + '<td class=facts>' + (x.run ? '<button class="ghost sm" data-openrun="'
+        + esc(x.path) + '">open run</button>' : '') + '</td></tr>'));
+  d.files.forEach(x => {
+    const name = FIC_FILE + '<span>' + esc(x.name) + '</span>';
+    const view = x.view ? ' data-view="' + esc(x.rel) + '" data-kind="'
+      + esc(x.view) + '" data-name="' + esc(x.name) + '"' : '';
+    rows.push('<tr><td class=fname>'
+      + (x.view ? '<button type=button class=fgo' + view + '>' + name
+                  + '</button>'
+                : '<span class=fgo style="cursor:default">' + name + '</span>')
+      + '<div class=fmeta>' + esc(when(x.mtime)) + '</div></td>'
+      + '<td class=fsz>' + esc(humanSize(x.size)) + '</td>'
+      + '<td class=fmod>' + esc(when(x.mtime)) + '</td>'
+      + '<td class=facts>' + (x.view ? '<button class="ghost sm"' + view + '>'
+          + VIEW_WORD[x.view] + '</button> ' : '')
+      // A button, as the downloads in All runs are, and a plain navigation:
+      // the server sends it as an attachment, so the page stays.
+      + '<button class="ghost sm" data-fdl="' + esc(x.rel)
+      + '">download</button></td></tr>');
+  });
+  const empty = !d.dirs.length && !d.files.length;
+  list.innerHTML = '<div class=ftable><table><thead><tr><th>name</th>'
+    + '<th>size</th><th class=fmod>modified</th><th></th></tr></thead><tbody>'
+    + rows.join('') + (empty ? '<tr><td colspan=4 class=why>nothing here'
+      + '</td></tr>' : '') + '</tbody></table></div>'
+    + (d.more ? '<div class=why style="margin-top:6px">' + d.more
+      + ' more not listed: this folder holds more than the page shows at '
+      + 'once. Download the run to see them all.</div>' : '');
+  wireFolders(d);
+}
+
+function wireFolders(d){
+  const panel = $('folderspanel');
+  panel.querySelectorAll('button[data-rel]').forEach(b =>
+    b.onclick = () => showFolderView(b.getAttribute('data-rel')));
+  panel.querySelectorAll('button[data-openrun]').forEach(b =>
+    b.onclick = () => openRun(b.getAttribute('data-openrun')).then(() => {
+      const v = $('rundetail');
+      if(v && v.scrollIntoView) v.scrollIntoView({behavior: 'smooth',
+                                                   block: 'start'});
+    }));
+  panel.querySelectorAll('button[data-fdl]').forEach(b =>
+    b.onclick = () => { window.location = fileHref(b.getAttribute('data-fdl'), true); });
+  panel.querySelectorAll('button[data-view]').forEach(b =>
+    b.onclick = () => {
+      const kind = b.getAttribute('data-kind');
+      // A run's results file is read the way the run is: as its table.
+      if(kind === 'report' && d && d.run){
+        openRun(d.path).then(() => {
+          const v = $('rundetail');
+          if(v && v.scrollIntoView) v.scrollIntoView({behavior: 'smooth',
+                                                       block: 'start'});
+        });
+        return;
+      }
+      viewFile(b.getAttribute('data-view'), kind, b.getAttribute('data-name'));
+    });
+}
+
+/* The format 3Dmol reads a structure file in, from its name. */
+function structFormat(name){
+  const n = String(name).toLowerCase();
+  for(const [ext, f] of [['.pdbqt', 'pdbqt'], ['.pqr', 'pqr'], ['.cif', 'cif'],
+                         ['.mmcif', 'cif'], ['.sdf', 'sdf'], ['.mol2', 'mol2']])
+    if(n.endsWith(ext)) return f;
+  return 'pdb';
+}
+
+/* One file, in a dialog over the page: a structure drawn in a 3Dmol viewer,
+   the library the rest of the page draws with, and anything else as text. */
+async function viewFile(rel, kind, name){
+  const dlg = $('filedlg');
+  $('filetitle').textContent = name || rel;
+  $('filepath').textContent = rel;
+  $('filenote').textContent = 'reading';
+  $('filedl').href = fileHref(rel, true);
+  $('filedl').setAttribute('download', '');
+  $('file3d').classList.add('hide');
+  $('filetext').classList.add('hide');
+  $('filetext').textContent = '';
+  if(!dlg.open){ if(dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', ''); }
+  let r, text;
+  try { r = await fetch(fileHref(rel, false)); text = await r.text(); }
+  catch(e){ $('filenote').innerHTML = '<span class=bad>could not read it: '
+              + esc(e) + '</span>'; return; }
+  if(!r.ok){
+    $('filenote').innerHTML = '<span class=bad>' + esc(text) + '</span>';
+    return;
+  }
+  if(kind === 'structure' && typeof $3Dmol !== 'undefined'){
+    $('file3d').classList.remove('hide');
+    if(!VF) VF = $3Dmol.createViewer($('file3d'), {backgroundColor: viewBg(false)});
+    else VF.setBackgroundColor(viewBg(false));
+    VF.removeAllModels();
+    const fmt = structFormat(name || rel);
+    const m = VF.addModel(text, fmt);
+    const atoms = m.selectedAtoms({});
+    if(fmt === 'sdf' || fmt === 'mol2' || !atoms.some(a => a.atom === 'CA')){
+      // A small molecule, or a structure with no protein backbone.
+      VF.setStyle({}, {stick: {radius: 0.18}});
+    } else {
+      /* One chain, in the rainbow the site view uses. A complex, in the pose
+         viewer's colours: the receptor's chains blue, a short chain (the
+         peptide) orange with its side chains drawn. */
+      const res = {};
+      atoms.forEach(a => { (res[a.chain] = res[a.chain] || new Set()).add(a.resi); });
+      const chains = Object.keys(res);
+      const short = chains.filter(c => res[c].size <= 40);
+      if(chains.length > 1 && short.length && short.length < chains.length){
+        VF.setStyle({}, {cartoon: {color: RCUSTOM.rec}});
+        short.forEach(c => VF.setStyle({chain: c}, {cartoon: {color: RCUSTOM.lig},
+          stick: {radius: 0.18, colorscheme: 'orangeCarbon'}}));
+      } else {
+        VF.setStyle({}, {cartoon: {color: 'spectrum'}});
+        // A peptide on its own is a few residues: its side chains are the
+        // point.
+        if(atoms.length < 800)
+          VF.setStyle({}, {cartoon: {color: 'spectrum'}, stick: {radius: 0.16}});
+      }
+      VF.setStyle({hetflag: true}, {stick: {radius: 0.2}});
+    }
+    VF.zoomTo();
+    VF.resize();
+    VF.render();
+    const chains = Array.from(new Set(atoms.map(a => a.chain).filter(c => c && c.trim())));
+    $('filenote').textContent = atoms.length.toLocaleString() + ' atoms'
+      + (chains.length ? ', chain' + (chains.length === 1 ? ' ' : 's ')
+         + chains.join(', ') : '') + '. Drag to turn it, scroll to zoom.';
+    return;
+  }
+  $('filetext').classList.remove('hide');
+  $('filetext').textContent = text;
+  const lines = text ? text.split('\n').length : 0;
+  $('filenote').textContent = lines.toLocaleString() + ' line'
+    + (lines === 1 ? '' : 's');
+}
+$('fileclose').onclick = () => $('filedlg').close();
+
+/* The view chosen last time, in this browser. */
+try { if(localStorage.getItem('adcp.runsview') === 'folders') setRunsView('folders'); }
+catch(e){}
+
 /* ===================== moving the labels ============================= */
 /* Delegated, because the toolbar is rebuilt whenever a pose is drawn, and a
    handler bound to the old button would be lost with it. */
@@ -3296,10 +4542,9 @@ document.addEventListener('click', e => {
    sequence entered, and the page says when the chosen number is below the
    published minimum. */
 window.stepsGuide = stepsGuide;
-/* Residues in a sequence: an ADCP 1.1 name in angle brackets and the & of a D
-   residue belong to the letter before or after them. */
+/* Residues in a sequence, counted as the ruler and the server count them. */
 function residueCount(seq){
-  return (seq || '').replace(/<[^>]*>/g, '').replace(/[&\s]/g, '').length;
+  return residueTotal((seq || '').replace(/\s+/g, '').toUpperCase());
 }
 function stepsGuide(){
   const el = $('stepsguide');
@@ -3307,7 +4552,7 @@ function stepsGuide(){
   const longest = (PEPS || []).reduce(
     (n, p) => Math.max(n, residueCount(p.sequence)), 0);
   if(!longest){
-    el.textContent = 'ADCP suggests 1-3 million steps per residue. '
+    el.textContent = 'ADCP suggests 1 to 3 million steps per residue. '
                    + 'Add a peptide and this says what that comes to.';
     return;
   }

@@ -75,6 +75,7 @@ reason is written under the sequence. The same messages appear in both places:</
 <tr><td>needs ADCP 1.1</td><td>the sequence uses the non-standard or D syntax and this run is set to ADCP 1.0</td></tr>
 <tr><td>looks like a name followed by a sequence</td><td>a pasted line is a word, a space and then a sequence; name it with a colon or FASTA</td></tr>
 <tr><td>Both columns read as sequences</td><td>a two column row where either field could be the sequence; add a header row to say which is which</td></tr>
+<tr><td>A disulfide ring needs two cysteines</td><td>the run docks each peptide as a ring through a disulfide, and this peptide has fewer than two C; see <a href="#cyclic">below</a></td></tr>
 </table>
 <div class="note"><b>Name a peptide with a colon, not a space.</b> Spaces inside a
 line are joined, so <code>alpha SWQWWWQPQRDCR</code> reads as one 18 residue
@@ -89,6 +90,68 @@ row.</div>
 <p>The same sequence twice is refused, because both rows would share one working
 directory and one result file. Two peptides with the same name are refused for
 the same reason.</p>
+
+<h2 id="cyclic">A chain or a ring</h2>
+<figure>
+<img src="img/peptide-options.png" alt="The row under the peptide list: dock each peptide as a linear chain, a ring head to tail or a ring through a disulfide, and the share of replicas that start helical, 25, with a line saying 12 of 50 replicas start as a helix">
+<figcaption><b>How every peptide in the run is built and started.</b> The line
+beside the two settings works out, for the replicas chosen below, how many start
+as a helix.</figcaption>
+</figure>
+<p><b>Dock each peptide as</b> applies to every peptide in the run:</p>
+<table>
+<tr><th>Choice</th><th>What ADCP does</th></tr>
+<tr><td><b>a linear chain</b></td><td>the peptide's two ends are free, as every run before this setting was docked</td></tr>
+<tr><td><b>a ring, head to tail</b></td><td>the first residue's nitrogen is drawn to the last residue's carbon (ADCP's <code>-cyc</code>)</td></tr>
+<tr><td><b>a ring through a disulfide</b></td><td>two cysteines' sulfurs are drawn together (ADCP's <code>-cys</code>)</td></tr>
+</table>
+<p>A ring through a disulfide needs at least two cysteines, <code>C</code> or
+the D form <code>&amp;C</code>, in every peptide. One with fewer is refused as
+you type, in the row's message, and the run cannot be submitted; the command
+line refuses it the same way. ADCP itself does not check: given a peptide with
+one cysteine or none, it docks it as a linear chain and reports poses with no
+warning, so a run would describe as a ring a peptide that was never closed. A
+non-standard residue built on the cysteine model, such as
+<code>C&lt;HCS&gt;</code>, does not count, because ADCP's disulfide joins the
+atoms named SG and its sulfur is named otherwise.</p>
+<p>Both rings are restraints ADCP's search pulls on rather than bonds the
+peptide starts with. In short test runs on MDM2 the head to tail ring held the
+two ends 0.6 to 4.5 &Aring; apart in every pose, against 14 to 30 &Aring; for
+the linear peptide, with standard, D and non-standard residues alike. The
+disulfide was less dependable with ADCP 1.1: with a cysteine added at each end
+of the p53 peptide, the two sulfurs of the top pose were about 3 &Aring; apart
+in two runs of four and 8 and 15 &Aring; apart in the other two, and most poses
+were not closed. With ADCP 1.0, eight of ten poses were closed (2.0 to 4.1
+&Aring;) for each of two such peptides. Without the setting the sulfurs never
+came closer than 5 &Aring;. Check the poses you use. A ring also makes
+the search longer: each replica took about one and a half times as long head to
+tail, and the walltime estimate allows for it.</p>
+<div class="note"><b>A ring is not rescored with MM-GBSA.</b> The rescoring
+builds the peptide from its sequence as a linear chain, which would leave the
+ring's closing atoms pressed together without a bond. Ringed peptides keep their
+docking scores and their interface panel. ADCP 1.1's OpenMM minimisation, in
+the Docking card, can be used instead: it adds the ring's closing bond, and for
+a disulfide it does so only where the two sulfurs are within 3.5 &Aring; of each
+other.</div>
+
+<h2 id="helical">Helical starts</h2>
+<p>Each replica of ADCP's search starts the peptide in a shape: a helix or a
+coil. <b>Replicas that start helical</b> is the share that start as a helix,
+25% by default (ADCP's <code>-p</code>). ADCP numbers its replicas and starts
+the first N &times; p / 100 of them, rounded down, as a helix and the rest as a
+coil: at 25% with 50 replicas, replicas 1 to 12. In the MDM2 runs the first
+frames of replicas 1 to 12 were helical and those of 13 to 50 were not.</p>
+<p>ADCP reads the starting shape from the case of the sequence's letters, upper
+case for helix and lower case for coil, and <code>-p</code> rewrites the case
+replica by replica, so how a sequence is typed makes no difference. The library
+names of non-standard residues, in angle brackets, are passed as written. At 0
+every replica starts as a coil, which is how every run before this setting was
+docked, and at 100 every replica starts as a helix. ADCP's <code>-p</code> does
+nothing at 0 or at 100, so those two are given to ADCP as an all lower case or
+all upper case sequence instead.</p>
+<p>The search is as long either way; only where it starts changes. A peptide
+that binds as a helix, as p53 does on MDM2, is found from a helical start that a
+coil would have to fold into first.</p>
 
 <h2 id="naming-and-cost">Names, and what the list costs</h2>
 <p>A name is worth giving. It is what appears in the results table and in the

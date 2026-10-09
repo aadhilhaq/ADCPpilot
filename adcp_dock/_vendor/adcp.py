@@ -56,8 +56,14 @@ def build_target(rec_pdbqt: str, center, size, workdir: str, tools, name="target
     return trg
 
 def dock(sequence: str, trg: str, workdir: str, tools,
-         replicas: int = 100, steps: int = 5_000_000, cpus: int = 0, log=print):
-    """Run ADCP on one construct. Returns (modes, workdir)."""
+         replicas: int = 100, steps: int = 5_000_000, cpus: int = 0, log=print,
+         seq_arg: str | None = None, extra_args=()):
+    """Run ADCP on one construct. Returns (modes, workdir).
+
+    `seq_arg` is the sequence as ADCP is given it (lower case, so every
+    replica starts as coil, when it is not given) and `extra_args` are any
+    further flags, such as -p, -cyc or -cys.
+    """
     wd = os.path.join(workdir, sequence)
     os.makedirs(wd, exist_ok=True)
     logf = os.path.join(wd, "adcp.log")
@@ -83,8 +89,10 @@ def dock(sequence: str, trg: str, workdir: str, tools,
     if not done:
         env = dict(os.environ)
         env.pop("OMP_NUM_THREADS", None)      # ADCP deadlocks if this is set
-        cmd = [tools.adcp, "-t", os.path.basename(trg), "-s", sequence.lower(),
+        cmd = [tools.adcp, "-t", os.path.basename(trg), "-s",
+               seq_arg or sequence.lower(),
                "-N", str(replicas), "-n", str(steps), "-O", "-o", "out"]
+        cmd += list(extra_args)
         if cpus:
             cmd += ["-c", str(cpus)]
         with open(logf, "w") as fh:

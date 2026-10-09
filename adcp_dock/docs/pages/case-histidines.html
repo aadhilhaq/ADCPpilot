@@ -1,54 +1,61 @@
 <h1>Histidines at the site</h1>
 <p class="lead">A histidine is the one residue whose protonation is genuinely in
-doubt at physiological pH, and it is decided for you by the pH you set. If one
-lines your site, this is what to check.</p>
+doubt at physiological pH. Which program places its protons decides what it can
+do at your site. If one lines your site, this is what to check.</p>
 
-<h2 id="what-the-ph-decides">What the pH decides</h2>
-<p>The receptor is protonated by <code>pdb2pqr</code>, and PROPKA predicts each
-titratable residue's state at the pH you give. For a histidine there are three
-answers: a hydrogen on the delta nitrogen, a hydrogen on the epsilon nitrogen, or
-one on both, which makes the ring positive.</p>
-<p>That choice decides what the site can do. A neutral histidine can accept a
-hydrogen bond at its free nitrogen and donate at the other. A doubly protonated
-one donates at both and carries a charge, which changes both the docking and the
-rescoring. The two neutral forms are not interchangeable either: they point the
-hydrogen at opposite sides of the ring.</p>
-<p>There is no per-residue control here. The pH is the whole of the input, and
-every titratable residue is decided from it. If your assay runs at a pH other than
-7.4, that is the number to change, and the run records it.</p>
+<h2 id="what-the-ph-decides">What is decided, and by what</h2>
+<p>For a histidine there are three answers: a hydrogen on the delta nitrogen, a
+hydrogen on the epsilon nitrogen, or one on both, which makes the ring positive.
+That choice decides what the site can do. A neutral histidine can accept a hydrogen
+bond at its free nitrogen and donate at the other. A doubly protonated one donates
+at both and carries a charge, which changes both the docking and the rescoring. The
+two neutral forms are not interchangeable either: they point the hydrogen at
+opposite sides of the ring.</p>
+<p>By default the receptor is protonated with <code>reduce</code>, which places
+each histidine's protons where the hydrogen bonds around the ring call for them,
+and may turn the ring over where the file has it the wrong way round. With
+<b>PROPKA at a pH</b> chosen, <code>pdb2pqr</code> places them and PROPKA predicts
+each residue's state at the pH you give. There is no per-residue control in either.
+See <a href="receptor.html#protonation">protonation</a>.</p>
 
 <h2 id="how-to-read-what-happened">How to read what happened</h2>
-<p><code>pdb2pqr</code> leaves the residue named <code>HIS</code> and expresses its
-decision by which hydrogens it placed. So the name in
-<code>receptor/prepared.pdb</code> tells you nothing; the atoms do.</p>
+<p>Both programs leave the residue named <code>HIS</code> and express the decision
+by which hydrogens they placed. So the name in <code>receptor/prepared.pdb</code>
+tells you nothing; the atoms do.</p>
 <table>
 <tr><th>Hydrogens on the ring</th><th>The state</th><th>What it can do</th></tr>
 <tr><td><code>HD1</code> only</td><td>neutral, delta protonated</td><td>donates at ND1, accepts at NE2</td></tr>
 <tr><td><code>HE2</code> only</td><td>neutral, epsilon protonated</td><td>accepts at ND1, donates at NE2</td></tr>
 <tr><td>both</td><td>positive</td><td>donates at both, and carries a charge</td></tr>
 </table>
-<p>In the example run, MDM2 has two histidines and both are in the site: His73 and
-His96. At pH 7.4 both came back with <code>HD1</code> and no <code>HE2</code>, so
-both are neutral and delta protonated, with NE2 free to accept a hydrogen bond from
-a peptide. You can read that straight out of the prepared file.</p>
-<p>The MM-GBSA stage renames each histidine from the hydrogens present, to
-<code>HID</code>, <code>HIE</code> or <code>HIP</code>, before building the Amber
-topology, so the rescoring uses the same decision the docking did rather than a
-force field default. The interface columns read a residue named <code>HIS</code> as
-protonated, and read <code>HID</code> and <code>HIE</code> as the neutral forms they
-are.</p>
+<p>reduce also writes its reasons. The top of <code>receptor/protonated.pdb</code>
+holds one <code>USER  MOD</code> line per histidine, Asn and Gln, such as
+<code>A 96 HIS : no HD1</code>, with <code>FLIP</code> where it turned the side
+chain over.</p>
+<p>In the example, MDM2 has two histidines and both are in the site: His73 and
+His96. The two programs disagree about both. reduce gives each <code>HE2</code> and
+no <code>HD1</code>, epsilon protonated, with ND1 free to accept a hydrogen bond;
+PDB2PQR with PROPKA at pH 7.4, which the shipped example run was made with, gives
+each <code>HD1</code>, delta protonated, with NE2 free instead. On the dengue
+envelope protein dimer 7A3R the two disagree on 10 of its 18 histidines.</p>
+<p>The MM-GBSA stage names each histidine <code>HID</code>, <code>HIE</code> or
+<code>HIP</code> before building the Amber topology, so the rescoring uses the
+decision the docking did rather than a force field default: under reduce from the
+receptor that was docked into, and under PROPKA from protonating the complex again
+at the same pH. The interface columns read a residue named <code>HIS</code> as
+protonated, and read <code>HID</code> and <code>HIE</code> as the neutral forms
+they are.</p>
 
 <h2 id="looking-at-the-geometry">Looking at the geometry</h2>
 <figure>
 <img src="img/adapt.png" alt="ADapt showing a structure's chains, residues and 3D view">
 <figcaption><b>ADapt, opened from the Receptor card.</b> A separate tool that shows
-what a structure file holds before anything is docked into it, including the
-residues near your pocket.</figcaption>
+what a structure file holds and prepares the receptor the way AGFR does, including
+the residues near your pocket.</figcaption>
 </figure>
-<p>Use ADapt to look at the structure and decide what to keep, and use the pose
-viewer afterwards to look at what the histidine actually does: the contacts are
-drawn with their measured distances, so you can see whether the peptide is reaching
-the free nitrogen or the protonated one.</p>
+<p>Use the pose viewer to look at what the histidine actually does: the contacts
+are drawn with their measured distances, so you can see whether the peptide is
+reaching the free nitrogen or the protonated one.</p>
 <p>Remember what the contact columns do and do not test. A hydrogen bond here is a
 nitrogen or oxygen pair within 3.5 &Aring;, measured between heavy atoms. No
 hydrogen position and no angle is used. So the columns will count a contact at a
@@ -56,30 +63,25 @@ histidine whichever nitrogen carries the hydrogen, and the geometry is yours to
 judge.</p>
 
 <h2 id="reduce-and-pdb2pqr">Two programs, two answers</h2>
-<p>ADapt protonates with <code>reduce</code>, as AGFR does, while this interface's
-preparation uses <code>pdb2pqr</code> with PROPKA at the run's pH. The two often
-place histidine hydrogens differently.</p>
 <p>Checked against the protein structures in the PDB solved by neutron diffraction,
 where the hydrogens are placed from the data, reduce matched the deposited
 histidines more often than pdb2pqr (55% against 31% of 1,457 histidines) and turned
-fewer rings, and fewer Asn and Gln amides, the wrong way.</p>
+fewer rings, and fewer Asn and Gln amides, the wrong way. That is why it is the
+default.</p>
 <p>What reduce does not do is pH. It never protonates an Asp or Glu and rarely puts
 hydrogens on both nitrogens of a histidine, whatever the pH, while PROPKA chooses
-charges at the pH you set.</p>
-<div class="note"><b>Prepare the receptor here, whichever you look at it with.</b>
-Use ADapt to see what the file holds and decide what to keep, then let this
-interface prepare the receptor, so the docking and the rescoring use the same
-hydrogens. Then look at the histidines at your site and judge them.</div>
+charges at the pH you set. ADapt protonates with the same reduce, as AGFR does, so
+a receptor prepared in ADapt and one prepared here with reduce agree.</p>
 
 <h2 id="what-to-do">What to do about it</h2>
 <ol class="steps">
-<li><b>Set the pH your experiment runs at.</b> It is the only control, and it is
-the one that matters.</li>
+<li><b>Keep reduce unless the pH is your question.</b> If your assay runs well
+away from 7.4, choose PROPKA at that pH.</li>
 <li><b>Read the prepared file</b> at the histidines in your site, and note which
 nitrogen is free.</li>
 <li><b>Check the poses there.</b> If the best poses all reach the protonated
 nitrogen, the result depends on a prediction rather than on a measurement.</li>
-<li><b>Run the other pH as a second run</b> when the site has a histidine that
-PROPKA puts near its pKa. Two runs that agree are worth far more than one that
-cannot be questioned, and the pH is recorded in each run's settings.</li>
+<li><b>Run the other program as a second run</b> when a histidine at the site
+matters. Two runs that agree are worth far more than one that cannot be
+questioned, and each run records how it was protonated.</li>
 </ol>

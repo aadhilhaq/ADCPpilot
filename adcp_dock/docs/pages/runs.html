@@ -1,6 +1,7 @@
 <h1>Following your runs</h1>
 <p class="lead">Every run you have made, with a coloured dot for its state, and
-the buttons that open it, resume it, download it or take it away.</p>
+the buttons that open it, resume it, download it or take it away. A second view
+walks the runs folder itself, down to every file in it.</p>
 
 <figure>
 <img src="img/runs.png" alt="The Runs card, one row per run, with state dots and row buttons">
@@ -63,6 +64,46 @@ does not send the poses.</li>
 <p><b>Browse</b> at the top of the card points the list at another folder, so runs
 made by a colleague, or by the command line somewhere else, can be opened and read
 here. The folder it is reading is printed beside the button.</p>
+
+<h2 id="folders">Two views: All runs and Folders</h2>
+<p>Two tabs at the top of the card show the same runs folder in two ways.
+<b>All runs</b> is the table above, one row per run. <b>Folders</b> walks the
+folder itself: the folders in it, the folders inside those, and the files in
+each, with their sizes and when they last changed.</p>
+<figure>
+<img src="img/runs-folders.png" alt="The Folders view inside a run: the trail back to the runs folder, a note that this folder is a run with an Open as a run button, and the run's folders and files with their sizes, times and buttons">
+<figcaption><b>Inside a run.</b> The trail at the top leads back up, one click
+per folder. A folder that is a run says so, and opens as one. Each file has a
+size, a time, and the buttons for what the page can do with it.</figcaption>
+</figure>
+<ul>
+<li><b>A folder</b> opens when you click its name. The trail along the top, and
+<b>up</b> at the head of the list, take you back.</li>
+<li><b>A folder that is a run</b>, one that holds the run's settings in
+<code>job.json</code>, is marked <b>run</b> and has <b>open run</b> beside it.
+Inside it, <b>Open as a run</b> does the same. Either shows the run below, with
+its jobs, its table and its poses, exactly as <b>open</b> does in All
+runs.</li>
+<li><b>A structure</b>, such as a pose, the prepared receptor or a complex, opens
+in the page's own 3D viewer when you click <b>view</b>.</li>
+<li><b>A log, a table or a settings file</b> opens as text with
+<b>view</b>.</li>
+<li><b>The run's results files</b>, <code>results.tsv</code>,
+<code>results.txt</code> and <code>results.json</code>, open the run's results
+table with <b>open results</b>.</li>
+<li><b>Every file</b> can be saved with <b>download</b>. A file the page cannot
+show, such as a target file or a packed trajectory, is a download only, and so is
+anything larger than 8 MB.</li>
+</ul>
+<figure>
+<img src="img/file-viewer.png" alt="A pose file from a run, drawn as a cartoon with its side chains in the 3D viewer, with its name, its path in the run, an atom count and a Download button">
+<figcaption><b>A file, in the page.</b> A structure is drawn in the same viewer
+the rest of the page uses. Drag to turn it and scroll to zoom.</figcaption>
+</figure>
+<p>Only what is inside the runs folder is shown. A link inside it that leads to
+somewhere else is left out of the list, and the server refuses any path outside
+the folder, however it is written. <b>Browse</b> changes the folder both views
+read.</p>
 
 <h2 id="resuming">Resuming a run</h2>
 <p>An open run offers to resume when some of its peptides have no result. Only

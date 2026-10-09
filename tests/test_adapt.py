@@ -1,4 +1,6 @@
-"""ADapt is found, started with the right environment, reused and stopped.
+"""ADapt is found, started with the right environment, reused and stopped,
+reached through this server under its own base path, handed the receptor, and
+what it saves is read back.
 
 By Aadhil Haq
 
@@ -41,18 +43,20 @@ def check(cond, why):
         fails.append(why)
 
 
-def fake_adapt(folder, speaks=True):
+def fake_adapt(folder, speaks=True, embeddable=True):
     """A folder that looks like an ADapt checkout, whose bin/adapt records
-    how it was started and then prints an address, or dies without one."""
+    how it was started and then prints an address, or dies without one. An
+    embeddable one takes --base-path, as ADapt has since 6dae90b."""
     os.makedirs(os.path.join(folder, "bin"), exist_ok=True)
     os.makedirs(os.path.join(folder, "adapt"), exist_ok=True)
-    open(os.path.join(folder, "adapt", "__main__.py"), "w").write("")
+    open(os.path.join(folder, "adapt", "__main__.py"), "w").write(
+        "s.add_argument('--base-path')\n" if embeddable else "")
     script = ["#!/bin/sh",
               'mkdir -p "$ADAPT_OUTDIR"',
               'echo "$ADCPSUITE|$ADAPT_OUTDIR|$PYTHONUNBUFFERED|$*" > "$ADAPT_OUTDIR/started_with.txt"']
     if speaks:
         script += ['echo "ADapt 0.1.0 is at"', 'echo ""',
-                   'echo "    http://127.0.0.1:45678/?t=abc123"', "exec sleep 60"]
+                   'echo "    http://127.0.0.1:45678/adapt/?t=abc123"', "exec sleep 60"]
     else:
         script += ['echo "no ADCP environment found" >&2', "exit 2"]
     path = os.path.join(folder, "bin", "adapt")
@@ -80,8 +84,8 @@ out = os.path.join(tmp, "runs", "adapt_sessions")
 r = adapt.Runner()
 t0 = time.time()
 url = r.start(home, "/envs/adcpsuite", out, timeout=20)
-check(url == "http://127.0.0.1:45678/?t=abc123",
-      "the address is read from ADapt's output (%r)" % url)
+check(url == "http://127.0.0.1:45678/adapt/?t=abc123",
+      "the address is read from ADapt's output, base path and all (%r)" % url)
 check(time.time() - t0 < 15, "and read as soon as it is printed")
 check(r.running(), "it counts as running once it has printed its address")
 for _ in range(50):
@@ -95,6 +99,8 @@ check(outdir == out and "--outdir %s" % out in args,
 check(unbuffered == "1", "its output is not held back, or its address never arrives")
 check("serve" in args and "--host 127.0.0.1" in args and "--port 0" in args,
       "it serves on this machine only, on a free port (%s)" % args)
+check("--base-path /adapt" in args,
+      "it is started under this server's /adapt/, as its README says to embed it (%s)" % args)
 check(os.path.isfile(os.path.join(out, "adapt_server.log")), "its output is kept in a log")
 pid = r.proc.pid
 check(r.start(home, "/envs/adcpsuite", out) == url and r.proc.pid == pid,
@@ -161,7 +167,7 @@ check(app._adapt()["available"] is True, "with both it is offered")
 res = app.adapt_open()
 check(res.get("url") == "/adapt/?t=abc123",
       "and opening it returns a path on THIS server, with ADapt's token (%s)" % res)
-check(res.get("direct") == "http://127.0.0.1:45678/?t=abc123",
+check(res.get("direct") == "http://127.0.0.1:45678/adapt/?t=abc123",
       "and ADapt's own address beside it")
 env_root = open(os.path.join(tmp, "runs", "adapt_sessions", "started_with.txt")).read().split("|")[0]
 check(os.path.realpath(env_root) == os.path.realpath(suite),
@@ -170,6 +176,16 @@ check(not any(os.path.basename(x["rundir"]) == "adapt_sessions" for x in app.lis
       "ADapt's sessions folder is not listed as a run")
 app.adapt_stop()
 check(not app._adapt_runner.running(), "the interface stops ADapt when it stops")
+
+old_home = fake_adapt(os.path.join(tmp, "old", "adapt"), embeddable=False)
+check(not adapt.embeddable(old_home) and adapt.embeddable(home),
+      "a checkout without --base-path is told apart from one with it")
+os.environ["ADAPT_HOME"] = old_home
+st_old = server.App(os.path.join(tmp, "runs_old"))._adapt()
+check(st_old["available"] is False and "older" in st_old["why"] and "git -C" in st_old["why"],
+      "an ADapt older than the embedding interface is not offered, with how to update it (%s)"
+      % st_old)
+os.environ["ADAPT_HOME"] = home
 
 # --- started ahead of the click, but only when the page asks ----------------
 warm_app = server.App(os.path.join(tmp, "runs_warm"))
@@ -225,6 +241,10 @@ check("id=adaptrow" in html and "id=adaptopen" in html, "the Receptor card has a
 appjs = open(os.path.join(ROOT, "adcp_dock", "static", "app.js")).read()
 check("d.adapt && d.adapt.available" in appjs, "the row is shown only when the server offers ADapt")
 check("api('/api/adapt'" in appjs, "the button asks the server to start it")
+check("Open in ADapt" in html and "id=adaptuse" in html and "id=adaptdrop" in html,
+      "the Receptor card opens the receptor in ADapt and shows the receptor read back")
+check("/api/adapt/saved" in appjs and "startAdaptWatch" in appjs,
+      "the page watches the session for a receptor save")
 check("window.open('', '_blank')" in appjs,
       "the tab is opened inside the click, where a browser allows it")
 check("ssh -L" not in appjs,
@@ -239,21 +259,58 @@ check("api('/api/adapt/warm'" in appjs,
 # --- ADapt through this server's own port -----------------------------------
 # On Grace the page is reached through one forwarded port. ADapt listened on a
 # second one, and the tab said "refused to connect". Now /adapt/ on this server
-# passes requests on. A small HTTP server plays ADapt here: its page and script
-# use absolute /static/, /docs/ and /api/ paths, as ADapt's do, and its API
-# checks its own token.
+# passes requests on. ADapt runs with --base-path /adapt and its page uses
+# relative paths only, so the path is forwarded as it is and nothing in the
+# answer is rewritten. A small HTTP server plays ADapt here the way its README
+# describes: it takes the prefix off, redirects /adapt to /adapt/, checks its
+# own token, and answers the requests the embedding uses.
+import hashlib  # noqa: E402
 import http.server  # noqa: E402
-import threading  # noqa: E402
+import json  # noqa: E402
+import urllib.parse  # noqa: E402
 import urllib.request  # noqa: E402
 import urllib.error  # noqa: E402
 
-FAKE_HTML = (b'<!doctype html><link rel="stylesheet" href="/static/app.css">'
-             b'<a href="/docs/index.html">Docs</a><a href="//elsewhere.example/x">x</a>'
-             b'<script src="/static/3Dmol-min.js"></script><script src="/static/app.js"></script>')
-FAKE_JS = b"const u = '/api/status'; fetch(\"/api/upload?name=a\"); const d = `/docs/`;"
-FAKE_3DMOL = b'var x = "/api/keep-me-as-i-am";'
-FAKE_CSS = b"body{background:url(/static/bg.png)} a{background:url(//cdn.example/y.png)}"
-seen_posts = []
+FAKE_HTML = (b'<!doctype html><link rel="stylesheet" href="static/app.css">'
+             b'<a href="docs/index.html">Docs</a><a href="//elsewhere.example/x">x</a>'
+             b'<script src="static/3Dmol-min.js"></script><script src="static/app.js"></script>')
+FAKE_JS = b"const u = 'api/status'; fetch(\"api/upload?name=a\"); const d = `docs/`;"
+FAKE_CSS = b"body{background:url(bg.png)}"
+seen_posts, seen_paths = [], []
+
+# A session folder as ADapt writes one: the input, a receptor save with its
+# PDBQT and _rec_H.pdb, and session.json recording both with their md5.
+SESSION = os.path.join(tmp, "runs_proxy", "adapt_sessions", "1ycr_20261009-010203_abcdef")
+SAVE = os.path.join(SESSION, "save_001_rec")
+os.makedirs(SAVE)
+PDBQT = ("REMARK 850 AGFR source 1ycr.pdb\nREMARK 850 AGFR biomolecule Biomol 1: chains A\n"
+         "ATOM      1  N   GLU A  25      13.000  14.000  15.000  1.00  0.00    -0.3 N \n"
+         "HETATM    2 ZN    ZN A 401      10.000  10.000  10.000  1.00  0.00     2.0 Zn\n")
+PDBH = ("REMARK 850 AGFR biomolecule Biomol 1: chains A\n"
+        "USER  MOD reduce.3.23.130521 H: found=0, std=0, add=1, rem=0, adj=1\n"
+        "ATOM      1  N   GLU A  25      13.000  14.000  15.000  1.00  0.00           N\n"
+        "ATOM      2  H1  GLU A  25      13.500  14.500  15.500  1.00  0.00           H\n"
+        "HETATM    3 ZN    ZN A 401      10.000  10.000  10.000  1.00  0.00          ZN\n"
+        "HETATM    4  O   HOH A 501      19.000  10.000  10.000  1.00  0.00           O\n")
+open(os.path.join(SAVE, "1ycr_rec.pdbqt"), "w").write(PDBQT)
+open(os.path.join(SAVE, "1ycr_rec_H.pdb"), "w").write(PDBH)
+open(os.path.join(SESSION, "1ycr.pdb"), "w").write(PDBH)
+md5 = lambda t: hashlib.md5(t.encode()).hexdigest()               # noqa: E731
+SESSION_JSON = {
+    "tool": {"name": "ADapt", "version": "0.1.0"}, "pdbid": "1ycr",
+    "input": {"name": "1ycr.pdb"},
+    "environment": {"adapt_commit": "1005e87a9b16", "adfr_dist": "adfr-0.0.22"},
+    "events": [], "saves": [
+        {"n": 1, "kind": "receptor", "tab": "Biomol 1", "at": "2026-10-09T01:02:03",
+         "folder": "save_001_rec",
+         "files": [{"name": "1ycr_rec.pdbqt", "md5": md5(PDBQT)},
+                   {"name": "1ycr_rec_H.pdb", "md5": md5(PDBH)}],
+         "mutations": {}, "altlocs": {}, "charges": {"A:ZN:401:_": 2.0},
+         "reduce": {"version": "reduce.3.23.130521",
+                    "decisions": [{"residue": "A:HIS:96:_", "decision": "no HD1"}]}},
+        {"n": 2, "kind": "ligand", "tab": "Biomol 1", "folder": "save_002_lig",
+         "files": [{"name": "1ycr_lig.pdbqt", "md5": "x"}]}]}
+json.dump(SESSION_JSON, open(os.path.join(SESSION, "session.json"), "w"))
 
 
 class FakeADapt(http.server.BaseHTTPRequestHandler):
@@ -269,29 +326,50 @@ class FakeADapt(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def do_GET(self):
+    def _path(self):
+        seen_paths.append(self.path)
         path, _, query = self.path.partition("?")
+        if path == "/adapt":
+            # ADapt's own redirect: its page's paths need the slash.
+            self._out(b"", "text/plain", 301,
+                      extra=[("Location", "/adapt/" + ("?" + query if query else ""))])
+            return None, None
+        if path.startswith("/adapt/"):
+            path = path[len("/adapt"):]
+        return path, query
+
+    def do_GET(self):
+        path, query = self._path()
+        if path is None:
+            return
         if path == "/static/app.js":
             return self._out(FAKE_JS, "application/javascript")
-        if path == "/static/3Dmol-min.js":
-            return self._out(FAKE_3DMOL, "application/javascript")
         if path == "/static/app.css":
             return self._out(FAKE_CSS, "text/css")
         if "t=TOK" not in query:
             return self._out(b'{"error": "bad or missing token"}', "application/json", 403)
         if path == "/":
             return self._out(FAKE_HTML, "text/html; charset=utf-8")
+        if path == "/api/session":
+            if "s=s1" not in query:
+                return self._out(b'{"error": "no such session; load the PDB file again"}',
+                                 "application/json", 400)
+            return self._out(json.dumps({"session": "s1", "folder": SESSION,
+                                         "pdbid": "1ycr", "current": "Biomol 1"}).encode(),
+                             "application/json")
         if path == "/api/download":
             return self._out(b"ATOM", "chemical/x-pdbqt",
                              extra=[("Content-Disposition", 'attachment; filename="r.pdbqt"')])
         return self._out(b'{"ok": true}', "application/json")
 
     def do_POST(self):
+        path, query = self._path()
         n = int(self.headers.get("Content-Length") or 0)
         seen_posts.append((self.path, self.rfile.read(n), self.headers.get("Content-Type")))
-        if "t=TOK" not in self.path:
+        if "t=TOK" not in query:
             return self._out(b'{"error": "bad or missing token"}', "application/json", 403)
-        return self._out(b'{"session": "s1"}', "application/json")
+        return self._out(json.dumps({"session": "s1", "folder": SESSION, "pdbid": "1ycr",
+                                     "current": "Biomol 1"}).encode(), "application/json")
 
 
 fake = http.server.ThreadingHTTPServer(("127.0.0.1", 0), FakeADapt)
@@ -299,7 +377,7 @@ threading.Thread(target=fake.serve_forever, daemon=True).start()
 
 
 class StubRunner:
-    url = "http://127.0.0.1:%d/?t=TOK" % fake.server_address[1]
+    url = "http://127.0.0.1:%d/adapt/?t=TOK" % fake.server_address[1]
 
     def running(self):
         return True
@@ -318,10 +396,15 @@ BASE = "http://127.0.0.1:%d" % httpd.server_address[1]
 os.environ["http_proxy"] = os.environ["HTTP_PROXY"] = "http://127.0.0.1:9"
 
 
+class _NoFollow(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *a, **kw):
+        return None
+
+
 def get(path, data=None, headers=None):
     req = urllib.request.Request(BASE + path, data=data, headers=headers or {},
                                  method="POST" if data is not None else "GET")
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoFollow)
     try:
         with opener.open(req, timeout=20) as r:
             return r.status, r.read(), r.headers
@@ -330,22 +413,23 @@ def get(path, data=None, headers=None):
 
 
 code, body, _h = get("/adapt/?t=TOK")
-check(code == 503 and b"Open ADapt" in body,
-      "before ADapt runs, /adapt/ says to press Open ADapt (%s %r)" % (code, body[:80]))
+check(code == 503 and b"Open in ADapt" in body,
+      "before ADapt runs, /adapt/ says to press Open in ADapt (%s %r)" % (code, body[:80]))
 proxy_app._adapt_runner = StubRunner()
 code, body, h = get("/adapt/?t=TOK")
-check(code == 200 and b'href="/adapt/static/app.css"' in body and b'src="/adapt/static/app.js"' in body,
-      "ADapt's page arrives with its paths moved under /adapt/ (%r)" % body[:160])
-check(b'href="/adapt/docs/index.html"' in body, "its Docs link too")
-check(b'href="//elsewhere.example/x"' in body, "and a link to another host is left alone")
+check(code == 200 and body == FAKE_HTML,
+      "ADapt's page arrives exactly as ADapt sent it, nothing rewritten (%r)" % body[:160])
+check(seen_paths and seen_paths[-1] == "/adapt/?t=TOK",
+      "the request reaches ADapt with its /adapt prefix, for --base-path to take off (%s)"
+      % seen_paths[-1:])
+code, body, h = get("/adapt?t=TOK")
+check(code == 301 and h.get("Location") == "/adapt/?t=TOK",
+      "ADapt's redirect to /adapt/ goes back to the browser, not followed here (%s %s)"
+      % (code, h.get("Location")))
 code, body, _h = get("/adapt/static/app.js")
-check(b"'/adapt/api/status'" in body and b'"/adapt/api/upload' in body and b"`/adapt/docs/`" in body,
-      "its script's API paths are moved too, whatever the quote (%r)" % body)
-code, body, _h = get("/adapt/static/3Dmol-min.js")
-check(body == FAKE_3DMOL, "the 3Dmol library is passed through untouched")
+check(body == FAKE_JS, "its script passes through untouched (%r)" % body)
 code, body, _h = get("/adapt/static/app.css")
-check(b"url(/adapt/static/bg.png)" in body and b"url(//cdn.example/y.png)" in body,
-      "stylesheet paths are moved, other hosts are not (%r)" % body)
+check(body == FAKE_CSS, "and its stylesheet")
 code, body, _h = get("/adapt/api/status?t=TOK")
 check(code == 200 and b'"ok"' in body, "ADapt's API answers through this server")
 code, body, _h = get("/adapt/api/status")
@@ -353,13 +437,86 @@ check(code == 403, "and ADapt still refuses a request without its token (%s)" % 
 code, body, _h = get("/adapt/api/upload?t=TOK&name=a.pdb", data=b"ATOM      1  N",
                      headers={"Content-Type": "application/octet-stream"})
 check(code == 200 and seen_posts and seen_posts[-1][1] == b"ATOM      1  N"
-      and seen_posts[-1][0].startswith("/api/upload?"),
-      "an uploaded file reaches ADapt intact, at ADapt's own path (%r)" % (seen_posts[-1:],))
+      and seen_posts[-1][0].startswith("/adapt/api/upload?"),
+      "an uploaded file reaches ADapt intact, under the prefix (%r)" % (seen_posts[-1:],))
 code, body, h = get("/adapt/api/download?t=TOK&s=1")
 check(h.get("Content-Disposition", "").startswith("attachment"),
       "a PDBQT download keeps its file name")
 code, body, _h = get("/api/tools")
 check(code == 403, "this tool's own API still needs its own token (%s)" % code)
+check(not hasattr(server, "_rebase_adapt"),
+      "the path rewriting that --base-path made unnecessary is gone")
+
+# --- the receptor goes to ADapt through its own api/upload --------------------
+proxy_app._adapt_running = lambda: StubRunner.url
+rec = os.path.join(tmp, "1YCR.pdb")
+open(rec, "w").write(PDBH)
+seen_posts.clear()
+res = proxy_app.adapt_open({"path": rec})
+check(res.get("session") == "s1" and res.get("folder") == SESSION,
+      "the receptor is handed to ADapt and its session named (%s)" % res)
+check(res.get("url") == "/adapt/?t=TOK&session=s1",
+      "the tab opens ADapt on that session, under this server (%s)" % res.get("url"))
+check(seen_posts and seen_posts[-1][0].startswith("/adapt/api/upload?")
+      and "name=1ycr.pdb" in seen_posts[-1][0] and seen_posts[-1][1] == PDBH.encode(),
+      "the file goes whole, named in lower case by its id, as ADFR looks ligands up by it (%s)"
+      % (seen_posts[-1][0] if seen_posts else None))
+res = proxy_app.adapt_open({"path": rec, "session": "s1"})
+check(res.get("url") == "/adapt/?t=TOK&session=s1" and len(seen_posts) == 1,
+      "a session ADapt still holds is opened again rather than uploaded anew")
+cif = os.path.join(tmp, "7a3r.cif")
+open(cif, "w").write("data_7A3R\n")
+res = proxy_app.adapt_open({"path": cif, "code": "7A3R"})
+check(res.get("url") == "/adapt/?t=TOK&pdb=7A3R",
+      "an mmCIF fetched by its id is opened in ADapt by that id (%s)" % res.get("url"))
+res = proxy_app.adapt_open({"path": cif})
+check("PDB files only" in res.get("note", "") and "session=" not in res.get("url", ""),
+      "an mmCIF without an id is not uploaded, and the page is told why (%s)" % res)
+
+# --- what ADapt saved, read back ------------------------------------------------
+got = adapt.read_save(SESSION)
+check(got["save"] == 1 and got["tab"] == "Biomol 1" and got["pdbid"] == "1ycr",
+      "the newest receptor save is read, not the ligand one (%s)" % {k: got[k] for k in ("save", "tab")})
+check(got["pdbqt"].endswith("1ycr_rec.pdbqt") and got["pdb"].endswith("1ycr_rec_H.pdb"),
+      "the receptor PDBQT and the _rec_H.pdb are found")
+check(got["hetero"] == ["ZN A:401"], "the hetero groups kept are listed, waters left out (%s)"
+      % got["hetero"])
+check(got["biomolecule"] == "Biomol 1: chains A", "the biomolecule line is read (%r)" % got["biomolecule"])
+check(got["charges"] == {"A:ZN:401:_": 2.0} and got["reduce"] == "reduce.3.23.130521"
+      and got["his"] == {"A:HIS:96:_": "no HD1"},
+      "the charges, reduce's version and its histidine decisions are read from session.json")
+check(got["adapt_commit"] == "1005e87", "and the ADapt that wrote it (%r)" % got["adapt_commit"])
+try:
+    adapt.read_save(SESSION, 2)
+    check(False, "a ligand save is taken as a receptor")
+except adapt.NoSave as exc:
+    check("no receptor save 2" in str(exc), "a save that is not a receptor is refused (%s)" % exc)
+try:
+    adapt.read_save(tmp)
+    check(False, "a folder without session.json is read")
+except adapt.NoSave as exc:
+    check("not an ADapt session folder" in str(exc), "a folder that is not a session says so")
+r = proxy_app.adapt_saved(session="s1")
+check(r.get("found") and r.get("folder") == SESSION and r.get("session") == "s1",
+      "the page reads the save back through the session ADapt names (%s)" % r.get("why"))
+open(os.path.join(SAVE, "1ycr_rec.pdbqt"), "a").write("REMARK changed\n")
+r = proxy_app.adapt_saved(folder=SESSION)
+check(not r.get("found") and "changed since ADapt wrote it" in r.get("why", ""),
+      "a file changed since ADapt wrote it is refused (%s)" % r.get("why"))
+open(os.path.join(SAVE, "1ycr_rec.pdbqt"), "w").write(PDBQT)
+
+# A run set up from the save records it, and its receptor is the _rec_H.pdb.
+from adcp_dock import job as jobmod  # noqa: E402
+j = jobmod.default(adapt={"folder": SESSION, "session": "s1"}, protonation="propka")
+check(jobmod.take_adapt(j) == [] and j["receptor"] == got["pdb"]
+      and j["adapt"]["save"] == 1 and j["adapt"]["pdbqt_md5"] == md5(PDBQT)
+      and j["protonation"] == "reduce" and j["adapt"]["session"] == "s1",
+      "a run from ADapt records the save and its md5, and is protonated as ADapt did (%s)"
+      % j.get("adapt"))
+check(jobmod.adapt_problems(j) == [], "an unchanged save is fine")
+open(os.path.join(SAVE, "1ycr_rec_H.pdb"), "a").write("REMARK changed\n")
+check(jobmod.adapt_problems(j), "a save changed since the run was set up is refused")
+open(os.path.join(SAVE, "1ycr_rec_H.pdb"), "w").write(PDBH)
 httpd.shutdown()
 fake.shutdown()
 for k in ("http_proxy", "HTTP_PROXY"):

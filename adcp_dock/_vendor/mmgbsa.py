@@ -306,6 +306,32 @@ def masks_by_chain(pdb_path, lig_chain=LIGAND_CHAIN):
 _DELTA = re.compile(r"^DELTA TOTAL\s+(-?\d+\.\d+)")
 
 
+def _amber_name(res: str, hs: set) -> str | None:
+    """The Amber residue name the hydrogens on a residue call for, or None.
+
+    A histidine is named for its ring protons, a carboxylate with a proton on
+    it for its neutral form, a lysine with two amine hydrogens LYN, and a
+    cysteine without its thiol hydrogen CYX, since that is a disulphide.
+    """
+    if res == "HIS":
+        d, e = "HD1" in hs, "HE2" in hs
+        return "HIP" if (d and e) else "HID" if d else "HIE"
+    if res == "ASP" and ("HD2" in hs or "HD1" in hs):
+        return "ASH"
+    if res == "GLU" and ("HE2" in hs or "HE1" in hs):
+        return "GLH"
+    if res == "LYS" and not {"HZ1", "HZ2", "HZ3"} <= hs \
+            and len(hs & {"HZ1", "HZ2", "HZ3"}) == 2:
+        return "LYN"
+    if res == "CYS" and not ({"HG"} & hs):
+        return "CYX"            # no thiol hydrogen: part of a disulfide
+    return None
+
+
+def _is_h(name: str) -> bool:
+    return name.lstrip("0123456789").upper().startswith("H")
+
+
 def _amber_protonation_names(pdb_in: str, pdb_out: str) -> dict:
     """Encode PDB2PQR's protonation decisions in residue names, then drop the
     hydrogens and let tleap rebuild them.
@@ -328,7 +354,7 @@ def _amber_protonation_names(pdb_in: str, pdb_out: str) -> dict:
         lines.append(l)
         key = (l[21], l[22:27])
         nm = l[12:16].strip()
-        if nm.lstrip("0123456789").upper().startswith("H"):
+        if _is_h(nm):
             hyd[key].add(nm.upper())
 
     rename = {}
@@ -340,19 +366,7 @@ def _amber_protonation_names(pdb_in: str, pdb_out: str) -> dict:
         if key in rename:
             continue
         res = l[17:20].strip().upper()
-        hs = hyd.get(key, set())
-        new = None
-        if res == "HIS":
-            d, e = "HD1" in hs, "HE2" in hs
-            new = "HIP" if (d and e) else "HID" if d else "HIE"
-        elif res == "ASP" and ("HD2" in hs or "HD1" in hs):
-            new = "ASH"
-        elif res == "GLU" and ("HE2" in hs or "HE1" in hs):
-            new = "GLH"
-        elif res == "LYS" and not {"HZ1", "HZ2", "HZ3"} <= hs and len(hs & {"HZ1", "HZ2", "HZ3"}) == 2:
-            new = "LYN"
-        elif res == "CYS" and not ({"HG"} & hs):
-            new = "CYX"            # no thiol hydrogen: part of a disulfide
+        new = _amber_name(res, hyd.get(key, set()))
         if new and new != res:
             rename[key] = new
             counts[f"{res}->{new}"] += 1
@@ -363,7 +377,7 @@ def _amber_protonation_names(pdb_in: str, pdb_out: str) -> dict:
                 fh.write(l)
                 continue
             nm = l[12:16].strip()
-            if nm.lstrip("0123456789").upper().startswith("H"):
+            if _is_h(nm):
                 continue          # tleap rebuilds these to match the residue name
             key = (l[21], l[22:27])
             if key in rename:
@@ -372,8 +386,136 @@ def _amber_protonation_names(pdb_in: str, pdb_out: str) -> dict:
     return dict(counts)
 
 
+def residue_states(pdb_path: str) -> dict:
+    """{(chain, number): Amber name} for the residues of a protonated PDB
+    whose hydrogens call for another name (HIS to HID, HIE or HIP, CYS to
+    CYX, and so on: _amber_name). Keyed as the complex is written: a blank
+    chain is "_", and the number without its insertion code. Empty for a
+    file with no hydrogens, which says nothing about any residue's state."""
+    from collections import defaultdict
+    hyd, resn, n_h = defaultdict(set), {}, 0
+    for l in open(pdb_path, errors="replace"):
+        if not l.startswith(("ATOM", "HETATM")):
+            continue
+        try:
+            key = (l[21] if l[21] != " " else "_", int(l[22:26]))
+        except ValueError:
+            continue
+        resn.setdefault(key, l[17:20].strip().upper())
+        nm = l[12:16].strip()
+        if _is_h(nm):
+            hyd[key].add(nm.upper())
+            n_h += 1
+    if not n_h:
+        return {}
+    out = {}
+    for key, res in resn.items():
+        new = _amber_name(res, hyd.get(key, set()))
+        if new and new != res:
+            out[key] = new
+    return out
+
+
+def prep_complex_reduce(com_pdb: str, workdir: str, prefix: str,
+                        protonation: dict, log=print) -> str:
+    """The complex for tleap when the receptor was protonated by reduce.
+
+    The receptor's residues are named for the protonation the docked
+    receptor has (protonation["states"], read from its hydrogens by
+    residue_states): HID, HIE or HIP from where reduce put the ring protons,
+    CYX in a disulphide. Asn, Gln and His that reduce turned over are turned
+    over in the receptor's coordinates, which are the prepared ones, so they
+    stay turned. The peptide is protonated by reduce on the whole complex,
+    so its histidines are chosen with the receptor around them, and its
+    coordinates are taken from reduce's output, with any amide it turned.
+    Every hydrogen is then dropped and tleap builds them to match the
+    names, as for PDB2PQR.
+    """
+    clean = os.path.join(workdir, f"{prefix}_com_forleap.pdb")
+    if os.path.isfile(clean):
+        return clean
+    states = dict(protonation.get("states") or {})
+    exe = protonation.get("reduce")
+    lig_lines, lig_states = None, {}
+    if exe and os.path.isfile(exe):
+        firsts = {}
+        for l in open(com_pdb):
+            if l.startswith(("ATOM", "HETATM")) and l[21] not in firsts:
+                try:
+                    firsts[l[21]] = int(l[22:26])
+                except ValueError:
+                    pass
+        cmd = [exe, "-BUILD", "-Nterm%d" % max([1] + list(firsts.values()))]
+        het = exe + "_wwPDB_het_dict.txt"
+        if os.path.isfile(het):
+            cmd += ["-DB", het]
+        cmd.append(com_pdb)
+        try:
+            p = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+            text = p.stdout or ""
+        except (OSError, subprocess.SubprocessError):
+            text = ""
+        if "USER  MOD reduce" in text[:4000]:
+            red = os.path.join(workdir, f"{prefix}_com_reduce.pdb")
+            with open(red, "w") as fh:
+                fh.write(text)
+            lig_states = {k: v for k, v in residue_states(red).items()
+                          if k[0] == LIGAND_CHAIN}
+            lig_lines = [l + "\n" for l in text.splitlines()
+                         if l.startswith(("ATOM", "HETATM"))
+                         and l[21] == LIGAND_CHAIN
+                         and not _is_h(l[12:16].strip())]
+        else:
+            log(f"    {prefix}: reduce could not protonate the complex; the "
+                f"peptide keeps tleap's standard states")
+    else:
+        log(f"    {prefix}: reduce was not found; the peptide keeps tleap's "
+            f"standard states")
+
+    def named(l, table):
+        try:
+            key = (l[21], int(l[22:26]))
+        except ValueError:
+            return l
+        new = table.get(key)
+        if new and new != l[17:20].strip():
+            return l[:17] + new.ljust(3) + l[20:]
+        return l
+
+    out, done = [], False
+    for l in open(com_pdb):
+        if not l.startswith(("ATOM", "HETATM")):
+            out.append(l)
+            continue
+        if _is_h(l[12:16].strip()):
+            continue
+        if l[21] == LIGAND_CHAIN:
+            if lig_lines is not None:
+                if not done:
+                    out.extend(named(x, lig_states) for x in lig_lines)
+                    done = True
+                continue
+            out.append(named(l, lig_states))
+            continue
+        out.append(named(l, states))
+    with open(clean, "w") as fh:
+        fh.writelines(out)
+    per_res = {}
+    for l in out:
+        if l.startswith(("ATOM", "HETATM")) and l[17:20].strip() in (
+                "HID", "HIE", "HIP", "CYX", "ASH", "GLH", "LYN"):
+            per_res[(l[21], l[22:27])] = l[17:20].strip()
+    tally = {}
+    for v in per_res.values():
+        tally[v] = tally.get(v, 0) + 1
+    if tally:
+        log(f"    {prefix}: protonation as reduce placed it: " +
+            ", ".join(f"{k} x{v}" for k, v in sorted(tally.items())))
+    return clean
+
+
 def prep_complex(com_pdb: str, workdir: str, prefix: str, ph: float = 7.4,
-                 log=print) -> str:
+                 log=print, protonation: dict | None = None) -> str:
     """Re-protonate the complex before the energy is computed.
 
     Protonation states are not a property of the receptor alone. A residue at the
@@ -381,7 +523,13 @@ def prep_complex(com_pdb: str, workdir: str, prefix: str, ph: float = 7.4,
     apo receptor cannot know that. Running PDB2PQR on the complex lets PROPKA see
     the peptide. Falls back to the unprepared complex if pdb2pqr is unavailable,
     since tleap will still add hydrogens by geometry.
+
+    A receptor protonated by reduce carries its states in `protonation`
+    (pipeline._carry_protonation), and the complex is then named from them
+    and from reduce instead: prep_complex_reduce.
     """
+    if protonation and protonation.get("method") == "reduce":
+        return prep_complex_reduce(com_pdb, workdir, prefix, protonation, log)
     exe = prep.find_tool("pdb2pqr", "pdb2pqr30")
     if exe is None:
         return com_pdb
@@ -468,7 +616,8 @@ def _topologies(rec, pose_mol, workdir, prefix, log=print,
     env = dict(os.environ, AMBERHOME=home)
     rec_pdb, lig_pdb, com_pdb = _write_pdbs(rec, pose_mol, workdir, prefix)
     if prep_ph is not None:
-        com_pdb = prep_complex(com_pdb, workdir, prefix, prep_ph, log)
+        com_pdb = prep_complex(com_pdb, workdir, prefix, prep_ph, log,
+                               protonation=getattr(rec, "protonation", None))
     leap = os.path.join(workdir, f"{prefix}.leap")
     with open(leap, "w") as fh:
         fh.write(LEAP.format(complex_pdb=os.path.basename(com_pdb),

@@ -71,6 +71,50 @@ class Problem:
                 "positions": self.positions}
 
 
+# A peptide is docked as a linear chain unless the run says otherwise. ADCP
+# can also close it into a ring: through the backbone, head to tail (-cyc),
+# or through a disulfide between two of its cysteines (-cys). One choice per
+# run, applied to every peptide in it.
+CYCLIC = ("none", "backbone", "disulfide")
+#: What each choice is called in the logs and the batch scripts.
+CYCLIC_LABELS = {"none": "linear", "backbone": "backbone cyclic, head to tail",
+                 "disulfide": "cyclic through a disulfide"}
+
+
+def cysteines(seq):
+    """How many residues of a cleaned sequence a disulfide can join: C, and
+    its D form &C.
+
+    A non-standard residue built on the cysteine coarse model, such as
+    C<HCS>, is not counted. Its side chain is the library's, and whether it
+    has a thiol where cysteine's is depends on the residue.
+    """
+    return sum(1 for r in residues(seq) if r in ("C", "&C"))
+
+
+def cyclic_problem(seq, mode):
+    """A Problem when `mode` cannot close this peptide, else None.
+
+    ADCP does not check this itself. Given -cys and a peptide with one
+    cysteine or none, ADCP 1.1.21 and 1.0 both docked it and reported poses
+    with no warning, so a run would describe as cyclic a peptide that was
+    never closed. It is refused here instead, before anything is submitted.
+    """
+    mode = str(mode or "none")
+    if mode not in CYCLIC:
+        return Problem("cyclic", "The cyclic choice must be one of %s, not %r."
+                       % (", ".join(CYCLIC), mode))
+    if mode == "disulfide":
+        n = cysteines(seq)
+        if n < 2:
+            return Problem(
+                "cyclic",
+                "A disulfide ring needs two cysteines and this peptide has %s. "
+                "Add the two cysteines the ring closes through, or dock it as "
+                "linear or backbone cyclic." % ("none" if n == 0 else "one"))
+    return None
+
+
 def clean(text):
     """Upper-cased, with whitespace and a FASTA header removed.
 

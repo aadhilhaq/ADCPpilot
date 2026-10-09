@@ -64,7 +64,10 @@ pair within 3.5 &Aring;, with no angle tested; a stack is ring atoms within
 <li><b>The per residue breakdown does not sum to the reported energy.</b> It
 agrees to within a few per cent and is always slightly more negative, because a
 decomposition uses a per atom surface term where the total uses LCPO. The energy
-terms themselves agree to within 0.05 kcal/mol.</li>
+terms themselves agree to within 0.05 kcal/mol. The <b>site dG</b> column, in the
+page and in <code>results.txt</code>, is the site residues' share of that
+breakdown, so it carries the same small gap. The value for every residue is in the
+run's <code>metrics/</code> folder.</li>
 <li><b>Buried area over two different sets of atoms is not comparable.</b> A
 rescored complex has hydrogens and a raw docked pose does not, and the same pose
 measured both ways differs by about 8 per cent. The column says which was
@@ -93,6 +96,13 @@ and van der Waals, and each type can be switched off. Below that, the interactio
 diagram runs the peptide along the middle with each receptor residue over the one it
 is closest to, and it can be saved as an image. Per residue energies appear in it
 once the interface columns have been measured for that run.</p>
+<p id="surface">The receptor's surface is drawn from the start, see-through, so
+the groove shows and the peptide stays in view inside it; <b>rec</b> steps it
+through mesh, off, solid and see-through, and <b>pep</b> does the same for the
+peptide's. Both are computed by MSMS from the receptor that was docked into and
+from the pose, with a 1.5 &Aring; probe, as in <a href="site.html#surface">the
+site view</a>. Where MSMS gives none, the viewer draws its own and a line under
+the view says so.</p>
 <p><b>figure</b> switches to a view made for a paper: a pale ribbon, the
 contacting residues and the peptide as sticks, bonds as black dashes and labels as
 plain text. Labels can be dragged clear, and the leader lines are drawn into the
@@ -104,7 +114,7 @@ needs its own citation.</p>
 <tr><th>File</th><th>What it holds</th></tr>
 <tr><td><code>results.tsv</code></td><td>the table, for a spreadsheet</td></tr>
 <tr><td><code>results.json</code></td><td>the same rows, plus the constants every measured number was computed with</td></tr>
-<tr><td><code>results.txt</code></td><td>the printable table, with its cautions underneath</td></tr>
+<tr><td><code>results.txt</code></td><td>the printable table, with its cautions about the data underneath</td></tr>
 <tr><td><code>metrics/</code></td><td>one file per peptide with every pose measured, and the residue map</td></tr>
 <tr><td><code>docking/</code></td><td>the ranked poses, as ADCP wrote them</td></tr>
 <tr><td><code>HOW_TO_CITE.txt</code> and two reference files</td><td>what to cite, scoped to this run</td></tr>
@@ -112,6 +122,10 @@ needs its own citation.</p>
 <p><code>results.json</code> carries the constants on purpose: a probe radius, a
 contact cutoff and a clash fraction are what let a number here be compared with one
 from elsewhere.</p>
+<p>Every one of these files can be opened from the page itself: the
+<a href="runs.html#folders">Folders view</a> of the Runs card walks the run's
+folder, draws a structure, shows a log or a table as text, and downloads the
+rest.</p>
 <p>A run docked before version 0.1.17 has its energy terms but no interface
 columns, because the panel is measured while each pose is rescored. Its page says so
 and offers to measure them from the files the MM-GBSA already left.</p>

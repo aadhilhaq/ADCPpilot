@@ -150,6 +150,31 @@ def main(argv=None):
                    help="a path, or a four-character PDB id to fetch")
     n.add_argument("-s", "--site",
                    help="residues the box should cover, e.g. A:41,A:45,A:78")
+    n.add_argument("--site-mode", choices=("residues", "ligand", "pocket"),
+                   default="residues",
+                   help="where the box comes from: the residues given with "
+                        "-s (the default); a ligand or peptide in the "
+                        "structure, named with --site-ligand; or the pocket "
+                        "AutoSite finds (--site-pocket)")
+    n.add_argument("--site-ligand", default="",
+                   help="with --site-mode ligand: a peptide's chain, like B, "
+                        "or a hetero group as CHAIN:NAME:NUMBER, like "
+                        "A:NUT:201. The box is built around it and it is "
+                        "kept out of the receptor")
+    n.add_argument("--site-pocket", choices=("best", "all"), default="best",
+                   help="with --site-mode pocket: AutoSite's best scoring "
+                        "pocket (the default), or all the pockets it finds")
+    n.add_argument("--agfr", choices=("auto", "1.1", "1.0"), default="auto",
+                   help="which AGFR builds the grid maps: auto uses the "
+                        "ADCP 1.1 suite's where it is installed")
+    n.add_argument("--autosite", choices=("1.1", "1.0"), default="1.1",
+                   help="which AutoSite places the translation points and "
+                        "finds the pockets (1.1 by default)")
+    n.add_argument("--receptor-gradient", action="store_true",
+                   help="add the receptor gradient to the maps (AGFR's -g). "
+                        "Off by default: it replaces the values inside the "
+                        "receptor with a slope toward its surface, costs "
+                        "time, and ADCP's authors found it did not help")
     n.add_argument("--target-file", default="",
                    help="a .trg target made elsewhere (for example in AGFRGUI): "
                         "its receptor, maps and box are used, and -r and -s "
@@ -163,7 +188,25 @@ def main(argv=None):
     n.add_argument("-p", "--peptide", action="append", default=[])
     n.add_argument("-f", "--peptides-file")
     n.add_argument("--chain", action="append", default=[])
-    n.add_argument("--ph", type=float, default=7.4)
+    n.add_argument("--protonation", choices=("reduce", "propka"),
+                   default="reduce",
+                   help="Protonate with: reduce (the default), ADFRsuite's, "
+                        "as ADFR and ADapt protonate, which places histidine "
+                        "protons from the hydrogen bonds and takes no pH; or "
+                        "propka, PDB2PQR with PROPKA at the pH given with "
+                        "--ph")
+    n.add_argument("--ph", type=float, default=7.4,
+                   help="the pH for --protonation propka (7.4 by default); "
+                        "reduce takes none")
+    n.add_argument("--adapt-session", default="",
+                   help="Receptor from ADapt: a session folder ADapt wrote "
+                        "(it holds session.json). Its receptor PDBQT is "
+                        "docked as ADapt wrote it and its _rec_H.pdb is the "
+                        "prepared receptor, so -r and this package's "
+                        "preparation are not used")
+    n.add_argument("--adapt-save", type=int, default=0,
+                   help="with --adapt-session: which receptor save to use "
+                        "(the newest by default)")
     n.add_argument("--no-minimise", dest="minimise",
                    action="store_false", default=True,
                    help="skip the restrained minimisation after "
@@ -172,16 +215,34 @@ def main(argv=None):
                    help="keep cofactors and other heteroatoms. Off by "
                         "default: they are dropped unless they are part of "
                         "the site being docked into")
+    n.add_argument("--no-sidechains", dest="rebuild_sidechains",
+                   action="store_false", default=True,
+                   help="leave side chains as the structure has them: atoms "
+                        "it lacks are not in the prepared receptor. Missing "
+                        "side chain atoms are rebuilt by default")
     n.add_argument("--fill-loops", action="store_true",
-                   help="rebuild whole missing loops, not only missing side "
-                        "chains. Off by default, because a rebuilt loop is a "
-                        "guess and the docking cannot tell it from a "
-                        "measurement")
+                   help="rebuild whole missing loops as well. Off by "
+                        "default, because a rebuilt loop is a guess and the "
+                        "docking cannot tell it from a measurement")
     n.add_argument("--box-chains", default="ignore",
                    help="what to do about a chain the box reaches into but "
                         "that was not loaded: 'ignore' (report it), "
                         "'include', or a list like 'B,C'")
-    n.add_argument("--poses", type=int, default=10)
+    n.add_argument("--poses", type=int, default=10,
+                   help="ranked poses written per peptide: up to 10 with "
+                        "ADCP 1.0 and up to 100 with ADCP 1.1 (adcp -m)")
+    n.add_argument("--cyclic", choices=("none", "backbone", "disulfide"),
+                   default="none",
+                   help="dock every peptide linear (the default), cyclic "
+                        "head to tail (adcp -cyc), or cyclic through a "
+                        "disulfide between two cysteines (adcp -cys)")
+    n.add_argument("--helical", type=int, default=25,
+                   help="the per cent of replicas that start as a helix, "
+                        "the rest as coil (adcp -p). 25 by default; 0 starts "
+                        "every replica as coil")
+    n.add_argument("--keep-trajectories", action="store_true",
+                   help="keep every replica's trajectory, packed into one "
+                        "archive per peptide (adcp -k)")
     n.add_argument("--replicas", type=int, default=50)
     n.add_argument("--steps", type=int, default=2_500_000)
     n.add_argument("--mmgbsa", action="store_true")
@@ -320,6 +381,10 @@ def main(argv=None):
     if not a.cmd:
         ap.print_help()
         return 2
+    # The job scripts change into the run folder and then read job.json by
+    # this path, so a relative one would be looked for inside itself.
+    if getattr(a, "rundir", None):
+        a.rundir = os.path.abspath(a.rundir)
 
     if a.cmd == "cite":
         from . import cite as citemod
@@ -355,6 +420,10 @@ def main(argv=None):
             print("  %-16s %s" % (name, path or "NOT FOUND  (%s)"
                                   % toolmod.NEEDED[name]))
             missing += 0 if path else 1
+        for name, why in sorted(toolmod.ADFR_PROGRAMS.items()):
+            path = T.adfr_program(name)
+            print("  %-16s %s" % (name, path or "not found, optional (%s)"
+                                  % why))
         print("\nsbatch: %s" % ("found" if slurm.available() else "NOT FOUND"))
         if missing:
             print("\n%d tool(s) missing. Set ADFRSUITE_HOME and AMBERHOME, or "
@@ -366,8 +435,28 @@ def main(argv=None):
         # beside the run, so the same id reused on a node with no
         # outbound route still works. Anything else is treated as a
         # path.
-        if not a.target_file and not (a.receptor and a.site):
-            print("give -r and -s, or --target-file")
+        adapt_rec = None
+        if a.adapt_session:
+            from . import adapt as adaptmod
+            try:
+                adapt_rec = adaptmod.read_save(a.adapt_session,
+                                               a.adapt_save or None)
+            except adaptmod.NoSave as exc:
+                print("--adapt-session: %s" % exc)
+                return 2
+            a.receptor = adapt_rec["pdb"]
+            print("receptor from ADapt: save %d (%s) of %s"
+                  % (adapt_rec["save"], adapt_rec["tab"] or "tab not recorded",
+                     adapt_rec["folder"]))
+        if not a.target_file and not (
+                a.receptor and (a.site or a.site_mode != "residues")):
+            print("give -r and -s, or -r and --site-mode ligand or pocket, "
+                  "or --adapt-session and -s, or --target-file")
+            return 2
+        if a.site_mode == "ligand" and not a.site_ligand \
+                and not a.target_file:
+            print("--site-mode ligand needs --site-ligand: the peptide's "
+                  "chain, like B, or a hetero group, like A:NUT:201")
             return 2
         rec = a.receptor or ""
         if rec and fetch.looks_like_code(rec):
@@ -401,9 +490,31 @@ def main(argv=None):
             time=a.time, throttle=a.throttle,
             account=a.account, sbatch_extra=a.sbatch_extra,
             keep_hetatms=a.keep_hetatms, fill_loops=a.fill_loops,
+            rebuild_sidechains=a.rebuild_sidechains,
             box_chains=a.box_chains,
+            site_mode=a.site_mode, site_ligand=a.site_ligand,
+            site_pocket=a.site_pocket, agfr=a.agfr, autosite=a.autosite,
+            receptor_gradient=a.receptor_gradient, cyclic=a.cyclic,
+            helical=a.helical, keep_trajectories=a.keep_trajectories,
+            protonation=a.protonation,
+            adapt=({"folder": adapt_rec["folder"], "save": adapt_rec["save"]}
+                   if adapt_rec else {}),
             tools_roots=roots,
             peptides=_peptides(a.peptide, a.peptides_file, **kw))
+        if adapt_rec:
+            jobmod.take_adapt(j)
+        # A ring the peptide cannot close is refused here, before any job
+        # file is written, with the reason: ADCP itself would dock it as a
+        # linear peptide and say nothing.
+        bad = []
+        for p in j["peptides"]:
+            pr = peptide.cyclic_problem(p["sequence"], a.cyclic)
+            if pr:
+                bad.append("  %s (%s): %s" % (p["name"], p["sequence"],
+                                               pr.message))
+        if bad:
+            raise SystemExit("--cyclic %s cannot be used for every peptide:\n%s"
+                             % (a.cyclic, "\n".join(bad)))
         problems = jobmod.validate(j)
         jobmod.save(a.rundir, j)
         print("wrote %s" % jobmod.path_of(a.rundir))

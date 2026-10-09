@@ -21,7 +21,21 @@ HELP = {
         "path is read where it is, so it must be somewhere the compute nodes "
         "can also see. A file under your home or scratch directory usually "
         "is; one on your laptop is not. Use \"From this computer\" to upload "
-        "a file from your own machine."),
+        "a file from your own machine.\n\n"
+        "A .pdbqt is not taken: it is a receptor already prepared, and this "
+        "tool prepares its own. To dock into one you prepared yourself, make "
+        "a target file from it in AGFR or AGFRGUI and give that instead."),
+    "targetfile": (
+        "A target file from AGFR or AGFRGUI",
+        "A .trg file holds a prepared receptor, the grid maps computed from "
+        "it and the box they cover. Given one, the run docks into it as it "
+        "is: the receptor preparation here does not run, and the box is the "
+        "file's own, so no site residues are needed.\n\n"
+        "Load reads the file, checks it the way the run will, and shows its "
+        "receptor and box in the site view. A file that is truncated, holds "
+        "too few maps or was renamed after it was made is refused with the "
+        "reason. Do not rename a target: ADCP finds its maps by the file's "
+        "name."),
     "hotspots": (
         "The residues that define the site",
         "CHAIN:NUMBER, like A:98, or bare numbers when the receptor is one "
@@ -33,11 +47,88 @@ HELP = {
         "Pick the residues you believe a binder must touch, not the whole "
         "pocket. The box grows to cover them, and a box that is too big "
         "spreads the search more thinly everywhere."),
+    "site_mode": (
+        "Where the box goes",
+        "Residues you pick: the box spans them plus the padding. Every run "
+        "made before this choice existed placed its box this way.\n\n"
+        "A ligand or peptide in the structure: the box spans it plus the "
+        "padding, as AGFR places a box around a ligand, and the ligand is "
+        "kept out of the receptor. The residues it touches, within 4 \u00c5, "
+        "become the site every pose is measured against.\n\n"
+        "A pocket AutoSite finds: once the receptor is prepared, on the "
+        "compute node, AutoSite searches the whole receptor and the box goes "
+        "around its best scoring pocket, or around all of them. The residues "
+        "lining that pocket become the site. Nothing can be drawn before the "
+        "run, because the pocket is found on the prepared receptor; load the "
+        "run's target file afterwards to see it.\n\n"
+        "However it is placed, the box is held between the minimum and the "
+        "maximum."),
+    "site_ligand": (
+        "The ligand or peptide the box is built around",
+        "What the loaded structure holds that a box could be built around: "
+        "peptides, the protein chains of up to 50 residues, named by their "
+        "chain; and hetero groups, named CHAIN:NAME:NUMBER, like A:NUT:201. "
+        "Crystallisation additives come last and waters are not listed.\n\n"
+        "The ligand is never docked into. A peptide's chain is left out of "
+        "the receptor, and if you tick it among the chains to keep the run "
+        "is refused. A hetero group goes with the other heteroatoms; with "
+        "Keep heteroatoms on it would stay and fill its own site, so that is "
+        "refused too.\n\n"
+        "AGFR 1.1 can pick a ligand out of a PDB itself (--pdbLigand), but "
+        "only on a receptor it prepares itself, and it keeps a peptide chosen "
+        "that way in the receptor. So the box is worked out here, by AGFR's "
+        "own rule, and given to AGFR as a box."),
+    "site_pocket": (
+        "Which pocket",
+        "The best scoring pocket is AutoSite's first, ranked by how many "
+        "points it has, how strongly they bind and how buried they are "
+        "(agfr -p best).\n\n"
+        "Every pocket puts one box around all the pockets AutoSite finds "
+        "(agfr -p all). On a whole protein that is close to docking blind, "
+        "and the maximum box still applies.\n\n"
+        "agfr builds the maps for a pocket at 1 \u00c5 spacing, too coarse to dock "
+        "into, so its box is kept and the maps are built over it again at "
+        "0.375 \u00c5, as for any other box."),
+    "agfr": (
+        "Which AGFR builds the maps",
+        "AGFR builds the grid maps over the box that the peptide is docked "
+        "into. AGFR 1.1 comes with the ADCP 1.1 suite and is used wherever "
+        "that suite is installed; AGFR 1.0 comes with ADFRsuite.\n\n"
+        "Over the same receptor and box the two give the same box, the same "
+        "receptor and the same starting points. Their maps differ slightly, "
+        "because each runs its own build of AutoGrid: by at most 0.15 "
+        "kcal/mol where a peptide atom can sit, and by up to 1.2 in the "
+        "hydrogen bond donor map. ADCP 1.0 and ADCP 1.1 dock into maps from "
+        "either."),
+    "autosite": (
+        "Which AutoSite",
+        "AutoSite marks the places in the box where a ligand is likely to "
+        "bind. ADCP's search starts from them, and for a box from a pocket "
+        "they are the pocket.\n\n"
+        "AutoSite 1.0 keeps only the grid points that bind most strongly, so "
+        "it tends to miss the weakly bound parts of a large ligand such as a "
+        "peptide. 1.1 relaxes its cutoffs and scans several of them, which is "
+        "why the ADCP authors recommend it for peptides.\n\n"
+        "It changes where the search starts, not the maps. On the MDM2 "
+        "example the two placed 246 and 380 points, and on a short search "
+        "that can change which pose comes out best."),
+    "receptor_gradient": (
+        "The receptor gradient",
+        "Inside the receptor no atom can be, and the maps hold very high "
+        "values there. The gradient replaces them with values that slope "
+        "toward the receptor's surface, so a peptide atom caught inside is "
+        "pushed out (AGFR's -g). Where a peptide atom can actually sit the "
+        "maps are unchanged.\n\n"
+        "It is off unless you tick it: the ADCP authors found it expensive "
+        "and of no real help to the search. ADFRsuite's AGFR 1.0 adds it "
+        "unless told not to, and on the MDM2 example it took 2.5 minutes "
+        "there against 14 seconds without; AGFR 1.1 took 23 seconds more."),
     "pad": (
-        "Padding around the residues",
-        "How far the box extends beyond the hotspot residues, in Angstrom. "
-        "8 A leaves room for a peptide to lie across the site. With less "
-        "than about 5 A, a longer peptide has nowhere to put its ends."),
+        "Padding around what marks the site",
+        "How far the box extends beyond the residues, the ligand or the "
+        "pocket, in angstroms (\u00c5), on each side. 8 \u00c5 leaves room for a peptide to "
+        "lie across the site. With less than about 5 \u00c5, a longer peptide has "
+        "nowhere to put its ends."),
     "bmin": (
         "Smallest the box may be",
         "A minimum, in Angstrom. Two or three hotspot residues close together "
@@ -71,11 +162,63 @@ HELP = {
     # --- docking -----------------------------------------------------------
     "poses": (
         "Poses kept per peptide",
-        "How many of ADCP's ranked poses to keep. They are what you look at "
-        "afterwards and what MM-GBSA rescores, so this sets the size of the "
-        "answer rather than the size of the search.\n\n"
-        "ADCP writes at most ten, which is the default and enough to see "
-        "whether the peptide's poses agree on where it binds."),
+        "How many of ADCP's ranked poses to write and keep (ADCP's -m). They "
+        "are what you look at afterwards and what MM-GBSA rescores, so this "
+        "sets the size of the answer rather than the size of the search.\n\n"
+        "Ten is the default and enough to see whether the peptide's poses "
+        "agree on where it binds. ADCP 1.0 writes at most ten; ADCP 1.1 "
+        "writes up to 100, one for each cluster its search found, best "
+        "first. More poses cost a few seconds to write, not a longer "
+        "search."),
+    "cyclic": (
+        "A chain or a ring",
+        "A linear chain is how every run before this setting was docked.\n\n"
+        "A ring head to tail joins the first residue's nitrogen to the last "
+        "residue's carbon (ADCP's -cyc). Each replica's search then takes "
+        "about one and a half times as long.\n\n"
+        "A ring through a disulfide joins two cysteines (ADCP's -cys), so "
+        "every peptide needs at least two C, and one with fewer is refused "
+        "before anything is submitted: ADCP itself would dock it as a linear "
+        "chain and say nothing.\n\n"
+        "Both are restraints ADCP's search pulls on, not bonds it starts "
+        "with, so check that the ends, or the two sulfurs, meet in the poses "
+        "you use. A ring is not rescored with MM-GBSA here, which builds a "
+        "linear peptide. ADCP 1.1's OpenMM minimization can be used "
+        "instead: it adds the ring's closing bond, and for a disulfide it "
+        "does so only where the two sulfurs are within 3.5 \u00c5 of each "
+        "other."),
+    "helical": (
+        "Replicas that start helical",
+        "Each replica of ADCP's search starts from a shape: a helix or a "
+        "coil. This is the share that start as a helix (ADCP's -p). ADCP "
+        "gives replicas 1 to N x p / 100, rounded down, a helical start and "
+        "the rest a coil: at 25% with 50 replicas, replicas 1 to 12.\n\n"
+        "ADCP decides this from the case of the sequence's letters, upper "
+        "case for helix and lower case for coil, and -p rewrites them replica "
+        "by replica, so how a sequence is typed makes no difference. The "
+        "library names of non-standard residues, inside angle brackets, are "
+        "passed as written.\n\n"
+        "At 0 every replica starts as a coil, which is how every run before "
+        "this setting was docked; at 100 every one starts as a helix. ADCP's "
+        "-p does nothing at 0 or 100, so those two are given to ADCP as an all "
+        "lower case or all upper case sequence instead.\n\n"
+        "The search is as long either way; only where it starts changes."),
+    "keep_trajectories": (
+        "Keep every replica's trajectory",
+        "Each replica of ADCP's search writes its trajectory: every pose it "
+        "accepted on the way. ADCP 1.1 deletes them when the docking ends "
+        "unless told to keep them (its -k); ADCP 1.0 always leaves them, and "
+        "they are deleted here.\n\n"
+        "Ticked, they are packed into one archive per peptide, beside its "
+        "poses: docking/<peptide>/<peptide>_trajectories.tar.gz. About 150 "
+        "files per peptide become one. Two copies are left out of it: the "
+        "maps ADCP unpacked from the target, and out.pdb, which is every "
+        "trajectory again in one file. ADCP makes both again when the "
+        "archive is unpacked in the peptide's folder and asked to recluster "
+        "(-r).\n\n"
+        "Packing adds a few seconds per peptide, and the archive is tens of "
+        "megabytes, so leave this off unless you will look at the "
+        "trajectories."),
     "replicas": (
         "Independent searches",
         "ADCP runs this many searches from different random starts and keeps "
@@ -115,13 +258,37 @@ HELP = {
         "stops. Too few steps show up as poses that disagree with each other "
         "and a best score that changes when the run is repeated."),
 
+    "protonation": (
+        "How the receptor's hydrogens are placed",
+        "reduce, the default, is the program ADFR's own preparation and "
+        "ADapt use. It adds every hydrogen, turns Asn and Gln amides and "
+        "His rings over where the hydrogen bonds say the file has them the "
+        "wrong way round, and puts each histidine's protons where the "
+        "hydrogen bonds around it call for them. Checked against protein "
+        "structures solved by neutron diffraction, where the hydrogens are "
+        "seen, it placed histidine protons as deposited in 55% of 1,457 "
+        "cases. It takes no pH: aspartates and glutamates stay charged, "
+        "lysines and arginines positive.\n\n"
+        "PROPKA at a pH predicts each titratable residue's pKa and sets its "
+        "state at the pH you give, with PDB2PQR placing the hydrogens. Use "
+        "it when the pH matters to your question, an endosomal target at "
+        "5.5 for example. On the same neutron structures it placed 31% of "
+        "the histidines as deposited.\n\n"
+        "MM-GBSA keeps the receptor's choice: under reduce its complexes are "
+        "named from the receptor's own histidines, and under PROPKA they are "
+        "protonated again at the same pH. Runs made before this choice "
+        "existed used PDB2PQR with PROPKA, and reusing their settings keeps "
+        "it."),
     "ph": (
-        "pH the receptor is prepared at",
-        "PROPKA decides each titratable residue's state at this pH, which "
-        "sets the charges the docking sees: whether a histidine is neutral or "
+        "pH the receptor is protonated at",
+        "Used only when the receptor is protonated with PROPKA. PROPKA "
+        "decides each titratable residue's state at this pH, which sets the "
+        "charges the docking sees: whether a histidine is neutral or "
         "positive, whether an aspartate is charged.\n\n"
         "7.4 is physiological. If your assay runs at a different pH, use "
-        "that: an endosomal target at 5.5 has a different surface."),
+        "that: an endosomal target at 5.5 has a different surface. The same "
+        "pH is used again when MM-GBSA builds its complexes. reduce takes "
+        "no pH, so with reduce chosen this box is greyed out."),
     "minimise": (
         "Minimise after protonation",
         "A restrained minimisation: heavy atoms are held near their measured "
@@ -141,13 +308,34 @@ HELP = {
         "displace. The minimisation's force field has no parameters for "
         "most of what this keeps, metal ions included, so it is then "
         "skipped, and the results page says so."),
+    "rebuild_sidechains": (
+        "Rebuild missing side chains",
+        "Many structures lack the ends of some side chains, usually on the "
+        "surface where they were never resolved. On, which is the default, "
+        "PDBFixer rebuilds the missing atoms and they are docked against "
+        "like the rest.\n\n"
+        "Off, the receptor that is docked into keeps its side chains as the "
+        "structure has them. With reduce and no minimisation the missing "
+        "atoms are never built: reduce places hydrogens on a residue as it "
+        "stands. The minimisation needs whole residues, and PDB2PQR "
+        "completes every residue it is given, so with either of those the "
+        "missing atoms are modelled for a moment and then taken out with "
+        "the hydrogens on them. The backbone, the terminal oxygen and any "
+        "loop you ask to be rebuilt are completed either way.\n\n"
+        "A rebuilt side chain is placed from a template, not measured. Turn "
+        "this off when one would sit in your site and you would rather dock "
+        "against the gap. MM-GBSA still needs whole residues, so it "
+        "completes them in its own complex."),
     "fill_loops": (
         "Rebuild missing loops",
-        "Missing side chains are always rebuilt; this setting is about whole "
-        "missing residues, the loops the structure never resolved.\n\n"
+        "Whole missing residues, the loops the structure never resolved. "
+        "Missing side chain atoms are a separate setting, just before "
+        "this one.\n\n"
         "A rebuilt loop is a model, and once written it looks like a "
         "measured one. Turn this on only when a gap sits against your site "
-        "and leaving a hole there would be worse than filling it."),
+        "and leaving a hole there would be worse than filling it. A rebuilt "
+        "loop is built whole, side chains included, whichever way the side "
+        "chain setting is."),
     "mmgbsa": (
         "Rescore with MM-GBSA",
         "A physics-based rescoring of the docked poses: the complex is "
@@ -183,7 +371,8 @@ HELP = {
         "The scheduler stops the job at this limit, finished or not, so it "
         "is better to book generously: clusters usually charge for the time "
         "used, not the time booked. The estimate beside this box already "
-        "includes a margin."),
+        "includes a margin, and the line under it adds up what every job of "
+        "the run books: the prepare job, the docking tasks and the report."),
     "throttle": (
         "Most tasks at once",
         "Limits how many peptides run at the same time, however many are "
@@ -203,6 +392,18 @@ HELP = {
         "overwritten: the run directory is the name you give followed by the "
         "date and time, so a second run with the same name sits beside the "
         "first rather than on top of it."),
+    "sitesurf": (
+        "Show the receptor's surface",
+        "Draws the molecular surface of the chains you keep over the "
+        "structure, with the residues you picked coloured blue on it, so a "
+        "groove shows as a groove and the patch the box is built around "
+        "shows with it.\n\n"
+        "The surface is computed by MSMS, Michel Sanner's program, which "
+        "ships with ADFRsuite: the surface a probe of 1.5 \u00c5, a water "
+        "molecule, traces as it rolls over the atoms. Where MSMS is not "
+        "installed or cannot triangulate the structure, the viewer draws "
+        "its own surface instead and says so under the view.\n\n"
+        "This changes only what you see; it has no effect on the docking."),
     "showbox": (
         "Show the docking box",
         "Draws the box in the structure above, as a cage around the residues "

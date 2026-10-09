@@ -253,8 +253,10 @@ def box_for(atoms, hotspots, padding=8.0, minimum=20.0, maximum=30.0):
            and ((a.chain, a.resnum) in want or (None, a.resnum) in want)]
     spans = [max(p[i] for p in pts) - min(p[i] for p in pts) for i in range(3)]
     size = tuple(max(minimum, min(maximum, s + 2 * padding)) for s in spans)
-    note = ("%d residue(s) found, span %.1f A, box %.1f x %.1f x %.1f A"
-            % ((found, max(spans)) + size))
+    # The box's size is not repeated here: the page and the run's log both
+    # state it on the next line, from the same numbers.
+    note = ("%d residue(s) found, spanning %.1f \u00c5"
+            % (found, max(spans)))
     if missed:
         note += "; NOT in the structure: " + ", ".join(str(m) for m in missed)
     return ctr, size, note
@@ -262,6 +264,185 @@ def box_for(atoms, hotspots, padding=8.0, minimum=20.0, maximum=30.0):
 
 def distance(a, b):
     return math.sqrt(sum((a[i] - b[i]) ** 2 for i in range(3)))
+
+
+# ---- a box from a ligand or peptide in the structure --------------------
+#
+# AGFR can place its box around a ligand (-b ligand), and AGFR 1.1 can pick
+# that ligand out of a PDB itself (--pdbLigand). Only on a PDB it prepares
+# itself, though: --pdbLigand belongs to the path where AGFR protonates the
+# receptor with reduce and charges it, which would replace this tool's
+# preparation. And a peptide picked that way stays in the receptor: a
+# protein chain is flagged as receptor before the selection flags it as the
+# ligand, and on 1YCR with --pdbLigand "chain B" the receptor in the target
+# held chain B's 132 atoms, so the maps were built with the peptide still in
+# its site. So the box is worked out here by AGFR's own rule for -b ligand
+# (setBoxForCoords: the middle of the ligand's extent, and the extent plus
+# the padding on each side) and given to agfr as a box, and the ligand is
+# kept out of the receptor here.
+
+#: Hetero groups that are crystallisation additives (AGFR's own list, from
+#: recFromPDB.PDBProfiler._additives). Offered, but after the ligands.
+ADDITIVES = {"P4G", "EOH", "1PE", "DMS", "ACT", "ACY", "PEG", "PGE", "BME",
+             "FMT", "BUD", "GOL", "MRY", "BU3", "PO4", "MLI", "PDO", "PG4",
+             "SO4", "15P", "CO3", "PE8", "PE4", "EDO"}
+#: A protein chain this short is offered as a peptide that could set the box.
+PEPTIDE_MAX = 50
+#: Residues with a heavy atom this close to the ligand, or to an AutoSite
+#: pocket's points, are the site its box is built around.
+CONTACT = 4.0
+
+
+def ligands(atoms):
+    """What in a structure could set the box: [{id, kind, label, atoms}].
+
+    A peptide is named by its chain, like B; a hetero group as
+    CHAIN:NAME:NUMBER, like A:NUT:201. Waters are left out and additives
+    come last.
+    """
+    groups, order = {}, []
+    for a in atoms:
+        if not a.hetatm or a.resname in AA3 or a.resname in WATER:
+            continue
+        k = (a.chain, a.resname, a.resnum, a.icode or "")
+        if k not in groups:
+            groups[k] = 0
+            order.append(k)
+        if not a.is_hydrogen():
+            groups[k] += 1
+    out = []
+    for ch in chains(atoms):
+        if ch["kind"] != "protein" or ch["residues"] > PEPTIDE_MAX:
+            continue
+        seq = ch["sequence"]
+        out.append({"id": ch["id"], "kind": "peptide",
+                    "atoms": sum(1 for a in atoms if a.chain == ch["id"]
+                                 and not a.is_hydrogen()),
+                    "label": "chain %s, %d residue%s%s"
+                    % (ch["id"], ch["residues"],
+                       "" if ch["residues"] == 1 else "s",
+                       " (%s)" % seq if seq and len(seq) <= 30 else "")})
+    het = []
+    for k in order:
+        c, name, num, ic = k
+        kind = ("additive" if name in ADDITIVES
+                else "ion" if groups[k] == 1 else "ligand")
+        het.append({"id": "%s:%s:%d%s" % (c, name, num, ic), "kind": kind,
+                    "atoms": groups[k],
+                    "label": "%s %s:%d%s, %d atom%s%s"
+                    % (name, c, num, ic, groups[k],
+                       "" if groups[k] == 1 else "s",
+                       ", an additive" if kind == "additive" else "")})
+    het.sort(key=lambda r: r["kind"] == "additive")
+    return out + het
+
+
+def parse_ligand(spec):
+    """("chain", "B") or ("het", (chain, name, number, icode)), or None."""
+    s = str(spec or "").strip()
+    if not s:
+        return None
+    parts = s.split(":")
+    if len(parts) == 1 and len(s) <= 4:
+        return ("chain", s)
+    if len(parts) == 3:
+        c, name, num = (p.strip() for p in parts)
+        ic = ""
+        if num and num[-1].isalpha():
+            num, ic = num[:-1], num[-1]
+        try:
+            return ("het", (c, name.upper(), int(num), ic))
+        except ValueError:
+            return None
+    return None
+
+
+def ligand_atoms(atoms, spec):
+    """The heavy atoms of the ligand `spec` names, or []."""
+    p = parse_ligand(spec)
+    if not p:
+        return []
+    if p[0] == "chain":
+        return [a for a in atoms if a.chain == p[1] and not a.is_hydrogen()]
+    c, name, num, ic = p[1]
+    return [a for a in atoms if a.chain == c and a.resname == name
+            and a.resnum == num and (a.icode or "") == ic
+            and not a.is_hydrogen()]
+
+
+def ligand_problems(atoms, spec, chains_keep=(), keep_hetatms=False):
+    """[str] why `spec` cannot set the box for a receptor of `chains_keep`
+    (empty: every chain but a peptide ligand's own)."""
+    p = parse_ligand(spec)
+    if not p:
+        return ["%r does not name a ligand. Write a peptide's chain, like B, "
+                "or a hetero group as CHAIN:NAME:NUMBER, like A:NUT:201."
+                % str(spec)]
+    if not ligand_atoms(atoms, spec):
+        have = ", ".join(r["id"] for r in ligands(atoms)[:12]) or "nothing"
+        return ["%s is not in the structure. What it holds that could set "
+                "the box: %s." % (spec, have)]
+    keep = [c for c in (chains_keep or []) if c]
+    if p[0] == "chain":
+        if p[1] in keep:
+            return ["Chain %s sets the box and is also one of the receptor's "
+                    "chains, so the peptide would stay in the site it marks. "
+                    "Untick chain %s among the chains to keep." % (p[1], p[1])]
+        return []
+    chain = p[1][0]
+    if keep_hetatms and (not keep or chain in keep):
+        return ["Keep heteroatoms is on, so %s would stay in the receptor and "
+                "fill the site its box is built around. Turn Keep heteroatoms "
+                "off, or place the box another way." % spec]
+    return []
+
+
+def ligand_box(lig, padding=8.0, minimum=20.0, maximum=30.0):
+    """(centre, size, note) for a box around a ligand, by AGFR's rule for
+    -b ligand: centred on the middle of its extent, the extent plus the
+    padding on each side. Then clamped, as a box around residues is."""
+    if not lig:
+        return None, None, "the ligand has no atoms in this structure"
+    lo = [min(getattr(a, k) for a in lig) for k in "xyz"]
+    hi = [max(getattr(a, k) for a in lig) for k in "xyz"]
+    centre = tuple((lo[i] + hi[i]) / 2.0 for i in range(3))
+    spans = [hi[i] - lo[i] for i in range(3)]
+    size = tuple(max(minimum, min(maximum, s + 2 * padding)) for s in spans)
+    note = ("%d ligand atoms, spanning %.1f \u00c5" % (len(lig), max(spans)))
+    return centre, size, note
+
+
+def _near(atoms, pts, cutoff, chains_keep, skip=()):
+    keep = set(chains_keep or [])
+    c2 = cutoff * cutoff
+    found = set()
+    for a in atoms:
+        if id(a) in skip or a.is_hydrogen() or a.resname in WATER:
+            continue
+        if keep and a.chain not in keep:
+            continue
+        if a.hetatm and a.resname not in AA3:
+            continue
+        for p in pts:
+            if ((a.x - p[0]) ** 2 + (a.y - p[1]) ** 2
+                    + (a.z - p[2]) ** 2) <= c2:
+                found.add((a.chain, a.resnum))
+                break
+    return sorted(found)
+
+
+def contacts(atoms, lig, cutoff=CONTACT, chains_keep=None):
+    """[(chain, resnum)] of the receptor residues with a heavy atom within
+    `cutoff` of the ligand: the site its box is built around, which the
+    results then measure each pose against."""
+    return _near(atoms, [(a.x, a.y, a.z) for a in lig], cutoff, chains_keep,
+                 skip={id(a) for a in lig})
+
+
+def near_points(atoms, points, cutoff=CONTACT, chains_keep=None):
+    """[(chain, resnum)] of the residues with a heavy atom within `cutoff`
+    of any of `points`: the residues lining an AutoSite pocket."""
+    return _near(atoms, points, cutoff, chains_keep)
 
 
 def write_pdb(atoms, path, chains_keep=None):
