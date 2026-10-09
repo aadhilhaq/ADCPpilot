@@ -37,7 +37,31 @@ restrained minimisation and read mmCIF.
 
 ### 1.2 Install
 
-Install in a group or scratch folder that your cluster's policy permits, not in your home directory: on most clusters home has a small file allowance, and the environment and ADFRsuite together hold tens of thousands of files. Everything below stays inside the checkout, including the conda environment and the download caches. Module names vary by site.
+One script does it, on a login node, since it downloads:
+
+```bash
+git clone https://github.com/aadhilhaq/ADCP_docking.git
+cd ADCP_docking
+./install.sh /scratch/you/adcp
+```
+
+The folder you give is where the environment and ADFRsuite go. Choose one with room that your cluster's policy permits, not your home directory, where most clusters allow few files: the environment and ADFRsuite hold tens of thousands. The script:
+
+* looks for an environment and an ADFRsuite already on the machine, and builds only what is missing;
+* builds the environment (Python 3.11, RDKit, AmberTools, PDB2PQR, OpenMM, PDBFixer and Biopython, all from conda-forge) with your cluster's conda, or with micromamba, a single file it fetches into that folder, when there is none. No conda module is needed;
+* downloads ADFRsuite from Scripps, checks the archive against a pinned SHA-256 checksum, and installs it;
+* writes `activate.sh` in the checkout, which names all of it.
+
+It takes 15 to 40 minutes, nearly all of it AmberTools. If it stops part way, run the same line again: it carries on from what is already there. `./install.sh --check` reports what it found and changes nothing. Nothing is written to your home directory.
+
+**For a whole group**, run it once in a shared folder and have everyone use
+that checkout. Each person runs their own server from the shared install.
+
+#### By hand
+
+The same thing step by step, for a site where you would rather build the
+environment yourself. Everything stays inside the checkout, including the
+conda environment and the download caches; module names vary by site.
 
 ```bash
 git clone https://github.com/aadhilhaq/ADCP_docking.git
@@ -55,19 +79,25 @@ python -m adcp_dock.adfr --dest tools/docking/ADFRsuite
 
 The last command downloads ADFRsuite from Scripps, checks the archive against a pinned SHA-256 checksum, and installs it.
 
-**For a whole group**, install once in a shared directory and have everyone
-use it: `--dest /path/to/group/tools/ADFRsuite`, with the repository cloned
-next to it. Each person runs their own server from the shared install.
-
 ### 1.3 Point it at the tools
+
+```bash
+source activate.sh
+adcp-dock check
+```
+
+`activate.sh`, written by `install.sh`, sets `ADFRSUITE_HOME`, `AMBERHOME`
+and `PATH`. The desktop launcher sources it before it starts the server, and
+every job a run submits names the same programs itself, so a cluster that
+starts its jobs with a clean environment still finds them. After an install
+by hand, set the two variables yourself:
 
 ```bash
 export ADFRSUITE_HOME=/path/to/ADCP_docking/tools/docking/ADFRsuite
 export AMBERHOME=$CONDA_PREFIX          # only if you installed ambertools
-adcp-dock check
 ```
 
-`adcp-dock check` lists detected tools and missing dependencies without submitting jobs. Run it before starting a calculation. Put the two `export` lines in `~/.bashrc`, or in an `activate.sh` beside the checkout, which the desktop launcher sources before it starts the server.
+`adcp-dock check` lists detected tools and missing dependencies without submitting jobs. Run it before starting a calculation.
 
 ### 1.4 Tell it about your cluster's rules
 
@@ -175,8 +205,9 @@ a failure and only the peptides with no result are docked again.
 | **home quota** | runs are large | write runs under `$SCRATCH`; the default already does when `$SCRATCH` is set |
 | **array limits** | a long peptide list is refused | check the maximum array size and concurrent-task limit; `--throttle` controls concurrency, not total array size |
 | **walltime limits** | a job waits indefinitely with `PartitionTimeLimit` | the page shows it; lower the walltime or choose a partition that allows it |
-| **cores per node** | a task asks for more than a node has | set *Cores per task* to your node size or less |
-| **module names** | `module load Anaconda3` fails | `module avail` for your site's conda |
+| **cores per node** | a task asks for more than a node has | *Cores per task* starts at what a node of the default partition has, up to 48; a partition with smaller nodes needs it lowered |
+| **conda** | there is no conda module, or it has another name | nothing: `install.sh` fetches micromamba when it finds no conda |
+| **job environment** | the cluster starts jobs with a clean environment | nothing: each job script names ADFRsuite and AmberTools itself |
 | **compute nodes without internet** | PDB ids fail from a job | fetch from the login node, or upload the file |
 
 ---

@@ -96,6 +96,9 @@ function gbEngines(rows){
 }
 
   const cores = d.cores || 1;
+  // A task cannot have more cores than a node, and the default is written for
+  // 48-core nodes; on a cluster with smaller ones it starts at what they have.
+  if (!d.local && d.node_cores && +$('cpus').value > d.node_cores) $('cpus').value = d.node_cores;
   $('toolnote').innerHTML = miss.length
     ? '<span class=bad>missing: ' + miss.map(esc).join(', ') + '</span>'
     : (d.local ? '<span class=good>ready</span> &middot; runs on this '

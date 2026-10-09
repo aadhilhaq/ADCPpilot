@@ -213,7 +213,9 @@ def main(argv=None):
                    help='other SLURM options, written with = so they are not read '
                         'as options of this command: '
                         '--sbatch-extra="--qos=normal --partition=short"')
-    n.add_argument("--cpus", type=int, default=48)
+    # 48, or what a node of the default partition has when that is fewer:
+    # sbatch refuses a task asking for more cores than any node holds.
+    n.add_argument("--cpus", type=int, default=None)
     n.add_argument("--time", default="08:00:00")
     n.add_argument("--throttle", type=int, default=0)
     n.add_argument("--tools-root", action="append", default=[])
@@ -394,7 +396,8 @@ def main(argv=None):
             mmgbsa_poses=a.mmgbsa_poses, mmgbsa_model=a.mmgbsa_model,
             mmgbsa_engine=a.mmgbsa_engine,
             top_n=a.top_n,
-            max_length=a.max_length, partition=a.partition, cpus=a.cpus,
+            max_length=a.max_length, partition=a.partition,
+            cpus=a.cpus if a.cpus else slurm.cores_for_cluster(48),
             time=a.time, throttle=a.throttle,
             account=a.account, sbatch_extra=a.sbatch_extra,
             keep_hetatms=a.keep_hetatms, fill_loops=a.fill_loops,

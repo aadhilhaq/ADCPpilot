@@ -109,6 +109,77 @@ def fits(partition, minutes):
     return None
 
 
+def node_cores():
+    """The cores on one node of the partition a job lands in when it names none, or None.
+
+    The default is the largest node of the default partition, because that is
+    where a job with no partition goes; a cluster without one marked default
+    gives the largest node it has. None when sinfo is not here or says
+    nothing, which leaves the caller's own default alone.
+    """
+    try:
+        out = subprocess.run(["sinfo", "-h", "-o", "%P|%c"], capture_output=True,
+                             text=True, timeout=30).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    default, any_ = [], []
+    for line in out.splitlines():
+        name, _, cpus = line.strip().partition("|")
+        found = re.match(r"(\d+)", cpus.strip())
+        if not found:
+            continue
+        any_.append(int(found.group(1)))
+        if name.endswith("*"):
+            default.append(int(found.group(1)))
+    pick = default or any_
+    return max(pick) if pick else None
+
+
+def cores_for_cluster(wanted):
+    """`wanted` cores, or fewer when no node of the default partition has that many.
+
+    A task asking for more cores than a node has is refused by sbatch, so a
+    default written for one cluster's 48-core nodes would stop every run on a
+    cluster with 32.
+    """
+    have = node_cores()
+    return min(int(wanted), have) if have else int(wanted)
+
+
+def tool_exports(roots=()):
+    """Lines for a job script that name where the programs are, read now on the login node.
+
+    A job usually inherits the environment it was submitted from, which is
+    where ADFRSUITE_HOME and AMBERHOME come from. Some clusters start every
+    job with a clean environment instead, and there the job would not find
+    ADFRsuite at all; so the script says it outright, the same way on both.
+    """
+    import shlex
+    from . import tools as toolmod
+    found = toolmod.discover(roots=roots)
+    lines = []
+    for var in ("ADFRSUITE_HOME", "AMBERHOME", "ADCPSUITE_HOME", "ADAPT_HOME",
+                "ADCP_DOCK_TOOLS", "ADCP_ACKNOWLEDGEMENT"):
+        value = os.environ.get(var)
+        if value:
+            lines.append("export %s=%s" % (var, shlex.quote(value)))
+    if not os.environ.get("ADFRSUITE_HOME") and found.get("adcp"):
+        lines.append("export ADFRSUITE_HOME=%s" % shlex.quote(
+            os.path.dirname(os.path.dirname(found.get("adcp")))))
+    if not os.environ.get("AMBERHOME"):
+        amber = toolmod.amber_home(found)
+        if amber:
+            lines.append("export AMBERHOME=%s" % shlex.quote(amber))
+    dirs = []
+    for name in toolmod.NEEDED:
+        where = found.get(name)
+        if where and os.path.dirname(where) not in dirs:
+            dirs.append(os.path.dirname(where))
+    if dirs:
+        lines.append("export PATH=%s:$PATH" % ":".join(shlex.quote(d) for d in dirs))
+    return "\n".join(lines)
+
+
 def why_pending(job_id, rundir=None):
     """What the scheduler says is holding a job up, in one word."""
     if is_local(job_id):

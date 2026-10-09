@@ -24,17 +24,18 @@ Developed by Aadhil Haq, HOPE Lab, under the supervision of Dr. Sandun Fernando.
 | Your own computer (Linux, macOS, or Windows through WSL) | [INSTALL.md, section 2](INSTALL.md#2-on-your-own-computer) |
 | Google Colab | [Open the notebook](https://colab.research.google.com/github/aadhilhaq/ADCP_docking/blob/main/notebooks/ADCP_docking_colab.ipynb); nothing is installed on your computer |
 
-On a cluster, once the environment in INSTALL.md is set up, in a group or scratch folder rather than your home directory:
+On any Slurm cluster, on a login node, with a folder that has room (not your home directory):
 
 ```bash
 git clone https://github.com/aadhilhaq/ADCP_docking.git
 cd ADCP_docking
-pip install --no-cache-dir -e ".[local]"
-python -m adcp_dock.adfr --dest tools/docking/ADFRsuite
-export ADFRSUITE_HOME=$PWD/tools/docking/ADFRsuite
+./install.sh /scratch/you/adcp     # 15 to 40 minutes; run it again if it stops
+source activate.sh
 adcp-dock check
 adcp-dock serve --port 0
 ```
+
+`install.sh` needs no conda module: it uses the cluster's conda where there is one and fetches micromamba where there is not. It builds the environment, downloads ADFRsuite from Scripps and checks it against a pinned checksum, and writes `activate.sh`, which names everything ([INSTALL.md, 1.2](INSTALL.md#12-install)).
 
 The server prints an address with an access token. Open it through an SSH tunnel ([INSTALL.md, 1.5](INSTALL.md#15-start-the-page)) or with the [desktop launcher](INSTALL.md#5-the-desktop-launcher).
 

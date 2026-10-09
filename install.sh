@@ -15,7 +15,10 @@
 #     ./install.sh --check              report and change nothing
 #
 # Run it on a login node: it downloads files, and compute nodes often have no
-# outbound network.
+# outbound network. Nothing else is needed first: a cluster's own conda is
+# used when there is one, and micromamba (a single file) is fetched into the
+# prefix when there is not. Run it again after a failure and it carries on
+# from what is already there. Nothing is written to your home directory.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -34,12 +37,17 @@ head_() { printf '\n== %s ==\n' "$*"; }
 
 # --- where a shared install keeps things ----------------------------------
 # Ordered by how likely they are to be the right answer on a given machine.
+# The prefix's own come first after anything named outright, so running this
+# again with the same prefix finds what the first run built.
 ENV_CANDIDATES=(
   "${ADCP_ENV:-}"
+  ${PREFIX:+"$PREFIX/envs/adcp"}
   ${ADCP_SHARED:-/opt/shared}/envs/adcp
 )
 ADFR_CANDIDATES=(
   "${ADFRSUITE_HOME:-}"
+  ${PREFIX:+"$PREFIX/tools/docking/ADFRsuite"}
+  "$HERE/tools/docking/ADFRsuite"
   ${ADCP_SHARED:-/opt/shared}/tools/docking/ADFRsuite
   ${ADCP_SHARED:-/opt/shared}/third_party/ADFRsuite
 )
@@ -173,17 +181,56 @@ MSG
   fi
   ENVDIR="$PREFIX/envs/adcp"
   head_ "Building $ENVDIR"
-  command -v conda >/dev/null 2>&1 || {
-    echo "conda is not on PATH. 'module load Anaconda3' first." >&2; exit 1; }
-  # Into the shared package cache, not ~/.conda, for the same reason the
-  # prefix is not optional. Given to this command only, so no setting is
-  # written into the home directory either.
-  mkdir -p "$PREFIX/conda_shared/pkgs"
+  # Whatever makes conda environments here: the cluster's own conda or
+  # mamba when one is on PATH, else micromamba, a single static file, fetched
+  # into the prefix once. So a cluster with no conda module, or one named
+  # something this script has never heard of, needs nothing done first.
+  SOLVER=""
+  for c in "${CONDA_EXE:-}" mamba conda micromamba "$PREFIX/tools/micromamba"; do
+    [ -n "$c" ] || continue
+    if command -v "$c" >/dev/null 2>&1; then SOLVER="$(command -v "$c")"; break; fi
+  done
+  if [ -z "$SOLVER" ]; then
+    case "$(uname -m)" in
+      x86_64) MM=linux-64 ;; aarch64) MM=linux-aarch64 ;; ppc64le) MM=linux-ppc64le ;;
+      *) echo "no conda here, and micromamba is not built for $(uname -m)" >&2; exit 1 ;;
+    esac
+    say "  no conda on PATH; fetching micromamba into $PREFIX/tools"
+    mkdir -p "$PREFIX/tools"
+    MMURL="https://github.com/mamba-org/micromamba-releases/releases/latest/download/micromamba-$MM"
+    if command -v curl >/dev/null 2>&1; then
+      curl -fsSL --retry 3 -o "$PREFIX/tools/micromamba.part" "$MMURL"
+    else
+      wget -q -O "$PREFIX/tools/micromamba.part" "$MMURL"
+    fi || { echo "  could not download micromamba from $MMURL" >&2; exit 1; }
+    mv "$PREFIX/tools/micromamba.part" "$PREFIX/tools/micromamba"
+    chmod 775 "$PREFIX/tools/micromamba"
+    SOLVER="$PREFIX/tools/micromamba"
+  fi
+  say "  using $SOLVER"
+  # Into the prefix's package cache, not ~/.conda, for the same reason the
+  # prefix is not optional. HOME itself points into the prefix for these
+  # commands only: conda keeps a list of every environment it has made in
+  # ~/.conda/environments.txt, and nothing about this install belongs there.
+  mkdir -p "$PREFIX/conda_shared/pkgs" "$PREFIX/conda_shared/home"
   export CONDA_PKGS_DIRS="$PREFIX/conda_shared/pkgs"
+  export MAMBA_ROOT_PREFIX="$PREFIX/conda_shared/mamba"
+  SPECS=(python=3.11 "numpy<2" rdkit ambertools pdb2pqr pdbfixer openmm biopython)
   say "  this is the slow part: 15-40 minutes, almost all of it AmberTools"
-  conda create -y -p "$ENVDIR" -c conda-forge \
-      python=3.11 "numpy<2" rdkit ambertools pdb2pqr \
-      pdbfixer openmm biopython
+  if [ -d "$ENVDIR/conda-meta" ]; then
+    # An environment an earlier run began and did not finish: completed
+    # in place rather than made again, so nothing already there is fetched
+    # twice.
+    say "  $ENVDIR was begun by an earlier run; completing it"
+    HOME="$PREFIX/conda_shared/home" "$SOLVER" install -y -p "$ENVDIR" \
+        -c conda-forge --override-channels "${SPECS[@]}"
+  else
+    HOME="$PREFIX/conda_shared/home" "$SOLVER" create -y -p "$ENVDIR" \
+        -c conda-forge --override-channels "${SPECS[@]}"
+  fi
+  # The packages fetched to build it are not needed once it is built, and
+  # they are tens of thousands of files.
+  HOME="$PREFIX/conda_shared/home" "$SOLVER" clean -a -y >/dev/null 2>&1 || true
   found_env="$ENVDIR"
 fi
 
@@ -205,7 +252,11 @@ if [ "$need_adfr" = 1 ]; then
   TAR=ADFRsuite_x86_64Linux_1.0.tar.gz
   if [ ! -s "$TAR" ]; then
     say "  downloading from Scripps (about 100 MB)"
-    curl -fSL -o "$TAR" "$URL" || {
+    if command -v curl >/dev/null 2>&1; then
+      curl -fSL --retry 3 -o "$TAR" "$URL"
+    else
+      wget -q -O "$TAR" "$URL"
+    fi || {
       cat >&2 <<'MSG'
   Could not download ADFRsuite.
 

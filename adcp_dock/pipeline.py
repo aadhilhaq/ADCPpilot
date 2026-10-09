@@ -1039,11 +1039,13 @@ def _scripts(rundir, j, python=None):
     logdir = os.path.join(rundir, "logs")
     os.makedirs(logdir, exist_ok=True)
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    env = [slurm.tool_exports(j.get("tools_roots") or [])]
+    if slurm.stage_pythonpath():
+        env.append("export PYTHONPATH=%s:${PYTHONPATH}" % slurm.stage_pythonpath())
     return dict(partition=j.get("partition", "cpu"), workdir=rundir,
                 logdir=logdir, python=python,
                 jobfile=jobmod.path_of(rundir),
-                env=("export PYTHONPATH=%s:${PYTHONPATH}" % slurm.stage_pythonpath()
-                     if slurm.stage_pythonpath() else ""),
+                env="\n".join(e for e in env if e),
                 extra=slurm.site_options(j.get("account"),
                                          j.get("sbatch_extra"))[0],
                 mem=j.get("mem", "32G"))

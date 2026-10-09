@@ -294,6 +294,9 @@ class App:
                 # should know which they are on.
                 "local": slurm.local_mode(),
                 "cores": slurm.usable_cores(),
+                # The cores on a node of the default partition, so the page's
+                # Cores per task starts at something a node here can give.
+                "node_cores": None if slurm.local_mode() else slurm.node_cores(),
                 "roots": self.tools_roots,
                 # Required tools only. Optional ones are listed apart, so a
                 # machine without AmberTools reads as able to dock.
