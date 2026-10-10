@@ -516,6 +516,35 @@ def strip_modelled_side_chains(measured, path, out_path, steps):
     return out_path
 
 
+# OpenMM and Amber do not name a cap's atoms the same way, and the file goes
+# to tleap next. OpenMM writes the methyl of an NME as C with H1, H2 and H3
+# on it; Amber calls them CH3 and HH31 to HH33, and tleap answers an unknown
+# atom name by dropping the atom and rebuilding it. Renaming here keeps the
+# hydrogens that were just minimised instead of having them guessed again.
+CAP_NAMES = {"ACE": {"H1": "HH31", "H2": "HH32", "H3": "HH33"},
+             "NME": {"C": "CH3", "H1": "HH31", "H2": "HH32", "H3": "HH33"},
+             "NMA": {"C": "CH3", "H1": "HH31", "H2": "HH32", "H3": "HH33"}}
+
+
+def amber_cap_names(path):
+    """Cap atoms renamed from OpenMM's spelling to Amber's, in place."""
+    out, changed = [], 0
+    for l in open(path, errors="replace"):
+        if l[:6].strip() in ("ATOM", "HETATM"):
+            want = CAP_NAMES.get(l[17:20].strip(), {}).get(l[12:16].strip())
+            if want:
+                # A FOUR-CHARACTER NAME FILLS THE FIELD. Padding it like a
+                # short one and then trimming to four wrote HH31 as HH3.
+                field = want if len(want) == 4 else (" " + want).ljust(4)
+                l = l[:12] + field + l[16:]
+                changed += 1
+        out.append(l)
+    if changed:
+        with open(path, "w") as fh:
+            fh.writelines(out)
+    return changed
+
+
 def minimise(path, out_path, steps, restraint=10.0, max_iterations=500,
              log=print):
     """A restrained minimisation, the way the wizard's last step is.
@@ -554,7 +583,17 @@ def minimise(path, out_path, steps, restraint=10.0, max_iterations=500,
                 "field is not asked to bond across them" % len(gaps)))
     try:
         pdb = app.PDBFile(path)
-        ff = app.ForceField("amber14-all.xml", "implicit/gbn2.xml")
+        # tip3p IS WHERE THE IONS ARE. amber14-all.xml carries protein,
+        # nucleic acid and lipid templates and no monovalent ions, so a
+        # receptor keeping the sodium a crystal came with stopped the
+        # minimisation with "No template found for residue 104 (NA). The
+        # residue contains Na atoms, which are not supported by any template
+        # in the force field" - and keep_ions is on by default, so that is
+        # most structures. Nothing else changes: with implicit solvent there
+        # are no waters to parameterise unless the caller kept some, and
+        # then TIP3P is the right answer for them too.
+        ff = app.ForceField("amber14-all.xml", "amber14/tip3p.xml",
+                            "implicit/gbn2.xml")
         # The caps need their hydrogens, and the force field places
         # them: an NME is -NH-CH3, and placing those by hand would be
         # four further guesses.
@@ -622,6 +661,7 @@ def minimise(path, out_path, steps, restraint=10.0, max_iterations=500,
         with open(out_path, "w") as fh:
             app.PDBFile.writeFile(sim.topology, state.getPositions(), fh,
                                   keepIds=True)
+        amber_cap_names(out_path)
         if mapping:
             restore_chains(out_path, mapping)
     except Exception as e:
@@ -760,7 +800,7 @@ def backbone_gaps(path, tol=GAP_TOLERANCE):
     minimisation either.
     """
     import math
-    per = {}
+    per, keys = {}, []
     for l in open(path, errors="replace"):
         if l.startswith("ENDMDL"):
             break
@@ -774,8 +814,20 @@ def backbone_gaps(path, tol=GAP_TOLERANCE):
             key = (l[21], int(l[22:26]), l[26])
         except ValueError:
             continue
+        if key not in per:
+            keys.append(key)
         per.setdefault(key, {})[nm] = xyz
-    keys = sorted(per, key=lambda k: (k[0], k[1], k[2]))
+    # IN THE ORDER THE FILE HOLDS THEM, which is the order the chain runs in.
+    #
+    # This sorted the residues by number, and a residue number is not a
+    # position: thrombin is numbered the chymotrypsin way, so chain H runs
+    # 16, 17, ... 221, 221A, 222 ... and its light chain restarts at 1.
+    # Sorting put residues side by side that the chain does not, and each
+    # such pair came back as a break several angstroms wide. Six of the
+    # seven breaks reported on 4DII were that, and the caps written for them
+    # landed on the amide nitrogen of the residue that really follows: the
+    # complex then had six pairs of atoms 0.07 to 0.11 A apart, and
+    # mmgbsa.write_complex refused every one of them.
     out = []
     for a, b in zip(keys, keys[1:]):
         if a[0] != b[0]:
@@ -877,6 +929,45 @@ def _unit(v):
     return v / n if n > 1e-6 else v
 
 
+def _dihedral(a, b, c, d):
+    """The a-b-c-d torsion in degrees."""
+    import math
+    import numpy as np
+    b0, b1, b2 = a - b, c - b, d - c
+    n1, n2 = np.cross(b0, b1), np.cross(b1, b2)
+    m = np.cross(n1, _unit(b1))
+    return math.degrees(math.atan2(float(np.dot(m, n2)),
+                                   float(np.dot(n1, n2))))
+
+
+def _place(a, b, c, bond, angle, dihedral):
+    """A fourth atom, at `bond` from c, `angle` to b-c and `dihedral` to a-b.
+
+    The standard construction, and the reason the caps are built with it:
+    they were placed by adding scaled unit vectors instead, and for the ACE
+    every one of those vectors reduced to the same axis. The carbonyl oxygen
+    and the methyl carbon came out collinear with the nitrogen and 0.279 A
+    apart, in every ACE of every structure this has ever capped. Angles and
+    torsions cannot collapse that way.
+    """
+    import math
+    import numpy as np
+    angle, dihedral = math.radians(angle), math.radians(dihedral)
+    bc = _unit(c - b)
+    n = _unit(np.cross(b - a, bc))
+    m = np.cross(n, bc)
+    d = np.array([-bond * math.cos(angle),
+                  bond * math.sin(angle) * math.cos(dihedral),
+                  bond * math.sin(angle) * math.sin(dihedral)])
+    return c + d[0] * bc + d[1] * m + d[2] * n
+
+
+def _methyl(root, one, two, bond=1.090, angle=109.5):
+    """Three hydrogens on `two`, staggered about the one-two bond."""
+    return [_place(root, one, two, bond, angle, t) for t in (60.0, 180.0,
+                                                             300.0)]
+
+
 def cap_breaks(path, out_path, gaps, steps, log=print, amide_h=False):
     """ACE and NME on the ends a chain break creates. Returns out_path or None.
 
@@ -884,11 +975,11 @@ def cap_breaks(path, out_path, gaps, steps, log=print, amide_h=False):
     protonate it leaves two artificial ends, and charging them as real termini
     puts a charge pair into the structure that the protein does not have.
 
-    With amide_h, the residue after each break is given the amide hydrogen
-    the cap makes it need. reduce, unlike pdb2pqr, puts no hydrogen on the
-    nitrogen of a residue that has nothing before it, so after reduce that
-    residue has none; any terminal hydrogens it was given go, and one is
-    placed on the bisector of the cap's carbon and CA, 1.01 A out.
+    The residue after each break is given the amide hydrogen the cap makes
+    it need, and the terminal hydrogens the protonation gave it are dropped:
+    a capped residue is an ordinary amide, with one hydrogen on its
+    nitrogen. `amide_h` is kept for the caller that knows reduce leaves none
+    there at all, and no longer changes what is written.
     """
     import numpy as np
     if not gaps:
@@ -938,32 +1029,42 @@ def cap_breaks(path, out_path, gaps, steps, log=print, amide_h=False):
     pre = {}          # (chain, resnum, icode) -> [lines to put before it]
     add_h = {}        # (chain, resnum, icode) -> [its amide hydrogen]
     n_cap = 0
+    # WHOLE RESIDUES, NAMED AS THE FORCE FIELDS NAME THEM. The caps used to
+    # be two or three heavy atoms with no hydrogens, and the methyl carbon of
+    # the NME was called C, which is not an atom NME has. OpenMM could not
+    # match either template and the minimisation stopped on the first one:
+    #     No template found for residue 0 (ACE). The set of atoms is similar
+    #     to NGLY, but is missing 1 H atom and 1 N atom.
+    # so every receptor with an unmodelled break came out unminimised, and
+    # the step that says so is one line in a log nobody reads twice.
     for a, b, _d in gaps:
         A, B = at.get(a, {}), at.get(b, {})
-        # NME on the fragment that ENDS at `a`: N then its methyl.
-        if {"CA", "C", "O"} <= set(A):
-            d = -(_unit(A["CA"] - A["C"]) + _unit(A["O"] - A["C"]))
-            npos = A["C"] + 1.329 * _unit(d)
-            cpos = npos + 1.449 * _unit(_unit(npos - A["C"])
-                                        + 0.5 * _unit(npos - A["O"]))
+        # NME on the fragment that ENDS at `a`: the amide, then its methyl.
+        if {"N", "CA", "C", "O"} <= set(A):
+            psi = _dihedral(A["N"], A["CA"], A["C"], A["O"])
+            npos = _place(A["N"], A["CA"], A["C"], 1.329, 116.2, psi + 180.0)
+            hpos = _place(A["O"], A["C"], npos, 1.010, 119.0, 180.0)
+            mpos = _place(A["O"], A["C"], npos, 1.449, 121.5, 0.0)
             num = free_number(a[0], a[1] + 1)
-            add.setdefault(a, []).extend([
-                rec(0, "N", "NME", a[0], num, npos, "N"),
-                rec(0, "C", "NME", a[0], num, cpos, "C")])
+            rows_out = [rec(0, "N", "NME", a[0], num, npos, "N"),
+                        rec(0, "H", "NME", a[0], num, hpos, "H"),
+                        rec(0, "CH3", "NME", a[0], num, mpos, "C")]
+            for i, h in enumerate(_methyl(A["C"], npos, mpos), 1):
+                rows_out.append(rec(0, "HH3%d" % i, "NME", a[0], num, h, "H"))
+            add.setdefault(a, []).extend(rows_out)
             n_cap += 1
         # ACE on the fragment that BEGINS at `b`: carbonyl C, its O, methyl.
-        if {"N", "CA"} <= set(B):
-            d = -(_unit(B["CA"] - B["N"]))
-            cpos = B["N"] + 1.335 * _unit(d)
-            opos = cpos + 1.229 * _unit(_unit(cpos - B["N"])
-                                        + 0.6 * _unit(B["CA"] - B["N"]))
-            mpos = cpos + 1.508 * _unit(_unit(cpos - B["N"])
-                                        - 0.9 * _unit(opos - cpos))
+        if {"N", "CA", "C"} <= set(B):
+            cpos = _place(B["C"], B["CA"], B["N"], 1.335, 121.7, 180.0)
+            opos = _place(B["CA"], B["N"], cpos, 1.229, 122.7, 0.0)
+            mpos = _place(B["CA"], B["N"], cpos, 1.508, 116.6, 180.0)
             num = free_number(b[0], max(1, b[1] - 1))
-            pre.setdefault(b, []).extend([
-                rec(0, "C", "ACE", b[0], num, cpos, "C"),
-                rec(0, "O", "ACE", b[0], num, opos, "O"),
-                rec(0, "CH3", "ACE", b[0], num, mpos, "C")])
+            rows_out = [rec(0, "C", "ACE", b[0], num, cpos, "C"),
+                        rec(0, "O", "ACE", b[0], num, opos, "O"),
+                        rec(0, "CH3", "ACE", b[0], num, mpos, "C")]
+            for i, h in enumerate(_methyl(B["N"], cpos, mpos), 1):
+                rows_out.append(rec(0, "HH3%d" % i, "ACE", b[0], num, h, "H"))
+            pre.setdefault(b, []).extend(rows_out)
             n_cap += 1
 
     if not n_cap:
@@ -979,12 +1080,21 @@ def cap_breaks(path, out_path, gaps, steps, log=print, amide_h=False):
     for a, b, _d in gaps:
         for nm in ("OXT", "HXT", "OT1", "OT2"):
             drop.add((a, nm))
-        for nm in (("H1", "H2", "H3") if amide_h else ("H2", "H3")):
+        # ALL THREE, ALWAYS. A capped residue is an ordinary amide: one
+        # hydrogen on the nitrogen, named H. H1 was kept here unless the
+        # reduce path asked otherwise, and pdb2pqr puts H1 where the
+        # PRECEDING CARBONYL CARBON goes - so the cap's C landed 0.42 A from
+        # it on thrombin, which write_complex then refused as two atoms at
+        # the same place. The amide hydrogen below replaces all three.
+        for nm in ("H1", "H2", "H3"):
             drop.add((b, nm))
 
-    # The amide hydrogen, for the residues that will not keep one: placed
-    # from the cap's carbonyl carbon, which is the nitrogen's new neighbour.
-    if amide_h:
+    # THE AMIDE HYDROGEN, placed from the cap's carbonyl carbon, which is
+    # the nitrogen's new neighbour. Written for every capped residue now,
+    # not only on the reduce path: the three terminal hydrogens pdb2pqr put
+    # there have just been dropped, so without this the nitrogen has none.
+    # A residue that already carries one keeps it.
+    if True:
         names = {}
         for l in rows:
             if l[:6].strip() in ("ATOM", "HETATM"):

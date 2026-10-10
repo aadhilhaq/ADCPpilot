@@ -169,7 +169,13 @@ open(gap, "w").write(
     "ATOM      8  O   GLY A  14      13.700   0.980   0.900  1.00  0.00           O\n"
     "END\n")
 g = prepare.backbone_gaps(gap)
-for amide, want in ((False, 0), (True, 1)):
+# EITHER WAY NOW, and that is the change. The hydrogen used to be written
+# only when the caller said reduce had left none there; the rest of the time
+# the capped residue kept the charged H1, H2 and H3 pdb2pqr gives a terminus,
+# and H1 sits where the cap's carbonyl carbon goes. On thrombin those two
+# came out 0.42 A apart and the complex was refused. A capped residue is an
+# ordinary amide: those three go, and this one replaces them.
+for amide, want in ((False, 1), (True, 1)):
     out = prepare.cap_breaks(gap, os.path.join(TMP, "capped_%s.pdb" % amide), g, [],
                              amide_h=amide)
     hs = [l for l in open(out) if l[17:20] == "GLY" and l[12:16].strip() == "H"]
@@ -282,6 +288,137 @@ pipeline._carry_protonation(r3, dict(j_red, receptor_info={"protonation": {"meth
 check(not hasattr(r3, "protonation"),
       "a reduce run that fell back to PDB2PQR is rescored the PDB2PQR way")
 
+# --- a residue number is not a position -----------------------------------
+#
+# THE FAULT. backbone_gaps sorted the residues by number. Thrombin is
+# numbered the chymotrypsin way, so its light chain runs 1A, 1, 2 and its
+# heavy chain reaches 221, 221A, 222: sorting puts residues side by side
+# that the chain does not, and each such pair is measured as a break several
+# angstroms wide. On 4DII that invented six breaks out of seven, every one
+# of them was capped, and each cap landed on the amide nitrogen of the
+# residue that really follows - 0.07 to 0.11 A away. mmgbsa.write_complex
+# refuses a complex with two atoms in one place, so every thrombin complex
+# the study tried was refused before it was scored.
+import tempfile as _tf                                          # noqa: E402
+
+_cap_tmp = _tf.mkdtemp(prefix="caps_")
+
+
+def _line(serial, name, resname, chain, resnum, icode, xyz, element="C"):
+    return ("ATOM  %5d %-4s %3s %s%4d%1s   %8.3f%8.3f%8.3f  1.00  0.00"
+            "          %2s\n"
+            % (serial, (" " + name) if len(name) < 4 else name, resname,
+               chain, resnum, icode, xyz[0], xyz[1], xyz[2], element))
+
+
+# One continuous chain, written 1A, 1, 2 as the crystal numbers it.
+_rows, _serial = [], 0
+for _i, (_num, _ic) in enumerate([(1, "A"), (1, " "), (2, " ")]):
+    _base = _i * 3.3
+    for _nm, _el, _off in (("N", "N", 0.0), ("CA", "C", 1.0),
+                           ("C", "C", 2.0), ("O", "O", 2.3)):
+        _serial += 1
+        _rows.append(_line(_serial, _nm, "ALA", "A", _num, _ic,
+                           (_base + _off, 0.0, 0.0), _el))
+_insertion = os.path.join(_cap_tmp, "insertion.pdb")
+open(_insertion, "w").writelines(_rows + ["END\n"])
+_found = prepare.backbone_gaps(_insertion)
+check(not _found,
+      "a continuous chain numbered 1A, 1, 2 reports %d break(s). The "
+      "residues are read in the order the file holds them, not in the order "
+      "their numbers sort: %s"
+      % (len(_found), [(a[1] + a[2].strip(), b[1] + b[2].strip())
+                       for a, b, _d in _found]))
+
+# --- the cap is a residue, not three atoms on a line ----------------------
+#
+# THE FAULT. The ACE was placed by adding scaled unit vectors, and every one
+# of them reduced to the N-CA axis: the carbonyl oxygen and the methyl came
+# out 0.279 A apart, in every ACE ever written here. The caps also carried
+# no hydrogens and the NME's methyl was called C, so OpenMM could not match
+# either template and the minimisation stopped on the first one:
+#     No template found for residue 0 (ACE). The set of atoms is similar to
+#     NGLY, but is missing 1 H atom and 1 N atom.
+_rows, _serial = [], 0
+for _i, _num in enumerate([1, 2, 3, 9, 10, 11]):
+    _base = _i * 3.3 + (12.0 if _num >= 9 else 0.0)
+    for _nm, _el, _off, _up in (("N", "N", 0.0, 0.0), ("CA", "C", 1.0, 0.9),
+                                ("C", "C", 2.0, 0.0), ("O", "O", 2.3, 1.0)):
+        _serial += 1
+        _rows.append(_line(_serial, _nm, "ALA", "A", _num, " ",
+                           (_base + _off, _up, 0.0), _el))
+    for _j, _nm in enumerate(("H1", "H2", "H3")):
+        _serial += 1
+        _rows.append(_line(_serial, _nm, "ALA", "A", _num, " ",
+                           (_base - 0.5, 0.5 + 0.9 * _j, 0.4 * _j), "H"))
+_broken = os.path.join(_cap_tmp, "broken.pdb")
+open(_broken, "w").writelines(_rows + ["END\n"])
+_gaps = prepare.backbone_gaps(_broken)
+check(len(_gaps) == 1, "the cap fixture does not have exactly one break")
+_capped = prepare.cap_breaks(_broken, os.path.join(_cap_tmp, "capped.pdb"),
+                             _gaps, [], log=lambda *_a, **_k: None)
+check(_capped, "nothing was capped")
+_caps, _xyz, _names = {}, [], []
+for _l in open(_capped):
+    if not _l.startswith(("ATOM", "HETATM")):
+        continue
+    _xyz.append([float(_l[30:38]), float(_l[38:46]), float(_l[46:54])])
+    _names.append("%s%s:%s" % (_l[17:20].strip(), _l[22:26].strip(),
+                               _l[12:16].strip()))
+    if _l[17:20].strip() in ("ACE", "NME"):
+        _caps.setdefault(_l[17:20].strip(), {})[_l[12:16].strip()] = _xyz[-1]
+check(set(_caps.get("ACE", {})) == {"C", "O", "CH3", "HH31", "HH32", "HH33"},
+      "the ACE is %s; Amber's ACE is C, O, CH3 and three methyl hydrogens"
+      % sorted(_caps.get("ACE", {})))
+check(set(_caps.get("NME", {})) == {"N", "H", "CH3", "HH31", "HH32", "HH33"},
+      "the NME is %s; Amber's NME is N, H, CH3 and three methyl hydrogens"
+      % sorted(_caps.get("NME", {})))
+if {"O", "CH3"} <= set(_caps.get("ACE", {})):
+    import math as _math
+    _d = _math.dist(_caps["ACE"]["O"], _caps["ACE"]["CH3"])
+    check(2.0 < _d < 2.8,
+          "the ACE's oxygen and methyl are %.3f A apart; on a real carbonyl "
+          "they are about 2.4, and collinear they were 0.279" % _d)
+import numpy as _np                                             # noqa: E402
+
+from scipy.spatial import cKDTree as _KD                        # noqa: E402
+
+_close = sorted(_KD(_np.asarray(_xyz)).query_pairs(0.6))
+check(not _close,
+      "the capped structure has %d pair(s) of atoms within 0.6 A, e.g. %s "
+      "and %s. write_complex refuses a complex that holds one"
+      % (len(_close), _names[_close[0][0]] if _close else "",
+         _names[_close[0][1]] if _close else ""))
+_after = [n for n in _names if n.startswith("ALA9:")]
+check(not [n for n in _after if n.endswith((":H1", ":H2", ":H3"))],
+      "the residue under the ACE kept its charged N-terminal hydrogens: %s"
+      % _after)
+check("ALA9:H" in _after,
+      "the residue under the ACE has no amide hydrogen at all: %s" % _after)
+
+# --- and the names survive the minimisation -------------------------------
+# OpenMM writes an NME's methyl as C with H1, H2, H3 on it. tleap answers an
+# unknown atom name by dropping the atom and building its own, so the
+# hydrogens that were just minimised would be thrown away and guessed again.
+_omm = os.path.join(_cap_tmp, "omm.pdb")
+open(_omm, "w").writelines([
+    _line(1, "N", "NME", "A", 9, " ", (0.0, 0.0, 0.0), "N"),
+    _line(2, "H", "NME", "A", 9, " ", (0.5, 0.8, 0.0), "H"),
+    _line(3, "C", "NME", "A", 9, " ", (1.4, 0.0, 0.0), "C"),
+    _line(4, "H1", "NME", "A", 9, " ", (2.0, 0.9, 0.0), "H"),
+    _line(5, "CA", "ALA", "A", 10, " ", (5.0, 0.0, 0.0), "C"),
+    "END\n"])
+check(prepare.amber_cap_names(_omm) == 2,
+      "the cap atoms were not renamed back to Amber's spelling")
+_got = [l[12:16].strip() for l in open(_omm) if l.startswith("ATOM")]
+check(_got == ["N", "H", "CH3", "HH31", "CA"],
+      "renaming gave %s; only the cap's own atoms change, and a four "
+      "character name fills the field" % _got)
+
+import shutil as _sh                                            # noqa: E402
+
+_sh.rmtree(_cap_tmp, ignore_errors=True)
+
 # --- reduce itself, where ADFRsuite has it --------------------------------------------
 exe = toolmod.discover(roots=ROOTS).adfr_program("reduce")
 if not exe:
@@ -375,6 +512,8 @@ if out:
           "reduce chooses the peptide's histidine in the complex (%s)" % pep_names)
     check(os.path.isfile(os.path.join(wd4, "q_com_reduce.pdb")),
           "and what reduce wrote for the complex is kept")
+
+
 
 if fails:
     print("test_protonation FAILED (%d of %d)" % (len(fails), ran))
