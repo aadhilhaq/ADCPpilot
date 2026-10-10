@@ -131,13 +131,18 @@ def cysteine_positions(seq):
             if r in ("C", "&C")]
 
 
-def unscoreable(seq, j):
+def unscoreable(seq, j, mode=None):
     """Why this peptide is not rescored at all, or None when it can be.
 
-    A run made before JOB_KEY gives the reasons it gave then, word for word,
-    so its result files read the same whether written before or after.
+    `mode` is the ring the peptide was docked with; without it, the job
+    says (job.ring_for), the peptide's own ring or the run's. A run made
+    before JOB_KEY gives the reasons it gave then, word for word, so its
+    result files read the same whether written before or after.
     """
-    mode = str((j or {}).get("cyclic") or "none")
+    if mode is None:
+        from . import job as jobmod
+        mode = jobmod.ring_for(j or {}, seq)
+    mode = str(mode or "none")
     if not enabled(j):
         if peptide.is_extended(seq):
             return SKIP_OLD_D

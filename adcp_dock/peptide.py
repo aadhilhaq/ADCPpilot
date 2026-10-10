@@ -73,12 +73,55 @@ class Problem:
 
 # A peptide is docked as a linear chain unless the run says otherwise. ADCP
 # can also close it into a ring: through the backbone, head to tail (-cyc),
-# or through a disulfide between two of its cysteines (-cys). One choice per
-# run, applied to every peptide in it.
+# or through a disulfide between two of its cysteines (-cys). The run makes
+# one choice, which every peptide takes unless the peptide carries its own
+# (job.ring_of), so one run can dock some peptides linear and others as
+# rings.
 CYCLIC = ("none", "backbone", "disulfide")
 #: What each choice is called in the logs and the batch scripts.
 CYCLIC_LABELS = {"none": "linear", "backbone": "backbone cyclic, head to tail",
                  "disulfide": "cyclic through a disulfide"}
+#: What each is called beside a peptide: on its row in the page, in the
+#: results table, and in the ring column of a peptide file.
+RING_NAMES = {"none": "linear", "backbone": "head to tail",
+              "disulfide": "disulfide"}
+#: The same in a sentence: "docked as a ring head to tail".
+RING_AS = {"none": "as a linear chain", "backbone": "as a ring head to tail",
+           "disulfide": "as a ring through a disulfide"}
+
+# What people write for each choice, in a peptide file's ring column or a
+# form. Read with case, dashes and underscores ignored, so "Head-to-tail"
+# and "head_to_tail" are "head to tail". ADCP's own flags are here too, as
+# cyc and cys, since someone used to ADCP will write those. An empty cell,
+# "as the run" or "default" leaves the peptide to the run's own choice.
+_RING_WORDS = {
+    "linear": "none", "none": "none",
+    "head to tail": "backbone", "backbone": "backbone", "cyclic": "backbone",
+    "backbone cyclic": "backbone", "cyc": "backbone",
+    "disulfide": "disulfide", "disulphide": "disulfide", "cys": "disulfide",
+    "": "", "as the run": "", "default": "",
+}
+
+
+def _ring_text(text):
+    return " ".join(str(text if text is not None else "").lower()
+                    .replace("-", " ").replace("_", " ").split())
+
+
+def ring_choice(text):
+    """The ring a cell or a form names: "none", "backbone" or "disulfide",
+    "" for a blank (the run's own choice), and None for anything else."""
+    return _RING_WORDS.get(_ring_text(text))
+
+
+def ring_problem(text):
+    """Why `text` is not a ring a peptide can be given, as a Problem."""
+    return Problem(
+        "ring",
+        "The ring is given as '%s', which is not one of the choices: linear "
+        "(or none), head to tail (or backbone, or cyclic), or disulfide. "
+        "Leave it empty to dock this peptide as the run is set."
+        % str(text if text is not None else "").strip())
 
 
 def cysteines(seq):
@@ -111,7 +154,8 @@ def cyclic_problem(seq, mode):
                 "cyclic",
                 "A disulfide ring needs two cysteines and this peptide has %s. "
                 "Add the two cysteines the ring closes through, or dock it as "
-                "linear or backbone cyclic." % ("none" if n == 0 else "one"))
+                "a linear chain or a ring head to tail."
+                % ("none" if n == 0 else "one"))
     return None
 
 
@@ -258,15 +302,17 @@ def looks_like_a_name(line):
 
 
 # Column names a header row might use, so a CSV that says which way round it
-# is does not have to be guessed at.
+# is does not have to be guessed at. The ring column is optional.
 _NAME_WORDS = ("name", "label", "id", "peptide_name", "construct")
 _SEQ_WORDS = ("sequence", "seq", "peptide", "aa", "residues")
+_RING_COLUMN = ("ring", "cyclic", "cyclisation", "cyclization", "closure",
+                "topology")
 
 
 def _reads_as_sequence(text, **kw):
     """True when this field is a usable sequence on its own.
 
-    Used to work out which half of a two column row is the sequence, so both
+    Used to work out which field of a row is the sequence, so both
     `SEQUENCE,name` and `name,SEQUENCE` work without being told which.
     """
     t = (text or "").strip()
@@ -276,48 +322,140 @@ def _reads_as_sequence(text, **kw):
     return bool(seq) and not probs
 
 
-def _split_pair(line):
-    """A line split on a tab, a comma or a semicolon, if it is in two parts.
-
-    A colon is handled separately and earlier, because `name: SEQUENCE` is
-    the documented one line form. Only a clean two field split counts: three
-    or more fields is a spreadsheet row this function should not guess at.
-    """
+def _fields(line):
+    """(separator, fields) for a line split on a tab, a comma or a
+    semicolon, the first of those the line holds; (None, None) for a line
+    with none. Empty fields are kept, so the column a header row names is
+    still the right one in a row that leaves a cell empty."""
     for sep in ("\t", ",", ";"):
         if sep in line:
-            parts = [x.strip() for x in line.split(sep)]
-            parts = [x for x in parts if x != ""]
-            if len(parts) == 2:
-                return parts
-            return None
-    return None
+            return sep, [x.strip() for x in line.split(sep)]
+    return None, None
 
 
-def _header_order(line):
-    """(sequence index, name index) if this line names its columns."""
-    parts = _split_pair(line)
+def _split_row(line):
+    """The filled fields of a line split on a tab, a comma or a semicolon,
+    when there are two or three of them.
+
+    A colon is handled separately and earlier, because `name: SEQUENCE` is
+    the documented one line form. Two fields are a sequence and its name, or
+    a sequence and its ring; three are a sequence, a name and a ring. Four or
+    more is a spreadsheet row this function should not guess at.
+    """
+    _sep, parts = _fields(line)
     if not parts:
         return None
-    low = [x.strip().lower() for x in parts]
-    if low[0] in _SEQ_WORDS and low[1] in _NAME_WORDS:
-        return 0, 1
-    if low[0] in _NAME_WORDS and low[1] in _SEQ_WORDS:
-        return 1, 0
+    parts = [x for x in parts if x != ""]
+    return parts if len(parts) in (2, 3) else None
+
+
+def _header(line):
+    """Where each column is, when this line names its columns.
+
+    {"sep": separator, "sequence": i, and "name": i, "ring": i or both}, or
+    None. Every filled field must be a column's name, and one of them the
+    sequence's.
+    """
+    sep, parts = _fields(line)
+    if not parts:
+        return None
+    cols = {}
+    for i, x in enumerate(parts):
+        w = x.lower()
+        if not w:
+            continue
+        role = ("sequence" if w in _SEQ_WORDS else "name" if w in _NAME_WORDS
+                else "ring" if w in _RING_COLUMN else None)
+        if role is None or role in cols:
+            return None
+        cols[role] = i
+    if "sequence" not in cols or len(cols) < 2:
+        return None
+    cols["sep"] = sep
+    return cols
+
+
+def _seq_and_name(pair, header_hint, **kw):
+    """(sequence index, name index, Problem or None) for two fields, one of
+    which is the sequence; None when neither reads as one."""
+    first = _reads_as_sequence(pair[0], **kw)
+    second = _reads_as_sequence(pair[1], **kw)
+    if first != second:
+        # exactly one of them is a sequence, so there is nothing to decide
+        return ((0, 1) if first else (1, 0)) + (None,)
+    if not (first or second):
+        return None
+    # Both spell out in amino acid letters, which ordinary words do:
+    # "native" is N A T I V E. Case settles most of them, because a sequence
+    # is written in capitals and a label usually is not.
+    up = [x.isupper() for x in pair]
+    if up[0] != up[1]:
+        return ((0, 1) if up[0] else (1, 0)) + (None,)
+    # Still tied, so the first is taken as the sequence and the row says so
+    # rather than choosing silently.
+    return 0, 1, Problem(
+        "ambiguous_columns",
+        "Both columns read as sequences, so the first was taken as the "
+        "sequence and '%s' as the name. Put a header row, %s, to say which is "
+        "which." % (pair[1], header_hint))
+
+
+def _with_ring(cell, seq, probs):
+    """(ring, problems) for a row whose ring cell says `cell`. The ring is ""
+    for an empty cell, which leaves the peptide to the run's own choice, and
+    for a cell that names no ring, which is a problem said in the row."""
+    got = ring_choice(cell)
+    if got is None:
+        return "", list(probs) + [ring_problem(cell)]
+    if got and seq:
+        pr = cyclic_problem(seq, got)
+        if pr:
+            probs = list(probs) + [pr]
+    return got, probs
+
+
+def _three(parts, **kw):
+    """(sequence index, name index, ring index, Problem or None) for a row
+    of three fields and no header, or None.
+
+    The ring is the field that names one, the last such when more than one
+    could; the other two are a sequence and its name. When no field names a
+    ring, the field left over once a sequence and a name are found is taken
+    as the ring the row meant, and is said to be wrong rather than dropped.
+    """
+    for want_ring in (True, False):
+        for r in (2, 1, 0):
+            if want_ring and ring_choice(parts[r]) is None:
+                continue
+            rest = [i for i in (0, 1, 2) if i != r]
+            got = _seq_and_name([parts[rest[0]], parts[rest[1]]],
+                                "'name,sequence,ring'", **kw)
+            if got:
+                si, ni, pr = got
+                return rest[si], rest[ni], r, pr
     return None
 
 
-def parse_many(text, **kw):
-    """One sequence per line, `name: SEQUENCE`, a two column row, or FASTA.
+def parse_rows(text, **kw):
+    """One sequence per line, `name: SEQUENCE`, a row of columns, or FASTA.
 
-    A two column row separated by a tab, a comma or a semicolon works in
-    either order: the field that reads as a sequence is taken as the
-    sequence and the other as the name. A header row naming the columns
-    settles it for the whole list, which is what a spreadsheet export
-    carries anyway.
+    A row separated by a tab, a comma or a semicolon holds the sequence and
+    its name, in either order: the field that reads as a sequence is taken
+    as the sequence and the other as the name. A third field is the
+    peptide's ring, written as linear, head to tail or disulfide (or one of
+    the other names ring_choice reads); the ring may also stand alone beside
+    the sequence when the row has no name. A header row naming the columns
+    (sequence, name, ring) settles it for the whole list, which is what a
+    spreadsheet export carries anyway.
 
-    Returns [(name, seq, problems)]. Blank lines and `#` comments are dropped;
-    duplicates are kept, since two identical peptides in a list is a mistake
-    worth reporting rather than silently fixing.
+    Returns [{"name", "sequence", "cyclic", "named", "problems"}]. "cyclic"
+    is "none", "backbone" or "disulfide" for a row that names its ring, and
+    "" for one that does not, which is docked as the run is set. "named" is
+    whether the text gave the name, rather than it being the sequence's
+    first letters. Blank lines and
+    `#` comments are dropped; duplicates are kept, since two identical
+    peptides in a list is a mistake worth reporting rather than silently
+    fixing.
 
     `name: SEQUENCE` is the one-line way to name a peptide. A colon cannot be
     part of a sequence, so unlike a space it cannot be mistaken for one.
@@ -325,13 +463,18 @@ def parse_many(text, **kw):
     out = []
     name = None
     buf = []
-    order = None
+    head = None
+
+    def add(given, seq, ring, probs, fallback=None):
+        out.append({"name": given or fallback or seq[:12],
+                    "sequence": seq, "cyclic": ring, "named": bool(given),
+                    "problems": list(probs)})
 
     def flush():
         if buf or name:
             seq, probs = check("".join(buf), **kw)
-            out.append((name or seq[:12] or "peptide %d" % (len(out) + 1),
-                        seq, probs))
+            add(name, seq, "", probs,
+                fallback=seq[:12] or "peptide %d" % (len(out) + 1))
 
     for line in str(text or "").splitlines():
         if line.lstrip().startswith("#"):
@@ -346,61 +489,62 @@ def parse_many(text, **kw):
             flush()
             name, buf[:] = None, []
             continue
-        # A header row fixes the order for everything after it, so a list
+        # A header row fixes the columns for everything after it, so a list
         # whose names happen to be spellable in amino acid letters is not
         # guessed at row by row.
-        if name is None and not out and order is None:
-            got = _header_order(line)
+        if name is None and not out and head is None:
+            got = _header(line)
             if got:
-                order = got
+                head = got
                 continue
+        if name is None and head is not None and head["sep"] in line:
+            cells = [x.strip() for x in line.split(head["sep"])]
+            if not any(cells):
+                continue                  # a spreadsheet's empty row
+
+            def cell(role):
+                i = head.get(role)
+                return cells[i] if i is not None and i < len(cells) else ""
+            seq, probs = check(cell("sequence"), **kw)
+            ring, probs = _with_ring(cell("ring"), seq, probs)
+            add(cell("name"), seq, ring, probs)
+            continue
         if name is None:
-            pair = _split_pair(line)
-            if pair:
-                if order is not None:
-                    si, ni = order
-                    seq, probs = check(pair[si], **kw)
-                    out.append((pair[ni].strip() or seq[:12], seq, probs))
+            parts = _split_row(line)
+            if parts and len(parts) == 2:
+                # A sequence and its ring, with no name: the other field
+                # names a ring and the first reads as the sequence.
+                rings = [i for i in (0, 1) if ring_choice(parts[i])]
+                if len(rings) == 1 and _reads_as_sequence(
+                        parts[1 - rings[0]], **kw):
+                    seq, probs = check(parts[1 - rings[0]], **kw)
+                    ring, probs = _with_ring(parts[rings[0]], seq, probs)
+                    add(None, seq, ring, probs)
                     continue
-                first = _reads_as_sequence(pair[0], **kw)
-                second = _reads_as_sequence(pair[1], **kw)
-                if first != second:
-                    # exactly one of them is a sequence, so there is nothing
-                    # to decide
-                    si, ni = (0, 1) if first else (1, 0)
-                    seq, probs = check(pair[si], **kw)
-                    out.append((pair[ni].strip() or seq[:12], seq, probs))
-                    continue
-                if first and second:
-                    # Both spell out in amino acid letters, which ordinary
-                    # words do: "native" is N A T I V E. Case settles most
-                    # of them, because a sequence is written in capitals and
-                    # a label usually is not.
-                    up = [x.isupper() for x in pair]
-                    if up[0] != up[1]:
-                        si, ni = (0, 1) if up[0] else (1, 0)
-                        seq, probs = check(pair[si], **kw)
-                        out.append((pair[ni].strip() or seq[:12], seq, probs))
-                        continue
-                    # Still tied, so the first column is taken as the
-                    # sequence and the row says so rather than choosing
-                    # silently.
-                    seq, probs = check(pair[0], **kw)
-                    probs = list(probs) + [Problem(
-                        "ambiguous_columns",
-                        "Both columns read as sequences, so the first was "
-                        "taken as the sequence and '%s' as the name. Put a "
-                        "header row, 'sequence,name' or 'name,sequence', to "
-                        "say which is which." % pair[1])]
-                    out.append((pair[1].strip(), seq, probs))
+                got = _seq_and_name(parts, "'sequence,name' or "
+                                    "'name,sequence'", **kw)
+                if got:
+                    si, ni, pr = got
+                    seq, probs = check(parts[si], **kw)
+                    add(parts[ni], seq, "",
+                        list(probs) + ([pr] if pr else []))
                     continue
                 # neither is a sequence: fall through and report on the line
                 # as a whole rather than inventing a split
+            elif parts:
+                got = _three(parts, **kw)
+                if got:
+                    si, ni, ri, pr = got
+                    seq, probs = check(parts[si], **kw)
+                    ring, probs = _with_ring(parts[ri], seq, probs)
+                    add(parts[ni], seq, ring,
+                        list(probs) + ([pr] if pr else []))
+                    continue
         if name is None and ":" in line:
             label, _c, rest = line.partition(":")
             if label.strip() and rest.strip():
                 seq, probs = check(rest, **kw)
-                out.append((label.strip(), seq, probs))
+                add(label.strip(), seq, "", probs)
                 continue
         if name is None:
             seq, probs = check(line, **kw)
@@ -411,9 +555,16 @@ def parse_many(text, **kw):
                     "would be docked as one longer peptide (%s). To name a "
                     "peptide, put a colon after the name ('%s: %s') or use "
                     "FASTA." % (seq, line.split()[0], " ".join(line.split()[1:])))]
-            out.append((seq[:12] or line.strip()[:12], seq, probs))
+            add(None, seq, "", probs, fallback=seq[:12] or line.strip()[:12])
         else:
             buf.append(line)
     if name is not None:
         flush()
     return out
+
+
+def parse_many(text, **kw):
+    """parse_rows as [(name, seq, problems)], for a caller that has no use
+    for the ring column."""
+    return [(r["name"], r["sequence"], r["problems"])
+            for r in parse_rows(text, **kw)]

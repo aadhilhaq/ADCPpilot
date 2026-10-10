@@ -152,6 +152,26 @@ def fill_names(results, j):
     return results
 
 
+def fill_rings(results, j):
+    """Give every results row the ring its peptide was docked with.
+
+    The same idea as fill_names: a report written before rows carried the
+    ring is read with it, from the job file, which for such a run holds one
+    ring for every peptide. A row that already says keeps what it says.
+    """
+    if not results:
+        return results
+    rows = results if isinstance(results, list) else results.get("rows")
+    if not isinstance(rows, list):
+        return results
+    for r in rows:
+        if isinstance(r, dict) and not r.get("ring"):
+            mode = jobmod.ring_for(j, r.get("peptide") or r.get("sequence")
+                                   or "")
+            r["ring"] = peptide.RING_NAMES.get(mode, mode)
+    return results
+
+
 # Energy terms read for a run, keyed by the run and the modification times of
 # what they are read from, so a page polling an open run reads the files once.
 _TERMS_CACHE = {}
@@ -1288,6 +1308,12 @@ class App:
                 "receptor_gradient": bool(j.get("receptor_gradient")),
                 "site_mode": str(j.get("site_mode") or "residues"),
                 "cyclic": str(j.get("cyclic") or "none"),
+                # Each peptide's ring, its own or the run's, for the
+                # peptides estimate_run prices: those with a sequence, in
+                # the same order.
+                "rings": [jobmod.ring_of(j, p) for p in j.get("peptides") or []
+                          if isinstance(p, dict)
+                          and peptide.clean(p.get("sequence", ""))],
                 "helical": j.get("helical", 0),
                 "poses": int(j.get("poses") or 10),
                 "keep_trajectories": bool(j.get("keep_trajectories")),
@@ -1692,31 +1718,44 @@ class App:
         return out
 
     def peptides(self, body):
-        """Live validation. Positions come back so the box can underline."""
+        """Live validation. Positions come back so the box can underline.
+
+        Each row is checked with its own ring, or the run's when the row
+        has none, and says which ring that is ("cyclic")."""
         kw = self._pepcheck(body)
         out = []
-        cyclic = str(body.get("cyclic") or "none")
+        run = {"cyclic": str(body.get("cyclic") or "none")}
         for row in body.get("peptides") or []:
             seq, probs = peptide.check(row.get("sequence", ""), **kw)
             # A ring this peptide cannot close, said at the box: ADCP would
-            # dock it as a linear peptide and say nothing.
-            ring = peptide.cyclic_problem(seq, cyclic) if seq else None
-            if ring:
-                probs = list(probs) + [ring]
+            # dock it as a linear peptide and say nothing. And a ring the
+            # row names that is not one of the three, said the same way.
+            mode = jobmod.ring_of(run, row)
+            if mode not in peptide.CYCLIC:
+                probs = list(probs) + [peptide.ring_problem(row.get("cyclic"))]
+            else:
+                ring = peptide.cyclic_problem(seq, mode) if seq else None
+                if ring:
+                    probs = list(probs) + [ring]
             out.append({"name": row.get("name", ""), "sequence": seq,
                         "length": len(peptide.residues(seq)),
+                        "cyclic": mode,
                         "ok": not probs,
                         "problems": [p.as_dict() for p in probs]})
         return {"peptides": out,
                 "ready": bool(out) and all(p["ok"] for p in out)}
 
     def paste(self, body):
-        """A pasted block or FASTA, split into rows the page can show."""
-        rows = peptide.parse_many(body.get("text", ""), **self._pepcheck(body))
-        return {"peptides": [{"name": n, "sequence": s,
-                              "ok": not p,
-                              "problems": [x.as_dict() for x in p]}
-                             for n, s, p in rows]}
+        """A pasted block or FASTA, split into rows the page can show.
+
+        A row that names its ring carries it ("cyclic"); one that does not
+        carries "", and is docked as the run is set."""
+        rows = peptide.parse_rows(body.get("text", ""), **self._pepcheck(body))
+        return {"peptides": [{"name": r["name"], "sequence": r["sequence"],
+                              "cyclic": r["cyclic"],
+                              "ok": not r["problems"],
+                              "problems": [x.as_dict() for x in r["problems"]]}
+                             for r in rows]}
 
     def upload(self, body):
         """A file chosen in the browser, written into the runs directory.
@@ -1791,6 +1830,9 @@ class App:
                                   if k in jobmod.default()})
             j["label"] = label
             j["tools_roots"] = self.tools_roots
+            # A row left "as the run" keeps no ring of its own, so the run's
+            # choice applies to it; a row's own is written the one way.
+            j["peptides"] = jobmod.tidy_peptides(j.get("peptides"))
             problems = jobmod.take_adapt(j)
             problems += jobmod.validate(j) if not problems else []
             if j.get("mmgbsa") and not toolmod.discover(
@@ -1984,6 +2026,7 @@ class App:
             except ValueError:
                 results = None
         results = fill_names(results, j)
+        results = fill_rings(results, j)
         results = fill_terms(results, rundir)
         results = fill_combined(results, rundir)
         done = len([f for f in os.listdir(os.path.join(rundir, "results"))

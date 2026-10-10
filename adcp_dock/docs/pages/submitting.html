@@ -7,11 +7,14 @@ requires, in the Submit card. Then press the button.</p>
 <p><b>Estimate &amp; fill</b> reads your peptides, your search settings and the
 receptor, works out how long the longest task will take, and fills in the cores
 and the walltime for you. The line beside it says what it assumed: the stages in
-the order they will queue, the longest peptide it sized for, how many waves the
+the order they will queue, the peptide it sized for, how many waves the
 list runs in, and how long the whole thing should take end to end. It counts
 what the settings cost as well: the receptor gradient, AutoSite 1.1 and a box
 from an AutoSite pocket in the prepare job, and a ring, helical starts, more
-poses and kept trajectories in each docking task. The prepare job is booked from
+poses and kept trajectories in each docking task. Each peptide is priced with
+its own ring, so when the rows differ the line names the peptide that takes
+longest to dock and its ring, which can be a shorter peptide closed head to
+tail. The prepare job is booked from
 the same estimate, and never for less than the four hours it was always
 given.</p>
 <p>The line then adds up what the jobs will book, one after another: the

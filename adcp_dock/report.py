@@ -26,12 +26,15 @@ GB_LABELS = {"amber": "AmberTools", "openmm": "OpenMM",
 
 def summarise(peptide, modes, mm=None, top_n=TOP_N, name="", openmm=None,
               engine="", panel=None, clusters=None, mmgbsa_engine="",
-              mm_by_engine=None, mm_skipped=None):
+              mm_by_engine=None, mm_skipped=None, ring=None):
     """One row. `mm` is [dG] for the poses that were rescored, best-first.
 
     The name is carried from the result file rather than derived from the
     sequence: it is what the user typed beside the sequence, and it is what
-    distinguishes two variants of the same construct.
+    distinguishes two variants of the same construct. `ring` is how the
+    peptide was docked ("none", "backbone" or "disulfide"; linear when not
+    given), and the row names it as the page does: linear, head to tail or
+    disulfide.
     """
     scores = [m["score"] for m in modes or []]
     top = scores[:top_n]
@@ -53,6 +56,10 @@ def summarise(peptide, modes, mm=None, top_n=TOP_N, name="", openmm=None,
         "adcp_top%d" % top_n: round(st.mean(top), 2) if top else None,
         "adcp_sd": round(st.pstdev(top), 2) if len(top) > 1 else None,
     }
+    # Every row says how its peptide was docked; one whose caller does not
+    # say was docked linear, as every peptide was before rings existed.
+    from .peptide import RING_NAMES
+    row["ring"] = RING_NAMES.get(str(ring or "none"), str(ring))
     if mm:
         vals = [v for v in mm if v is not None]
         mtop = vals[:top_n]
@@ -146,6 +153,14 @@ def _residues(seq):
     return peptide.residues(seq)
 
 
+def has_rings(rows):
+    """Whether any peptide in these rows was docked as a ring. The ring
+    column is written only then: in a run of linear peptides, every run made
+    before rings could be chosen among them, it would say linear on every
+    row and nothing else."""
+    return any((r.get("ring") or "linear") != "linear" for r in rows)
+
+
 def combined_scores(rows):
     """Attach the combined score and its components to every row.
 
@@ -221,8 +236,12 @@ def table(rows, top_n=TOP_N, on_combined=False):
     rows, key = rank(rows, top_n=top_n, on_combined=on_combined)
     mm = any(r.get("mmgbsa_n") for r in rows)
     omm = any(r.get("omm_n") for r in rows)
+    rings = has_rings(rows)
     head = ["#", "name", "peptide", "len", "poses", "ADCP best",
             "ADCP top%d" % top_n, "sd"]
+    if rings:
+        # How each peptide was docked, beside its length.
+        head.insert(head.index("len") + 1, "ring")
     if mm:
         head += ["MM n", "MM best", "MM top%d" % top_n, "MM med", "sd",
                  "spread"]
@@ -244,7 +263,8 @@ def table(rows, top_n=TOP_N, on_combined=False):
          (max(len(str(r["peptide"])) for r in rows) + 1) if rows else 10]
     out = ["ranked by %s, %s first"
            % (key, "highest" if key == "combined_z" else "most negative"), ""]
-    fmt = ("%-4s %-*s %-*s %4s %5s %10s %11s %6s"
+    fmt = ("%-4s %-*s %-*s %4s" + ("  %-12s" if rings else "")
+           + " %5s %10s %11s %6s"
            + ("  %5s %8s %10s %8s %6s %7s" if mm else "")
            + ("  %11s" if omm else "")
            + ("  %8s" if comb else ""))
@@ -255,10 +275,12 @@ def table(rows, top_n=TOP_N, on_combined=False):
     out.append(fmt % tuple([head[0], w[1], head[1], w[2], head[2]]
                            + head[3:]))
     for r in rows:
-        vals = [cell(r.get("rank"), 0), w[1], (r.get("name") or "-"),
-                w[2], r["peptide"], r["length"],
-                r["poses"], cell(r.get("adcp_best"), 1),
-                cell(r.get("adcp_top%d" % top_n), 2), cell(r.get("adcp_sd"), 2)]
+        vals = ([cell(r.get("rank"), 0), w[1], (r.get("name") or "-"),
+                 w[2], r["peptide"], r["length"]]
+                + ([r.get("ring") or "linear"] if rings else [])
+                + [r["poses"], cell(r.get("adcp_best"), 1),
+                   cell(r.get("adcp_top%d" % top_n), 2),
+                   cell(r.get("adcp_sd"), 2)])
         if mm:
             vals += [cell(r.get("mmgbsa_n"), 0), cell(r.get("mmgbsa_best"), 2),
                      cell(r.get("mmgbsa_top%d" % top_n), 2),
@@ -387,6 +409,9 @@ def write(rows, outdir, top_n=TOP_N, constants=None, on_combined=False,
     rows, key = rank(rows, top_n=top_n, on_combined=on_combined)
     cols = ["rank", "name", "peptide", "length", "poses", "adcp_best",
             "adcp_top%d" % top_n, "adcp_sd"]
+    if has_rings(rows):
+        # How each peptide was docked, beside its length.
+        cols.insert(cols.index("length") + 1, "ring")
     if any(r.get("combined_z") is not None for r in rows):
         # The components, not only the total: a construct that ranked third
         # did so for a reason, and the reason is these columns.

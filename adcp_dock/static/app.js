@@ -2668,18 +2668,59 @@ function posesLimit(){
 }
 /* How many replicas start as a helix, worked out the way ADCP does it:
    replicas 1 to N x p / 100, rounded down. At 0 every replica starts as a
-   coil, and at 100 every one as a helix. */
+   coil, and at 100 every one as a helix.
+
+   And how the peptides will be docked. A row's own ring wins over the run's,
+   so when the rows differ the note says which rows are docked which way,
+   by the numbers down the side of the list. */
+const RING_NOTE = {
+  none: ['is docked as a linear chain', 'are docked as linear chains'],
+  backbone: ['is closed head to tail', 'are closed head to tail'],
+  disulfide: ['is closed through a disulfide', 'are closed through a disulfide']};
+function rowsNamed(nums){
+  if(nums.length > 6) return nums.length + ' peptides';
+  return (nums.length === 1 ? 'peptide ' + nums[0]
+          : 'peptides ' + nums.slice(0, -1).join(', ') + ' and '
+            + nums[nums.length - 1]);
+}
+function inWords(parts){
+  return parts.length > 1
+    ? parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1]
+    : (parts[0] || '');
+}
 function pepOptsNote(){
   const el = $('pepoptsnote');
   if(!el) return;
   const n = +$('replicas').value || 0;
   const h = Math.max(0, Math.min(100, Math.round(+$('helical').value || 0)));
   const k = h <= 0 ? 0 : h >= 100 ? n : Math.floor(n * h / 100);
-  const ring = $('cyclic').value;
-  el.textContent = k + ' of ' + n + ' replicas start as a helix, the rest '
-    + 'as a coil.' + (ring === 'disulfide'
+  const run = $('cyclic').value;
+  // The list is declared further down and this first runs as the page
+  // loads, before it exists.
+  let peps = [];
+  try { peps = PEPS || []; } catch(e) { peps = []; }
+  const rows = peps.map((p, i) => ({i: i + 1, ring: p.cyclic || run,
+                                    seq: (p.sequence || '').trim()}))
+    .filter(r => r.seq);
+  const kinds = ['none', 'backbone', 'disulfide']
+    .filter(x => rows.some(r => r.ring === x));
+  let ring;
+  if(kinds.length <= 1){
+    const only = kinds[0] || run;
+    ring = only === 'disulfide'
       ? ' A disulfide ring needs two cysteines in every peptide.'
-      : ring === 'backbone' ? ' Each peptide is closed head to tail.' : '');
+      : only === 'backbone' ? ' Each peptide is closed head to tail.'
+      : (rows.length && run !== 'none'
+         ? ' Each peptide is docked as a linear chain.' : '');
+  } else {
+    ring = ' The rows differ: ' + inWords(kinds.map(x => {
+      const nums = rows.filter(r => r.ring === x).map(r => r.i);
+      return rowsNamed(nums) + ' ' + RING_NOTE[x][nums.length === 1 ? 0 : 1];
+    })) + '.' + (kinds.indexOf('disulfide') >= 0
+                 ? ' A disulfide ring needs two cysteines.' : '');
+  }
+  el.textContent = k + ' of ' + n + ' replicas start as a helix, the rest '
+    + 'as a coil.' + ring;
 }
 $('cyclic').addEventListener('change', () => { pepOptsNote(); validate(); });
 pepOptsNote();
@@ -2828,7 +2869,9 @@ $('trgbrowse').onclick = () => openPicker({
    and become part of the sequence. */
 const HYDRO = new Set(['A','V','L','I','M','F','W','C','P']);
 const STD = new Set('ACDEFGHIKLMNPQRSTVWY'.split(''));
-let PEPS = [{name:'', sequence:''}];
+/* One row per peptide: its name, its sequence, and its own ring, which is ''
+   for "as the run", or none, backbone or disulfide (job.ring_of). */
+let PEPS = [{name:'', sequence:'', cyclic:''}];
 /* The longest peptide ADCP will build. peptide.py holds the same number and
    the server refuses anything longer; this lets the box say so while the
    sequence is typed. */
@@ -2925,6 +2968,21 @@ function setCaret(el, off){
   const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
 }
 
+/* A row's ring choices, in the words the results table and a peptide file's
+   ring column use. A value no choice holds, from a run's own job file, is
+   kept as its own option, so the row says what the file says and the check
+   can refuse it, rather than the select falling back to something no one
+   chose. */
+const RING_CHOICES = [['', 'as the run'], ['none', 'linear'],
+                      ['backbone', 'head to tail'], ['disulfide', 'disulfide']];
+function ringOptions(cur){
+  const v = cur || '';
+  const opts = RING_CHOICES.slice();
+  if(!opts.some(o => o[0] === v)) opts.push([v, v + ' (from this run)']);
+  return opts.map(o => '<option value="' + esc(o[0]) + '"'
+    + (o[0] === v ? ' selected' : '') + '>' + esc(o[1]) + '</option>').join('');
+}
+
 function drawPeps(){
   /* Adding or removing a peptide changes whether "add at least one peptide"
      is still true, and nothing else was telling the submit panel that. */
@@ -2942,6 +3000,13 @@ function drawPeps(){
     + '<div class="col nm"><label>Name</label>'
     +   '<input type=text class=pn value="' + esc(p.name) + '" placeholder="peptide '
     +   (i + 1) + '"></div>'
+    /* The peptide's own ring. "as the run" leaves it to the choice under
+       the list, which is what every row was before a row could have one. */
+    + '<div class="col ring"><label>Ring</label>'
+    +   '<select class=pr aria-label="Ring of peptide ' + (i + 1) + '" '
+    +     'title="How this peptide is docked: as the run is set under the '
+    +     'list, or a linear chain or a ring of its own">'
+    +   ringOptions(p.cyclic) + '</select></div>'
     + '<div class="col sqwrap"><label>Sequence</label>'
     +   '<div class="seq ps" contenteditable="plaintext-only" spellcheck=false '
     +     'data-ph="Type or paste a peptide sequence"></div>'
@@ -2991,6 +3056,8 @@ function drawPeps(){
         else if(m.classList.contains('stop')) m.textContent = '';
       }
       validate();
+      // A row with a sequence counts in the note on how the rows are docked.
+      pepOptsNote();
       // The guideline is per residue, so it changes as the sequence is typed.
       if(window.stepsGuide) stepsGuide();
     });
@@ -3004,9 +3071,15 @@ function drawPeps(){
   $('peps').querySelectorAll('.pn').forEach((el, i) => {
     el.oninput = () => { PEPS[i].name = el.value; };
   });
+  /* A ring changes what the row needs (two cysteines for a disulfide) and
+     what the note under the list says the run will do. */
+  $('peps').querySelectorAll('.pr').forEach((el, i) => {
+    el.onchange = () => { PEPS[i].cyclic = el.value; pepOptsNote(); validate(); };
+  });
+  pepOptsNote();
   $('peps').querySelectorAll('button[data-rm]').forEach(b => {
     b.onclick = () => { PEPS.splice(+b.getAttribute('data-rm'), 1);
-      if(!PEPS.length) PEPS.push({name:'', sequence:''});
+      if(!PEPS.length) PEPS.push({name:'', sequence:'', cyclic:''});
       drawPeps(); };
   });
   $('peps').querySelectorAll('button[data-menu]').forEach(b => {
@@ -3083,11 +3156,13 @@ document.addEventListener('click', e => {
 });
 $('pm_dup').onclick = () => {
   const i = MENU_I; $('pepmenu').classList.add('hide');
-  PEPS.splice(i + 1, 0, {name:'', sequence: PEPS[i].sequence}); drawPeps();
+  PEPS.splice(i + 1, 0, {name:'', sequence: PEPS[i].sequence,
+                         cyclic: PEPS[i].cyclic || ''}); drawPeps();
 };
 $('pm_rm').onclick = () => {
   const i = MENU_I; $('pepmenu').classList.add('hide');
-  PEPS.splice(i, 1); if(!PEPS.length) PEPS.push({name:'', sequence:''}); drawPeps();
+  PEPS.splice(i, 1); if(!PEPS.length) PEPS.push({name:'', sequence:'', cyclic:''});
+  drawPeps();
 };
 $('pm_mods').onclick = () => { $('pepmenu').classList.add('hide'); openMods(MENU_I); };
 
@@ -3213,7 +3288,7 @@ $('modsave').onclick = () => {
   $('moddlg').close();
   drawPeps();
 };
-$('addpep').onclick = () => { PEPS.push({name:'', sequence:''}); drawPeps();
+$('addpep').onclick = () => { PEPS.push({name:'', sequence:'', cyclic:''}); drawPeps();
   const b = $('peps').querySelectorAll('.ps'); b[b.length - 1].focus(); };
 
 let VT = null;
@@ -3232,6 +3307,11 @@ function validate(){
       const box = row.querySelector('.ps'), msg = row.querySelector('.seqmsg'),
             len = row.querySelector('.seqlen');
       box.classList.toggle('err', !p.ok && p.sequence.length > 0);
+      /* A ring the row cannot have is marked on its ring choice too, since
+         that may be the thing to change rather than the sequence. */
+      const rsel = row.querySelector('.pr');
+      if(rsel) rsel.classList.toggle('err', (p.problems || []).some(x =>
+        x.kind === 'cyclic' || x.kind === 'ring'));
       len.textContent = p.sequence ? (p.length || p.sequence.length) + ' residues' : '';
       msg.textContent = (p.ok || !p.sequence) ? ''
         : p.problems.map(x => x.message).join(' ');
@@ -3274,7 +3354,8 @@ $('pasteadd').onclick = async () => {
     return;
   }
   if(PEPS.length === 1 && !PEPS[0].sequence) PEPS = [];
-  d.peptides.forEach(p => PEPS.push({name: p.name, sequence: p.sequence}));
+  d.peptides.forEach(p => PEPS.push({name: p.name, sequence: p.sequence,
+                                     cyclic: p.cyclic || ''}));
   $('pastetext').value = '';
   $('pastebox').classList.add('hide');
   drawPeps();
@@ -3305,12 +3386,26 @@ $('pepfile').onchange = async () => {
   if(d.error){ pepmsg(d.error, true); return; }
   if(!d.peptides || !d.peptides.length){
     pepmsg('no peptides were found in ' + f.name +
-           '. One per line, or two columns: sequence and name, either way '
-           + 'round.', true);
+           '. One per line, or columns: sequence and name, either way '
+           + 'round, and a ring if you want one.', true);
+    return;
+  }
+  /* A ring the file names that is not one of the three is never guessed at:
+     the row would be added as the run's ring, and docked as something the
+     file did not say. Nothing is added, and the message says which rows and
+     what they say. */
+  const ringBad = d.peptides.filter(p => (p.problems || []).some(x =>
+    x.kind === 'ring'));
+  if(ringBad.length){
+    pepmsg('nothing added from ' + f.name + '. ' + ringBad.map(p =>
+      (p.name || p.sequence.slice(0, 18)) + ': ' + p.problems
+        .filter(x => x.kind === 'ring').map(x => x.message).join('; '))
+      .join(' | '), true);
     return;
   }
   if(PEPS.length === 1 && !PEPS[0].sequence) PEPS = [];
-  d.peptides.forEach(p => PEPS.push({name: p.name, sequence: p.sequence}));
+  d.peptides.forEach(p => PEPS.push({name: p.name, sequence: p.sequence,
+                                     cyclic: p.cyclic || ''}));
   const bad = d.peptides.filter(p => p.problems && p.problems.length).length;
   drawPeps();
   pepmsg(d.peptides.length + ' peptide(s) read from ' + f.name +
@@ -3982,8 +4077,9 @@ async function reuseRun(dir){
   if(String(j.target_file || '').trim() || TARGET) await loadTarget();
 
   PEPS = (j.peptides && j.peptides.length)
-    ? j.peptides.map(p => ({name: p.name || '', sequence: p.sequence || ''}))
-    : [{name:'', sequence:''}];
+    ? j.peptides.map(p => ({name: p.name || '', sequence: p.sequence || '',
+                            cyclic: p.cyclic || ''}))
+    : [{name:'', sequence:'', cyclic:''}];
   drawPeps();
 
   // The receptor first, because the chain ticks are drawn from it. One from
@@ -4109,12 +4205,20 @@ function colgroups(rows, tn, mm, omm){
   ]});
   G.push({key: 'score', label: 'docking', always: true, cols: [
     {h: 'len', cls: 'c', f: r => r.length},
+  ].concat(rows.some(r => r.ring && r.ring !== 'linear') ? [
+    // How each peptide was docked, once any of them was docked as a ring:
+    // in a run of linear peptides the column would say so on every row.
+    {h: 'ring', cls: 'c', t: 'How the peptide was docked: linear, closed '
+      + 'head to tail (ADCP\u2019s -cyc), or closed through a disulfide '
+      + 'between two cysteines (-cys). A ring is rescored only on the poses '
+      + 'that close it.',
+     f: r => esc(r.ring || 'linear')}] : []).concat([
     {h: 'poses', cls: 'c', t: 'How many poses ADCP ranked. A best score '
       + 'improves simply by scoring more poses, so it is read beside this.',
      f: r => r.poses},
     {h: 'ADCP best', cls: 'c', f: r => fmt(r.adcp_best, 1)},
     {h: 'ADCP top' + tn, cls: 'c', f: r => fmt(r['adcp_top' + tn], 2)},
-  ]});
+  ])});
   if(any(rows, 'cluster_top'))
     G[G.length - 1].cols.push(
       {h: 'cluster population', cls: 'c', t: 'How many of ADCP\u2019s '

@@ -335,11 +335,16 @@ def plan(peptides, replicas, steps, cores=None, mmgbsa=False, mm_poses=5,
     `options` holds the run's settings that change the cost: agfr,
     autosite, receptor_gradient, site_mode, cyclic, helical, poses,
     keep_trajectories, box_max, protonation, from_adapt. Missing ones cost
-    what they did before the settings existed.
+    what they did before the settings existed. "rings", when given, is
+    each peptide's own ring in the order of `peptides`; a peptide without
+    one is priced with the run's "cyclic".
     """
     o = dict(options or {})
     lengths = [len(p) if isinstance(p, str) else int(p) for p in peptides]
-    lengths = [n for n in lengths if n > 0] or [14]
+    given = list(o.get("rings") or [])
+    pairs = [(x, given[i] if i < len(given) and given[i] else o.get("cyclic"))
+             for i, x in enumerate(lengths) if x > 0] or [(14, o.get("cyclic"))]
+    lengths = [x for x, _r in pairs]
     cores = int(cores or CORES_DEFAULT)
     # More cores than replicas is cores that cannot be given work.
     cores = max(1, min(cores, max(4, int(replicas))))
@@ -360,8 +365,16 @@ def plan(peptides, replicas, steps, cores=None, mmgbsa=False, mm_poses=5,
                         autosite=o.get("autosite", "1.0"), pocket=pocket,
                         protonation=o.get("protonation", "propka"),
                         prepared=not o.get("from_adapt"))
-    factor = search_factor(o.get("cyclic"), o.get("helical", 0))
-    dock = dock_minutes(longest, replicas, steps, cores, factor)
+    # Each peptide is one array task, priced with its own length and ring.
+    # Every task books the same walltime, so the booking is the costliest
+    # task's: the longest peptide, unless a shorter one's ring makes it the
+    # slower search.
+    helical = o.get("helical", 0)
+    costs = [(dock_minutes(x, replicas, steps, cores, search_factor(r, helical)),
+              x, r) for x, r in pairs]
+    worst = max(costs, key=lambda c: (c[0], c[1]))
+    factor = search_factor(worst[2], helical)
+    dock = worst[0]
     extra = dock_option_minutes(replicas, o.get("poses", 10),
                                 bool(o.get("keep_trajectories")))
     dock += extra
@@ -371,6 +384,7 @@ def plan(peptides, replicas, steps, cores=None, mmgbsa=False, mm_poses=5,
     waves = max(1, -(-n // max(1, at_once)))
     array = task * waves
     total = prep + array + REPORT_MINUTES
+    rings_differ = len({str(r or "none") for _x, r in pairs}) > 1
     return {
         "n": n, "longest": longest, "cores": cores, "waves": waves,
         "prep_minutes": round(prep, 1),
@@ -382,11 +396,16 @@ def plan(peptides, replicas, steps, cores=None, mmgbsa=False, mm_poses=5,
         "total_minutes": round(total, 1),
         "options_minutes": round(extra, 2),
         "search_factor": round(factor, 2),
+        # The task the booking was sized for, and whether the peptides are
+        # docked with more than one kind of ring, which is when that task
+        # need not be the longest peptide's.
+        "sized_for": {"length": worst[1], "ring": str(worst[2] or "none")},
+        "rings_differ": rings_differ,
         "core_hours": round(
-            sum(dock_minutes(x, replicas, steps, cores, factor) + extra
+            sum(c + extra
                 + (mmgbsa_minutes(mm_poses, cores, atoms=atoms)
                    if mmgbsa else 0.0)
-                for x in lengths) * cores / 60.0, 1),
+                for c, _x, _r in costs) * cores / 60.0, 1),
         # A run whose box cannot hold its own longest peptide costs
         # as much as one that can, and returns a folded pose that
         # still scores.
@@ -444,6 +463,16 @@ def suggest(peptides, replicas, steps, cores=None, mmgbsa=False, mm_poses=5,
         task = "one dock task of %s" % human(p["dock_minutes"])
     stages = ["a prepare job of %s" % human(p["prep_minutes"]), task,
               "a report job of %s" % human(p["report_minutes"])]
+    if p.get("rings_differ"):
+        # The peptides are docked with different rings, and a ring makes
+        # the search slower, so the task sized for is named by its ring too.
+        from . import peptide as _pep
+        ring = p["sized_for"]["ring"]
+        whom = ("for the peptide that takes longest to dock (%d residues, %s)"
+                % (p["sized_for"]["length"],
+                   _pep.RING_NAMES.get(ring, ring)))
+    else:
+        whom = "for the longest peptide (%d residues)" % p["longest"]
     out = dict(p)
     out.update({
         "estimate_minutes": p["task_minutes"],
@@ -458,13 +487,13 @@ def suggest(peptides, replicas, steps, cores=None, mmgbsa=False, mm_poses=5,
                    "total": hhmmss(end_to_end)},
         "total_core_hours": p["core_hours"],
         "why": (
-            "%s, for the longest peptide (%d residues). "
+            "%s, %s. "
             "%d peptide%s in %s, so about %s end to end; "
             "each job is booked for twice its own estimate and %s more, and "
             "never less than %s (the prepare job %s), because a job "
             "killed at the wall has produced nothing and has already spent "
             "its queue time."
-            % (", then ".join(stages), p["longest"], p["n"],
+            % (", then ".join(stages), whom, p["n"],
                "" if p["n"] == 1 else "s",
                "one wave" if p["waves"] == 1
                else "%d waves" % p["waves"],

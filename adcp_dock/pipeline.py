@@ -32,22 +32,65 @@ def site_mode(j):
     return mode if mode in target.SITE_MODES else "residues"
 
 
-def docking_options(j):
+def docking_options(j, seq=None):
     """The docking settings a job asks for, with what an older job file
     means: every replica started as coil, a linear peptide, and the
-    trajectories left as ADCP left them (keep None)."""
+    trajectories left as ADCP left them (keep None).
+
+    "cyclic" is the ring of the peptide with this sequence (job.ring_for),
+    its own or the run's; without a sequence it is the run's."""
     try:
         h = int(round(float(j.get("helical", 0))))
     except (TypeError, ValueError):
         h = 0
     keep = j.get("keep_trajectories")
     return {"helical": max(0, min(100, h)),
-            "cyclic": str(j.get("cyclic") or "none"),
+            "cyclic": (jobmod.ring_for(j, seq) if seq is not None
+                       else str(j.get("cyclic") or "none")),
             "keep": None if keep is None else bool(keep)}
 
 
-def describe_options(j):
-    """The docking settings in a line, for the logs and the batch script."""
+def result_ring(j, r):
+    """The ring a docked peptide was docked with: what its result records,
+    and for a result written before results recorded it, what the job says
+    (job.ring_for), which for such a run is the run's one ring."""
+    got = (r or {}).get("cyclic")
+    if got:
+        return str(got)
+    return jobmod.ring_for(j, (r or {}).get("peptide") or "")
+
+
+def describe_rings(j):
+    """The rings the run's peptides are docked as, in a few words.
+
+    The ring's label when every peptide has the same one, which is every
+    run made before a peptide could carry its own; otherwise which peptides
+    are docked how.
+    """
+    peps = jobmod.peptide_list(j)
+    rs = jobmod.rings(j)
+    if not peps or len(set(rs)) <= 1:
+        mode = rs[0] if rs else str(j.get("cyclic") or "none")
+        return peptide.CYCLIC_LABELS.get(mode, mode)
+    parts = []
+    for mode in [m for m in peptide.CYCLIC if m in rs] + sorted(
+            {m for m in rs if m not in peptide.CYCLIC}):
+        names = [n for (n, _s), m in zip(peps, rs) if m == mode]
+        if len(names) > 4:
+            shown = "%s and %d more" % (", ".join(names[:4]), len(names) - 4)
+        elif len(names) > 1:
+            shown = "%s and %s" % (", ".join(names[:-1]), names[-1])
+        else:
+            shown = names[0]
+        parts.append("%s %s" % (shown, peptide.RING_NAMES.get(mode, mode)))
+    return "rings by peptide: " + "; ".join(parts)
+
+
+def describe_options(j, ring=None):
+    """The docking settings in a line, for the logs and the batch script.
+
+    With `ring`, the line is about one peptide docked with that ring;
+    without, about the run, whose peptides may be docked with several."""
     o = docking_options(j)
     seq_arg, start = adcp11.start_arguments("A", o["helical"])
     start_txt = ("every replica starts as coil" if o["helical"] <= 0
@@ -57,9 +100,10 @@ def describe_options(j):
     keep_txt = {None: "trajectories as ADCP leaves them",
                 True: "trajectories kept, one archive per peptide",
                 False: "trajectories not kept"}[o["keep"]]
+    rings_txt = (peptide.CYCLIC_LABELS.get(ring, ring) if ring is not None
+                 else describe_rings(j))
     return "%s; %s; %d pose(s) per peptide; %s" % (
-        start_txt, peptide.CYCLIC_LABELS.get(o["cyclic"], o["cyclic"]),
-        int(j.get("poses", 10)), keep_txt)
+        start_txt, rings_txt, int(j.get("poses", 10)), keep_txt)
 
 
 def receptor_chains(j, atoms=None):
@@ -527,10 +571,17 @@ def stage_dock(rundir, index, j=None, log=print):
     if engine == "missing":
         raise SystemExit("ADCP 1.1 was asked for but is not installed here")
     label = "ADCP " + ((adcp11.version(exe) or "1.1") if engine == "1.1" else "1.0")
-    opts = docking_options(j)
+    # This peptide's own ring, or the run's when it has none: the same
+    # peptide the index names in peptide_list, so the same entry of the job.
+    ring = jobmod.rings(j)[index]
+    if ring not in peptide.CYCLIC:
+        raise SystemExit("%s (%s) is to be docked with the ring %r, which is "
+                         "not one ADCP can close" % (name, seq, ring))
+    opts = dict(docking_options(j), cyclic=ring)
     log("docking %s (%s) with %s, %d replicas x %d steps on %d core(s); %s"
         % (name, seq, label, int(j.get("replicas", 50)),
-           int(j.get("steps", 2500000)), cpus or 1, describe_options(j)))
+           int(j.get("steps", 2500000)), cpus or 1,
+           describe_options(j, ring=ring)))
     if engine == "1.1":
         modes, pdir = adcp11.dock(seq, trg, wd, exe, key=jobmod.key(seq),
                                   replicas=int(j.get("replicas", 50)),
@@ -555,6 +606,9 @@ def stage_dock(rundir, index, j=None, log=print):
         trajectories.finish(pdir, jobmod.key(seq), engine, opts["keep"],
                             log=log)
     out = {"name": name, "peptide": seq, "engine": label,
+           # How it was docked, which the report and the rescoring read
+           # rather than the job file, so a result says what it is.
+           "cyclic": ring,
            # The cluster size arrives with the score and was being dropped.
            # It is how many of the search's clustered solutions fall in this
            # pose's cluster, and it is the only convergence measure a
@@ -593,7 +647,7 @@ def stage_dock(rundir, index, j=None, log=print):
     return out
 
 
-def _mm_inputs(j, seq, pdir, n, log=print):
+def _mm_inputs(j, seq, pdir, n, log=print, ring=None):
     """The poses MM-GBSA is given for one peptide, out of its top n.
 
     Returns (molecules, their ADCP ranks, [{"pose", "why"}] for the poses
@@ -601,8 +655,13 @@ def _mm_inputs(j, seq, pdir, n, log=print):
     peptide: a ring whose third pose is open is scored on the others of
     the same n, never on a pose further down to make up the number, so
     every peptide in a run is scored on its own top n poses.
+
+    `ring` is how this peptide was docked; without it, the job says
+    (job.ring_for), its own ring or the run's.
     """
-    mode = docking_options(j)["cyclic"] if mmforms.enabled(j) else "none"
+    if ring is None:
+        ring = jobmod.ring_for(j, seq)
+    mode = ring if mmforms.enabled(j) else "none"
     ph = float(j.get("ph", 7.4))
     mols, ranks, skipped = [], [], []
     for k in range(1, n + 1):
@@ -637,10 +696,13 @@ def _mm_inputs(j, seq, pdir, n, log=print):
 
 
 def _stage_mmgbsa(rundir, j, seq, out, pdir, keep, cpus, opts, log=print):
-    """MM-GBSA for one docked peptide, written into its result `out`."""
+    """MM-GBSA for one docked peptide, written into its result `out`.
+
+    opts["cyclic"] is the ring this peptide was docked with, its own or the
+    run's, and every rule about rings here follows it."""
     import json
     engine = j.get("mmgbsa_engine") or "amber"
-    why = mmforms.unscoreable(seq, j)
+    why = mmforms.unscoreable(seq, j, opts["cyclic"])
     if why is None:
         why = mmforms.engine_refusal(engine, seq, opts["cyclic"])
     if why == mmforms.SKIP_OLD_D:
@@ -667,7 +729,8 @@ def _stage_mmgbsa(rundir, j, seq, out, pdir, keep, cpus, opts, log=print):
         out["mmgbsa_skipped"] = why
         return
     n = min(int(j.get("mmgbsa_poses", 5)), keep)
-    mols, ranks, skipped = _mm_inputs(j, seq, pdir, n, log=log)
+    mols, ranks, skipped = _mm_inputs(j, seq, pdir, n, log=log,
+                                      ring=opts["cyclic"])
     mm = mmforms.name(seq)
     if mmforms.d_positions(seq):
         out["mmgbsa_d"] = mmforms.d_positions(seq)
@@ -1298,6 +1361,9 @@ def stage_report(rundir, j=None, log=print):
                                      mm_skipped=r.get("mmgbsa_skipped"),
                                      name=(r.get("name")
                                            or by_seq.get(r["peptide"], "")),
+                                     # How it was docked: linear, or a ring
+                                     # of its own or the run's.
+                                     ring=result_ring(j, r),
                                      # A peptide rescored before the panel
                                      # existed still has its four terms on
                                      # disk, and they cost nothing to read.
@@ -1733,15 +1799,17 @@ def stage_rescore(rundir, engine, j=None, log=print):
             continue
         # The same rules as the run's own scoring: a peptide it did not
         # score is not scored here, and a ring is scored only on the poses
-        # that close it, never as a linear chain.
-        why = mmforms.unscoreable(seq, j) or mmforms.engine_refusal(
-            eng.name, seq, docking_options(j)["cyclic"])
+        # that close it, never as a linear chain. The ring is the one the
+        # peptide was docked with, as its result records it.
+        ring = result_ring(j, r)
+        why = mmforms.unscoreable(seq, j, ring) or mmforms.engine_refusal(
+            eng.name, seq, ring)
         if why:
             log("  %s: %s; skipped" % (seq, why))
             continue
         pdir = os.path.join(rundir, "docking", jobmod.key(seq))
         mols, _ranks, _skipped = _mm_inputs(j, seq, pdir, n_want,
-                                            log=lambda *a: None)
+                                            log=lambda *a: None, ring=ring)
         if not mols:
             log("  %s: %s; skipped" % (seq, mmforms.none_closed(len(_skipped))
                                        if _skipped and all(

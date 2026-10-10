@@ -10,6 +10,7 @@ Developed by Aadhil Haq, HOPE Lab, under the supervision of Dr. Sandun Fernando.
 
 * Receptor preparation: protonation at a chosen pH, missing side chains, a restrained minimization, and a docking box built around the residues you choose.
 * ADCP 1.0 and ADCP 1.1. With ADCP 1.1: non-standard and D amino acids, chosen from a peptide's menu with a drawing of each; OpenMM minimization of the top poses; runs that start from an AGFR or AGFRGUI target file.
+* Linear and cyclic peptides in one run: each peptide is docked as a linear chain, a ring closed head to tail or a ring through a disulfide, as its own row says or as the run is set.
 * Optional MM-GBSA rescoring with AmberTools.
 * A ranked results table, a 3D pose viewer, and the citations for the tools each run used.
 * An interface panel beside the scores: the four MM-GBSA energy terms, buried surface area and how much of the peptide is buried, typed contacts and clashes, per residue energies from Amber's own decomposition, how much of the nominated site the pose touches, and the sequence liabilities. Every number is measured on the geometry its energy was computed on, and the run records the cutoffs and radii it used.
@@ -68,7 +69,7 @@ A run docked before version 0.1.17 has no interface panel in its results, becaus
 
 ## Peptides
 
-Sequences of 5 to 30 residues in one-letter codes, one per line, optionally named (`p53: ETFSDLWKLLP`) or as FASTA. Lines starting with `#` are comments. With ADCP 1.1, write a non-standard residue as its coarse one-letter code followed by its library name in angle brackets, and a D residue with `&` before its letter (`N<BHD>PIS&DVD`), or choose them in the interface.
+Sequences of 5 to 30 residues in one-letter codes, one per line, optionally named (`p53: ETFSDLWKLLP`) or as FASTA. Lines starting with `#` are comments. Columns work too, with an optional third for the peptide's own ring: `p53,ETFSDLWKLLP,head to tail`, with `linear`, `head to tail` or `disulfide`, or a header row `name,sequence,ring`; a peptide with no ring of its own is docked as the run is set (`--cyclic`). With ADCP 1.1, write a non-standard residue as its coarse one-letter code followed by its library name in angle brackets, and a D residue with `&` before its letter (`N<BHD>PIS&DVD`), or choose them in the interface.
 
 ## Results
 

@@ -368,6 +368,10 @@ def dock(sequence, trg, workdir, exe, key=None, replicas=100, steps=5_000_000,
             cmd += ["-nmin", str(minimize), "-env", omm_env, "-dr"]
             if ffset:
                 cmd += ["-F", ffset]
+        # The command as it runs, in the task's log as well as at the top of
+        # adcp_run.log: which flags a peptide was given, its ring among them,
+        # is then on record where the task's other lines are.
+        log("  adcp: %s" % " ".join(cmd[len(command(exe)):]))
         _run(cmd, wd, exe)
         n = split_poses(wd)
         if not n and minimize:

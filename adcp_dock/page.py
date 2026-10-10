@@ -402,13 +402,18 @@ button:disabled{opacity:.45;cursor:default}
 .ent .col{display:flex;flex-direction:column;min-width:0}
 .ent .fixed{flex:0 0 130px}
 .ent .nm{flex:0 0 140px}
+/* The row's own ring: as wide as its longest choice, "head to tail". */
+.ent .ring{flex:0 0 132px}
 .ent .sqwrap{flex:1 1 auto}
 .ent .tools{display:flex;gap:2px;align-self:center}
 .ent label{margin-bottom:4px;height:14px;line-height:14px}
-/* The three controls share one height, so their tops and bottoms line up.
+/* The controls share one height, so their tops and bottoms line up.
    46px rather than 38: the sequence box carries its residue numbers above the
    letters, so it is taller than a plain input. */
-.ent .fixedval,.ent .nm input{height:46px}
+.ent .fixedval,.ent .nm input,.ent .ring select{height:46px}
+/* A ring the peptide cannot close is marked on the choice as well as under
+   the sequence, since either may be the one to change. */
+.ent .ring select.err{border-color:var(--warn)}
 .ent .fixedval{background:var(--card);border:1px solid var(--line);
   border-radius:9px;padding:0 11px;display:flex;align-items:center;
   font-size:13.5px;color:var(--fg)}
@@ -497,12 +502,17 @@ button.q:focus-visible{outline:1px dotted var(--accent);outline-offset:2px}
 .seqlen{font-size:11.5px;color:var(--dim);margin-top:5px}
 .bar{display:flex;gap:12px;align-items:center;margin-top:14px;
   justify-content:center}
-/* On a phone a peptide's row has no room for its four columns side by side:
-   the type and the name share a line, the sequence takes the next one whole,
-   and the buttons under the list wrap rather than run off the screen. */
+/* The buttons under the peptide list keep their width, and a long message
+   beside them, such as why a list was refused, wraps instead of squeezing
+   them into a column of words. */
+#step-peptides .bar>button{flex:0 0 auto;white-space:nowrap}
+/* On a phone a peptide's row has no room for its columns side by side: the
+   type, the name and the ring share a line, the sequence takes the next one
+   whole, and the buttons under the list wrap rather than run off the
+   screen. */
 @media (max-width:600px){
   .ent{flex-wrap:wrap}
-  .ent .nm,.ent .fixed{flex:1 1 110px}
+  .ent .nm,.ent .fixed,.ent .ring{flex:1 1 110px}
   .ent .sqwrap{flex:1 1 100%;order:3}
   .ent .tools{order:2}
   .bar{flex-wrap:wrap}
@@ -1499,15 +1509,17 @@ __STALE__
     <span class=why id=pepcount></span>
   </div>
   <div id=pastebox class="hide" style="margin-top:11px">
-    <label for=pastetext>One per line: <code>SEQUENCE</code>, <code>name: SEQUENCE</code>, or FASTA</label>
+    <label for=pastetext>One per line: <code>SEQUENCE</code>, <code>name: SEQUENCE</code>, FASTA, or columns with a ring, such as <code>p53,ETFSDLWKLLPEN,head to tail</code></label>
     <textarea id=pastetext placeholder="RWGPGAWGSGSGHY&#10;KDGGVDGPGDS"></textarea>
     <div style="margin-top:8px"><button class=secondary id=pasteadd>Add these</button></div>
   </div>
   <!-- How every peptide in the run is built and started: as a chain or a
        ring, and how many replicas begin as a helix. Peptide settings rather
-       than search settings, so they sit with the peptides. -->
+       than search settings, so they sit with the peptides. The ring here is
+       the run's: a row left "as the run" takes it, and a row may choose its
+       own. -->
   <div class=row style="margin-top:12px">
-    <div style="flex:0 0 250px"><label for=cyclic>Dock each peptide as</label>
+    <div style="flex:0 0 250px"><label for=cyclic>The run docks each peptide as</label>
       <select id=cyclic>
         <option value=none selected>a linear chain</option>
         <option value=backbone>a ring, head to tail</option>

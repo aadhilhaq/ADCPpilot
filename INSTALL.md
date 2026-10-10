@@ -204,8 +204,8 @@ adcp-dock report $SCRATCH/adcp_runs/trial
 ```
 
 `-r` takes a path or a PDB id; `-s` names the residues the box covers; `-f`
-reads a peptide file (`name: SEQUENCE` per line, or FASTA), or use `-p
-SEQUENCE`, repeated. `run` submits three jobs that wait on each other:
+reads a peptide file (`name: SEQUENCE` per line, FASTA, or columns of name,
+sequence and an optional ring), or use `-p SEQUENCE`, repeated. `run` submits three jobs that wait on each other:
 preparation, one array task per peptide, then the report. Run it again after
 a failure and only the peptides with no result are docked again.
 
@@ -309,7 +309,7 @@ Every run, on either engine, also takes these settings; each is named the same i
 
 * **Where the box goes** (`--site-mode`): around residues you pick (`-s`, the default), around a ligand or peptide in the structure (`--site-mode ligand --site-ligand B`, or a hetero group as `A:NUT:201`), or around the pocket AutoSite finds once the receptor is prepared (`--site-mode pocket`, with `--site-pocket best` or `all`).
 * **The grid maps**: which AGFR builds them (`--agfr`), which AutoSite places the points the search starts from (`--autosite`, 1.1 by default), and the receptor gradient, off unless asked for (`--receptor-gradient`).
-* **Peptides**: linear, or a ring head to tail or through a disulfide (`--cyclic none|backbone|disulfide`; a disulfide needs two cysteines in every peptide, and one with fewer is refused), and the share of replicas that start as a helix (`--helical 25`, the default; 0 starts every replica as a coil, as runs did before).
+* **Peptides**: linear, or a ring head to tail or through a disulfide (`--cyclic none|backbone|disulfide` for the run; a disulfide needs two cysteines in each peptide docked that way, and one with fewer is refused), and the share of replicas that start as a helix (`--helical 25`, the default; 0 starts every replica as a coil, as runs did before). Each peptide can have its own ring: on its row in the page, or in a third column of the `-f` file (`p53,ETFSDLWKLLPEN,head to tail`, or a header row `name,sequence,ring`), with `linear`, `head to tail` or `disulfide`; a peptide without one takes `--cyclic`.
 * **Output**: the ranked poses written per peptide (`--poses`, up to 10 with ADCP 1.0 and 100 with 1.1), and every replica's trajectory, packed into one archive per peptide (`--keep-trajectories`).
 
 A run can also start from a target file made in AGFR or AGFRGUI: give its path under *or a target file* (`--target-file`). The receptor, maps and box then come from that file, and this package's receptor preparation is not run. The file's name must not be changed, since ADCP finds the maps by it.

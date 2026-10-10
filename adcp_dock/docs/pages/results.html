@@ -32,7 +32,9 @@ pose viewer, and <b>Reset column widths</b> under a table puts them back.</p>
 
 <h2 id="the-groups">The groups of columns</h2>
 <p><b>docking</b> carries the length, how many poses ADCP ranked, the best score
-and the mean of the top few. A best score improves simply by scoring more poses, so
+and the mean of the top few. When any peptide in the run was docked as a ring,
+it carries a <b>ring</b> column as well: linear, head to tail or disulfide, for
+each peptide as it was docked. A best score improves simply by scoring more poses, so
 read it beside the pose count. <b>cluster population</b> is how many of ADCP's
 clustered solutions landed in the top pose's cluster, and their share of all it
 clustered: ADCP returns one pose per cluster, so this is the search's own measure of

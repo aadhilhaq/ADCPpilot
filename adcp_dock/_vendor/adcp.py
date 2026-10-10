@@ -95,6 +95,10 @@ def dock(sequence: str, trg: str, workdir: str, tools,
         cmd += list(extra_args)
         if cpus:
             cmd += ["-c", str(cpus)]
+        # The command as it runs, in the task's log: ADCP 1.0 does not echo
+        # it into its own, and which flags a peptide was given is the record
+        # of how it was docked.
+        log("  adcp: %s" % " ".join(cmd[1:]))
         with open(logf, "w") as fh:
             r = subprocess.run(cmd, stdout=fh, stderr=subprocess.STDOUT,
                                cwd=wd, env=env)

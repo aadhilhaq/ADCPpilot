@@ -43,6 +43,7 @@ EXAMPLE = os.path.join(HERE, "adcp_dock", "example_run")
 WANT = ["interface.png", "receptor-loaded.png", "site-residues.png",
         "site-box.png", "site-other-chain.png", "site-ligand.png",
         "site-maps.png", "peptides.png", "peptides-refused.png",
+        "peptide-rings.png", "peptide-ring-refused.png",
         "peptide-options.png", "docking-settings.png", "help-box.png",
         "runs.png", "results-table.png", "pose-viewer.png", "cite.png",
         "adapt.png", "guide.png", "submit.png", "runs-folders.png",
@@ -323,6 +324,44 @@ def main():
                 pg.wait_for_timeout(800)
                 shot(card("#peps"), "peptides-refused.png")
             step("refused", refused)
+
+            # one run, three kinds of peptide: a fourth peptide pasted with
+            # its ring as a third column, and p53 set head to tail on its row
+            def rings():
+                # The paste box is still open from the refused paste.
+                pg.evaluate("document.getElementById('pastebox')"
+                            ".classList.remove('hide')")
+                pg.fill("#pastetext", "ss_PMI,CTSFAEYWNLLC,disulfide")
+                pg.click("#pasteadd")
+                pg.wait_for_function(
+                    "() => document.querySelectorAll('#peps .ent').length >= 4",
+                    timeout=30000)
+                pg.select_option("#peps .ent[data-i='0'] select.pr", "backbone")
+                pg.wait_for_function(
+                    "() => /rows differ/.test("
+                    "document.getElementById('pepoptsnote').textContent)",
+                    timeout=30000)
+                pg.wait_for_timeout(1200)
+                shot(card("#peps"), "peptide-rings.png")
+            step("rings", rings)
+
+            # a ring the peptide cannot close: 12/1 has no cysteine
+            def ring_refused():
+                row = "#peps .ent[data-i='2']"
+                pg.select_option(row + " select.pr", "disulfide")
+                pg.wait_for_function(
+                    "() => /two cysteines/.test(document.querySelector("
+                    "\"#peps .ent[data-i='2'] .seqmsg\").textContent)",
+                    timeout=30000)
+                pg.wait_for_timeout(600)
+                shot_clip([row], "peptide-ring-refused.png", pad=8, least=760)
+                # Back to three peptides docked as the run, for the pictures
+                # after this one.
+                pg.select_option(row + " select.pr", "")
+                pg.select_option("#peps .ent[data-i='0'] select.pr", "")
+                pg.click("#peps button[data-rm='3']")
+                pg.wait_for_timeout(800)
+            step("ring refused", ring_refused)
 
             # how every peptide is built and started
             def peptide_options():

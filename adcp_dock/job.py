@@ -102,12 +102,17 @@ def default(**kw):
         "box_chains": "ignore",
         "box_chains_min_atoms": 20,
         # peptides
-        "peptides": [],          # [{name, sequence}]
+        # [{name, sequence}], and "cyclic" on a peptide docked as its own
+        # ring rather than as the run's (ring_of). A peptide without it, as
+        # in every job file written before a peptide could carry one, is
+        # docked as the run's "cyclic" below says.
+        "peptides": [],
         # The same limit the page and the peptide checks use, so a peptide
         # the page accepts is not refused at submission.
         "max_length": _max_length(),
         # Linear ("none"), or closed head to tail ("backbone", ADCP's -cyc)
         # or through a disulfide between two cysteines ("disulfide", -cys).
+        # The run's choice, which every peptide takes unless it has its own.
         "cyclic": "none",
         # The per cent of replicas that start as a helix, the rest as coil
         # (ADCP's -p). A job file without it was docked with every replica
@@ -350,8 +355,69 @@ def map_problems(j):
     return out
 
 
+def ring_of(j, p):
+    """How one of the job's peptides is docked: "none", "backbone" or
+    "disulfide".
+
+    The peptide's own "cyclic" when it has one, and the run's otherwise,
+    which is all a job file written before a peptide could carry its own
+    ever has. A peptide's value is read as a person writes it ("head to
+    tail", "linear"), and one that names no ring is returned as written, for
+    validate() to refuse with the peptide's name.
+    """
+    from . import peptide as pep
+    own = p.get("cyclic") if isinstance(p, dict) else None
+    if own is not None and str(own).strip():
+        got = pep.ring_choice(own)
+        if got:
+            return got
+        if got is None:
+            return str(own)
+    return str((j or {}).get("cyclic") or "none")
+
+
+def rings(j):
+    """[ring] for the job's peptides, in the order peptide_list gives them."""
+    return [ring_of(j, p) for p in (j.get("peptides") or [])]
+
+
+def ring_for(j, seq):
+    """The ring the peptide with this cleaned sequence is docked with.
+
+    Results are kept by sequence, and a run never holds one sequence twice
+    (validate), so the sequence is enough to find the peptide. One the job
+    no longer lists is given the run's ring.
+    """
+    from . import peptide as pep
+    for p in (j or {}).get("peptides") or []:
+        if pep.clean(p.get("sequence", "")) == seq:
+            return ring_of(j, p)
+    return str((j or {}).get("cyclic") or "none")
+
+
+def tidy_peptides(peptides):
+    """The peptides as a job file keeps them: a peptide's own ring written
+    the one way the code reads it ("none", "backbone", "disulfide"), and
+    left off where it is empty or "as the run", so the run's choice applies.
+    A value that names no ring is kept as written, so validate() can say
+    which peptide it is on and what it says."""
+    from . import peptide as pep
+    out = []
+    for p in peptides or []:
+        q = dict(p) if isinstance(p, dict) else {"sequence": str(p)}
+        own = q.get("cyclic")
+        got = pep.ring_choice(own) if own is not None else ""
+        if got == "":
+            q.pop("cyclic", None)
+        elif got:
+            q["cyclic"] = got
+        out.append(q)
+    return out
+
+
 def peptide_option_problems(j):
-    """[str] why the job's cyclic or helical setting cannot be used."""
+    """[str] why the job's cyclic or helical setting cannot be used, the
+    run's or a peptide's own."""
     from . import peptide as pep
     out = []
     try:
@@ -367,7 +433,9 @@ def peptide_option_problems(j):
         return out
     for i, p in enumerate(j.get("peptides") or [], 1):
         seq = pep.clean(p.get("sequence", ""))
-        pr = pep.cyclic_problem(seq, mode)
+        ring = ring_of(j, p)
+        pr = (pep.cyclic_problem(seq, ring) if ring in pep.CYCLIC
+              else pep.ring_problem(p.get("cyclic")))
         if pr:
             out.append("Peptide %d (%s): %s"
                        % (i, p.get("name") or seq[:10] or "?", pr.message))
@@ -427,17 +495,33 @@ def validate(j):
     # results/<sequence>.json, so two entries with the same sequence
     # share a working directory and a result file.
     seqs, names = {}, {}
-    for i, p in enumerate(j.get("peptides") or [], 1):
+    peps = j.get("peptides") or []
+    for i, p in enumerate(peps, 1):
         seq = pep.clean(p.get("sequence", ""))
         label = (p.get("name") or "").strip()
         if seq:
             if seq in seqs:
-                out.append(
-                    "Peptides %d and %d are the same sequence (%s). Two "
-                    "entries with one sequence would share a working "
-                    "directory and a result file, so one would overwrite "
-                    "the other. Remove one, or change the sequence."
-                    % (seqs[seq], i, seq))
+                first, second = (ring_of(j, peps[seqs[seq] - 1]),
+                                 ring_of(j, p))
+                if first != second:
+                    # One sequence as two molecules, a chain and a ring, is
+                    # a comparison worth making, but not inside one run.
+                    out.append(
+                        "Peptides %d and %d are the same sequence (%s), one "
+                        "docked %s and the other %s. A run docks each "
+                        "sequence once, since its working directory and "
+                        "result file are named by the sequence; dock the "
+                        "second in a run of its own to compare the two."
+                        % (seqs[seq], i, seq,
+                           pep.RING_AS.get(first, first),
+                           pep.RING_AS.get(second, second)))
+                else:
+                    out.append(
+                        "Peptides %d and %d are the same sequence (%s). Two "
+                        "entries with one sequence would share a working "
+                        "directory and a result file, so one would overwrite "
+                        "the other. Remove one, or change the sequence."
+                        % (seqs[seq], i, seq))
             else:
                 seqs[seq] = i
         if label:

@@ -27,11 +27,14 @@ def _peptides(values, path, **kw):
     # sequence containing a colon.
     bad = []
     for v in values or []:
-        for name, seq, probs in peptide.parse_many(v, **kw):
-            if probs:
-                bad.append("  %s: %s" % (v, probs[0].message))
-            named = ":" in v or v.lstrip().startswith(">")
-            out.append({"name": name if named else "", "sequence": seq})
+        for r in peptide.parse_rows(v, **kw):
+            if r["problems"]:
+                bad.append("  %s: %s" % (v, r["problems"][0].message))
+            p = {"name": r["name"] if r["named"] else "",
+                 "sequence": r["sequence"]}
+            if r["cyclic"]:
+                p["cyclic"] = r["cyclic"]
+            out.append(p)
     if bad:
         raise SystemExit("-p has peptides that cannot be docked:\n%s"
                          % "\n".join(bad))
@@ -39,12 +42,18 @@ def _peptides(values, path, **kw):
         # Parse problems are reported rather than discarded: a file
         # that does not parse would otherwise become a job whose
         # peptides were its comment lines, caught later by validation
-        # and far from its cause.
+        # and far from its cause. The ring column is read as the page
+        # reads it, and a row that leaves it empty is docked as --cyclic
+        # says.
         bad = []
-        for name, seq, probs in peptide.parse_many(open(path).read(), **kw):
-            if probs:
-                bad.append("  %s: %s" % (name, probs[0].message))
-            out.append({"name": name, "sequence": seq})
+        for r in peptide.parse_rows(open(path).read(), **kw):
+            if r["problems"]:
+                bad.append("  %s: %s" % (r["name"], " ".join(
+                    x.message for x in r["problems"])))
+            p = {"name": r["name"], "sequence": r["sequence"]}
+            if r["cyclic"]:
+                p["cyclic"] = r["cyclic"]
+            out.append(p)
         if bad:
             raise SystemExit("%s has peptides that cannot be docked:\n%s"
                              % (path, "\n".join(bad)))
@@ -186,7 +195,11 @@ def main(argv=None):
     n.add_argument("--omm-env", choices=("implicit", "vacuum"),
                    default="implicit")
     n.add_argument("-p", "--peptide", action="append", default=[])
-    n.add_argument("-f", "--peptides-file")
+    n.add_argument("-f", "--peptides-file",
+                   help="a peptide file: one sequence per line, name: "
+                        "SEQUENCE, FASTA, or columns (sequence, name and an "
+                        "optional ring: linear, head to tail or disulfide), "
+                        "with or without a header row")
     n.add_argument("--chain", action="append", default=[])
     n.add_argument("--protonation", choices=("reduce", "propka"),
                    default="reduce",
@@ -235,7 +248,10 @@ def main(argv=None):
                    default="none",
                    help="dock every peptide linear (the default), cyclic "
                         "head to tail (adcp -cyc), or cyclic through a "
-                        "disulfide between two cysteines (adcp -cys)")
+                        "disulfide between two cysteines (adcp -cys). A "
+                        "peptide whose row in the -f file has a ring column "
+                        "(linear, head to tail or disulfide) is docked with "
+                        "that ring instead")
     n.add_argument("--helical", type=int, default=25,
                    help="the per cent of replicas that start as a helix, "
                         "the rest as coil (adcp -p). 25 by default; 0 starts "
@@ -505,16 +521,23 @@ def main(argv=None):
             jobmod.take_adapt(j)
         # A ring the peptide cannot close is refused here, before any job
         # file is written, with the reason: ADCP itself would dock it as a
-        # linear peptide and say nothing.
+        # linear peptide and say nothing. Each peptide with its own ring,
+        # from the file's ring column, or with --cyclic's.
         bad = []
         for p in j["peptides"]:
-            pr = peptide.cyclic_problem(p["sequence"], a.cyclic)
+            ring = jobmod.ring_of(j, p)
+            pr = (peptide.cyclic_problem(p["sequence"], ring)
+                  if ring in peptide.CYCLIC
+                  else peptide.ring_problem(p.get("cyclic")))
             if pr:
-                bad.append("  %s (%s): %s" % (p["name"], p["sequence"],
-                                               pr.message))
+                bad.append("  %s (%s), %s: %s"
+                           % (p["name"], p["sequence"],
+                              peptide.RING_AS.get(ring, ring), pr.message))
         if bad:
-            raise SystemExit("--cyclic %s cannot be used for every peptide:\n%s"
-                             % (a.cyclic, "\n".join(bad)))
+            raise SystemExit("%d peptide(s) cannot be docked with the ring "
+                             "asked for (--cyclic %s, or the file's ring "
+                             "column):\n%s"
+                             % (len(bad), a.cyclic, "\n".join(bad)))
         problems = jobmod.validate(j)
         jobmod.save(a.rundir, j)
         print("wrote %s" % jobmod.path_of(a.rundir))

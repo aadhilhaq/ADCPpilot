@@ -437,10 +437,13 @@ def used_by(job):
     # made before D residues and rings were rescored, without D residues or
     # a ring), and protonates each complex first: with PDB2PQR and PROPKA,
     # or under reduce with the receptor's own states and reduce for the
-    # peptide.
+    # peptide. Each peptide is judged with its own ring.
     from . import mmforms
+    from . import job as _jobring
+    peps = job.get("peptides") or []
     if job.get("mmgbsa") and (not seqs or any(
-            mmforms.unscoreable(s, job) is None for s in seqs)):
+            mmforms.unscoreable(s, job, _jobring.ring_of(job, p)) is None
+            for s, p in zip(seqs, peps))):
         keys |= {"amber", "ff14sb", "mmpbsa"} | by
         # The paper for the generalised Born model the energies were computed
         # in: OBC(II) by default, GBn2 when the run asked for it.
