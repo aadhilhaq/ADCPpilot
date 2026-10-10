@@ -39,7 +39,10 @@ calculation to Slurm for you.
   `login.your-cluster.edu`; your cluster's documentation gives it);
 * a terminal on your own computer: **Terminal** on macOS, **PowerShell** on
   Windows 10 or 11, or any terminal on Linux. All of them have `ssh`;
-* a folder on the cluster with room for about **100,000 files and 10 GB**.
+* a folder on the cluster with room for about **150,000 files and 10 GB**.
+  Clusters limit how many files you may keep as well as how much space they
+  take, and this install is many small files: about 150,000 while it is
+  being installed, and about 93,000 once it has deleted what it downloaded.
   Your home folder is usually too small: most clusters allow only a few
   thousand files there. Use your scratch or project folder. On many clusters
   `echo $SCRATCH` prints yours, and the cluster's quota command (often
@@ -81,7 +84,7 @@ It lists what it found on the cluster, what it would add, and whether the
 folder has room. If it says **NOT ENOUGH ROOM**, choose another folder before
 going on.
 
-**4. Install** (30 to 60 minutes when it builds everything, under a minute
+**4. Install** (about 7 minutes when it builds everything, under a minute
 when the cluster already has it all):
 
 ```bash
@@ -92,17 +95,23 @@ when the cluster already has it all):
 not there. The script prints what it is doing as it goes, never asks a
 question, and writes nothing into your home folder. In order, it:
 
-| step | takes about |
-|---|---|
-| looks for what the cluster already has (below) | seconds |
-| builds a Python environment with RDKit, AmberTools, PDB2PQR, OpenMM, PDBFixer and Biopython, from conda-forge | 15 to 40 minutes, most of it AmberTools |
-| downloads ADFRsuite from the Scripps Research Institute, checks it against a pinned checksum, and installs it | 2 to 5 minutes |
-| installs ADCP 1.1 beside it with Scripps' own recipe ([section 4](#4-adcp-11-optional)); `--no-adcp11` leaves it out | about 10 minutes |
-| fetches ADapt beside it, once ADapt's repository is public ([ADapt](#adapt-optional)) | seconds |
-| writes `activate.sh` in the checkout, which records where everything is, and checks the result | seconds |
+1. looks for what the cluster already has (below);
+2. builds a Python environment with RDKit, AmberTools, PDB2PQR, OpenMM,
+   PDBFixer and Biopython, from conda-forge;
+3. downloads ADFRsuite from the Scripps Research Institute, checks it against
+   a pinned checksum, and installs it;
+4. installs ADCP 1.1 beside it with Scripps' own recipe
+   ([section 4](#4-adcp-11-optional)); `--no-adcp11` leaves it out;
+5. fetches ADapt beside it, once ADapt's repository is public
+   ([ADapt](#adapt-optional));
+6. deletes the packages it downloaded, and writes `activate.sh` in the
+   checkout, which records where everything is, then checks the result.
 
-It uses your cluster's own conda when it is recent, and otherwise fetches
-micromamba, a single file, into the folder; no conda module is needed.
+Measured on a clean account on the Grace cluster at Texas A&M, the whole of
+it took 7 minutes, most of it the two environments, with about 1 GB of
+downloads; a slower network or a busy login node takes longer. It uses your
+cluster's own conda when it is recent, and otherwise fetches micromamba, a
+single file, into the folder; no conda module is needed.
 
 **What success looks like.** The output ends with a summary and the next
 commands, for example (your paths and times will differ):
@@ -115,7 +124,7 @@ commands, for example (your paths and times will differ):
   ADCP 1.1            /scratch/you/adcp/tools/docking/adcpsuite
   ADapt               not installed (optional; ./update.sh fetches it once it is public)
 
-  Finished in 38 min 05 s.
+  Finished in 6 min 58 s.
 ```
 
 If something could not be installed, the summary also lists what is turned
@@ -132,6 +141,16 @@ Every program should show a path, the Python packages a version, and the last
 line should read `sbatch: found`. Docking needs `adcp`, `agfr`,
 `prepare_receptor` and `pdb2pqr`; MM-GBSA rescoring needs the four Amber
 programs.
+
+#### Messages you may see, which are normal
+
+* `Security Warning: This transaction includes executing package scripts`:
+  micromamba says this whenever a package runs a small setup script of its
+  own; the packages come from conda-forge, and nothing needs doing.
+* `Executing post-link script for package 'ocl-icd-system'`: one of those
+  scripts, which lets OpenMM find the system's OpenCL drivers.
+* `ADapt: not installed: ... is not public yet`: ADCP docking works without
+  it, and `./update.sh` fetches it once it is public.
 
 #### If it stops
 
@@ -463,7 +482,7 @@ adcp-dock install-adcp11                      # beside ADFRsuite, in the tools f
 adcp-dock install-adcp11 --dest /path/adcpsuite
 ```
 
-This follows Scripps' own installation script: it creates the environment with micromamba (downloaded if needed), installs OpenMM, Open Babel and PDBFixer from conda-forge, and fetches the Scripps packages from ccsb.scripps.edu, checking each against a pinned SHA-256. It takes about ten minutes and 3 GB. Scripps' own instructions are at <https://ccsb.scripps.edu/adcpv11/downloads/>.
+This follows Scripps' own installation script: it creates the environment with micromamba (downloaded if needed), installs OpenMM, Open Babel and PDBFixer from conda-forge, and fetches the Scripps packages from ccsb.scripps.edu, checking each against a pinned SHA-256. It takes a few minutes and 3 GB, and deletes the packages it downloaded once it is done. Scripps' own instructions are at <https://ccsb.scripps.edu/adcpv11/downloads/>.
 
 Without `--dest` it goes beside ADFRsuite (`$ADFRSUITE_HOME/../adcpsuite`), in the installation's own tools folder, and on a computer without ADFRsuite set up yet into `~/.adcp-dock/adcpsuite`. The interface finds ADCP 1.1 at `$ADCPSUITE_HOME`, in a folder named `adcpsuite` beside ADFRsuite or in a tools folder given with `--tools-root`, at `~/.adcp-dock/adcpsuite`, or at `/content/adcpsuite` in Colab. ADFRsuite 1.0 is still needed, for `prepare_receptor` and for ADCP 1.0. The suite carries its own AGFR, found from the same installation, and the grid maps are built with it wherever the suite is installed (`--agfr auto`, the default; `--agfr 1.0` asks for ADFRsuite's).
 

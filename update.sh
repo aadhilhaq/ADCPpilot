@@ -31,6 +31,11 @@ fi
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$HERE"
+# Nothing is written into the home directory: pip keeps no cache (its own
+# builds in a subprocess included), and anything else that keeps one keeps it
+# in this checkout's tools folder, which git ignores.
+export PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+export XDG_CACHE_HOME="$HERE/tools/cache" MPLCONFIGDIR="$HERE/tools/cache/matplotlib"
 
 say()  { printf '\n\033[1m[update]\033[0m %s\n' "$1"; }
 note() { printf '  %s\n' "$1"; }

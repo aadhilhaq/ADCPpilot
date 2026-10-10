@@ -7,7 +7,7 @@
 # the rescoring, numpy and RDKit for everything else, and OpenMM, PDBFixer
 # and Biopython for preparing the receptor) are often already on a cluster,
 # in a shared scientific environment or as a module. A new environment with
-# AmberTools is about 55,000 files, and on a shared /scratch the file count
+# AmberTools is about 49,000 files, and on a shared /scratch the file count
 # matters more than the size. So this looks for them first, adds only what
 # is missing, and builds only what it cannot find.
 #
@@ -67,8 +67,9 @@ Usage:
     ./install.sh --check [<folder>]   report what it would do, change nothing
     ./install.sh --no-adcp11 ...      leave out ADCP 1.1 (ADapt needs it)
 
-Give a folder with room for about 100,000 files, in your scratch or project
-space rather than your home directory. INSTALL.md explains each step.
+Give a folder with room for about 150,000 files while it installs (about
+93,000 stay), in your scratch or project space rather than your home
+directory. INSTALL.md explains each step.
 EOF
 }
 
@@ -178,13 +179,16 @@ pip_spec() {  # nothing for AmberTools, which pip does not have
 }
 names() { local n out=""; for n in "$@"; do out="$out, $(name_of "$n")"; done; printf '%s' "${out#, }"; }
 
-# About how many files and how much space each part takes, measured on the
-# conda-forge builds of 2026, so that a folder without room is found before
-# anything is downloaded rather than part way through.
-ROOM_ENV_FILES=55000;    ROOM_ENV_GB=5
-ROOM_TOPUP_FILES=10000;  ROOM_TOPUP_GB=1
-ROOM_ADFR_FILES=12000;   ROOM_ADFR_GB=1
-ROOM_SUITE_FILES=45000;  ROOM_SUITE_GB=4
+# How many files and how much space each part needs while it is installed,
+# and what stays once its download cache is removed. Measured on a clean
+# install on Grace (Texas A&M, October 2026): the environment 48,927 files,
+# ADFRsuite 11,272, ADCP 1.1 31,116, and their caches 50,579 more, 143,472
+# in all; the peak is rounded up to 150,000. So a folder without room is
+# found before anything is downloaded rather than part way through.
+ROOM_ENV_FILES=90000;    ROOM_ENV_GB=5;    KEEP_ENV_FILES=49000;    KEEP_ENV_GB=3
+ROOM_TOPUP_FILES=10000;  ROOM_TOPUP_GB=1;  KEEP_TOPUP_FILES=5000;   KEEP_TOPUP_GB=1
+ROOM_ADFR_FILES=12000;   ROOM_ADFR_GB=1;   KEEP_ADFR_FILES=11500;   KEEP_ADFR_GB=1
+ROOM_SUITE_FILES=48000;  ROOM_SUITE_GB=4;  KEEP_SUITE_FILES=31500;  KEEP_SUITE_GB=3
 
 # --- this computer ------------------------------------------------------------
 head_ "This computer"
@@ -208,7 +212,7 @@ fi
 if [ -n "$PREFIX" ] && [ -n "${HOME:-}" ] && [ "$HOME" != / ]; then
   case "$PREFIX/" in
     "${HOME%/}"/*)
-      wrap "$PREFIX is in your home directory. Most clusters allow only a few thousand files there, and this can need about 100,000; a folder in your scratch or project space is usually the right place." ;;
+      wrap "$PREFIX is in your home directory. Most clusters allow only a few thousand files there, and this can need about 150,000 while it installs; a folder in your scratch or project space is usually the right place." ;;
   esac
 fi
 
@@ -487,7 +491,7 @@ if [ -z "$found_suite" ]; then
     say "        non-standard and D residues and AGFR 1.1 need it."
   else
     need_suite=1
-    wrap "ADCP 1.1, into $TOOLS_AT/adcpsuite (about ten minutes and 3 GB; --no-adcp11 leaves it out)"
+    wrap "ADCP 1.1, into $TOOLS_AT/adcpsuite (a few minutes and 3 GB; --no-adcp11 leaves it out)"
   fi
 fi
 if [ ! -e "$ADAPT_DIR" ]; then
@@ -561,17 +565,24 @@ room_left() {
 }
 thousands() { printf '%s' "$1" | sed ':a;s/\B[0-9]\{3\}\>/,&/;ta'; }
 
-need_files=0; need_gb=0
-if [ "$need_env" = 1 ]; then need_files=$((need_files + ROOM_ENV_FILES)); need_gb=$((need_gb + ROOM_ENV_GB)); fi
-if [ ${#TOPUP[@]} -gt 0 ]; then need_files=$((need_files + ROOM_TOPUP_FILES)); need_gb=$((need_gb + ROOM_TOPUP_GB)); fi
-if [ "$need_adfr" = 1 ]; then need_files=$((need_files + ROOM_ADFR_FILES)); need_gb=$((need_gb + ROOM_ADFR_GB)); fi
-if [ "$need_suite" = 1 ]; then need_files=$((need_files + ROOM_SUITE_FILES)); need_gb=$((need_gb + ROOM_SUITE_GB)); fi
+need_files=0; need_gb=0; keep_files=0; keep_gb=0
+add_room() {  # PART: adds what that part needs while installing, and keeps
+  local f g kf kg
+  f=ROOM_$1_FILES; g=ROOM_$1_GB; kf=KEEP_$1_FILES; kg=KEEP_$1_GB
+  need_files=$((need_files + ${!f})); need_gb=$((need_gb + ${!g}))
+  keep_files=$((keep_files + ${!kf})); keep_gb=$((keep_gb + ${!kg}))
+}
+[ "$need_env" = 1 ] && add_room ENV
+[ ${#TOPUP[@]} -gt 0 ] && add_room TOPUP
+[ "$need_adfr" = 1 ] && add_room ADFR
+[ "$need_suite" = 1 ] && add_room SUITE
 ROOM_OK=1
 if [ "$need_files" -gt 0 ]; then
   where="${PREFIX:-$HERE}"
   head_ "Room in $where"
   read -r have_files have_kb <<<"$(room_left "$where")"
-  say "  needs about $(thousands $need_files) files and $need_gb GB"
+  say "  needs about $(thousands $need_files) files and $need_gb GB while it installs;"
+  say "  about $(thousands $keep_files) files and $keep_gb GB stay once its download cache is removed"
   if [ "$have_files" = - ] && [ "$have_kb" = - ]; then
     wrap "How much room you have there could not be read. Your cluster's quota command (often showquota, or quota -s) shows it; most clusters' documentation names it."
   else
@@ -603,7 +614,8 @@ was given to build one in. Run it again with a folder that has room:
     ./install.sh $example
 
 Use your scratch or project space, not your home directory: most clusters
-allow only a few thousand files in home, and this needs about 100,000.
+allow only a few thousand files in home, and this needs about 150,000
+while it installs.
 envs/adcp is added to the folder you give.
 
 If a suitable environment already exists somewhere this did not look,
@@ -625,6 +637,12 @@ fi
 # never in the home directory.
 TOOLS_DIR="${PREFIX:+$PREFIX/tools}"; TOOLS_DIR="${TOOLS_DIR:-$HERE/tools}"
 CACHE_BASE="${PREFIX:+$PREFIX/conda_shared}"; CACHE_BASE="${CACHE_BASE:-$HERE/tools/conda_shared}"
+# Nothing is written into the home directory: pip keeps no cache (its own
+# builds in a subprocess included, which do not see --no-cache-dir), and
+# anything else that keeps one keeps it here. ADCP 1.1's installer and every
+# pip run below inherit these.
+export PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+export XDG_CACHE_HOME="$CACHE_BASE/cache" MPLCONFIGDIR="$CACHE_BASE/cache/matplotlib"
 
 download() {  # download URL FILE
   if command -v curl >/dev/null 2>&1; then
@@ -696,10 +714,24 @@ solver() {
   py_clean HOME="$CACHE_BASE/home" "$SOLVER" "$@"
 }
 # The packages fetched to build an environment are not needed once it is
-# built, and they are thousands of files.
-solver_clean() {
-  [ "$OWN_CACHE" = 1 ] || return 0
-  solver clean -a -y >/dev/null 2>&1 || true
+# built, and they are tens of thousands of files: 50,579 on a clean install.
+# Only the cache this script made is removed, never one a cluster or a person
+# set up, and only when the environment holds no symbolic link into it. The
+# environment's files are hard links to the cache's, or copies, so they stay
+# whole when the cache's names for them go. A clean command is not used:
+# conda's keeps every package an environment still links to, and both read
+# every cache their configuration names, which can include someone else's.
+remove_own_cache() {  # $1 = the environment just built or added to
+  local pk="$CONDA_PKGS_DIRS" n
+  [ "$OWN_CACHE" = 1 ] && [ -d "$pk" ] || return 0
+  case "$pk" in "$CACHE_BASE"/*) ;; *) return 0 ;; esac
+  if [ -n "$(find "$1" -type l -lname "$pk/*" -print -quit 2>/dev/null)" ]; then
+    say "  the download cache is kept: $1 links into it"
+    return 0
+  fi
+  n=$(find "$pk" 2>/dev/null | wc -l)
+  rm -rf "$pk"
+  say "  removed the download cache it was built from ($(thousands "$n") files)"
 }
 
 # --- add what the environment found lacks ---------------------------------------
@@ -752,7 +784,7 @@ if [ ${#TOPUP[@]} -gt 0 ]; then
       failed=("${TOPUP[@]}")
     fi
   fi
-  [ "$how" = add_conda ] && solver_clean
+  [ "$how" = add_conda ] && remove_own_cache "$found_env"
   STEP="checking $found_env"
   env_inspect "$found_env"
   env_req=$E_REQ; env_opt=$E_OPT; env_amber=$E_AMBER
@@ -790,7 +822,7 @@ if [ "$need_env" = 1 ]; then
   say "  using $SOLVER"
   SPECS=(python=3.11 "numpy<2" rdkit pdb2pqr pdbfixer openmm biopython)
   [ "$AMBER_SRC" = external ] || SPECS+=(ambertools)
-  say "  this is the slow part: 15 to 40 minutes, most of it AmberTools"
+  say "  this is the slow part: a few minutes on a fast network, most of it AmberTools"
   STEP="building the environment in $ENVDIR"
   if [ -d "$ENVDIR/conda-meta" ]; then
     # An environment an earlier run began and did not finish: completed in
@@ -800,7 +832,7 @@ if [ "$need_env" = 1 ]; then
   else
     solver create -y -p "$ENVDIR" -c conda-forge --override-channels "${SPECS[@]}"
   fi
-  solver_clean
+  remove_own_cache "$ENVDIR"
   echo "Built by install.sh in $HERE on $(date +%Y-%m-%d)" > "$ENVDIR/.adcp-dock-env"
   found_env="$ENVDIR"
   env_inspect "$found_env"
@@ -1096,7 +1128,7 @@ if [ "$need_suite" = 1 ]; then
   head_ "Installing ADCP 1.1 into $SUITE_DEST"
   T1=$(date +%s)
   STEP="installing ADCP 1.1"
-  say "  the Scripps Research Institute's recipe: about ten minutes and 3 GB"
+  say "  the Scripps Research Institute's recipe: a few minutes and 3 GB"
   # HOME points beside it for this one command, as for conda above: nothing
   # of it belongs in the home directory. A micromamba fetched above is
   # reused rather than fetched again.

@@ -21,7 +21,8 @@
 # Each step's exit code, time and the files it made, the quota before and
 # after, the install's warnings and the job ids go to <folder>/logs/SUMMARY.txt,
 # which is short enough to paste into a message. --report adds how the jobs
-# ended. It leaves about 112,000 files: delete <folder> afterwards.
+# ended. It leaves about 93,000 files (about 150,000 while it installs):
+# delete <folder> afterwards.
 #
 # Nothing it does touches this checkout, the home directory or anything
 # outside <folder>, apart from the jobs it submits.
@@ -46,7 +47,7 @@ Usage:
     bash scripts/cleanroom_test.sh --report <folder>   add how its jobs ended
 
 <folder> must be outside this checkout and empty (or one this script began),
-with room for about 112,000 files.
+with room for about 150,000 files.
 EOF
 }
 
@@ -78,7 +79,7 @@ sum() { printf '%s\n' "$*" >> "$S"; }
 files() { find "$@" 2>/dev/null | wc -l; }
 # The folder's files, leaving out the logs this script writes itself.
 made() { find "$CR" -path "$L" -prune -o -print 2>/dev/null | wc -l; }
-cleanup_line() { say "When you have sent SUMMARY.txt, delete the test (about 112,000 files):  rm -rf $CR"; }
+cleanup_line() { say "When you have sent SUMMARY.txt, delete the test (about 93,000 files):  rm -rf $CR"; }
 
 # The quota of the filesystem <folder> is on, however this cluster reports it.
 quota_lines() {
@@ -134,7 +135,14 @@ if [ "$MODE" = report ]; then
     gate=$(ls -t "$L"/gate_*.log 2>/dev/null | head -1)
     if [ -n "$gate" ]; then
       echo "test suite ($(basename "$gate")):"
-      grep -E "passed|FAILED|### gate exit|SELFTEST|check exit" "$gate" | sed 's/^/  /' | head -12
+      grep -E "passed|### gate exit|SELFTEST|check exit" "$gate" | sed 's/^/  /' | head -8
+      # Each failing test's own lines, and why each skip was a skip, so a
+      # failure can still be read once the folder is gone.
+      fails=$(awk '/FAILED \(/ {m=1; print; next} / skip$/ {m=0; next}
+                   m && /^    \| / {print; next} {m=0}' "$gate" | head -30)
+      skips=$(awk '/ skip$/ {m=1; print; next} m && /^    \. / {print; next} {m=0}' "$gate" | head -10)
+      [ -z "$fails" ] || { echo "failures (at most 30 lines):"; printf '%s\n' "$fails" | sed 's/^/  /'; }
+      [ -z "$skips" ] || { echo "skips:"; printf '%s\n' "$skips" | sed 's/^/  /'; }
     else
       echo "test suite: no log yet"
     fi

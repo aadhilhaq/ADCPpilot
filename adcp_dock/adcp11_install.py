@@ -113,10 +113,11 @@ def install(dest=None, log=print):
     # package cache is this installer's own, even when the caller named
     # another, because it is emptied at the end.
     root = os.path.join(base, "mamba_root")
-    env = dict(os.environ, MAMBA_ROOT_PREFIX=root,
-               CONDA_PKGS_DIRS=os.path.join(root, "pkgs"),
+    pkgs = os.path.join(root, "pkgs")
+    env = dict(os.environ, MAMBA_ROOT_PREFIX=root, CONDA_PKGS_DIRS=pkgs,
                XDG_CACHE_HOME=os.path.join(base, "cache"),
-               PIP_CACHE_DIR=os.path.join(base, "cache", "pip"))
+               PIP_CACHE_DIR=os.path.join(base, "cache", "pip"),
+               PIP_NO_CACHE_DIR="1", PIP_DISABLE_PIP_VERSION_CHECK="1")
     for var in ("PYTHONPATH", "PYTHONHOME"):
         env.pop(var, None)
     log("creating the ADCP 1.1 environment at %s (Python 3.7, conda-forge)" % dest)
@@ -148,16 +149,35 @@ def install(dest=None, log=print):
           "--no-index", "--find-links=" + cache] + rest, log, env=env)
     exe = adcp11.find([base]) or os.path.join(dest, "bin", "adcp")
     log("installed ADCP %s at %s" % (adcp11.version(exe) or "1.1", dest))
-    # The conda packages it was built from are tens of thousands of files
-    # that nothing uses once the environment exists, and on a cluster the
-    # number of files is often what runs out first.
-    try:
-        subprocess.run([mm, "clean", "-a", "-y", "-q"], env=env, timeout=600,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        log("removed the package cache it was built from")
-    except (OSError, subprocess.SubprocessError):
-        pass
+    remove_cache(pkgs, dest, log)
     return exe
+
+
+def remove_cache(pkgs, dest, log=print):
+    """Remove the download cache this installer made for `dest`.
+
+    The conda packages it was built from are tens of thousands of files that
+    nothing uses once the environment exists, and on a cluster the number of
+    files is often what runs out first. The environment's files are hard
+    links to the cache's, or copies, so they stay whole when the cache's
+    names for them go; a symbolic link into the cache would not, so the cache
+    is kept if the environment has one. Removed directly rather than with
+    micromamba clean, which reads every cache its configuration names. Returns
+    how many files were removed.
+    """
+    if not os.path.isdir(pkgs):
+        return 0
+    prefix = os.path.realpath(pkgs) + os.sep
+    for top, dirs, files in os.walk(dest):
+        for name in dirs + files:
+            p = os.path.join(top, name)
+            if os.path.islink(p) and os.path.realpath(p).startswith(prefix):
+                log("kept the download cache: %s links into it" % p)
+                return 0
+    n = 1 + sum(len(d) + len(f) for _, d, f in os.walk(pkgs))
+    shutil.rmtree(pkgs, ignore_errors=True)
+    log("removed the download cache it was built from (%d files)" % n)
+    return n
 
 
 def main(argv=None):

@@ -25,14 +25,14 @@ Developed by Aadhil Haq, HOPE Lab, under the supervision of Dr. Sandun Fernando.
 | Your own computer (Linux, macOS, or Windows through WSL) | [INSTALL.md, section 2](INSTALL.md#2-on-your-own-computer) |
 | Google Colab | [Open the notebook](https://colab.research.google.com/github/aadhilhaq/ADCP_docking/blob/main/notebooks/ADCP_docking_colab.ipynb); nothing is installed on your computer |
 
-On a Slurm cluster, connect with `ssh` to a login node (where you arrive; calculations never run there) and type, one line at a time, using a folder with room for about 100,000 files rather than your home folder:
+On a Slurm cluster, connect with `ssh` to a login node (where you arrive; calculations never run there) and type, one line at a time, using a folder with room for about 150,000 files rather than your home folder:
 
 ```bash
 cd $SCRATCH
 git clone https://github.com/aadhilhaq/ADCP_docking.git
 cd ADCP_docking
 ./install.sh --check $SCRATCH/adcp    # a few seconds: what it found, what it would add, and whether there is room
-./install.sh $SCRATCH/adcp            # 30 to 60 minutes; if it stops, run the same line again
+./install.sh $SCRATCH/adcp            # about 7 minutes; if it stops, run the same line again
 source activate.sh
 adcp-dock check
 ```

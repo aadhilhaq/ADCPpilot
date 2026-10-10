@@ -98,6 +98,7 @@ if [ "$1" = -c ]; then
 fi
 if [ "$1" = -m ] && [ "$2" = pip ]; then
   echo "pip $*" >> "$ENV/pip.log"
+  echo "PIP_NO_CACHE_DIR=${PIP_NO_CACHE_DIR:-} XDG_CACHE_HOME=${XDG_CACHE_HOME:-} HOME=$HOME" >> "$ENV/pip.env"
   if [ "$3" = install ]; then
     for a in "$@"; do case "$a" in
       openmm|pdbfixer|pdb2pqr|rdkit) echo "$a" >> "$ENV/installed.txt" ;;
@@ -137,6 +138,10 @@ echo "$*" >> "%(log)s"
 if [ "$1" = install ]; then
   env=""; prev=""
   for a in "$@"; do [ "$prev" = -p ] && env=$a; prev=$a; done
+  # What a real one leaves: the packages it fetched, in the cache it is given.
+  mkdir -p "$CONDA_PKGS_DIRS/somepkg-1.0/info"
+  echo x > "$CONDA_PKGS_DIRS/somepkg-1.0/info/index.json"
+  [ -f "$env/softlink" ] && ln -sf "$CONDA_PKGS_DIRS/somepkg-1.0/info/index.json" "$env/linked"
   for a in "$@"; do case "$a" in
     openmm|pdbfixer|pdb2pqr|rdkit) echo "$a" >> "$env/installed.txt" ;;
     biopython) echo Bio >> "$env/installed.txt" ;;
@@ -254,12 +259,36 @@ check(rc == 0 and "the wrappers an earlier run wrote" in out,
 e2 = make_env("env_noamber", ["numpy", "rdkit", "openmm", "pdbfixer", "Bio"])
 reset()
 rc, out = install(dict(base_env, ADCP_ENV=e2))
+own_pkgs = os.path.join(dep, "tools", "conda_shared", "pkgs")
+check("removed the download cache it was built from" in out and not os.path.exists(own_pkgs),
+      "the download cache install.sh made was not removed after adding to the environment:\n"
+      + out[-900:])
 log = open(solver_log).read() if os.path.exists(solver_log) else ""
 check(rc == 0 and "ambertools" in log and "--freeze-installed" in log,
       "AmberTools was not added to a writable environment that lacked it (exit %d):\n%s\n%s"
       % (rc, log, out[-900:]))
 check('export AMBERHOME="%s"' % e2 in (activate() if rc == 0 else ""),
       "activate.sh does not name the AmberTools just added")
+
+# The cache is kept when the environment links into it, and one named by
+# whoever ran this is never touched.
+e2b = make_env("env_softlinked", ["numpy", "rdkit", "openmm", "pdbfixer", "Bio"])
+write(os.path.join(e2b, "softlink"), "", 0o644)
+reset()
+rc, out = install(dict(base_env, ADCP_ENV=e2b))
+check(rc == 0 and "the download cache is kept" in out and os.path.isdir(own_pkgs)
+      and os.path.isfile(os.path.join(e2b, "linked"))
+      and open(os.path.join(e2b, "linked")).read() == "x\n",
+      "a cache the environment links into was removed (exit %d):\n%s" % (rc, out[-900:]))
+users = os.path.join(tmp, "users_conda_pkgs")
+write(os.path.join(users, "theirs-1.0", "info", "index.json"), "theirs\n", 0o644)
+e2c = make_env("env_userscache", ["numpy", "rdkit", "openmm", "pdbfixer", "Bio"])
+reset()
+rc, out = install(dict(base_env, ADCP_ENV=e2c, CONDA_PKGS_DIRS=users))
+check(rc == 0 and os.path.isfile(os.path.join(users, "theirs-1.0", "info", "index.json"))
+      and "removed the download cache" not in out,
+      "a package cache named by the person running install.sh was cleaned (exit %d):\n%s"
+      % (rc, out[-900:]))
 
 # --- 3. one you cannot write to ----------------------------------------------------
 e3 = make_env("env_readonly", ["numpy", "rdkit"])
@@ -301,6 +330,16 @@ check(rc == 0 and "pdb2pqr" in pip_log and "openmm" in pip_log and " -c " in pip
       "a venv was not given pdb2pqr and OpenMM with pip, held by constraints (exit %d):\n%s\n%s"
       % (rc, pip_log, out[-1200:]))
 check(not os.path.exists(solver_log), "conda was used on a venv")
+pip_env = open(os.path.join(e5, "pip.env")).read() if os.path.exists(os.path.join(e5, "pip.env")) else ""
+check(pip_env and all("PIP_NO_CACHE_DIR=1 " in l and ("XDG_CACHE_HOME=%s" % home) not in l
+                      and "XDG_CACHE_HOME= " not in l for l in pip_env.splitlines()),
+      "pip was run without PIP_NO_CACHE_DIR=1 and a cache folder outside home:\n" + pip_env)
+# And a real pip, given the same settings, keeps no cache anywhere.
+p = subprocess.run([sys.executable, "-m", "pip", "cache", "dir"], capture_output=True, text=True,
+                   env=dict(base_env, PIP_NO_CACHE_DIR="1"), timeout=120)
+check("disabled" in (p.stdout + p.stderr).lower() or p.returncode != 0,
+      "pip still names a cache with PIP_NO_CACHE_DIR=1: " + (p.stdout + p.stderr))
+check(os.listdir(home) == [], "something wrote into the home directory: %r" % os.listdir(home))
 
 # --- the script itself ---------------------------------------------------------------
 sh = open(os.path.join(ROOT, "install.sh")).read()
