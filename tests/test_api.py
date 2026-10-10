@@ -2238,20 +2238,27 @@ _bad = [l.strip() for l in _cff.splitlines() if l.strip().startswith("doi:")
         and not _cff_doi.match(l.split(":", 1)[1].strip().strip('"'))]
 check(not _bad, "CITATION.cff has dois the CFF schema refuses: %s" % _bad)
 # And each paper's year is the one its citation gives: Crossref's "issued" is
-# the online year, which put three papers a year early.
-import yaml as _yaml                                            # noqa: E402
-_by = {}
-for _r in _yaml.safe_load(open(os.path.join(ROOT, "CITATION.cff"),
-                               encoding="utf-8")).get("references", []):
-    _by[(_r.get("doi") or _r.get("url") or "").lower()] = str(_r.get("year", ""))
-_years = []
-for _k, _w, _d, _text, doi in _cite.REFERENCES:
-    _y = _by.get(doi.lower()) or _by.get(
-        "https://doi.org/" + _up.quote(doi, safe="/:;()").lower())
-    if _y and _y not in _text:
-        _years.append((_k, _y))
-check(not _years, "CITATION.cff gives these papers a year their citation does not: %s"
-      % _years)
+# the online year, which put three papers a year early. PyYAML reads the file;
+# the package does not need it, so an environment install.sh builds has none,
+# and the check is then skipped and says so, like the stylesheet's.
+try:
+    import yaml as _yaml                                        # noqa: E402
+except ImportError:
+    _yaml = None
+    print("  (PyYAML not installed; the years in CITATION.cff were not checked)")
+if _yaml is not None:
+    _by = {}
+    for _r in _yaml.safe_load(open(os.path.join(ROOT, "CITATION.cff"),
+                                   encoding="utf-8")).get("references", []):
+        _by[(_r.get("doi") or _r.get("url") or "").lower()] = str(_r.get("year", ""))
+    _years = []
+    for _k, _w, _d, _text, doi in _cite.REFERENCES:
+        _y = _by.get(doi.lower()) or _by.get(
+            "https://doi.org/" + _up.quote(doi, safe="/:;()").lower())
+        if _y and _y not in _text:
+            _years.append((_k, _y))
+    check(not _years, "CITATION.cff gives these papers a year their citation does not: %s"
+          % _years)
 
 # --- deleting a run, and showing where it is ---------------------------------
 #
