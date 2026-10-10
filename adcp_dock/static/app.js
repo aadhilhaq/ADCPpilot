@@ -872,12 +872,10 @@ function gbEngines(rows){
     box.checked = false;
     box.disabled = true;
     box.parentNode.title = 'MM-GBSA needs AmberTools (tleap, sander, MMPBSA.py)';
-    $('mmopts').classList.add('hide');
-  } else {
-    // The panel of MM-GBSA settings is revealed by the box's change event,
-    // which never fires for a box that starts ticked.
-    $('mmopts').classList.toggle('hide', !$('mmgbsa').checked);
   }
+  // The MM-GBSA settings follow the box, whose change event never fires
+  // for a box that starts ticked or is unticked here.
+  mmOpts();
   // Choices this machine cannot run are greyed out now, which the docking
   // step reads.
   guideSoon();
@@ -3417,8 +3415,19 @@ function pepmsg(text, bad){
   e.innerHTML = bad ? '<span class=bad>' + esc(text) + '</span>' : esc(text);
 }
 
-$('mmgbsa').onchange = () =>
-  $('mmopts').classList.toggle('hide', !$('mmgbsa').checked);
+/* Rescoring off: its settings stay in place, greyed and disabled, the way
+   the receptor's preparation greys a setting that does not apply, so
+   nothing under them moves when the box is ticked or unticked. A disabled
+   field is skipped by the keyboard and by the docking step's checks, which
+   read these only while the box is ticked. */
+function mmOpts(){
+  const on = $('mmgbsa').checked;
+  $('mmopts').classList.toggle('off', !on);
+  $('mmopts').querySelectorAll('input, select').forEach(el => {
+    el.disabled = !on;
+  });
+}
+$('mmgbsa').onchange = mmOpts;
 
 /* ===================== estimate and steppers ========================= */
 $('autofill').onclick = async () => {
@@ -4072,6 +4081,7 @@ async function reuseRun(dir){
     else if(id in REUSE_TICK_DEFAULTS) el.checked = REUSE_TICK_DEFAULTS[id];
   }
   if($('box_chains')) $('box_chains').checked = j.box_chains === 'include';
+  mmOpts();
   /* The target file before the receptor and the site, so the view and the
      site note know whether the run's box is the file's or the residues'. */
   if(String(j.target_file || '').trim() || TARGET) await loadTarget();

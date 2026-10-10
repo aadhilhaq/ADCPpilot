@@ -310,6 +310,57 @@ textarea{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;min-height:76
 .row button,.row .fixedval{height:38px;box-sizing:border-box}
 .row button{display:inline-flex;align-items:center;justify-content:center}
 .row .stepper button{height:38px}
+/* ---- the Docking and rescoring card: four parts on a grid -------------
+   Search, Engine, Rescoring and Resources, each under a small heading in the
+   style of the Receptor card's groups, with a hairline between parts rather
+   than a panel round each, which inside a card would read as a second card.
+
+   A part's row is a grid: three equal columns for the search and the
+   engine, four for the rescoring and the resources. Of the four, the middle
+   two hold the menus and are a little wider than the outer two, which hold
+   numbers and the button; at 1000 px equal columns cut off "AmberTools, the
+   reference". Every field starts on its column's edge, and the row is
+   bottom aligned, so a label that wraps rises and its control stays level
+   with the others.
+
+   A caption is a grid item of its own, in the column of the field it
+   describes. Inside the field it would make that field taller than its
+   neighbours and lift every other label to meet it. The row gap is the
+   space between rows of fields once they wrap; a caption takes most of it
+   back, so it sits close under its field.
+
+   Narrower, four columns become two, and the engine's two fields share a
+   line. On a phone every part is one column, the fields in the order they
+   are written, so each caption comes straight after its own field. */
+.dpart{text-align:left}
+.dpart+.dpart{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.dpart>.grouphead{margin:0 0 9px}
+.dpart>.row{display:grid;gap:12px;align-items:end}
+.dpart.cols3>.row{grid-template-columns:repeat(3,minmax(0,1fr))}
+.dpart.cols4>.row{grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr)
+  minmax(0,1.15fr) minmax(0,.85fr)}
+.dpart .dcap{align-self:start;margin-top:-7px}
+.dpart>.why{margin-top:7px}
+.dpart>.why:empty{display:none}
+.dpart>.checks{margin-top:10px}
+.dpart>.grouphead+.checks{margin-top:0}
+.dpart>.checks+.row{margin-top:10px}
+#enginenote{grid-row:2;grid-column:1}
+#mmcap{grid-row:2;grid-column:2/span 2}
+#autofill{width:100%}
+/* Rescoring off: its settings stay where they are, greyed and disabled, as
+   the receptor's preparation greys a setting that does not apply. */
+#mmopts.off{opacity:.45}
+@media (max-width:940px){
+  .dpart.cols4>.row,.dpart.dengine>.row{
+    grid-template-columns:repeat(2,minmax(0,1fr))}
+  #mmcap{grid-row:3;grid-column:1}
+}
+@media (max-width:600px){
+  .dpart.cols3>.row,.dpart.cols4>.row,.dpart.dengine>.row{
+    grid-template-columns:minmax(0,1fr)}
+  #enginenote,#mmcap{grid-row:auto;grid-column:auto}
+}
 /* ---- buttons: one hierarchy -------------------------------------------
    Four kinds, so a person new to the page can tell at a glance what to press:
      primary    filled in the accent: the one action a card's step waits for
@@ -1570,42 +1621,54 @@ __STALE__
 
 <div class=card id=step-docking data-step=docking>
   <h2>Docking and rescoring</h2>
-  <!-- Three equal fields, with nothing taller than the rest, so the labels
-       line up. The step guideline is its own line below the row. The
-       preparation pH was here and is now with the rest of the receptor's
-       preparation, in the Receptor card. -->
-  <div class=row>
-    <div><label for=poses>Poses per peptide</label>
-      <input type=number id=poses value="10" min="1" max="100"></div>
-    <div><label for=replicas>Search replicas</label>
-      __REPLICA_OPTIONS__</div>
-    <div><label for=steps>Steps per replica</label>
-      __STEP_OPTIONS__</div>
-  </div>
-  <div class=why id=stepsguide style="margin-top:7px"></div>
-  <!-- Off by default: every replica's trajectory is hundreds of files and
-       tens of megabytes per peptide. On, they are kept as one archive. -->
-  <div class="checks" style="margin-top:10px">
-    <label class=chk><input type=checkbox id=keep_trajectories>
-      <span>Keep every replica's trajectory</span></label>
+  <!-- Four parts, each under a small heading: the search, the engine, the
+       rescoring and the resources. The fields of a part sit on one grid (CSS
+       at .dpart), and a caption sits under the field it describes, in that
+       field's column. -->
+  <div class="dpart cols3">
+    <div class=grouphead>Search</div>
+    <!-- Three equal fields, with nothing taller than the rest, so the labels
+         line up. The step guideline is its own line below the row. The
+         preparation pH was here and is now with the rest of the receptor's
+         preparation, in the Receptor card. -->
+    <div class=row>
+      <div><label for=poses>Poses per peptide</label>
+        <input type=number id=poses value="10" min="1" max="100"></div>
+      <div><label for=replicas>Search replicas</label>
+        __REPLICA_OPTIONS__</div>
+      <div><label for=steps>Steps per replica</label>
+        __STEP_OPTIONS__</div>
+    </div>
+    <div class=why id=stepsguide></div>
+    <!-- Off by default: every replica's trajectory is hundreds of files and
+         tens of megabytes per peptide. On, they are kept as one archive. -->
+    <div class=checks>
+      <label class=chk><input type=checkbox id=keep_trajectories>
+        <span>Keep every replica's trajectory</span></label>
+    </div>
   </div>
   <!-- Which ADCP. 1.1 adds non-standard and D amino acids (N<BHD>, &D in a
-       sequence) and an OpenMM minimization of the top poses. -->
-  <div class=row style="margin-top:12px">
-    <div><label for=adcp_engine>Docking engine</label>
-      <select id=adcp_engine>
-        <option value=auto>ADCP, newest installed</option>
-        <option value="1.1">ADCP 1.1</option>
-        <option value="1.0">ADCP 1.0</option>
-      </select></div>
-    <div><label for=omm_minimize>Poses to minimize with OpenMM</label>
-      <input type=number id=omm_minimize value="0" min="0" max="10"></div>
-    <div class=why id=enginenote style="flex:2 1 260px;align-self:center"></div>
+       sequence) and an OpenMM minimization of the top poses. The version
+       found is the engine menu's caption, under it in its column. -->
+  <div class="dpart cols3 dengine">
+    <div class=grouphead>Engine</div>
+    <div class=row>
+      <div><label for=adcp_engine>Docking engine</label>
+        <select id=adcp_engine>
+          <option value=auto>ADCP, newest installed</option>
+          <option value="1.1">ADCP 1.1</option>
+          <option value="1.0">ADCP 1.0</option>
+        </select></div>
+      <div class="why dcap" id=enginenote></div>
+      <div><label for=omm_minimize>Poses to minimize with OpenMM</label>
+        <input type=number id=omm_minimize value="0" min="0" max="10"></div>
+    </div>
   </div>
-  <div class=row style="margin-top:12px">
-    <!-- The rescoring is decided after the docking, so its switch stays here.
-         The three receptor preparation switches that shared this row are in
-         the Receptor card. -->
+  <!-- The rescoring is decided after the docking, so its switch stays in
+       this card, at the head of its part. The three receptor preparation
+       switches that shared its row are in the Receptor card. -->
+  <div class="dpart cols4">
+    <div class=grouphead>Rescoring</div>
     <div class=checks>
       <!-- On by default. The docking score orders poses of the same
            peptide well and is a poor way to compare different peptides,
@@ -1615,7 +1678,9 @@ __STALE__
       <label class=chk><input type=checkbox id=mmgbsa checked>
         <span>Rescore with MM-GBSA</span></label>
     </div>
-    <div id=mmopts class="row hide" style="flex:1 1 auto">
+    <!-- Unticked, these stay in place, greyed and disabled (app.js,
+         mmOpts), so nothing below them moves. -->
+    <div id=mmopts class=row>
       <div><label for=mmposes>Poses to rescore</label>
         <input type=number id=mmposes value="5" min="1" max="10"></div>
       <div><label for=mmmodel title="The implicit solvent model the MM-GBSA energy is computed in. GB-OBC(II) is the default and what every earlier run used; GBn2 is a newer model with its own atomic radii. Both run in AmberTools and both give per residue energies. The two give different numbers, so compare peptides only within one model.">Solvation model</label>
@@ -1629,34 +1694,38 @@ __STALE__
           <option value="openmm">OpenMM, a second opinion on the same pose</option>
           <option value="schrodinger">Schrodinger Prime, OPLS</option>
         </select></div>
+      <!-- The force field, the solvent model and the radii the chosen engine
+           computes with, under the solvation and engine menus. -->
+      <div class="why dcap" id=mmcap><span class=note id=mmenginenote></span></div>
       <div><label for=topn>Report the mean of the top</label>
         <input type=number id=topn value="5" min="1" max="50"></div>
-      <div style="flex:1 1 100%"><span class=note id=mmenginenote></span></div>
     </div>
   </div>
-  <div class=row style="margin-top:12px">
-    <div style="flex:0 0 168px"><label for=cpus>Cores per task</label>
-      <div class=stepper>
-        <button class=st data-step="cpus:-4" type=button>&minus;</button>
-        <input type=number id=cpus value="48" min="1" max="256" step="4">
-        <button class=st data-step="cpus:4" type=button>+</button></div></div>
-    <div style="flex:0 0 190px"><label for=walltime>Walltime</label>
-      <div class=stepper>
-        <button class=st data-step="walltime:-30" type=button>&minus;</button>
-        <input type=text id=walltime value="02:00:00">
-        <button class=st data-step="walltime:30" type=button>+</button></div></div>
-    <div style="flex:0 0 150px"><label for=throttle>Max tasks at once</label>
-      <div class=stepper>
-        <button class=st data-step="throttle:-1" type=button>&minus;</button>
-        <input type=number id=throttle value="0" min="0" max="200">
-        <button class=st data-step="throttle:1" type=button>+</button></div></div>
-    <div style="flex:0 0 auto"><label>&nbsp;</label>
-      <button class=primary id=autofill title="Work out how long this will take and ask
+  <div class="dpart cols4">
+    <div class=grouphead>Resources</div>
+    <div class=row>
+      <div><label for=cpus>Cores per task</label>
+        <div class=stepper>
+          <button class=st data-step="cpus:-4" type=button>&minus;</button>
+          <input type=number id=cpus value="48" min="1" max="256" step="4">
+          <button class=st data-step="cpus:4" type=button>+</button></div></div>
+      <div><label for=walltime>Walltime</label>
+        <div class=stepper>
+          <button class=st data-step="walltime:-30" type=button>&minus;</button>
+          <input type=text id=walltime value="02:00:00">
+          <button class=st data-step="walltime:30" type=button>+</button></div></div>
+      <div><label for=throttle>Max tasks at once</label>
+        <div class=stepper>
+          <button class=st data-step="throttle:-1" type=button>&minus;</button>
+          <input type=number id=throttle value="0" min="0" max="200">
+          <button class=st data-step="throttle:1" type=button>+</button></div></div>
+      <div><button class=primary id=autofill title="Work out how long this will take and ask
 the queue for twice that and half an hour more, and at least two hours">Estimate &amp; fill</button></div>
+    </div>
+    <!-- Under the row the button fills: what the estimate assumed, and what
+         the jobs will book. -->
+    <div id=estnote class=why></div>
   </div>
-  <!-- Under the button that writes it: what the estimate assumed, and what
-       the jobs will book. -->
-  <div id=estnote class=why style="margin-top:9px"></div>
 </div>
 
 <!-- The last step: what the run is called, where it is written, the
