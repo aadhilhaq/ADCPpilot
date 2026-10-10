@@ -109,15 +109,21 @@ def install(dest=None, log=print):
         return os.path.join(dest, "bin", "adcp")
     base = os.path.dirname(dest)
     mm = micromamba(os.path.join(base, "micromamba"), log)
-    # Downloads and caches stay beside the installation, not in home.
-    env = dict(os.environ, MAMBA_ROOT_PREFIX=os.path.join(base, "mamba_root"),
+    # Downloads and caches stay beside the installation, not in home. The
+    # package cache is this installer's own, even when the caller named
+    # another, because it is emptied at the end.
+    root = os.path.join(base, "mamba_root")
+    env = dict(os.environ, MAMBA_ROOT_PREFIX=root,
+               CONDA_PKGS_DIRS=os.path.join(root, "pkgs"),
                XDG_CACHE_HOME=os.path.join(base, "cache"),
                PIP_CACHE_DIR=os.path.join(base, "cache", "pip"))
+    for var in ("PYTHONPATH", "PYTHONHOME"):
+        env.pop(var, None)
     log("creating the ADCP 1.1 environment at %s (Python 3.7, conda-forge)" % dest)
     _run([mm, "create", "-y", "-q", "-p", dest, "-c", "conda-forge", "--no-rc"]
          + CONDA, log, env=env)
     py = os.path.join(dest, "bin", "python")
-    _run([py, "-m", "pip", "install", "-q"] + PYPI, log, env=env)
+    _run([py, "-m", "pip", "install", "-q", "--no-cache-dir"] + PYPI, log, env=env)
     cache = os.path.join(base, "adcpsuite_pkgs")
     os.makedirs(cache, exist_ok=True)
     log("downloading the ADCP 1.1 packages from the Scripps Research Institute")
@@ -135,13 +141,22 @@ def install(dest=None, log=print):
     wheels = {os.path.basename(p).split("-")[0]: os.path.join(
         cache, os.path.basename(p) + "-py3-none-any.whl") for p in WHEELS}
     for name in FIRST:
-        _run([py, "-m", "pip", "install", "-q", "--no-index",
+        _run([py, "-m", "pip", "install", "-q", "--no-cache-dir", "--no-index",
               "--find-links=" + cache, wheels[name]], log, env=env)
     rest = [w for n, w in wheels.items() if n not in FIRST]
     _run([py, "-m", "pip", "install", "-q", "--no-cache-dir", "--no-dependencies",
           "--no-index", "--find-links=" + cache] + rest, log, env=env)
     exe = adcp11.find([base]) or os.path.join(dest, "bin", "adcp")
     log("installed ADCP %s at %s" % (adcp11.version(exe) or "1.1", dest))
+    # The conda packages it was built from are tens of thousands of files
+    # that nothing uses once the environment exists, and on a cluster the
+    # number of files is often what runs out first.
+    try:
+        subprocess.run([mm, "clean", "-a", "-y", "-q"], env=env, timeout=600,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        log("removed the package cache it was built from")
+    except (OSError, subprocess.SubprocessError):
+        pass
     return exe
 
 

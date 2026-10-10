@@ -440,10 +440,31 @@ def main(argv=None):
             path = T.adfr_program(name)
             print("  %-16s %s" % (name, path or "not found, optional (%s)"
                                   % why))
+        # The Python packages, in the Python running this. The optional ones
+        # turn a step off when they are missing, so they are named here.
+        print("\nPython %s" % sys.executable)
+        import importlib
+        for mod, label, why in (
+                ("numpy", "numpy", ""), ("rdkit", "RDKit", ""),
+                ("openmm", "OpenMM", "the receptor's restrained minimisation"),
+                ("pdbfixer", "PDBFixer", "rebuilding missing atoms and side chains"),
+                ("Bio", "Biopython", "reading mmCIF files")):
+            try:
+                m = importlib.import_module(mod)
+                state = getattr(m, "__version__", "") or "found"
+                if mod == "openmm":
+                    state = getattr(getattr(m, "version", None), "version", state)
+            except Exception:                                   # noqa: BLE001
+                state = ("not installed, optional (%s)" % why if why
+                         else "NOT INSTALLED (required)")
+                missing += 0 if why else 1
+            print("  %-16s %s" % (label, state))
         print("\nsbatch: %s" % ("found" if slurm.available() else "NOT FOUND"))
         if missing:
             print("\n%d tool(s) missing. Set ADFRSUITE_HOME and AMBERHOME, or "
-                  "pass --tools-root." % missing)
+                  "pass --tools-root; or run ./install.sh again, which finds "
+                  "them, and a cluster's AmberTools module once it is loaded."
+                  % missing)
         return 1 if missing else 0
 
     if a.cmd == "new":

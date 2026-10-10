@@ -18,6 +18,16 @@
 # What it does NOT do: build an environment. install.sh owns that, it only
 # has to run once, and it is the thing that needs a login node and a network.
 # So a missing ADCP 1.1 is reported with the command that adds it.
+
+# Run, not sourced, and by bash. These lines are read by any shell.
+if [ -z "${BASH_VERSION:-}" ]; then
+  echo "Run this with bash:  ./update.sh   (or: bash update.sh)" >&2
+  return 2 2>/dev/null || exit 2
+fi
+if [ "${BASH_SOURCE[0]}" != "$0" ]; then
+  echo "Run this script, do not source it:  ./update.sh" >&2
+  return 2
+fi
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$HERE"
@@ -63,13 +73,13 @@ if [ "$RC" -ne 0 ] && printf '%s' "$OUT" | grep -qi \
 elif [ "$RC" -ne 0 ] && [ "${URL#https://}" != "$URL" ]; then
   # Checked only after the rewrite: an https remote whose fetch worked but
   # could not fast-forward is not a sign-in problem.
-  warn "could not pull, and the remote is https so it cannot ask for a"
-  warn "password here. This cluster pulls with a deploy key:"
+  warn "could not pull from $URL."
+  warn "Run this on a login node: compute nodes usually have no internet."
+  warn "If it fails there too and the message below asks for a username,"
+  warn "the repository needs a sign in, which this never waits for. A cluster"
+  warn "with access pulls over ssh instead, with a read-only deploy key:"
   note "  git -C $HERE remote set-url origin \
 $(printf '%s' "$URL" | sed -e 's|^https://[^/@]*@|https://|' -e 's|^https://\([^/]*\)/|git@\1:|')"
-  warn 'If that says "Permission denied (publickey)", this repository has'
-  warn "no deploy key yet: add this machine's public key to it on GitHub,"
-  warn "read-only."
 fi
 AFTER=$(git rev-parse --short HEAD 2>/dev/null)
 if [ "$RC" -ne 0 ]; then
@@ -84,23 +94,37 @@ else
 fi
 
 # --- reinstall the package, not the environment -----------------------------
-# The code is installed into a shared environment with --no-deps, so this is
-# a few files and nothing else in that environment moves. Without it, a pull
-# updates the checkout while every job keeps importing the installed copy.
-say "reinstalling adcp-dock into the environment it was installed in"
+# Only where install.sh installed it: an environment it built, which imports
+# adcp_dock from this checkout. That is a few files with --no-deps, and
+# nothing else in the environment moves. An environment it did not build is
+# never written to; activate.sh puts this checkout first on PYTHONPATH there,
+# so the pull is already what runs. Never the system python3, whose pip would
+# fall back to installing into the home directory.
+say "the adcp-dock command"
 PY=""
 # shellcheck disable=SC1091
 [ -f "$HERE/activate.sh" ] && . "$HERE/activate.sh" >/dev/null 2>&1
-for c in "${ADCP_PYTHON:-}" "$HERE/../envs/adcp/bin/python" \
-         "$(command -v python3 2>/dev/null)"; do
+for c in "${ADCP_PYTHON:-}" "$HERE/../envs/adcp/bin/python"; do
   [ -n "${c:-}" ] && [ -x "${c:-}" ] && { PY="$c"; break; }
 done
 if [ -z "$PY" ]; then
-  warn "no python found. Run ./install.sh first."
-elif "$PY" -m pip install --quiet --no-deps -e "$HERE" 2>&1 | sed 's/^/  /'; then
-  note "done"
+  warn "no environment is recorded here (activate.sh is missing or names none)."
+  warn "Run ./install.sh <folder> once, on a login node; INSTALL.md says how."
 else
-  warn "could not reinstall. On a login node:  $PY -m pip install --no-deps -e $HERE"
+  # Asked from /, so that the checkout itself is not what answers.
+  AT=$(cd / && env -u PYTHONPATH -u PYTHONHOME "$PY" -c \
+       "import adcp_dock, os; print(os.path.dirname(os.path.dirname(os.path.abspath(adcp_dock.__file__))))" \
+       2>/dev/null)
+  if [ -n "$AT" ] && [ "$AT" -ef "$HERE" ]; then
+    if env -u PYTHONPATH "$PY" -m pip install --quiet --no-deps --no-cache-dir \
+         --disable-pip-version-check -e "$HERE" 2>&1 | sed 's/^/  /'; then
+      note "reinstalled into $(dirname "$(dirname "$PY")")"
+    else
+      warn "could not reinstall. On a login node:  $PY -m pip install --no-deps -e $HERE"
+    fi
+  else
+    note "runs from this checkout with $PY (nothing to reinstall)"
+  fi
 fi
 
 # --- clear stale bytecode ---------------------------------------------------
@@ -170,7 +194,7 @@ if [ -n "$PY" ]; then
     note "adcp_dock $("$PY" -c 'import adcp_dock;print(adcp_dock.__version__)' 2>/dev/null), from this checkout"
   else
     warn "python imports adcp_dock from ${WHERE:-nowhere}, not from this checkout."
-    warn "Reinstall:  $PY -m pip install --no-deps -e $HERE"
+    warn "Run ./install.sh again (no folder needed), which records this checkout in activate.sh."
   fi
   "$PY" -m adcp_dock.cli check 2>&1 | sed 's/^/  /'
 fi
