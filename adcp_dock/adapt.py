@@ -472,8 +472,8 @@ class Runner:
     and stopped when the interface stops."""
 
     # A first start imports AGFR and its libraries: 15 seconds on a quiet
-    # cluster node with a cold file cache, and over a minute on a busy Grace
-    # login node, where a two minute limit was too tight to be safe.
+    # cluster node with a cold file cache, and over a minute on a busy login
+    # node, where a two minute limit was too tight to be safe.
     START_SECONDS = 300
 
     def __init__(self):

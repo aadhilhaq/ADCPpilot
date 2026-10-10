@@ -857,9 +857,10 @@ class App:
     def roots(self):
         """Where the browser should offer to start.
 
-        Shared group space first, then the user's own: a shared installation means
-        the structures and runs people care about are usually in the group
-        allocation.
+        Shared group space first, then the user's own: on a cluster the
+        structures and runs people care about are usually in a group's or a
+        project's space. Clusters lay these out in a few common ways, and only
+        folders that exist and can be read are offered.
         """
         out, seen = [], set()
 
@@ -889,10 +890,13 @@ class App:
             # allocation.
             if g == user:
                 continue
-            for base in ("/scratch/group", "/group", "/work/group"):
-                add(os.path.join(base, g), "%s (group)" % g)
+            for top in ("/", "/scratch", "/work"):
+                for kind in ("group", "groups", "project", "projects"):
+                    add(os.path.join(top, kind, g), "%s (group)" % g)
         add(os.environ.get("SCRATCH"), "your scratch")
-        add(os.path.join("/scratch/user", user) if user else "", "your scratch")
+        if user:
+            for kind in ("", "user", "users"):
+                add(os.path.join("/scratch", kind, user), "your scratch")
         add(os.path.expanduser("~"), "home")
         add(self.runs, "runs")
         return {"roots": out}

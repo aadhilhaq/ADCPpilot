@@ -14,9 +14,9 @@ not change underneath the person who reported it.
 
 Why these terms and not the obvious ones
 ----------------------------------------
-Measured on this project's own runs before anything was designed - 6B88 and
-CLas SPase1 through the docking console, and the DENV F-loop 12-mers through
-the dimer-loop pipeline; 21 constructs and 105 scored poses in all. Mean
+Measured on the authors' own runs before anything was designed: three
+receptors, 6B88, CLas SPase1 and a DENV envelope dimer with F-loop 12-mers;
+21 constructs and 105 scored poses in all. Mean
 Spearman rho within a run, so the figures are not reporting the difference
 between the receptors:
 
@@ -419,7 +419,7 @@ def unseparated(rows, pose_spans):
     """Neighbours in the combined order whose ranges cover each other.
 
     ``rank.overlapping`` with the combined score's own ranges: the mechanism
-    is the lab's, this only feeds it a different number.
+    is that function's, this only feeds it a different number.
     """
     def values_of(r):
         s = pose_spans.get(r.get("sequence") or r.get("peptide"))
@@ -571,7 +571,7 @@ def stability(rows, cuts=(5, 10, 20), sweep=SWEEP, log=None):
     """How much the order actually depends on the weights.
 
     With no outcome data the weights cannot be fitted, and presenting any of
-    them as validated would be a claim this project cannot support. What CAN
+    them as validated would be a claim nothing here can support. What CAN
     be established is whether the choice matters: every weight is swept over
     ``sweep`` one at a time, and the resulting order is compared with the
     order the defaults give.
@@ -616,10 +616,10 @@ def stability(rows, cuts=(5, 10, 20), sweep=SWEEP, log=None):
 
 
 # ----------------------------------------------------------- reading a run
-# A finished run, whichever tool made it. The two write different tables -
-# the pipelines put the panel in metric_panel.tsv beside final_constructs.tsv,
-# the docking console puts everything in one results.tsv - and a person with a
-# run directory should not have to know which.
+# A finished run, whichever tool made it. Tools write different tables: some
+# put the panel in metric_panel.tsv beside final_constructs.tsv, this one puts
+# everything in one results.tsv, and a person with a run directory should not
+# have to know which.
 
 #: (the ranked table, the panel beside it or None, what the combined table is
 #: called). Order matters: the first that exists is the one used.
@@ -698,8 +698,8 @@ def write_table(rows, path, info, original=None, spans_by=None):
     person reading has to be able to see that a construct is third because of
     its buried area rather than because of its energy.
     """
-    # Rows first, path second, as hope_pe.write_table and scout.write_table
-    # have it. Said out loud because the two are easy to swap and the swap
+    # Rows first, path second, as the other writers in this engine have it.
+    # Said out loud because the two are easy to swap and the swap
     # fails deep inside with an AttributeError about a string, which says
     # nothing about what the caller got wrong.
     if isinstance(rows, str) or not isinstance(path, str):
@@ -771,8 +771,8 @@ def reorder(rundir, n=0, w=None, out=None, log=print, with_ties=False):
         # like a second opinion and is the first one renamed.
         log("  only one measurement is available for every construct, so "
             "there is nothing to combine: no table is written.")
-        log("  `python -m hope_core.panel %s` measures the interface from "
-            "the files MM-GBSA already left." % rundir)
+        log("  the metric panel measures the interface of %s from the files "
+            "MM-GBSA already left." % rundir)
         return None
     sp = spans(done, poses_from(rundir), w, info)
     groups = unseparated(done, sp) if sp else []
@@ -811,7 +811,6 @@ def reorder(rundir, n=0, w=None, out=None, log=print, with_ties=False):
 def main(argv=None):
     import argparse
     ap = argparse.ArgumentParser(
-        prog="python -m hope_core.combined",
         description="Rank a finished run on the combined metric: the binding "
                     "energy together with the interface measurements the "
                     "panel already made. Writes a table BESIDE the run's own; "
@@ -878,9 +877,8 @@ def apply_order(path, order, rank_col="rank", keep_as="rank_binding"):
     head = lines[0].split("\t")
     if keep_as in head:
         return path
-    # The pipelines call the column "sequence" and the docking console calls
-    # it "peptide". Looking for one name only made this a no-op on half the
-    # runs it is for, and a no-op is the worst failure available here: the
+    # Some tools call the column "sequence" and this one calls it "peptide".
+    # Looking for one name only made this a no-op on half the runs it is for, and a no-op is the worst failure available here: the
     # table is left in the old order with nothing said about it.
     seq_at = next((head.index(c) for c in ("sequence", "peptide")
                    if c in head), None)

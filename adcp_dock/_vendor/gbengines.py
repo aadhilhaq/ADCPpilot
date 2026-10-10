@@ -86,10 +86,10 @@ SCHRODINGER_ROOTS = (
 SCHRODINGER_GLOBS = (
     "/sw/restricted/*/Schrodinger*",
     "/sw/restricted/*/schrodinger*",
-    # Grace keeps restricted software one level further in, under the group
-    # that licenses it: /sw/restricted/lms/sw/Schrodinger/2025-3. The shape
-    # above stops short of it, so Prime showed as not installed there while
-    # "module load Schrodinger" found it at once.
+    # Some sites keep restricted software one level further in, under the
+    # group that licenses it: /sw/restricted/<group>/sw/Schrodinger/<release>.
+    # The shape above stops short of it, so Prime would show as not installed
+    # while "module load Schrodinger" finds it at once.
     "/sw/restricted/*/sw/Schrodinger*",
     "/sw/restricted/*/sw/schrodinger*",
 )
@@ -139,8 +139,8 @@ def _from_module_system():
                     r'(?:SCHRODINGER["\'\s,]+|prefix\s*=\s*")(/[^"\'\s,)]+)',
                     text):
                 out.append(m.group(1))
-            # TAMU's modulefiles name the install in a local variable and
-            # then setenv("SCHRODINGER", root), which the pattern above
+            # Some sites' modulefiles name the install in a local variable
+            # and then setenv("SCHRODINGER", root), which the pattern above
             # cannot follow. Any quoted absolute path that names the suite
             # is a candidate; newest_under decides which ones are installs.
             for m in re.finditer(r'["\'](/[^"\'\s]*[Ss]chrodinger[^"\'\s]*)["\']',

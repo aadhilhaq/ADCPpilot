@@ -4,14 +4,14 @@
 By Aadhil Haq
 
 The table can be ordered on the single column it has always used or on the
-combined metric. The thing worth pinning is not which order is better - that
-cannot be shown from anything on this cluster - but that switching the flag
-never costs the reader the other answer, and never changes a number. Both
+combined metric. The thing worth pinning is not which order is better, which
+a test cannot show, but that switching the flag never costs the reader the
+other answer, and never changes a number. Both
 orders are in the run folder whichever way the flag is set, and the rows
 carry the same values in both.
 
-The metric itself is tested where it lives, in HOPE-pipelines'
-tests/test_combined.py. This covers only what this repository adds.
+The metric itself is shared with other tools by the same authors and tested
+with them. This covers only what this repository adds.
 
 Exit 0 passes, 77 skips, anything else fails.
 """
@@ -155,10 +155,11 @@ with tempfile.TemporaryDirectory() as d:
 # never write over the one the run reported, which is the whole reason the
 # feature is a second file rather than a setting that rewrites the first.
 print("\nreranking a finished run from the page")
-REAL = os.environ.get("ADCP_TEST_RUN") or (
-    "/scratch/user/aadhil.haq/adcp_runs/6B88_HOPE_peptides_20260922_154712")
-if not os.path.isdir(REAL):
-    print("  skip  no finished run on this machine (%s)" % REAL)
+# A finished run with the interface measured, named by ADCP_TEST_RUN. The
+# example that ships with the package has too few peptides to combine.
+REAL = os.environ.get("ADCP_TEST_RUN", "")
+if not REAL or not os.path.isdir(REAL):
+    print("  skip  no finished run named in ADCP_TEST_RUN (%s)" % (REAL or "unset"))
     if FAIL:
         print("\n%d FAILED" % len(FAIL))
         raise SystemExit(1)

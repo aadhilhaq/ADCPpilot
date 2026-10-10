@@ -74,9 +74,9 @@ offers, and what it measures, do change between them.</p>
 <p>Many computing facilities ask to be acknowledged in publications. The text depends
 on where the work ran, so it is configuration rather than code: set
 <code>ADCP_ACKNOWLEDGEMENT</code> to your facility's wording and every run records
-it in its citation files. The desktop launcher's cluster presets set it for their own
-facility. Without one, the file carries a reminder to acknowledge whoever ran the
-work.</p>
+it in its citation files. Setting it in <code>activate.sh</code> on the cluster covers
+every run started there, from the launcher too. Without one, the file carries a
+reminder to acknowledge whoever ran the work.</p>
 <div class="tip"><b>Say what the numbers are.</b> Alongside the citations, a methods
 section needs the settings: the replicas, the steps, the poses kept, the pH, the box,
 and whether MM-GBSA ran and with which model. All of it is in the run's

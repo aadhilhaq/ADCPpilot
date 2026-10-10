@@ -292,8 +292,8 @@ rc, out = update(dep, upstream)
 check(head(adapt_dir) == c5, "back on master, ADapt was not updated: %s" % adapt_line(out))
 
 # --- the checkout's own remote is never used ----------------------------------
-# As on Grace, where the checkout came from a tarball and its origin is an ssh
-# address that logs in with another repository's key.
+# As where a checkout came from a tarball and its origin is an ssh address
+# that logs in with another repository's key.
 git(adapt_dir, "remote", "set-url", "origin", "git@github.invalid:michelsanner/adapt.git")
 c6 = publish("six")
 rc, out = update(dep, upstream)

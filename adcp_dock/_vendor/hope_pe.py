@@ -1,8 +1,8 @@
 """HOPE-PE: peptide practicality evaluation.
 
-The design pipelines optimise for binding. Nothing in them asks whether the
-peptide that comes out can be made, kept in solution, or survive long enough to
-reach the target. This module adds that check as a separate layer, so a
+Docking and rescoring optimise for binding. Neither asks whether the peptide
+that comes out can be made, kept in solution, or survive long enough to reach
+the target. This module adds that check as a separate layer, so a
 construct is judged on two independent axes and neither is hidden inside the
 other: the docking/MM-GBSA ranking stays exactly as it was, and a second
 ranking is produced that also accounts for practicality.

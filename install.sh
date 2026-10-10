@@ -181,7 +181,7 @@ names() { local n out=""; for n in "$@"; do out="$out, $(name_of "$n")"; done; p
 
 # How many files and how much space each part needs while it is installed,
 # and what stays once its download cache is removed. Measured on a clean
-# install on Grace (Texas A&M, October 2026): the environment 48,927 files,
+# install on a Linux cluster in October 2026: the environment 48,927 files,
 # ADFRsuite 11,272, ADCP 1.1 31,116, and their caches 50,579 more, 143,472
 # in all; the peak is rounded up to 150,000. So a folder without room is
 # found before anything is downloaded rather than part way through.

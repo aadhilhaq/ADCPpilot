@@ -107,9 +107,9 @@ question, and writes nothing into your home folder. In order, it:
 6. deletes the packages it downloaded, and writes `activate.sh` in the
    checkout, which records where everything is, then checks the result.
 
-Measured on a clean account on the Grace cluster at Texas A&M, the whole of
-it took 7 and 10 minutes on two days, most of it the two environments, with
-about 1 GB of downloads; a slower network or a busy login node takes longer.
+On a typical cluster, from a clean account, the whole of it takes 7 to 10
+minutes, most of it the two environments, with about 1 GB of downloads; a
+slower network or a busy login node takes longer.
 It leaves about 95,000 files. It uses your
 cluster's own conda when it is recent, and otherwise fetches micromamba, a
 single file, into the folder; no conda module is needed.
@@ -205,8 +205,7 @@ Set the required scheduler options below the run name and output folder. Leave t
 
 * **Acknowledgement**: if your computing facility asks to be acknowledged
   in publications, set `ADCP_ACKNOWLEDGEMENT` to its text, for example in
-  `activate.sh`. Every run records it in its citation files. The launcher's
-  cluster presets set it for their own facility.
+  `activate.sh`. Every run records it in its citation files.
 
 The account and the other options are added to every job a run submits. From the command line, use
 `--account` and `--sbatch-extra` on `adcp-dock new`. Write `--sbatch-extra`
@@ -254,8 +253,8 @@ address of each login node; use the same one in both terminals.
 To stop, press Ctrl-C in both terminals. Runs already submitted keep going in
 Slurm, and the page shows them again the next time it starts.
 
-Or let the launcher do all of that (section 5): choose **Other (SLURM)** and
-give it your cluster's login address.
+Or let the launcher do all of that (section 5): give it your cluster's login
+address.
 
 ### 1.6 If your cluster does not allow servers on login nodes
 
@@ -567,7 +566,7 @@ The site view and the pose viewer draw molecular surfaces computed by MSMS, the 
 ## 5. The desktop launcher
 
 The launcher does from your laptop what section 1.5 does by hand: it connects
-to the cluster over SSH (two-factor sign in included), starts
+to the cluster over SSH (a second sign-in step included), starts
 `adcp-dock serve` on the login node, forwards a port and opens your browser.
 Closing it stops the server; runs already submitted keep going in Slurm.
 
@@ -591,14 +590,14 @@ prompts.
 
 | field | what to put |
 |---|---|
-| **Cluster** | a preset, or **Other (SLURM)** for any Slurm cluster |
-| **Address** | your cluster's login address, the one you use with `ssh` |
+| **Cluster** | **Slurm cluster**, or **This computer** to run on the machine the launcher is on |
+| **Address** | your cluster's login address, the one you use with `ssh`; it is remembered |
 | **Username** | your cluster username |
 | **Tool directory** | the folder you cloned into on the cluster, for example `/scratch/you/ADCP_docking`; `pwd` inside it prints it |
 | **ADFRsuite / Amber roots** | leave blank: `activate.sh` in that folder names them |
 
-Then press connect. It asks for your password, and for a second factor if
-your cluster uses one, or signs in with your SSH key. The first start on a
+Then press connect. It asks for your password, and for your cluster's second
+sign-in step if it has one, or signs in with your SSH key. The first start on a
 busy login node can take a minute; the browser opens by itself when the page
 is ready. Everything but the password is remembered for next time.
 

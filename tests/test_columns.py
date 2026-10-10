@@ -76,7 +76,7 @@ check(":where(th.colsz){position:relative}" in ccss,
 check("body.colmoving" in ccss and "user-select:none" in ccss,
       "dragging a grip selects the table's text")
 
-# --- every table the user asked about -------------------------------------------------
+# --- every table whose columns can be moved ----------------------------------------
 for key, where in (("'runs'", "listRuns"), ("'folders'", "showFolderView"),
                    ("'results'", "openRun"), ("'res-peptide'", "showResidues"),
                    ("'res-receptor'", "showResidues")):

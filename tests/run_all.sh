@@ -23,7 +23,9 @@ REPO=$PWD
 if [ -z "${SLURM_JOB_ID:-}" ] && [ "${ALLOW_LOGIN:-0}" != "1" ]; then
   echo "This is a login node. Ask for a compute node first:"
   echo
-  echo "    srun --pty -p cpu -c 8 -t 30 bash tests/run_all.sh"
+  echo "    srun --pty -c 8 -t 30 bash tests/run_all.sh"
+  echo
+  echo "adding the account and partition your cluster requires."
   echo
   exit 2
 fi

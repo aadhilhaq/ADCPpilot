@@ -286,8 +286,8 @@ check("api('/api/adapt/warm'" in appjs,
       "the page asks for ADapt to start as soon as it shows the button")
 
 # --- ADapt through this server's own port -----------------------------------
-# On Grace the page is reached through one forwarded port. ADapt listened on a
-# second one, and the tab said "refused to connect". Now /adapt/ on this server
+# On a cluster the page is reached through one forwarded port. ADapt listened
+# on a second one, and the tab said "refused to connect". Now /adapt/ on this server
 # passes requests on. ADapt runs with --base-path /adapt and its page uses
 # relative paths only, so the path is forwarded as it is and nothing in the
 # answer is rewritten. A small HTTP server plays ADapt here the way its README
