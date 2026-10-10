@@ -2,11 +2,20 @@
 
 By Aadhil Haq
 
+One module, the same file in ADCP docking (adcp_dock/surface.py), HOPE
+pipelines (hope_monitor/surface.py), the HOPE aptamer pipeline
+(hope_aptamer/surface.py), HOPE Labs (hope_labs/surface.py) and HOPE-MD
+(hopemd/surface.py), so a surface drawn by any of them is computed the same
+way. Each repository's tests check that its copy is byte for byte the
+others'.
+
 MSMS, by Michel Sanner, triangulates the solvent excluded surface: the
 surface a probe sphere of 1.5 Angstrom traces as it rolls over the atoms.
 The msms program ships in ADFRsuite's bin folder. It is called here as the
 installed program, never copied, because its licence allows non-commercial
-scientific research only (THIRD_PARTY_NOTICES.md).
+scientific research only (each repository's third party notices). Published
+work that shows one of these surfaces cites Sanner, Olson and Spehner,
+Biopolymers 38:305-320, 1996.
 
 MSMS's own inputs are used. Each atom is a sphere with the radius
 pdb_to_xyzr, MSMS's own converter, would give it. ADFRsuite carries that
@@ -32,7 +41,8 @@ The answer is the triangulation itself: vertices, normals and triangles,
 packed as little-endian binary and base64 encoded, so a surface of fifty
 thousand vertices costs the page about a megabyte rather than several. Each
 vertex also carries the residue of the atom it lies over, so a viewer can
-colour a patch of the surface by residue.
+colour a patch of the surface by residue or by chain. VIEWER_JS is the other
+half: the page code that turns an answer into a 3Dmol shape.
 
 Where msms is absent, refuses, runs out of time or memory, or the structure
 is larger than is sensible to triangulate on a shared login node, the answer
@@ -50,8 +60,6 @@ import subprocess
 import tempfile
 import threading
 import time
-
-from .structure import one_conformer
 
 #: The probe, in Angstrom: a water molecule, and MSMS's own default.
 PROBE = 1.5
@@ -104,6 +112,210 @@ def density_for(n_atoms):
     if n <= 40000:
         return 0.5
     return 0.3
+
+
+# --- reading a structure -----------------------------------------------------
+# Enough of PDB, PDBQT and mmCIF to surface what a viewer shows: the atom
+# records of the first model, as 3Dmol reads them. ADCP docking reads its
+# files with its own structure module and hands the atoms in; the other tools
+# hand in the text of the file the viewer was given.
+
+class Atom:
+    __slots__ = ("serial", "name", "resname", "chain", "resnum", "icode",
+                 "x", "y", "z", "element", "hetatm", "altloc")
+
+    def __init__(self, **kw):
+        for k in self.__slots__:
+            setattr(self, k, kw.get(k))
+
+
+WATER = {"HOH", "WAT", "DOD", "H2O", "TIP", "TIP3", "SOL"}
+
+#: AutoDock's atom types in a PDBQT file, as elements. The rest are an
+#: element already (Cl, Zn, Br and so on).
+_AD_ELEMENT = {"A": "C", "C": "C", "CG0": "C", "CG1": "C", "CG2": "C",
+               "CG3": "C", "G0": "C", "G1": "C", "G2": "C", "G3": "C",
+               "N": "N", "NA": "N", "NS": "N", "OA": "O", "OS": "O",
+               "SA": "S", "S": "S", "HD": "H", "HS": "H", "H": "H"}
+
+_FLOAT = re.compile(r"-?\d+\.\d+")
+
+
+def format_of(name="", text=""):
+    """"cif", "pdbqt" or "pdb", from a file's name, else from its text."""
+    n = (name or "").lower()
+    if n.endswith(".gz"):
+        n = n[:-3]
+    if n.endswith((".cif", ".mmcif")):
+        return "cif"
+    if n.endswith(".pdbqt"):
+        return "pdbqt"
+    if n.endswith((".pdb", ".ent")):
+        return "pdb"
+    head = (text or "")[:20000]
+    if head.lstrip().startswith("data_") or "\n_atom_site." in head:
+        return "cif"
+    return "pdb"
+
+
+def _number(text):
+    """A residue number: decimal, or hexadecimal past 9,999 residues, which
+    is how OpenMM writes one it cannot keep."""
+    s = text.strip()
+    try:
+        return int(s)
+    except ValueError:
+        return int(s, 16)
+
+
+def _coords(L):
+    """x, y and z from their fixed columns, or from the numbers in them when
+    a wide number pushed the columns along."""
+    try:
+        return float(L[30:38]), float(L[38:46]), float(L[46:54])
+    except ValueError:
+        pass
+    got = _FLOAT.findall(L[30:66])
+    if len(got) < 3:
+        raise ValueError("no coordinates in %r" % L[30:54])
+    return float(got[0]), float(got[1]), float(got[2])
+
+
+def _read_pdb(text, pdbqt=False):
+    """The atom records of the first model. 3Dmol stops at the first END and
+    draws the first model, so this does too."""
+    out, seen_model = [], False
+    for L in text.splitlines():
+        rec = L[:6]
+        if rec == "MODEL ":
+            if seen_model and out:
+                break
+            seen_model = True
+            continue
+        if rec == "ENDMDL" or rec.rstrip() == "END":
+            if out:
+                break
+            continue
+        if rec not in ("ATOM  ", "HETATM"):
+            continue
+        try:
+            resnum = _number(L[22:26])
+            x, y, z = _coords(L)
+        except ValueError:
+            continue
+        if pdbqt:
+            t = L[77:80].strip()
+            element = _AD_ELEMENT.get(t, t.upper())
+        else:
+            element = L[76:78].strip()
+        out.append(Atom(name=L[12:16].strip(), resname=L[17:20].strip(),
+                        chain=L[21:22].strip(), resnum=resnum,
+                        icode=L[26:27].strip(), altloc=L[16:17].strip(),
+                        x=x, y=y, z=z, element=element,
+                        hetatm=rec == "HETATM"))
+    return out
+
+
+def _read_cif(text):
+    """The atom_site loop of the first model, with the author's chain and
+    residue numbers, which are the ones 3Dmol shows."""
+    cols, rows, in_loop, in_header = [], [], False, False
+    for line in text.splitlines():
+        s = line.strip()
+        if s.startswith("loop_"):
+            if cols and rows:
+                break
+            in_loop, in_header, cols = True, True, []
+            continue
+        if in_loop and s.startswith("_atom_site."):
+            cols.append(s.split(".", 1)[1].split()[0])
+            in_header = True
+            continue
+        if in_loop and cols and in_header and not s.startswith("_"):
+            in_header = False
+        if cols and not in_header:
+            if not s or s.startswith("#") or s.startswith("loop_"):
+                if rows:
+                    break
+                in_loop, cols = False, []
+                continue
+            rows.append(s.split())
+    if not cols or not rows:
+        return []
+    ix = {c: i for i, c in enumerate(cols)}
+
+    def g(r, *names, **kw):
+        for n in names:
+            if n in ix and ix[n] < len(r):
+                v = r[ix[n]]
+                return kw.get("default") if v in (".", "?") else v
+        return kw.get("default")
+
+    out, first = [], None
+    for r in rows:
+        if len(r) < len(cols):
+            continue
+        m = g(r, "pdbx_PDB_model_num", default="1")
+        if first is None:
+            first = m
+        elif m != first:
+            continue
+        try:
+            out.append(Atom(
+                name=(g(r, "auth_atom_id", "label_atom_id", default="")
+                      or "").strip('"'),
+                resname=g(r, "auth_comp_id", "label_comp_id", default="") or "",
+                chain=g(r, "auth_asym_id", "label_asym_id", default="") or "",
+                resnum=int(float(g(r, "auth_seq_id", "label_seq_id",
+                                   default="0") or 0)),
+                icode=(g(r, "pdbx_PDB_ins_code", default="") or "").strip(),
+                altloc=(g(r, "label_alt_id", default="") or "").strip(),
+                x=float(g(r, "Cartn_x")), y=float(g(r, "Cartn_y")),
+                z=float(g(r, "Cartn_z")),
+                element=g(r, "type_symbol", default="") or "",
+                hetatm=(g(r, "group_PDB", default="ATOM") == "HETATM")))
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def read_text(text, fmt=None, name=""):
+    """[Atom] from the text of a PDB, PDBQT or mmCIF file: the first model."""
+    fmt = fmt or format_of(name, text)
+    if fmt == "cif":
+        return _read_cif(text or "")
+    return _read_pdb(text or "", pdbqt=(fmt == "pdbqt"))
+
+
+def select(atoms, chains=None, invert=False, water=False):
+    """The atoms a viewer's selection names: these chains, or every chain
+    but these when `invert`, and no waters unless asked for. A water is a
+    sphere of its own, and a crystal's hundreds of them would each be
+    triangulated as a bubble beside the protein."""
+    want = {(c or "").strip() for c in (chains or ())}
+    out = []
+    for a in atoms:
+        if not water and (a.resname or "").strip().upper() in WATER:
+            continue
+        if want and (((a.chain or "").strip() in want) == bool(invert)):
+            continue
+        out.append(a)
+    return out
+
+
+def one_conformer(atoms):
+    """The atoms with one alternate location per residue: those without one,
+    and those of the first location the residue lists, normally A, which is
+    the one 3Dmol draws, so the surface and the drawing agree."""
+    first = {}
+    for a in atoms:
+        alt = (getattr(a, "altloc", "") or "").strip()
+        if not alt:
+            yield a
+            continue
+        k = (a.chain, a.resnum, a.icode or "")
+        if first.setdefault(k, alt) == alt:
+            yield a
 
 
 # --- radii -----------------------------------------------------------------
@@ -323,6 +535,26 @@ def pieces(rows, probe=PROBE):
 
 # --- msms itself -------------------------------------------------------------
 
+def find_msms(places=(), env="MSMS_EXE"):
+    """The msms program: $MSMS_EXE, then inside each of `places`, then the
+    PATH. A place can be ADFRsuite's folder or its bin folder, a tools
+    folder holding ADFRsuite, or a repository with ADFRsuite in third_party,
+    which is where the HOPE pipelines' installers put it."""
+    given = os.environ.get(env)
+    if given and os.path.isfile(given) and os.access(given, os.X_OK):
+        return given
+    for place in places or ():
+        if not place:
+            continue
+        for sub in ("bin", "", os.path.join("ADFRsuite", "bin"),
+                    os.path.join("third_party", "ADFRsuite", "bin"),
+                    os.path.join("tools", "docking", "ADFRsuite", "bin")):
+            p = os.path.join(place, sub, "msms")
+            if os.path.isfile(p) and os.access(p, os.X_OK):
+                return p
+    return shutil.which("msms")
+
+
 def version(exe):
     """The first line msms prints about itself, or ''. It names its
     version and build."""
@@ -533,3 +765,125 @@ def cached(atoms, exe, cache_dir, probe=PROBE, density=None, log=None):
             pass
     got["cached"] = False
     return got
+
+
+def answer(text, exe, cache_dir=None, name="", fmt=None, chains=None,
+           invert=False, water=False):
+    """What a viewer asks for, from the text of the file it drew: the
+    surface of the atoms its selection names (select), cached, or
+    {"source": "fallback", "why": ...} when MSMS cannot give one. Never
+    raises, so a server can hand it straight to the page."""
+    try:
+        atoms = select(read_text(text, fmt, name), chains, invert, water)
+        got = cached(atoms, exe, cache_dir)
+        got["msms"] = exe
+        return got
+    except SurfaceError as exc:
+        return {"source": "fallback", "why": str(exc)}
+    except Exception as exc:                                # noqa: BLE001
+        return {"source": "fallback",
+                "why": "the surface could not be computed (%s)" % exc}
+
+
+#: The page's half, for a page that draws with 3Dmol. msmsSurface fetches an
+#: answer once per key and keeps it for the session; msmsAdd draws one as
+#: custom shapes, coloured by residue when a colourOf function is given (it
+#: is handed residue keys, "A:96"). ADCP docking's static app.js carries
+#: its own copy of these functions.
+VIEWER_JS = r"""
+/* Molecular surfaces computed by MSMS on the server (surface.py) and drawn
+   here as a mesh: vertices, normals and triangles, with the residue each
+   vertex lies over. Where MSMS cannot give one, the answer says why and the
+   page draws 3Dmol's own surface instead. */
+const MSMS_SURFS = {};
+function msmsBytes(t){
+  const b = atob(t), u = new Uint8Array(b.length);
+  for(let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i);
+  return u.buffer;
+}
+/* The answer for a key: null while it is being fetched, then the answer.
+   `then` is called with it once it arrives. */
+function msmsSurface(key, url, then){
+  if(key in MSMS_SURFS) return MSMS_SURFS[key];
+  MSMS_SURFS[key] = null;
+  fetch(url, {credentials: 'same-origin'})
+    .then(r => r.json())
+    .catch(e => ({error: String(e)}))
+    .then(d => {
+      MSMS_SURFS[key] = d && d.source ? d
+        : {source: 'fallback', why: (d && (d.error || d.why)) || 'no answer'};
+      if(then) then(MSMS_SURFS[key]);
+    });
+  return null;
+}
+function msmsMesh(d){
+  if(d._mesh) return d._mesh;
+  const v = new Float32Array(msmsBytes(d.verts));
+  const n = new Float32Array(msmsBytes(d.norms));
+  const f = new Uint32Array(msmsBytes(d.faces));
+  const r = new Uint32Array(msmsBytes(d.res));
+  const va = [], na = [];
+  for(let i = 0; i < v.length; i += 3){
+    va.push({x: v[i], y: v[i+1], z: v[i+2]});
+    na.push({x: n[i], y: n[i+1], z: n[i+2]});
+  }
+  d._mesh = {vertexArr: va, normalArr: na, faceArr: Array.from(f), res: r};
+  return d._mesh;
+}
+/* One surface into a viewer, as custom shapes, which are returned so a page
+   can take them out again (viewer.removeShape). `colourOf` is given a
+   residue key ("A:96") and returns a colour, or null for the style's own.
+   A large surface goes in as several shapes of at most 60,000 vertices:
+   3Dmol splits a larger shape into groups by itself, and per vertex colours
+   then land on the wrong triangles. */
+function msmsAdd(viewer, d, style, colourOf){
+  const m = msmsMesh(d), CHUNK = 60000;
+  const base = colourOf ? $3Dmol.CC.color(style.color || '#9fb3c8') : null;
+  const memo = {};
+  const colourAt = g => {
+    const r = m.res[g];
+    if(!(r in memo)){
+      const c = colourOf(d.residues[r]);
+      memo[r] = (c !== null && c !== undefined) ? $3Dmol.CC.color(c) : base;
+    }
+    return memo[r];
+  };
+  const add = (va, na, fa, ca) => {
+    const spec = Object.assign({vertexArr: va, normalArr: na, faceArr: fa},
+                               style);
+    if(ca) spec.colorArr = ca;
+    const shape = viewer.addCustom(spec);
+    /* 3Dmol paints every vertex with the shape's colour when it draws it,
+       unless the shape has none; without this the residues' colours never
+       reach the screen. */
+    if(ca) delete shape.color;
+    return shape;
+  };
+  if(m.vertexArr.length <= CHUNK)
+    return [add(m.vertexArr, m.normalArr, m.faceArr,
+                colourOf ? m.vertexArr.map((_, g) => colourAt(g)) : null)];
+  const shapes = [], f = m.faceArr;
+  let at = new Map(), va = [], na = [], fa = [], ca = [];
+  const flush = () => {
+    if(fa.length) shapes.push(add(va, na, fa, colourOf ? ca : null));
+    at = new Map(); va = []; na = []; fa = []; ca = [];
+  };
+  for(let t = 0; t < f.length; t += 3){
+    if(va.length > CHUNK - 3) flush();
+    for(let k = 0; k < 3; k++){
+      const g = f[t + k];
+      let l = at.get(g);
+      if(l === undefined){
+        l = va.length;
+        at.set(g, l);
+        va.push(m.vertexArr[g]);
+        na.push(m.normalArr[g]);
+        if(colourOf) ca.push(colourAt(g));
+      }
+      fa.push(l);
+    }
+  }
+  flush();
+  return shapes;
+}
+"""

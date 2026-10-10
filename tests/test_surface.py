@@ -256,6 +256,70 @@ check("id=sitesurf" in page and "id=surfnote" in page and "id=surfmsg" in page,
 check("let RSURF = 2" in appjs and 'class="pill on" id=rsurf' in page,
       "a pose's page draws the receptor's surface from the start, see-through")
 
+# --- one module in every tool that draws a surface ----------------------------
+# HOPE pipelines, the aptamer pipeline, HOPE Labs and HOPE-MD each carry a copy
+# of this file, so a surface is computed one way whichever tool shows it. A copy that
+# is on this machine is compared byte for byte; one that is not, is not.
+MINE = os.path.join(ROOT, "adcp_dock", "surface.py")
+COPIES = [os.path.join(g, rel) for g in ("/scratch/group/sflab",
+                                         "/scratch/group/p.agr250019.000")
+          for rel in ("HOPE-pipelines/hope_monitor/surface.py",
+                      "HOPE-aptamer-pipeline/hope_aptamer/surface.py",
+                      "HOPE-labs/hope_labs/surface.py",
+                      "HOPE-MD/MD/hopemd/surface.py")]
+with open(MINE, "rb") as fh:
+    mine = fh.read()
+for other in COPIES:
+    if os.path.isfile(other):
+        with open(other, "rb") as fh:
+            check(fh.read() == mine, "adcp_dock/surface.py differs from %s; "
+                  "the copies are one module" % other)
+
+# --- the other tools hand in the text their viewer was given ------------------
+# It is read the way 3Dmol reads it: the first model, PDBQT's AutoDock types
+# as elements, mmCIF by the author's chains.
+pdb_text = open(REC).read()
+read_back = surface.read_text(pdb_text, name="1YCR.pdb")
+check(len(read_back) == len(structure.read(REC)),
+      "the text reader finds the atoms structure.read finds (%d, %d)"
+      % (len(read_back), len(structure.read(REC))))
+check(len(surface.read_text(open(odd).read())) == 11,
+      "the text reader reads hexadecimal serials and residue numbers too")
+check(surface.format_of("x.cif.gz") == "cif"
+      and surface.format_of("x.pdbqt") == "pdbqt"
+      and surface.format_of("", "data_1ABC\nloop_\n_atom_site.id\n") == "cif",
+      "a file's format is told from its name, else from its text")
+atom_lines = [l for l in pdb_text.splitlines() if l.startswith("ATOM")][:20]
+two = ("MODEL        1\n" + "\n".join(atom_lines) + "\nENDMDL\n"
+       "MODEL        2\n" + "\n".join(atom_lines) + "\nENDMDL\n")
+check(len(surface.read_text(two)) == 20, "only the first model is read")
+qt = ("ATOM      1  C   LIG A   1      10.000  10.000  10.000  0.00  0.00"
+      "     0.000 A \nATOM      2  O   LIG A   1      11.200  10.000  10.000"
+      "  0.00  0.00    -0.300 OA\n")
+check([a.element for a in surface.read_text(qt, name="p.pdbqt")] == ["C", "O"],
+      "AutoDock's atom types are read as elements")
+cif = ("data_t\nloop_\n_atom_site.group_PDB\n_atom_site.id\n"
+       "_atom_site.type_symbol\n_atom_site.label_atom_id\n"
+       "_atom_site.label_comp_id\n_atom_site.label_asym_id\n"
+       "_atom_site.label_seq_id\n_atom_site.Cartn_x\n_atom_site.Cartn_y\n"
+       "_atom_site.Cartn_z\n_atom_site.auth_seq_id\n_atom_site.auth_asym_id\n"
+       "_atom_site.pdbx_PDB_model_num\n"
+       "ATOM 1 N N ALA A 1 1.0 2.0 3.0 7 X 1\n"
+       "ATOM 2 C CA ALA A 1 2.0 2.0 3.0 7 X 1\n"
+       "ATOM 3 N N ALA A 1 1.0 2.0 3.0 7 X 2\n#\n")
+got_cif = surface.read_text(cif, name="t.cif")
+check(len(got_cif) == 2 and got_cif[0].chain == "X" and got_cif[0].resnum == 7,
+      "mmCIF is read by author chain and number, first model only (%s)"
+      % [(a.chain, a.resnum) for a in got_cif])
+sel = surface.select(read_back, ["B"], invert=True)
+check(sel and all(a.chain != "B" for a in sel),
+      "a selection can name the chains to leave out")
+check(surface.answer(pdb_text, None).get("source") == "fallback",
+      "with no msms the answer says so instead of raising")
+check("function msmsAdd" in surface.VIEWER_JS
+      and "function msmsSurface" in surface.VIEWER_JS,
+      "the module carries the page code that draws its answers")
+
 # --- the real msms, where ADFRsuite has one ------------------------------------
 exe = toolmod.discover(roots=ROOTS).adfr_program("msms")
 if not exe:
@@ -388,6 +452,14 @@ check(both.get("vertices", 0) != nv, "the chains asked for are the chains surfac
 check(os.path.isdir(os.path.join(runs, "_surfaces")),
       "the server keeps its cache in the runs folder")
 json.dumps(got)
+
+# The other tools' way in: the text of the file their viewer drew.
+ans = surface.answer(pdb_text, exe, None, name="1YCR.pdb", chains=["A"])
+check(ans.get("source") == "msms" and ans.get("vertices") == nv,
+      "a viewer's text gives the surface its atoms give (%s)"
+      % {k: ans.get(k) for k in ("source", "vertices", "why")})
+check(surface.find_msms([surface.adfr_home(exe)]) is not None,
+      "msms is found from ADFRsuite's folder")
 
 if fails:
     print("test_surface FAILED (%d of %d)" % (len(fails), ran))
