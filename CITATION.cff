@@ -185,7 +185,7 @@ references:
     issue: "1"
     start: "112"
     end: "128"
-    year: 2017
+    year: 2018
     doi: "10.1002/pro.3280"
     notes: "Receptor protonation at a chosen pH, when PROPKA is chosen."
   - type: article
@@ -425,7 +425,7 @@ references:
     issue: "D1"
     start: "D327"
     end: "D332"
-    year: 2012
+    year: 2013
     doi: "10.1093/nar/gks991"
     notes: "SwissSidechain, the source of the non-standard side chains and rotamers in ADCP 1.1's library."
   - type: article
@@ -518,7 +518,7 @@ references:
     issue: "8"
     start: "1322"
     end: "1324"
-    year: 2014
+    year: 2015
     doi: "10.1093/bioinformatics/btu829"
     notes: "The 3Dmol.js structure viewer."
   - type: article

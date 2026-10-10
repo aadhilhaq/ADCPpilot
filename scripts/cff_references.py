@@ -106,7 +106,12 @@ for key, when, did, ref, doi in cite.REFERENCES:
         out.append("    start: %s" % q(sp))
         if ep:
             out.append("    end: %s" % q(ep))
-    out.append("    year: %d" % m["issued"]["date-parts"][0][0])
+    # The year of the issue it was printed in, as the citation gives it; Crossref's
+    # "issued" is the earlier of print and online, a year early for a paper that
+    # went online in December.
+    when = (m.get("published-print") or (m.get("journal-issue") or {}).get("published-print")
+            or m["issued"])
+    out.append("    year: %d" % when["date-parts"][0][0])
     out.append(doi_line(m["DOI"].lower()))
     notes = NOTES.get(key, did)
     if key == "pdbfixer":
