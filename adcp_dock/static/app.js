@@ -5583,9 +5583,8 @@ drawPeps();
 listRuns();
 showEngine();
 guide();
-// Opened on a run, when HOPE Labs' Results asked for one: that run's
-// results, scrolled to. Runs are opened here by their folder, which is
-// what Results hands over.
+// ?open=<folder> opens that run's results and scrolls to them, so another
+// page can link straight to a run. Runs are opened here by their folder.
 (function openAsked(){
   const asked = new URLSearchParams(location.search).get('open');
   if(!asked) return;
