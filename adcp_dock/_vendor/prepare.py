@@ -1270,6 +1270,87 @@ def _first_numbers(path):
     return firsts
 
 
+def _count_hydrogens(path):
+    """Hydrogens in a PDB file, decided the way _is_hydrogen decides."""
+    n = 0
+    try:
+        for l in open(path, errors="replace"):
+            if l.startswith(("ATOM", "HETATM")) and _is_hydrogen(l[12:16],
+                                                                 l[76:78]):
+                n += 1
+    except OSError:
+        return 0
+    return n
+
+
+def _drop_hydrogens(path, out_path):
+    """Every hydrogen line taken out, heavy atoms untouched. Count removed."""
+    n = 0
+    with open(path, errors="replace") as fh, open(out_path, "w") as out:
+        for l in fh:
+            if l.startswith(("ATOM", "HETATM")) and _is_hydrogen(l[12:16],
+                                                                 l[76:78]):
+                n += 1
+                continue
+            out.write(l)
+    return n
+
+
+def _trim_hydrogens(path, out_path, steps, exe, log=print):
+    """`path` with the hydrogens it arrived with removed, or `path` itself.
+
+    reduce -Trim is reduce's own way of doing this and the first half of the
+    two-pass order it documents for an already-protonated file. It is run only
+    when there is something to trim, so a deposited structure with no
+    hydrogens takes the same path it always did.
+
+    The result is checked rather than trusted. If -Trim could not run, or left
+    hydrogens behind, the remainder is dropped here by name instead: the point
+    of the trim is that no hydrogen reduce did not place can reach the force
+    field, and a trim that half worked would leave exactly the stray atom this
+    exists to remove.
+    """
+    had = _count_hydrogens(path)
+    if not had:
+        return path
+    work = os.path.dirname(os.path.abspath(out_path))
+    os.makedirs(work, exist_ok=True)      # run() has made it; a direct caller may not
+    trimmed = os.path.join(work, "trimmed.pdb")
+    why = ""
+    try:
+        p = subprocess.run([exe, "-Trim", path], capture_output=True,
+                           text=True, timeout=3600)
+        text = p.stdout or ""
+        if text.count("\n") > 1 and _atoms(text.splitlines()):
+            with open(trimmed, "w") as fh:
+                fh.write(text)
+        else:
+            why = "reduce -Trim wrote no structure"
+    except (OSError, subprocess.SubprocessError) as e:
+        why = "reduce -Trim could not be run: %s" % e
+    left = _count_hydrogens(trimmed) if os.path.isfile(trimmed) else None
+    if why or left is None or left:
+        # By name, so the guarantee holds whatever reduce did.
+        n = _drop_hydrogens(path, trimmed)
+        steps.append(Step(
+            "trim hydrogens", True,
+            "%d hydrogen(s) the structure arrived with were removed by name "
+            "so reduce places every one of them%s"
+            % (n, (" (%s)" % why) if why
+               else (" (reduce -Trim left %d behind)" % left) if left
+               else "")))
+        log("  the structure's own hydrogens were removed; reduce places "
+            "every hydrogen from here")
+        return trimmed
+    steps.append(Step(
+        "trim hydrogens", True,
+        "reduce -Trim removed the %d hydrogen(s) the structure arrived with, "
+        "so reduce places every one of them" % had))
+    log("  reduce -Trim removed the structure's own %d hydrogen(s); reduce "
+        "places every hydrogen from here" % had)
+    return trimmed
+
+
 def protonate_reduce(path, out_path, steps, exe=None, log=print):
     """Hydrogens placed by reduce, the way ADFR's own preparation and ADapt
     place them.
@@ -1290,6 +1371,21 @@ def protonate_reduce(path, out_path, steps, exe=None, log=print):
     at all, and the minimisation's force field has no template for the
     residue.
 
+    HYDROGENS THE STRUCTURE ARRIVES WITH ARE TRIMMED FIRST, with reduce's own
+    -Trim, which is the two-pass order reduce documents for a file that is
+    already protonated. -BUILD adds what is missing and leaves what it finds,
+    and what it finds was placed by whoever wrote the file. One such atom is
+    enough to lose the minimisation: 7A3R arrives with 2,859 hydrogens, HXT
+    among them, which is a proton on the C-terminal carboxylate. That makes
+    the terminus neutral, Amber's templates have only the charged form, and
+    createSystem then refuses the whole structure for want of a template for
+    one residue - measured, and measured again with that single atom removed,
+    where it is accepted. pdb2pqr never meets this because it rebuilds every
+    hydrogen and decides the terminus itself; after the trim, so does reduce.
+
+    A structure that arrives with no hydrogens is not trimmed and is
+    protonated exactly as it was before any of this.
+
     Returns out_path, or None when reduce could not be run or wrote no
     hydrogens, with the reason in the step.
     """
@@ -1298,6 +1394,7 @@ def protonate_reduce(path, out_path, steps, exe=None, log=print):
                           "reduce was not found beside ADFRsuite's programs"))
         return None
     het = reduce_het_dict(exe)
+    path = _trim_hydrogens(path, out_path, steps, exe, log)
     nterm = max([1] + list(_first_numbers(path).values()))
     cmd = [exe, "-BUILD", "-Nterm%d" % nterm]
     if het:
