@@ -2,9 +2,9 @@
 
 By Aadhil Haq
 
-The layout, the stylesheet and the credit bar come from docskit, which the
-HOPE pipelines and the aptamer pipeline share with this package. This module
-holds only what is ours: the sidebar, the pages each "?" leads to, the
+The layout, the stylesheet and the credit bar come from docskit, a module
+shared with other tools by the same authors. This module holds only what is
+this interface's own: the sidebar, the pages each "?" leads to, the
 colours of this interface and the credit line.
 
 A page is an HTML fragment in adcp_dock/docs/pages/<slug>.html: an <h1>, a

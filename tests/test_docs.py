@@ -164,32 +164,51 @@ httpd.shutdown()
 for k in ("http_proxy", "HTTP_PROXY"):
     os.environ.pop(k, None)
 
-# --- the kit is the same module in every repository -------------------------
-# Six interfaces share docskit.py. The code is one module; the docstring is
-# each copy's own, naming the interfaces its repository serves, so the code is
-# compared and the docstring is not.
-#
-# This named the group under its old name, p.agr250019.000, which stopped
-# existing when the lab moved to sflab. So it printed a note nobody read,
-# skipped, and the copies drifted apart for weeks while it said nothing. The
-# copies are only in a checkout that has them, so it is still skipped where
-# they are genuinely absent.
+# --- the kit is the same module in every tool that carries it ---------------
+# docskit.py is shared with other tools by the same authors. Where their
+# checkouts are named in ADCP_SIBLING_CHECKOUTS (folders separated as in
+# PATH), each copy, <checkout>/<package>/docskit.py, is compared below its
+# docstring. Unset, there is nothing to compare with, and the note says so.
 
 
 def _kit_code(path):
-    """The module without its docstring: the copies say which repository they are in."""
+    """The module without its docstring."""
     with open(path, encoding="utf-8") as fh:
         text = fh.read()
     return text[text.index('"""', 3) + 3:]
 
-SIBLING = "/scratch/group/sflab/HOPE-pipelines/hope_monitor/docskit.py"
-if os.path.isfile(SIBLING):
-    mine = _kit_code(os.path.join(ROOT, "adcp_dock", "docskit.py"))
-    check(mine == _kit_code(SIBLING),
-          "adcp_dock/docskit.py differs below the docstring from %s; the "
-          "copies are one module" % SIBLING)
+
+def sibling_copies(name):
+    """Every copy of `name` in the checkouts ADCP_SIBLING_CHECKOUTS names, or
+    None when it is unset. A checkout that does not carry the module is not a
+    failure: not every tool has every page."""
+    import glob
+    raw = os.environ.get("ADCP_SIBLING_CHECKOUTS", "")
+    if not raw.strip():
+        return None
+    mine = os.path.realpath(ROOT)
+    out = {}
+    for d in (p.strip() for p in raw.split(os.pathsep)):
+        if d and os.path.realpath(d) != mine:
+            out[d] = sorted(glob.glob(os.path.join(d, "*", name)))
+    return out
+
+
+_kits = sibling_copies("docskit.py")
+if _kits is None:
+    print("note  ADCP_SIBLING_CHECKOUTS is not set, so docskit.py was not "
+          "compared with other tools' copies")
 else:
-    print("note  %s is not here, so the copies were not compared" % SIBLING)
+    mine = _kit_code(os.path.join(ROOT, "adcp_dock", "docskit.py"))
+    for _where, _copies in sorted(_kits.items()):
+        if not _copies:
+            print("note  %s carries no docskit.py" % _where)
+        for _other in _copies:
+            check(mine == _kit_code(_other),
+                  "adcp_dock/docskit.py differs below the docstring from %s; "
+                  "the copies are one module" % _other)
+    print("note  docskit.py compared with %d copies"
+          % sum(len(c) for c in _kits.values()))
 
 if fails:
     print("test_docs FAILED (%d)" % len(fails))

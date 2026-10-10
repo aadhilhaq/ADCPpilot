@@ -257,23 +257,35 @@ check("let RSURF = 2" in appjs and 'class="pill on" id=rsurf' in page,
       "a pose's page draws the receptor's surface from the start, see-through")
 
 # --- one module in every tool that draws a surface ----------------------------
-# HOPE pipelines, the aptamer pipeline, HOPE Labs and HOPE-MD each carry a copy
-# of this file, so a surface is computed one way whichever tool shows it. A copy that
-# is on this machine is compared byte for byte; one that is not, is not.
+# surface.py is shared with other tools by the same authors, so a surface is
+# computed one way whichever tool shows it. Where their checkouts are named in
+# ADCP_SIBLING_CHECKOUTS (folders separated as in PATH), each copy,
+# <checkout>/<package>/surface.py, is compared byte for byte. Unset, there is
+# nothing to compare with, and the note says so.
+import glob  # noqa: E402
+
 MINE = os.path.join(ROOT, "adcp_dock", "surface.py")
-COPIES = [os.path.join(g, rel) for g in ("/scratch/group/sflab",
-                                         "/scratch/group/p.agr250019.000")
-          for rel in ("HOPE-pipelines/hope_monitor/surface.py",
-                      "HOPE-aptamer-pipeline/hope_aptamer/surface.py",
-                      "HOPE-labs/hope_labs/surface.py",
-                      "HOPE-MD/MD/hopemd/surface.py")]
 with open(MINE, "rb") as fh:
     mine = fh.read()
-for other in COPIES:
-    if os.path.isfile(other):
-        with open(other, "rb") as fh:
-            check(fh.read() == mine, "adcp_dock/surface.py differs from %s; "
-                  "the copies are one module" % other)
+_raw = os.environ.get("ADCP_SIBLING_CHECKOUTS", "")
+if not _raw.strip():
+    print("note  ADCP_SIBLING_CHECKOUTS is not set, so surface.py was not "
+          "compared with other tools' copies")
+else:
+    _seen = 0
+    for _where in (p.strip() for p in _raw.split(os.pathsep)):
+        if not _where or os.path.realpath(_where) == os.path.realpath(ROOT):
+            continue
+        _copies = sorted(glob.glob(os.path.join(_where, "*", "surface.py")))
+        if not _copies:
+            # Not a failure: not every tool draws a surface.
+            print("note  %s carries no surface.py" % _where)
+        for other in _copies:
+            _seen += 1
+            with open(other, "rb") as fh:
+                check(fh.read() == mine, "adcp_dock/surface.py differs from %s; "
+                      "the copies are one module" % other)
+    print("note  surface.py compared with %d copies" % _seen)
 
 # --- the other tools hand in the text their viewer was given ------------------
 # It is read the way 3Dmol reads it: the first model, PDBQT's AutoDock types

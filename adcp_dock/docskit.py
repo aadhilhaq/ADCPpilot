@@ -5,14 +5,13 @@ By Aadhil Haq
 A page is an HTML fragment, pages/<slug>.html: an <h1>, a lead paragraph
 (<p class="lead">), then sections under <h2>. This module wraps each one in
 the shared layout: the sidebar with its sections, previous and next, and the
-footer. Screenshots in img/ are of the interface itself, taken by the
-repository's tools/docs_screenshots.py, so they show the page as it is.
+footer. Screenshots, where an interface has them, are in img/: of the
+interface itself, taken by the repository's tools/docs_screenshots.py, so they
+show the page as it is.
 
-The same file serves the HOPE pipelines, the aptamer pipeline, ADCP docking
-and HOPE Labs: each interface builds a Site with its own name, colours, pages
-and credit line, and the layout is the same. The four copies are kept
-identical. This one, in hope_monitor, is the one changed first; a test in each
-of the other three repositories compares its copy with it where it is present.
+Each interface builds a Site with its own name, colours, pages and credit
+line, and the layout is the same. This module is shared, byte for byte, with
+other tools by the same authors; keep the copies identical.
 """
 import html
 import os
@@ -290,8 +289,8 @@ CREDITROLL = """<script>
   }
   measure();
   var again;
-  // window. written out: a bare addEventListener is the same call, but a page that checks every
-  // name it calls is defined - the aptamer's does - cannot tell it from a typo.
+  // window. written out: a bare addEventListener is the same call, but a check that every name
+  // a page calls is defined cannot tell it from a typo.
   window.addEventListener("resize", function () { clearTimeout(again); again = setTimeout(measure, 250); });
   if (calm && calm.addEventListener) calm.addEventListener("change", measure);
 })();

@@ -2,18 +2,15 @@
 
 By Aadhil Haq
 
-One module, the same file in ADCP docking (adcp_dock/surface.py), HOPE
-pipelines (hope_monitor/surface.py), the HOPE aptamer pipeline
-(hope_aptamer/surface.py), HOPE Labs (hope_labs/surface.py) and HOPE-MD
-(hopemd/surface.py), so a surface drawn by any of them is computed the same
-way. Each repository's tests check that its copy is byte for byte the
-others'.
+This module is shared, byte for byte, with other tools by the same authors,
+so a surface drawn by any of them is computed the same way; keep the copies
+identical.
 
 MSMS, by Michel Sanner, triangulates the solvent excluded surface: the
 surface a probe sphere of 1.5 Angstrom traces as it rolls over the atoms.
 The msms program ships in ADFRsuite's bin folder. It is called here as the
 installed program, never copied, because its licence allows non-commercial
-scientific research only (each repository's third party notices). Published
+scientific research only (see the third party notices). Published
 work that shows one of these surfaces cites Sanner, Olson and Spehner,
 Biopolymers 38:305-320, 1996.
 
@@ -539,7 +536,7 @@ def find_msms(places=(), env="MSMS_EXE"):
     """The msms program: $MSMS_EXE, then inside each of `places`, then the
     PATH. A place can be ADFRsuite's folder or its bin folder, a tools
     folder holding ADFRsuite, or a repository with ADFRsuite in third_party,
-    which is where the HOPE pipelines' installers put it."""
+    which is where some installers put it."""
     given = os.environ.get(env)
     if given and os.path.isfile(given) and os.access(given, os.X_OK):
         return given
