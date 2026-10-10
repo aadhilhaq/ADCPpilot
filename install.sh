@@ -812,11 +812,18 @@ fi
 # --- AmberTools from outside the environment: wrappers ---------------------------
 AMB_ROOT="$TOOLS_DIR/amber"
 sq() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
+# One for every program in that AmberTools' bin folder, not only the four
+# checked for: the rescoring also runs ambpdb, and finds each program as
+# $AMBERHOME/bin/<name>. Written into a new folder that then replaces the old
+# one, so a program the module no longer has does not linger.
 write_amber_wrappers() {
-  local b f
-  mkdir -p "$AMB_ROOT/bin"
-  for b in "${AMBER_BINS[@]}"; do
-    f="$AMB_ROOT/bin/$b"
+  local b f p new="$AMB_ROOT/bin.part"
+  rm -rf "$new"
+  mkdir -p "$new"
+  for p in "$AMB_DIR"/*; do
+    [ -f "$p" ] && [ -x "$p" ] || continue
+    b=$(basename "$p")
+    f="$new/$b"
     {
       echo '#!/bin/sh'
       echo "# adcp-dock amber wrapper, written by install.sh on $(date +%Y-%m-%d)."
@@ -839,16 +846,17 @@ write_amber_wrappers() {
       echo "unset PYTHONHOME"
       echo "export AMBERHOME PATH"
       echo "exec $(sq "$AMB_DIR/$b")"' "$@"'
-    } > "$f.part"
-    chmod 755 "$f.part"
-    mv "$f.part" "$f"
+    } > "$f"
+    chmod 755 "$f"
   done
+  rm -rf "$AMB_ROOT/bin"
+  mv "$new" "$AMB_ROOT/bin"
 }
 if [ "$AMBER_SRC" = external ] && [ "$AMB_WRAPPED" = 0 ]; then
   STEP="writing the AmberTools wrappers"
   write_amber_wrappers
   head_ "AmberTools"
-  wrap "The cluster's own AmberTools in $AMB_HOME is used through small scripts in $AMB_ROOT/bin, which carry the settings its module made. Nothing needs loading later; if that module is updated or removed, run ./install.sh again."
+  wrap "The cluster's own AmberTools in $AMB_HOME is used through $(ls "$AMB_ROOT/bin" | wc -l) small scripts in $AMB_ROOT/bin, one for each of its programs, which carry the settings its module made. Nothing needs loading later; if that module is updated or removed, run ./install.sh again."
 fi
 if [ "$AMBER_SRC" = external ] && [ "$AMB_WRAPPED" = 1 ]; then AMB_ROOT="$(dirname "$AMB_DIR")"; fi
 

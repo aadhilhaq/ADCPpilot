@@ -150,8 +150,9 @@ exit 0
 # --- AmberTools as a module provides it -------------------------------------------
 # MMPBSA.py runs only with the module's PYTHONPATH, as a module's does.
 amber_home = os.path.join(tmp, "module", "AmberTools")
-for b in ("tleap", "sander", "ante-MMPBSA.py"):
+for b in ("tleap", "sander", "ante-MMPBSA.py", "ambpdb"):
     write(os.path.join(amber_home, "bin", b), "#!/bin/sh\necho \"$0 AMBERHOME=$AMBERHOME\"\n")
+write(os.path.join(amber_home, "bin", "README"), "not a program\n", 0o644)
 write(os.path.join(amber_home, "bin", "MMPBSA.py"),
       '#!/bin/sh\ncase ":${PYTHONPATH:-}:" in *":%s:"*) echo "usage: MMPBSA.py"; exit 0 ;; esac\n'
       'echo "ImportError: No module named MMPBSA_mods" >&2; exit 1\n' % MODULE_SITE)
@@ -225,6 +226,13 @@ if os.path.isfile(wrapper):
                        env=dict(base_env), capture_output=True, text=True, timeout=60)
     check(("AMBERHOME=%s" % amber_home) in p.stdout,
           "the tleap wrapper does not give tleap its own AMBERHOME:\n" + p.stdout)
+    # The rescoring runs more than the four programs checked for: the panel
+    # writes the scored geometry with $AMBERHOME/bin/ambpdb.
+    wbin = os.path.join(dep, "tools", "amber", "bin")
+    check(os.access(os.path.join(wbin, "ambpdb"), os.X_OK)
+          and not os.path.exists(os.path.join(wbin, "README")),
+          "the wrappers do not cover every program in the module's bin folder: %r"
+          % sorted(os.listdir(wbin)))
 act = activate() if os.path.exists(os.path.join(dep, "activate.sh")) else ""
 check('export AMBERHOME="%s"' % os.path.join(dep, "tools", "amber") in act,
       "activate.sh does not point AMBERHOME at the wrappers:\n" + act)
