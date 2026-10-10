@@ -153,8 +153,9 @@ fi
 # ============================================================================
 # --- the folder ----------------------------------------------------------------
 if [ -e "$CR" ] && [ -n "$(ls -A "$CR" 2>/dev/null)" ] && [ ! -f "$STATE" ]; then
-  echo "$CR is not empty and was not begun by this script." >&2
-  echo "Give a new folder, or empty that one first:  rm -rf $CR" >&2
+  echo "$CR already holds other files, and was not begun by this script;" >&2
+  echo "they are left alone. Give a folder that does not exist yet, for example" >&2
+  echo "    $CR/cleanroom_$USER" >&2
   exit 2
 fi
 mkdir -p "$CR/home" "$L" || { echo "cannot create $CR" >&2; exit 1; }
