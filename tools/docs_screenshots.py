@@ -4,7 +4,11 @@
 By Aadhil Haq
 
     python tools/docs_screenshots.py --python /path/to/env/bin/python \\
-        [--tools-root DIR] [--out adcp_dock/docs/img]
+        [--tools-root DIR] [--out adcp_dock/docs/img] [--work DIR]
+
+The pictures show the folders the run is in, so --work chooses them: the
+folder named there holds the receptor and an `adcp_runs` beside it, and its
+path is what appears in the Browse and Output folder boxes.
 
 Starts the interface with a fresh runs folder holding the shipped example
 run, drives the page the way a person would (loads the example's receptor,
@@ -75,12 +79,19 @@ def main():
     ap.add_argument("--python", required=True, help="the Python the interface runs in")
     ap.add_argument("--tools-root", action="append", default=[])
     ap.add_argument("--out", default=os.path.join(HERE, "adcp_dock", "docs", "img"))
+    ap.add_argument("--work", default="",
+                    help="the folder the receptor and the runs folder are "
+                         "made in, whose path the pictures show. The default "
+                         "is a temporary folder, removed afterwards; a folder "
+                         "named here is left as it is.")
     a = ap.parse_args()
     from playwright.sync_api import sync_playwright
 
     job = json.load(open(os.path.join(EXAMPLE, "job.json")))
-    work = tempfile.mkdtemp(prefix="docshots_")
-    runs = os.path.join(work, "runs")
+    work = a.work or tempfile.mkdtemp(prefix="docshots_")
+    temporary = not a.work
+    os.makedirs(work, exist_ok=True)
+    runs = os.path.join(work, "adcp_runs")
     subprocess.run([a.python, "-m", "adcp_dock.cli", "example", "--runs", runs],
                    cwd=HERE, check=True, stdout=subprocess.DEVNULL)
     receptor = os.path.join(work, "1YCR.pdb")
@@ -541,7 +552,10 @@ def main():
             os.killpg(srv.pid, signal.SIGTERM)
         except OSError:
             pass
-        shutil.rmtree(work, ignore_errors=True)
+        if temporary:
+            shutil.rmtree(work, ignore_errors=True)
+        else:
+            print("the run and the receptor are in", work)
     print("\nmade:", " ".join(made))
     print("page errors:", errors[:5] or "none")
     print("steps that failed:", failed or "none")
