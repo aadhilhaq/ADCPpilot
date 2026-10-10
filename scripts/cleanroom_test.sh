@@ -76,6 +76,8 @@ STATE="$L/state.env"
 say() { printf '%s\n' "$*"; }
 sum() { printf '%s\n' "$*" >> "$S"; }
 files() { find "$@" 2>/dev/null | wc -l; }
+# The folder's files, leaving out the logs this script writes itself.
+made() { find "$CR" -path "$L" -prune -o -print 2>/dev/null | wc -l; }
 cleanup_line() { say "When you have sent SUMMARY.txt, delete the test (about 112,000 files):  rm -rf $CR"; }
 
 # The quota of the filesystem <folder> is on, however this cluster reports it.
@@ -93,8 +95,8 @@ quota_lines() {
   elif command -v quota >/dev/null 2>&1; then
     quota -s 2>&1 | head -8
   fi
-  df -h "$d" 2>/dev/null | tail -1
-  df -i "$d" 2>/dev/null | tail -1
+  df -h --output=target,size,used,avail,pcent "$d" 2>/dev/null | tail -1 || df -h "$d" | tail -1
+  df -i --output=target,itotal,iused,iavail,ipcent "$d" 2>/dev/null | tail -1 || df -i "$d" | tail -1
 }
 
 # ============================================================================
@@ -180,11 +182,11 @@ clean() {
 step() {
   local name=$1 log=$2 t n0 n1 rc
   shift 2
-  n0=$(files "$CR"); t=$(date +%s)
+  n0=$(made); t=$(date +%s)
   say "[$(date +%T)] $name"
   "$@" > "$log" 2>&1
   rc=$?
-  n1=$(files "$CR")
+  n1=$(made)
   printf '%s\t%s\t%s\t%s\n' "$name" "$rc" "$(( $(date +%s) - t ))" "$(( n1 - n0 ))" >> "$L/steps.tsv"
   say "           exit $rc, $(( $(date +%s) - t )) s, $(( n1 - n0 )) files"
   return $rc
@@ -288,13 +290,19 @@ quota_lines > "$L/quota_after.txt" 2>&1
   echo "host $(hostname), $(uname -sm), user $USER"
   echo "folder $CR"
   echo "code $SOURCE ($(git -C "$CR/ADCP_docking" log -1 --format='%h %ad' --date=short 2>/dev/null))"
+  if [ "${INSTALL_RC:-}" = 0 ]; then
+    echo "RESULT: install.sh finished"
+  else
+    echo "RESULT: install.sh STOPPED (exit ${INSTALL_RC:-not run}); its reasons are below"
+  fi
   echo
   echo "== Steps (exit, seconds, files made)"
   awk -F'\t' '{printf "  %-26s exit %-3s %6s s %8s files\n", $1, $2, $3, $4}' "$L/steps.tsv"
   if [ -d "$CR/prefix" ]; then
     echo "  files now: environment $(files "$CR/prefix/envs/adcp"), ADFRsuite $(files "$CR/prefix/tools/docking/ADFRsuite"), ADCP 1.1 $(files "$CR/prefix/tools/docking/adcpsuite"), caches $(files "$CR/prefix/conda_shared" "$CR/prefix/tools/docking/mamba_root"), whole folder $(files "$CR")"
   fi
-  echo "  written to the empty home: $(ls -A "$CR/home" | tr '\n' ' ')"
+  home=$(ls -A "$CR/home" | tr '\n' ' ')
+  echo "  written to the empty home: ${home:-nothing}"
   echo "  total $(( $(date +%s) - T0 )) s"
   echo
   echo "== Quota before"
@@ -303,9 +311,15 @@ quota_lines > "$L/quota_after.txt" 2>&1
   sed 's/^/  /' "$L/quota_after.txt"
   echo
   if [ -f "$L/03_install.txt" ]; then
+    echo "== install.sh: room"
+    sed -n '/^== Room/,/^$/p' "$L/03_install.txt" | sed -n '2,4p'
     echo "== install.sh: warnings and errors (at most 40 lines)"
+    # Leaving out micromamba's list of packages, and the lines that only say
+    # a new account has nothing installed yet.
     grep -n -i -E 'warn|error|stopped|not enough|could not|cannot|failed|turned off|not installed|not found|missing|refused' \
-      "$L/03_install.txt" | grep -v -E '^[0-9]+:[[:space:]]+[+-] |gpg-error|━' | cut -c1-160 | head -40
+      "$L/03_install.txt" | grep -v -E '^[0-9]+:[[:space:]]+[+-] |gpg-error|━' \
+      | grep -v -E '^[0-9]+:[[:space:]]+(not found|ADCP 1.1: not found|ADapt: not found|not found in the environment, on PATH or in a loaded module)$' \
+      | cut -c1-160 | head -40
     echo "== install.sh: its summary"
     sed -n '/== Summary ==/,/Finished in/p' "$L/03_install.txt" | head -16
     tail -2 "$L/03_install.txt" | sed 's/^/  last: /'
@@ -316,7 +330,7 @@ quota_lines > "$L/quota_after.txt" 2>&1
   [ -f "$L/05_run_submit.txt" ] && grep -E '^(prepare|dock|report):|rror|refused|denied' "$L/05_run_submit.txt" | head -6 | sed 's/^/  /'
   [ -f "$L/06_gate_submit.txt" ] && sed 's/^/  gate: /' "$L/06_gate_submit.txt" | tail -2
   echo
-  echo "When the jobs finish:  bash $REPO/scripts/cleanroom_test.sh --report $CR"
+  [ -n "$JOBS" ] && echo "When the jobs finish:  bash $REPO/scripts/cleanroom_test.sh --report $CR"
   echo "Cleanup:  rm -rf $CR"
 } > "$S"
 
