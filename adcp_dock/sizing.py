@@ -461,7 +461,7 @@ def suggest(peptides, replicas, steps, cores=None, mmgbsa=False, mm_poses=5,
                    human(p["dock_minutes"]), human(p["mmgbsa_minutes"])))
     else:
         task = "one dock task of %s" % human(p["dock_minutes"])
-    stages = ["a prepare job of %s" % human(p["prep_minutes"]), task,
+    stages = ["A prepare job of %s" % human(p["prep_minutes"]), task,
               "a report job of %s" % human(p["report_minutes"])]
     if p.get("rings_differ"):
         # The peptides are docked with different rings, and a ring makes
