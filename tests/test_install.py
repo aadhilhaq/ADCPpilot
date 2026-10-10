@@ -188,7 +188,8 @@ def installed(e):
 
 
 def activate():
-    return open(os.path.join(dep, "activate.sh")).read()
+    p = os.path.join(dep, "activate.sh")
+    return open(p).read() if os.path.exists(p) else ""
 
 
 # --- 1. a module's PYTHONPATH, and its AmberTools -------------------------------

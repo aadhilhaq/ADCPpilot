@@ -94,8 +94,19 @@ fi
 
 say()  { printf '%s\n' "$*"; }
 head_() { printf '\n== %s ==\n' "$*"; }
-# A long line, wrapped and indented under its heading.
-wrap() { printf '%s\n' "$*" | fold -s -w 74 | sed -e 's/[[:space:]]*$//' -e 's/^/  /'; }
+# A long line, wrapped and indented under its heading. Only between words: a
+# long path stays whole, so it can still be copied.
+wrap() {
+  printf '%s\n' "$*" | awk -v w=74 '{
+    line = ""; n = split($0, a, " ")
+    for (i = 1; i <= n; i++) {
+      if (line == "") line = a[i]
+      else if (length(line) + 1 + length(a[i]) <= w) line = line " " a[i]
+      else { print "  " line; line = a[i] }
+    }
+    if (line != "") print "  " line
+  }'
+}
 mins() { local s=$(( $(date +%s) - $1 )); printf '%d min %02d s' $((s / 60)) $((s % 60)); }
 
 # Every Python this runs is started without PYTHONPATH or PYTHONHOME. A
@@ -269,7 +280,11 @@ env_req=""; env_opt=""; env_amber=0; env_kind=""; env_writable=0
 if [ -n "$found_env" ]; then
   env_req=$E_REQ; env_opt=$E_OPT; env_amber=$E_AMBER; env_kind=$E_KIND; env_writable=$E_WRITABLE
   say "  FOUND $found_env"
-  say "        $(py_clean "$found_env/bin/python" -V 2>&1 | head -n 1 || true), a $env_kind environment that you $([ "$env_writable" = 1 ] && echo can || echo cannot) add to"
+  case "$env_kind" in
+    conda) kind_text="a conda environment" ;; venv) kind_text="a Python venv" ;;
+    *) kind_text="a Python installation" ;;
+  esac
+  say "        $(py_clean "$found_env/bin/python" -V 2>&1 | head -n 1 || true), $kind_text that you $([ "$env_writable" = 1 ] && echo can || echo cannot) add to"
   # shellcheck disable=SC2086
   [ -z "$env_req$env_opt" ] || say "        it lacks: $(names $env_req $env_opt)"
 else
@@ -472,8 +487,7 @@ if [ -z "$found_suite" ]; then
     say "        non-standard and D residues and AGFR 1.1 need it."
   else
     need_suite=1
-    say "  ADCP 1.1, into $TOOLS_AT/adcpsuite (about ten minutes"
-    say "        and 3 GB; --no-adcp11 leaves it out)"
+    wrap "ADCP 1.1, into $TOOLS_AT/adcpsuite (about ten minutes and 3 GB; --no-adcp11 leaves it out)"
   fi
 fi
 if [ ! -e "$ADAPT_DIR" ]; then
@@ -1043,8 +1057,7 @@ if [ "$pip_ok" = 0 ]; then
   } > "$HERE/tools/bin/adcp-dock.part"
   chmod 755 "$HERE/tools/bin/adcp-dock.part"
   mv "$HERE/tools/bin/adcp-dock.part" "$HERE/tools/bin/adcp-dock"
-  say "  $HERE/tools/bin/adcp-dock, which runs this checkout with"
-  say "  $found_env/bin/python3; nothing was written into that environment"
+  wrap "$HERE/tools/bin/adcp-dock runs this checkout with $found_env/bin/python3. Nothing was written into that environment."
 fi
 
 # --- and again, now that ADFRsuite is known -------------------------------
