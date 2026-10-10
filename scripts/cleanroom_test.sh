@@ -96,7 +96,7 @@ quota_lines() {
     quota -s 2>&1 | head -8
   fi
   df -h --output=target,size,used,avail,pcent "$d" 2>/dev/null | tail -1 || df -h "$d" | tail -1
-  df -i --output=target,itotal,iused,iavail,ipcent "$d" 2>/dev/null | tail -1 || df -i "$d" | tail -1
+  df --output=target,itotal,iused,iavail,ipcent "$d" 2>/dev/null | tail -1 || df -i "$d" | tail -1
 }
 
 # ============================================================================
@@ -322,7 +322,7 @@ quota_lines > "$L/quota_after.txt" 2>&1
       | cut -c1-160 | head -40
     echo "== install.sh: its summary"
     sed -n '/== Summary ==/,/Finished in/p' "$L/03_install.txt" | head -16
-    tail -2 "$L/03_install.txt" | sed 's/^/  last: /'
+    tail -3 "$L/03_install.txt" | sed '/^[[:space:]]*$/d; s/^/  last: /'
   fi
   [ -f "$L/04_update.txt" ] && echo "== update.sh: exit $UPDATE_RC; $(grep -c 'NOT FOUND' "$L/04_update.txt") NOT FOUND lines"
   echo
