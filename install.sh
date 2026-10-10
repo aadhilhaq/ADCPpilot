@@ -504,8 +504,13 @@ if [ ! -e "$ADAPT_DIR" ]; then
     say "  ADapt, into $ADAPT_DIR, if its repository is public"
   fi
 fi
-[ "$need_env$need_adfr$need_suite$need_adapt${#TOPUP[@]}" = "00000" ] \
-  && say "  nothing. Everything it needs is already on this machine."
+if [ "$need_env$need_adfr$need_suite$need_adapt${#TOPUP[@]}" = "00000" ]; then
+  if [ ${#CANNOT[@]} -eq 0 ]; then
+    say "  nothing. Everything it needs is already on this machine."
+  else
+    say "  nothing it can add. Everything else it needs is already on this machine."
+  fi
+fi
 
 # --- room -----------------------------------------------------------------------
 # How many more files and kilobytes the folder at $1 may hold, as "FILES KB",
