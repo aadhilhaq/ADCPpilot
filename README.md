@@ -25,20 +25,21 @@ Developed by Aadhil Haq, HOPE Lab, under the supervision of Dr. Sandun Fernando.
 | Your own computer (Linux, macOS, or Windows through WSL) | [INSTALL.md, section 2](INSTALL.md#2-on-your-own-computer) |
 | Google Colab | [Open the notebook](https://colab.research.google.com/github/aadhilhaq/ADCP_docking/blob/main/notebooks/ADCP_docking_colab.ipynb); nothing is installed on your computer |
 
-On any Slurm cluster, on a login node, with a folder that has room (not your home directory):
+On a Slurm cluster, connect with `ssh` to a login node (where you arrive; calculations never run there) and type, one line at a time, using a folder with room for about 100,000 files rather than your home folder:
 
 ```bash
+cd $SCRATCH
 git clone https://github.com/aadhilhaq/ADCP_docking.git
 cd ADCP_docking
-./install.sh /scratch/you/adcp     # 15 to 40 minutes; run it again if it stops
+./install.sh --check $SCRATCH/adcp    # a few seconds: what it found, what it would add, and whether there is room
+./install.sh $SCRATCH/adcp            # 30 to 60 minutes; if it stops, run the same line again
 source activate.sh
 adcp-dock check
-adcp-dock serve --port 0
 ```
 
-`install.sh` needs no conda module: it uses the cluster's conda where there is one and fetches micromamba where there is not. It builds the environment, downloads ADFRsuite from Scripps and checks it against a pinned checksum, installs ADCP 1.1 beside it, fetches ADapt beside it once ADapt's repository is public, and writes `activate.sh`, which names everything ([INSTALL.md, 1.2](INSTALL.md#12-install)). To update later, `git pull; ./update.sh` in the checkout; it keeps ADapt up to date too.
+Nothing needs installing first. `install.sh` uses what the cluster already has (an AmberTools module once it is loaded, or an environment named with `ADCP_ENV`), adds only what is missing, builds the rest in the folder you give, and ends with a summary of what works. [INSTALL.md, 1.2](INSTALL.md#12-install) walks through each step for someone new to clusters, with what success looks like and what to do when it stops. To update later: `git pull; ./update.sh` in the checkout.
 
-The server prints an address with an access token. Open it through an SSH tunnel ([INSTALL.md, 1.5](INSTALL.md#15-start-the-page)) or with the [desktop launcher](INSTALL.md#5-the-desktop-launcher).
+`adcp-dock serve --port 0` then starts the page and prints its address. Open it from your own computer through an SSH tunnel ([INSTALL.md, 1.5](INSTALL.md#15-start-the-page)) or with the [desktop launcher](INSTALL.md#5-the-desktop-launcher), which does all of that for you.
 
 On your own computer:
 

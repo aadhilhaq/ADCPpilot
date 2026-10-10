@@ -1,8 +1,10 @@
 # Installing GUI to ADCP Docking
 
-This guide covers installation, dependencies, and access to the browser interface for GUI to ADCP Docking.
+This guide is written for someone who has used a terminal only a few times.
+Every command is in a box: copy it, paste it into the terminal, press Enter,
+and wait for it to finish before the next one.
 
-Choose the environment where the calculations will run:
+Choose where the calculations will run:
 
 | where | what you do | section |
 |---|---|---|
@@ -14,101 +16,162 @@ The desktop launcher ([5](#5-the-desktop-launcher)) is an optional convenience
 for the first of those: it signs in, starts the tool on the cluster and opens
 the page for you.
 
-In Slurm mode, preparation, docking, and rescoring run as batch jobs. The interface server reads files and submits jobs. Follow your cluster policy when choosing where to run the server; section 1.6 describes an interactive-job option.
-
 ---
 
 ## 1. On a Slurm cluster
 
-Cluster execution targets **Slurm on x86-64 Linux**. Account, partition, module, and network settings depend on the site. PBS, LSF, and SGE are not supported.
+Cluster execution targets **Slurm on x86-64 Linux**. PBS, LSF and SGE are not
+supported.
 
-### 1.1 What it needs
+### 1.1 Before you start
 
-| tool | from | needed for |
-|---|---|---|
-| `adcp`, `agfr`, `prepare_receptor` | ADFRsuite 1.0 (Scripps) | docking, grid maps, PDBQT (**required**) |
-| `reduce`, `msms` | ADFRsuite 1.0, its `bin` folder | the receptor's hydrogens (the default protonation) and the viewers' surfaces |
-| `pdb2pqr` | pip / conda | protonation with PROPKA at a chosen pH, and in place of reduce when it cannot run (**required**) |
-| `tleap`, `sander`, `MMPBSA.py` | AmberTools (conda) | MM-GBSA only (optional) |
-| `sbatch`, `squeue`, `sacct` | Slurm | already on the cluster |
+**Login nodes and compute nodes.** When you connect to a cluster with `ssh`,
+you arrive on a *login node*: a computer shared by everyone who is logged in,
+meant for small tasks such as copying files, downloading and submitting work.
+The calculations run on *compute nodes*, which you reach only through the
+scheduler, Slurm. Compute nodes usually cannot download anything, so the
+install runs on a login node. Docking never does: adcp-dock sends every
+calculation to Slurm for you.
 
-Python 3.9 or newer with **numpy** and **RDKit**, plus **pdbfixer**,
-**OpenMM** and **Biopython**, which rebuild missing side chains, run the
-restrained minimisation and read mmCIF.
+**What you need:**
+
+* an account on the cluster, and its login address (for example
+  `login.your-cluster.edu`; your cluster's documentation gives it);
+* a terminal on your own computer: **Terminal** on macOS, **PowerShell** on
+  Windows 10 or 11, or any terminal on Linux. All of them have `ssh`;
+* a folder on the cluster with room for about **100,000 files and 10 GB**.
+  Your home folder is usually too small: most clusters allow only a few
+  thousand files there. Use your scratch or project folder. On many clusters
+  `echo $SCRATCH` prints yours, and the cluster's quota command (often
+  `showquota`, or `quota -s`) shows how much room it has.
+
+Nothing else needs to be installed first, and nothing needs administrator
+rights.
 
 ### 1.2 Install
 
-One script does it, on a login node, since it downloads:
+**1. Connect to the cluster** from the terminal on your own computer. Use your
+own username and your cluster's login address:
 
 ```bash
+ssh you@login.your-cluster.edu
+```
+
+It asks for your password, and on many clusters for a second factor. Nothing
+appears on the screen while you type the password; that is normal.
+
+**2. Go to a folder with room** and download the code (under a minute):
+
+```bash
+cd $SCRATCH
 git clone https://github.com/aadhilhaq/ADCP_docking.git
 cd ADCP_docking
-./install.sh /scratch/you/adcp
 ```
 
-The folder you give is where the environment and ADFRsuite go. Choose one with room that your cluster's policy permits, not your home directory, where most clusters allow few files: the environment and ADFRsuite hold tens of thousands. The script:
+If `cd $SCRATCH` says *No such file or directory*, your cluster names the
+folder differently; use the path its documentation gives, here and below.
 
-* looks for an environment and an ADFRsuite already on the machine, and builds only what is missing;
-* builds the environment (Python 3.11, RDKit, AmberTools, PDB2PQR, OpenMM, PDBFixer and Biopython, all from conda-forge) with your cluster's conda, or with micromamba, a single file it fetches into that folder, when there is none. No conda module is needed;
-* downloads ADFRsuite from Scripps, checks the archive against a pinned SHA-256 checksum, and installs it;
-* installs ADCP 1.1 beside ADFRsuite with the Scripps Research Institute's own recipe ([section 4](#4-adcp-11-optional)); `--no-adcp11` leaves it out;
-* fetches ADapt beside it, once ADapt's repository is public ([ADapt](#adapt-optional)); until then it says so in one line and carries on;
-* writes `activate.sh` in the checkout, which names all of it.
-
-It takes 15 to 40 minutes, nearly all of it AmberTools, and about ten more for ADCP 1.1. If it stops part way, run the same line again: it carries on from what is already there. `./install.sh --check` reports what it found, what an install would add, and whether ADapt could be fetched today, and changes nothing. Nothing is written to your home directory.
-
-To update later, in the checkout:
+**3. See what it would do** (a few seconds; it changes nothing):
 
 ```bash
-git pull; ./update.sh
+./install.sh --check $SCRATCH/adcp
 ```
 
-`update.sh` moves the checkout to the newest version, reinstalls the package, and brings ADapt up to date beside ADFRsuite ([ADapt](#adapt-optional)). It never builds an environment; it says when ADCP 1.1 is missing and gives the command that adds it.
+It lists what it found on the cluster, what it would add, and whether the
+folder has room. If it says **NOT ENOUGH ROOM**, choose another folder before
+going on.
 
-**For a whole group**, run it once in a shared folder and have everyone use
-that checkout. Each person runs their own server from the shared install.
-
-#### By hand
-
-The same thing step by step, for a site where you would rather build the
-environment yourself. Everything stays inside the checkout, including the
-conda environment and the download caches; module names vary by site.
+**4. Install** (30 to 60 minutes when it builds everything, under a minute
+when the cluster already has it all):
 
 ```bash
-git clone https://github.com/aadhilhaq/ADCP_docking.git
-cd ADCP_docking
-export CONDA_PKGS_DIRS=$PWD/.conda_pkgs PIP_CACHE_DIR=$PWD/.pip_cache
-
-module load Anaconda3                  # or Miniforge, or your own conda
-conda create -p ./env -c conda-forge python=3.11 rdkit pdbfixer openmm \
-      biopython ambertools -y          # drop ambertools if you will not rescore
-conda activate ./env
-pip install -e ".[local]"              # the package, and pdb2pqr
-
-python -m adcp_dock.adfr --dest tools/docking/ADFRsuite
+./install.sh $SCRATCH/adcp
 ```
 
-The last command downloads ADFRsuite from Scripps, checks the archive against a pinned SHA-256 checksum, and installs it.
+`$SCRATCH/adcp` is where the installed software goes; it is created if it is
+not there. The script prints what it is doing as it goes, never asks a
+question, and writes nothing into your home folder. In order, it:
 
-### 1.3 Point it at the tools
+| step | takes about |
+|---|---|
+| looks for what the cluster already has (below) | seconds |
+| builds a Python environment with RDKit, AmberTools, PDB2PQR, OpenMM, PDBFixer and Biopython, from conda-forge | 15 to 40 minutes, most of it AmberTools |
+| downloads ADFRsuite from the Scripps Research Institute, checks it against a pinned checksum, and installs it | 2 to 5 minutes |
+| installs ADCP 1.1 beside it with Scripps' own recipe ([section 4](#4-adcp-11-optional)); `--no-adcp11` leaves it out | about 10 minutes |
+| fetches ADapt beside it, once ADapt's repository is public ([ADapt](#adapt-optional)) | seconds |
+| writes `activate.sh` in the checkout, which records where everything is, and checks the result | seconds |
+
+It uses your cluster's own conda when it is recent, and otherwise fetches
+micromamba, a single file, into the folder; no conda module is needed.
+
+**What success looks like.** The output ends with a summary and the next
+commands, for example (your paths and times will differ):
+
+```
+== Summary ==
+  Python environment  /scratch/you/adcp/envs/adcp
+  AmberTools          in that environment
+  ADFRsuite           /scratch/you/adcp/tools/docking/ADFRsuite
+  ADCP 1.1            /scratch/you/adcp/tools/docking/adcpsuite
+  ADapt               not installed (optional; ./update.sh fetches it once it is public)
+
+  Finished in 38 min 05 s.
+```
+
+If something could not be installed, the summary also lists what is turned
+off because of it, for example *MM-GBSA rescoring (needs AmberTools)*.
+
+**5. Check it:**
 
 ```bash
 source activate.sh
 adcp-dock check
 ```
 
-`activate.sh`, written by `install.sh`, sets `ADFRSUITE_HOME`, `AMBERHOME`
-and `PATH`. The desktop launcher sources it before it starts the server, and
-every job a run submits names the same programs itself, so a cluster that
-starts its jobs with a clean environment still finds them. After an install
-by hand, set the two variables yourself:
+Every program should show a path, the Python packages a version, and the last
+line should read `sbatch: found`. Docking needs `adcp`, `agfr`,
+`prepare_receptor` and `pdb2pqr`; MM-GBSA rescoring needs the four Amber
+programs.
+
+#### If it stops
+
+When something goes wrong, the script stops with a line such as
+`install.sh STOPPED while building the environment`, followed by what usually
+causes it. Nothing is lost: **run the same command again** and it carries on
+from what is already there. The same is true if your connection drops while
+it runs: log in again, `cd` to the checkout and run the same line.
+
+| what you see | what to do |
+|---|---|
+| `NOT ENOUGH ROOM` | choose a folder with more room and give that instead, or free some files; nothing was changed |
+| `Could not resolve host`, `Connection timed out`, or a download that failed | you are probably on a compute node; log out, log in to a login node and run it again |
+| `Disk quota exceeded` or `No space left on device` | the folder ran out of room part way; free some, or start again with a folder that has more |
+| `No Python environment ... and no folder was given` | add the folder: `./install.sh $SCRATCH/adcp` |
+| `could not be added without changing what is already in ...` | an environment you pointed at (below) could not take a package without changing others, so it was left as it was; the summary says what that turns off |
+| `ADapt: not installed: ... is not public yet` | nothing to do; ADCP docking works without it, and `./update.sh` fetches it later |
+| `ADFRsuite did not install properly` | follow the two commands it prints: read its log, delete the half installed folder, and run the install again |
+| `Run this with bash` or `do not source it` | type it exactly as shown: `./install.sh $SCRATCH/adcp` |
+
+If it stops in the same place twice, open an issue at
+<https://github.com/aadhilhaq/ADCP_docking/issues> with the last 30 lines of
+the output.
+
+### 1.3 Every time you use it
+
+Each new terminal starts without the tools on its path. Load them with:
 
 ```bash
-export ADFRSUITE_HOME=/path/to/ADCP_docking/tools/docking/ADFRsuite
-export AMBERHOME=$CONDA_PREFIX          # only if you installed ambertools
+source /path/to/ADCP_docking/activate.sh
 ```
 
-`adcp-dock check` lists detected tools and missing dependencies without submitting jobs. Run it before starting a calculation.
+using the folder you cloned into (`pwd` inside it prints the full path).
+`activate.sh` sets `ADFRSUITE_HOME`, `AMBERHOME`, `ADCP_PYTHON` and `PATH`.
+The desktop launcher sources it before it starts the server, and every job a
+run submits names the same programs itself, so a cluster that starts its jobs
+with a clean environment still finds them.
+
+`adcp-dock check` lists what it found without submitting anything. Run it
+whenever something seems missing.
 
 ### 1.4 Tell it about your cluster's rules
 
@@ -138,6 +201,8 @@ allows, or a partition that is down.
 
 ### 1.5 Start the page
 
+On the login node, after `source activate.sh`:
+
 ```bash
 adcp-dock serve --port 0
 ```
@@ -152,11 +217,22 @@ GUI to ADCP Docking is at
     http://127.0.0.1:41823/?t=Xq4v...
 ```
 
-The server binds to 127.0.0.1 and requires an access token. Keep the token private. To connect from your computer, forward the displayed port and open the token-bearing address in your browser:
+The server binds to 127.0.0.1 and requires that token, so only you can open
+it. Keep the token private. To open it from your own computer, open a
+**second** terminal there and forward the port it printed (41823 here):
 
 ```bash
 ssh -N -L 41823:127.0.0.1:41823 you@login.your-cluster.edu
 ```
+
+This one prints nothing and keeps running; that is the tunnel. Then paste the
+whole address, token included, into your browser. Many clusters have several
+login nodes behind one address, and the tunnel must reach the one running the
+server. If the page does not open, your cluster's documentation gives the
+address of each login node; use the same one in both terminals.
+
+To stop, press Ctrl-C in both terminals. Runs already submitted keep going in
+Slurm, and the page shows them again the next time it starts.
 
 Or let the launcher do all of that (section 5): choose **Other (SLURM)** and
 give it your cluster's login address.
@@ -169,7 +245,7 @@ docking as separate jobs:
 
 ```bash
 srun --pty -c 1 --mem=2G -t 12:00:00 bash      # add --account etc. if needed
-conda activate adcp
+source /path/to/ADCP_docking/activate.sh
 hostname                                       # the node, for the tunnel
 adcp-dock serve --port 0
 ```
@@ -180,9 +256,10 @@ Then tunnel through the login node to that compute node:
 ssh -N -J you@login.your-cluster.edu -L 41823:127.0.0.1:41823 you@<node>
 ```
 
-`-J` works where the cluster lets you SSH to a node you have a job on, when permitted by your site. If yours has **Open OnDemand**, an interactive desktop
-session is the simplest route of all: run `adcp-dock serve` there and open
-the address in that desktop's own browser.
+`-J` works where the cluster lets you SSH to a node you have a job on. If
+yours has **Open OnDemand**, an interactive desktop session is the simplest
+route of all: run `adcp-dock serve` there and open the address in that
+desktop's own browser.
 
 A server on a compute node usually has **no internet**, so fetching a PDB id
 from the RCSB fails there. Upload the structure instead, or browse to a file
@@ -213,13 +290,104 @@ a failure and only the peptides with no result are docked again.
 
 | Setting | Possible problem | Action |
 |---|---|---|
-| **home quota** | runs are large | write runs under `$SCRATCH`; the default already does when `$SCRATCH` is set |
+| **file allowance** | the install or a run stops with *Disk quota exceeded* | install and write runs under scratch or project space; `install.sh` checks for room before it starts |
 | **array limits** | a long peptide list is refused | check the maximum array size and concurrent-task limit; `--throttle` controls concurrency, not total array size |
 | **walltime limits** | a job waits indefinitely with `PartitionTimeLimit` | the page shows it; lower the walltime or choose a partition that allows it |
 | **cores per node** | a task asks for more than a node has | *Cores per task* starts at what a node of the default partition has, up to 48; a partition with smaller nodes needs it lowered |
-| **conda** | there is no conda module, or it has another name | nothing: `install.sh` fetches micromamba when it finds no conda |
+| **conda** | there is no conda module, or an old one | nothing: `install.sh` fetches micromamba when it finds no recent conda |
+| **AmberTools module** | the cluster provides AmberTools | load it before installing (1.10); `install.sh` then uses it |
 | **job environment** | the cluster starts jobs with a clean environment | nothing: each job script names ADFRsuite and AmberTools itself |
 | **compute nodes without internet** | PDB ids fail from a job | fetch from the login node, or upload the file |
+
+### 1.9 Update later
+
+On a login node, in the folder you cloned into (under a minute):
+
+```bash
+cd /path/to/ADCP_docking
+git pull; ./update.sh
+```
+
+`update.sh` moves the checkout to the newest version, brings ADapt up to date
+beside ADFRsuite ([ADapt](#adapt-optional)), and ends with the same list as
+`adcp-dock check`. It never builds an environment; when ADCP 1.1 is missing it
+gives the command that adds it. A server that was already running keeps the
+old code until you stop it with Ctrl-C and start it again.
+
+### 1.10 Using what your cluster already has
+
+`install.sh` looks for what it needs before it builds anything, and adds only
+what is missing.
+
+* **AmberTools as a module.** Many clusters provide AmberTools as a module.
+  Load it before running `install.sh`, and the environment is built without
+  its own copy:
+
+  ```bash
+  module spider AmberTools          # lists the versions, and what to load first
+  module load AmberTools/22.3       # the name your cluster gives
+  ./install.sh $SCRATCH/adcp
+  ```
+
+  It is used once its four programs (`tleap`, `sander`, `MMPBSA.py`,
+  `ante-MMPBSA.py`) are there and `MMPBSA.py` runs. `install.sh` then writes
+  small scripts in `tools/amber/bin` that carry the module's settings, so you
+  do not need to load the module again later, and the module's Python
+  settings never reach adcp-dock's own Python. If the module is updated or
+  removed, run `./install.sh` again. The same goes for an AmberTools that is
+  on your `PATH` or named by `AMBERHOME`.
+
+* **A Python environment you already have.** Point at it with `ADCP_ENV`:
+
+  ```bash
+  ADCP_ENV=/path/to/env ./install.sh
+  ```
+
+  It needs Python 3.9 or newer. Whatever it lacks of numpy, RDKit, PDB2PQR,
+  OpenMM, PDBFixer, Biopython and AmberTools is added to it, with conda for a
+  conda environment and pip for any other, and every package already there is
+  held at its version, so nothing another user relies on changes. If you
+  cannot write to it, it is used as it is, and the script says what is
+  missing and what that turns off (for example OpenMM: the receptor's
+  restrained minimisation). If it lacks numpy, RDKit or PDB2PQR and cannot be
+  given them, it is not used, and `install.sh` builds an environment in the
+  folder you give instead. The adcp-dock code is never installed into an
+  environment `install.sh` did not build; the `adcp-dock` command runs it
+  from the checkout.
+
+* **For a whole group.** Run it once in a shared folder and have everyone use
+  that checkout and its `activate.sh`; each person runs their own server.
+  `ADCP_SHARED=/path/to/group/folder` makes `install.sh` also look in that
+  folder's `envs/adcp` and `tools/docking`.
+
+#### By hand
+
+The same thing step by step, for a site where you would rather build the
+environment yourself. Everything stays inside the checkout, including the
+conda environment and the download caches; module names vary by site.
+
+```bash
+git clone https://github.com/aadhilhaq/ADCP_docking.git
+cd ADCP_docking
+export CONDA_PKGS_DIRS=$PWD/.conda_pkgs PIP_CACHE_DIR=$PWD/.pip_cache
+
+module load Anaconda3                  # or Miniforge, or your own conda
+conda create -p ./env -c conda-forge python=3.11 rdkit pdbfixer openmm \
+      biopython ambertools -y          # drop ambertools if you will not rescore
+conda activate ./env
+pip install -e ".[local]"              # the package, and pdb2pqr
+
+python -m adcp_dock.adfr --dest tools/docking/ADFRsuite
+```
+
+The last command downloads ADFRsuite from Scripps, checks the archive against
+a pinned SHA-256 checksum, and installs it. Then set the two variables
+yourself in each new terminal:
+
+```bash
+export ADFRSUITE_HOME=/path/to/ADCP_docking/tools/docking/ADFRsuite
+export AMBERHOME=$CONDA_PREFIX          # only if you installed ambertools
+```
 
 ---
 
@@ -378,9 +546,13 @@ The site view and the pose viewer draw molecular surfaces computed by MSMS, the 
 
 ## 5. The desktop launcher
 
-The launcher connects to a cluster over SSH, supports two-factor
-authentication, starts `adcp-dock serve` on the login node, forwards a port
-and opens your browser. Closing it stops the server.
+The launcher does from your laptop what section 1.5 does by hand: it connects
+to the cluster over SSH (two-factor sign in included), starts
+`adcp-dock serve` on the login node, forwards a port and opens your browser.
+Closing it stops the server; runs already submitted keep going in Slurm.
+
+Install on the cluster first (section 1.2). The launcher only starts what is
+installed there.
 
 ### 5.1 Get it
 
@@ -400,24 +572,28 @@ prompts.
 | field | what to put |
 |---|---|
 | **Cluster** | a preset, or **Other (SLURM)** for any Slurm cluster |
-| **Address** | your cluster's login node |
+| **Address** | your cluster's login address, the one you use with `ssh` |
 | **Username** | your cluster username |
-| **Tool directory** | where the repository is cloned on the cluster |
-| **ADFRsuite / Amber roots** | blank if `ADFRSUITE_HOME` is set there |
+| **Tool directory** | the folder you cloned into on the cluster, for example `/scratch/you/ADCP_docking`; `pwd` inside it prints it |
+| **ADFRsuite / Amber roots** | leave blank: `activate.sh` in that folder names them |
 
-Everything but the password is remembered for next time. It signs in with a
-password and a second factor (keyboard-interactive) or with your SSH key,
-whichever your cluster uses.
+Then press connect. It asks for your password, and for a second factor if
+your cluster uses one, or signs in with your SSH key. The first start on a
+busy login node can take a minute; the browser opens by itself when the page
+is ready. Everything but the password is remembered for next time.
 
 ---
 
 ## 6. If something does not work
 
+For problems while installing, see [1.2, If it stops](#if-it-stops).
+
 | what you see | what it means |
 |---|---|
-| `N tool(s) missing` from `check` | ADFRsuite or Amber is not reachable: set `ADFRSUITE_HOME` / `AMBERHOME`, or pass `--tools-root` |
+| `adcp-dock: command not found` | this terminal has not loaded the tools yet: `source /path/to/ADCP_docking/activate.sh` (1.3) |
+| `N tool(s) missing` from `check` | something the install recorded is not reachable any more; run `./install.sh` again in the checkout, which finds it or says what to do |
 | `sbatch was not found` | Slurm is not available in this environment; load the required cluster environment or use `adcp-dock local` on a workstation |
-| the downloaded ADFRsuite *does not match its pinned checksum* | the archive differs from the pinned version; inspect the installer message before retrying |
+| the downloaded ADFRsuite *does not match its pinned checksum* | the archive differs from the pinned version, usually an incomplete download; delete it as the message says and run the install again |
 | `the account on the job is not one you can use` | this cluster needs an **Account** (1.4) |
 | `the grid target is unusable` | the `.trg` was truncated or built from another structure. It is rebuilt once automatically; twice means agfr is failing, and its output is in the prepare log |
 | `tleap did not build topologies` | the preparation log names the residue. It is usually a HETATM kept by *keep heteroatoms*, or a gap that *rebuild missing loops* would close |
@@ -429,9 +605,22 @@ whichever your cluster uses.
 
 ## 7. Uninstall
 
+On a cluster, delete the folder you gave `install.sh` and the checkout:
+
 ```bash
-pip uninstall adcp-dock
-rm -rf ADCP_docking ~/.adcp-dock
+rm -rf $SCRATCH/adcp $SCRATCH/ADCP_docking
 ```
 
-The commands above remove the named installation directories. Run outputs stored elsewhere remain available; move any outputs saved inside those directories before removing them.
+If you pointed `install.sh` at an environment of your own (`ADCP_ENV`), the
+packages it added there stay; remove them with that environment's own conda or
+pip if you no longer want them.
+
+On your own computer (section 2):
+
+```bash
+rm -rf ~/.adcp-dock
+```
+
+Runs are kept wherever you wrote them (by default `$SCRATCH/adcp_runs` on a
+cluster and `~/adcp_runs` on your own computer). Move any you want to keep out
+of the folders above before deleting them.
