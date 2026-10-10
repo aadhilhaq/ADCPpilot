@@ -686,6 +686,11 @@ OWN_CACHE=0
 [ -n "${CONDA_PKGS_DIRS:-}" ] || OWN_CACHE=1
 export CONDA_PKGS_DIRS="${CONDA_PKGS_DIRS:-$CACHE_BASE/pkgs}"
 export MAMBA_ROOT_PREFIX="${MAMBA_ROOT_PREFIX:-$CACHE_BASE/mamba}"
+# A login node is shared, and many clusters allow each person only a few
+# cores across all of them; micromamba would otherwise use a thread for every
+# core it can see. ADCP 1.1's installer inherits the same limits.
+export MAMBA_DOWNLOAD_THREADS="${MAMBA_DOWNLOAD_THREADS:-4}"
+export MAMBA_EXTRACT_THREADS="${MAMBA_EXTRACT_THREADS:-4}"
 solver() {
   mkdir -p "$CONDA_PKGS_DIRS" "$CACHE_BASE/home"
   py_clean HOME="$CACHE_BASE/home" "$SOLVER" "$@"
