@@ -239,19 +239,32 @@ def cache_name(seq: str, engine: str = "amber") -> str:
     return seq + (".dg" if engine == "amber" else ".%s.dg" % engine)
 
 
-def _write_pdbs(rec, pose_mol, workdir: str, prefix: str):
-    """Receptor, ligand and complex as separate PDBs, which is what tleap needs."""
+def receptor_chains(rec):
+    """The chain letters the receptor is written under: each atom's own, and
+    "A" for one with none, as _write_pdbs writes them."""
+    return {(getattr(a, "chain", "") or "A") for a in rec.atoms}
+
+
+def _write_pdbs(rec, pose_mol, workdir: str, prefix: str, lig_chain=None):
+    """Receptor, ligand and complex as separate PDBs, which is what tleap needs.
+
+    The peptide is written under `lig_chain`, by default the letter
+    peptide_chain gives for this receptor: one the receptor does not use.
+    """
     from rdkit import Chem
     from . import receptor as recmod
     rec_pdb = os.path.join(workdir, f"{prefix}_rec.pdb")
     lig_pdb = os.path.join(workdir, f"{prefix}_lig.pdb")
     com_pdb = os.path.join(workdir, f"{prefix}_com.pdb")
+    if lig_chain is None:
+        lig_chain = peptide_chain(receptor_chains(rec))
     # Each receptor chain under its own letter, with a TER between them.
     #
     # Writing every atom as chain "A" merged the chains into one molecule:
     # tleap read a continuous chain and bonded the C-terminus of the first to
     # the N-terminus of the second, inventing a peptide bond across an
     # interface and computing an energy for a molecule that is not there.
+    # separate_chains then puts a TER wherever one chain is broken as well.
     def _write_receptor(fh, start=1):
         n = start - 1
         last = None
@@ -285,12 +298,130 @@ def _write_pdbs(rec, pose_mol, workdir: str, prefix: str):
                 old = l[22:27]
                 if old not in lig_res:
                     lig_res[old] = first_lig + len(lig_res)
-                fh.write(f"{l[:6]}{n:5d}{l[11:21]}B{lig_res[old]:4d} {l[27:]}")
+                fh.write(f"{l[:6]}{n:5d}{l[11:21]}{lig_chain}"
+                         f"{lig_res[old]:4d} {l[27:]}")
         fh.write("TER\nEND\n")
+    for path in (rec_pdb, com_pdb):
+        separate_chains(path, lig_chain)
     return rec_pdb, lig_pdb, com_pdb
 
 
-LIGAND_CHAIN = "B"          # _write_pdbs stamps the pose with this
+#: The chain the peptide is written under whenever the receptor does not use
+#: it, which is every receptor every run before this could choose one had.
+LIGAND_CHAIN = "B"
+# The letters tried after it, in order, for a receptor that uses B.
+_SPARE_CHAINS = ("BCDEFGHIJKLMNOPQRSTUVWXYZ" "abcdefghijklmnopqrstuvwxyz"
+                 "0123456789")
+
+
+def peptide_chain(used):
+    """The chain letter the peptide is written under in the complex: B, as
+    it always was, unless the receptor uses B, and then the first letter the
+    receptor does not use.
+
+    The receptor's chain and the peptide's must differ. Everything that
+    tells the two apart reads the letter: the split of the complex into
+    receptor and ligand for MMPBSA.py, the reduce step that protonates the
+    peptide, the ring and D residue builds, and the interface panel. A
+    receptor on chain B with the peptide stamped B as well was one molecule
+    to all of them: tleap bonded the receptor's last residue to the
+    peptide's first across 40 A and stopped.
+    """
+    used = {str(c) for c in used}
+    for c in _SPARE_CHAINS:
+        if c not in used:
+            return c
+    raise ValueError("the receptor uses every chain letter a PDB file can "
+                     "hold, so the peptide cannot be given one of its own")
+
+
+#: Two residues of one chain whose C and N are further apart than this are
+#: not bonded: a peptide bond is 1.33 A, and anything past 2 A is a gap, an
+#: unmodelled loop or the end of one piece of a chain and the start of
+#: another.
+BREAK_A = 2.0
+
+
+def separate_chains(pdb_path, lig_chain=LIGAND_CHAIN, log=None):
+    """Write the TER records of a complex so tleap joins what is bonded and
+    nothing else, in place, and return the breaks found inside the receptor.
+
+    A TER goes between chains, between receptor and peptide, and wherever a
+    receptor chain is broken (its C and the next residue's N more than BREAK_A
+    apart): tleap otherwise reads one continuous chain and bonds across the
+    gap, a bond of tens of angstroms that the minimisation then pulls on, or
+    that stops the build. The peptide's own residues are never split. Every
+    TER the file had is replaced, so what reduce or PDB2PQR did with them
+    does not matter, and running it again changes nothing.
+    """
+    import numpy as np
+    lines = open(pdb_path).readlines()
+    head, atoms = [], []
+    for l in lines:
+        if _is_atom(l):
+            atoms.append(l if l.endswith("\n") else l + "\n")
+        elif not atoms and not l.startswith(("TER", "END", "MODEL")):
+            head.append(l)
+    residues = []
+    for l in atoms:
+        key = (l[21], l[17:27])
+        if not residues or residues[-1]["key"] != key:
+            residues.append({"key": key, "chain": l[21], "lines": [],
+                             "N": None, "C": None, "label": l[22:27].strip()})
+        r = residues[-1]
+        r["lines"].append(l)
+        nm = l[12:16].strip()
+        if nm in ("N", "C"):
+            try:
+                r[nm] = np.array([float(l[30:38]), float(l[38:46]),
+                                  float(l[46:54])])
+            except ValueError:
+                pass
+    out, breaks = list(head), []
+    for i, r in enumerate(residues):
+        if i:
+            prev = residues[i - 1]
+            if prev["chain"] != r["chain"]:
+                out.append("TER\n")
+            elif (r["chain"] != lig_chain and prev["C"] is not None
+                  and r["N"] is not None
+                  and float(np.linalg.norm(r["N"] - prev["C"])) > BREAK_A):
+                out.append("TER\n")
+                breaks.append((r["chain"], prev["label"], r["label"]))
+        out.extend(r["lines"])
+    out += ["TER\n", "END\n"]
+    with open(pdb_path, "w") as fh:
+        fh.writelines(out)
+    if log and breaks:
+        log("    the receptor is broken in %d place(s) (%s), and each piece "
+            "is built with ends of its own rather than bonded across the gap"
+            % (len(breaks), ", ".join("%s:%s to %s" % b for b in breaks[:4])
+                + (" and more" if len(breaks) > 4 else "")))
+    return breaks
+
+
+def peptide_chain_in(lines_or_path):
+    """The chain of the last atom of a complex: the peptide's, since
+    _write_pdbs writes it last. For a caller that does not say."""
+    lines = (open(lines_or_path).readlines()
+             if isinstance(lines_or_path, str) else lines_or_path)
+    for l in reversed(lines):
+        if l.startswith(("ATOM", "HETATM")):
+            return l[21]
+    return LIGAND_CHAIN
+
+
+def peptide_chain_of(posedir, prefix):
+    """The chain the peptide was written under for one scored pose, read
+    from what _topologies recorded beside it; B for a pose scored before the
+    chain could be anything else."""
+    import json
+    try:
+        got = json.load(open(os.path.join(posedir,
+                                          f"{prefix}_chains.json")))
+        return str(got.get("peptide") or LIGAND_CHAIN)
+    except (OSError, ValueError, AttributeError):
+        return LIGAND_CHAIN
 
 
 def _residue_blocks(pdb_path):
@@ -456,7 +587,8 @@ def residue_states(pdb_path: str) -> dict:
 
 
 def prep_complex_reduce(com_pdb: str, workdir: str, prefix: str,
-                        protonation: dict, log=print) -> str:
+                        protonation: dict, log=print,
+                        lig_chain: str | None = None) -> str:
     """The complex for tleap when the receptor was protonated by reduce.
 
     The receptor's residues are named for the protonation the docked
@@ -469,10 +601,16 @@ def prep_complex_reduce(com_pdb: str, workdir: str, prefix: str,
     coordinates are taken from reduce's output, with any amide it turned.
     Every hydrogen is then dropped and tleap builds them to match the
     names, as for PDB2PQR.
+
+    The peptide is the chain `lig_chain`, which the receptor never uses
+    (peptide_chain): reduce's output is read back by it, and a receptor on
+    the same letter would be read back as part of the peptide.
     """
     clean = os.path.join(workdir, f"{prefix}_com_forleap.pdb")
     if os.path.isfile(clean):
         return clean
+    if lig_chain is None:
+        lig_chain = peptide_chain_in(com_pdb)
     states = dict(protonation.get("states") or {})
     exe = protonation.get("reduce")
     lig_lines, lig_states = None, {}
@@ -499,10 +637,10 @@ def prep_complex_reduce(com_pdb: str, workdir: str, prefix: str,
             with open(red, "w") as fh:
                 fh.write(text)
             lig_states = {k: v for k, v in residue_states(red).items()
-                          if k[0] == LIGAND_CHAIN}
+                          if k[0] == lig_chain}
             lig_lines = [l + "\n" for l in text.splitlines()
                          if l.startswith(("ATOM", "HETATM"))
-                         and l[21] == LIGAND_CHAIN
+                         and l[21] == lig_chain
                          and not _is_h(l[12:16].strip())]
         else:
             log(f"    {prefix}: reduce could not protonate the complex; the "
@@ -528,7 +666,7 @@ def prep_complex_reduce(com_pdb: str, workdir: str, prefix: str,
             continue
         if _is_h(l[12:16].strip()):
             continue
-        if l[21] == LIGAND_CHAIN:
+        if l[21] == lig_chain:
             if lig_lines is not None:
                 if not done:
                     out.extend(named(x, lig_states) for x in lig_lines)
@@ -553,8 +691,41 @@ def prep_complex_reduce(com_pdb: str, workdir: str, prefix: str,
     return clean
 
 
+def _prepared_for(com_pdb, workdir, prefix, how):
+    """Whether the complex already prepared for tleap in `workdir` was made
+    from this complex, prepared this way; (fresh, stamp).
+
+    A prepared complex is kept so that a resumed run does not protonate it
+    again. One made from a different complex, or by code that wrote the
+    complex differently, must not stand in for this one: a receptor on chain
+    B was once written with the peptide on B as well, and its prepared
+    complex, kept, would stop every rescoring of it the same way. So what it
+    was made from is recorded beside it, and anything prepared from
+    something else is removed and made again.
+    """
+    import hashlib
+    import json
+    stamp = {"complex": hashlib.md5(open(com_pdb, "rb").read()).hexdigest(),
+             "how": how}
+    rec = os.path.join(workdir, f"{prefix}_com_forleap.json")
+    clean = os.path.join(workdir, f"{prefix}_com_forleap.pdb")
+    try:
+        old = json.load(open(rec))
+    except (OSError, ValueError):
+        old = None
+    if old == stamp and os.path.isfile(clean):
+        return True, stamp
+    for tail in ("_com_forleap.pdb", "_com_forleap.json", "_com_prepped.pdb",
+                 "_com.pqr", "_com_reduce.pdb"):
+        stale = os.path.join(workdir, prefix + tail)
+        if os.path.isfile(stale):
+            os.remove(stale)
+    return False, stamp
+
+
 def prep_complex(com_pdb: str, workdir: str, prefix: str, ph: float = 7.4,
-                 log=print, protonation: dict | None = None) -> str:
+                 log=print, protonation: dict | None = None,
+                 lig_chain: str | None = None) -> str:
     """Re-protonate the complex before the energy is computed.
 
     Protonation states are not a property of the receptor alone. A residue at the
@@ -566,20 +737,50 @@ def prep_complex(com_pdb: str, workdir: str, prefix: str, ph: float = 7.4,
     A receptor protonated by reduce carries its states in `protonation`
     (pipeline._carry_protonation), and the complex is then named from them
     and from reduce instead: prep_complex_reduce.
+
+    Either way, the file returned has its TER records written by
+    separate_chains: between chains, between receptor and peptide (chain
+    `lig_chain`), and at every break in a receptor chain.
     """
-    if protonation and protonation.get("method") == "reduce":
-        return prep_complex_reduce(com_pdb, workdir, prefix, protonation, log)
+    import json
+    if lig_chain is None:
+        lig_chain = peptide_chain_in(com_pdb)
+    reduce_ = bool(protonation and protonation.get("method") == "reduce")
+    how = ({"method": "reduce",
+            "states": sorted("%s:%s=%s" % (k[0], k[1], v) for k, v in
+                             (protonation.get("states") or {}).items())}
+           if reduce_ else {"method": "propka", "ph": float(ph)})
+    how["peptide_chain"] = lig_chain
+    fresh, stamp = _prepared_for(com_pdb, workdir, prefix, how)
+    clean = os.path.join(workdir, f"{prefix}_com_forleap.pdb")
+    if fresh:
+        return clean
+    if reduce_:
+        got = prep_complex_reduce(com_pdb, workdir, prefix, protonation, log,
+                                  lig_chain=lig_chain)
+    else:
+        got = _prep_complex_propka(com_pdb, workdir, prefix, ph, log)
+    separate_chains(got, lig_chain, log=lambda m: log(f"    {prefix}: "
+                                                      + m.strip()))
+    if os.path.abspath(got) == os.path.abspath(clean):
+        with open(os.path.join(workdir, f"{prefix}_com_forleap.json"),
+                  "w") as fh:
+            json.dump(stamp, fh)
+    return got
+
+
+def _prep_complex_propka(com_pdb, workdir, prefix, ph, log):
+    """The complex protonated by PDB2PQR with PROPKA at `ph`, renamed for
+    tleap (_amber_protonation_names); the raw complex when PDB2PQR is not
+    here or fails."""
     exe = prep.find_tool("pdb2pqr", "pdb2pqr30")
     if exe is None:
         return com_pdb
     out_pdb = os.path.join(workdir, f"{prefix}_com_prepped.pdb")
     out_pqr = os.path.join(workdir, f"{prefix}_com.pqr")
     # tleap cannot read PDB2PQR hydrogen names directly, so the file this
-    # returns is always the renamed one, including when a run resumes
-    # between the two steps.
+    # returns is always the renamed one.
     clean = os.path.join(workdir, f"{prefix}_com_forleap.pdb")
-    if os.path.isfile(clean):
-        return clean
     if not os.path.isfile(out_pdb):
         subprocess.run([exe, "--ff=AMBER", f"--with-ph={ph}",
                         "--titration-state-method=propka", "--keep-chain",
@@ -588,9 +789,8 @@ def prep_complex(com_pdb: str, workdir: str, prefix: str, ph: float = 7.4,
     if not os.path.isfile(out_pdb):
         log(f"    {prefix}: complex preparation failed, using the raw complex")
         return com_pdb
-    # Reached with a fresh out_pdb, or with one left by an interrupted run. The
-    # rename is cheap, so redoing it costs nothing and is the only way back to a
-    # file tleap accepts.
+    # The rename is cheap, so redoing it costs nothing and is the only way
+    # back to a file tleap accepts.
     changed = _amber_protonation_names(out_pdb, clean)
     if changed:
         log(f"    {prefix}: protonation states at pH {ph}: " +
@@ -635,12 +835,14 @@ def _is_atom(line):
     return line.startswith(("ATOM", "HETATM"))
 
 
-def _peptide_lines(lines, renumber=True, mirror=False):
+def _peptide_lines(lines, renumber=True, mirror=False, lig_chain=None):
     """The peptide's atom lines, numbered from 1 when asked and reflected
     through the yz plane when asked, with a TER and an END."""
+    if lig_chain is None:
+        lig_chain = peptide_chain_in(lines)
     order, out = {}, []
     for l in lines:
-        if not _is_atom(l) or l[21] != LIGAND_CHAIN:
+        if not _is_atom(l) or l[21] != lig_chain:
             continue
         key = l[22:27]
         if key not in order:
@@ -663,7 +865,7 @@ def _units(pep_lines):
     return out
 
 
-def _ring_ready(com_pdb, ring):
+def _ring_ready(com_pdb, ring, lig_chain=None):
     """Make the complex file what a ring is built from, in place, and return
     the peptide residue names in order.
 
@@ -674,9 +876,11 @@ def _ring_ready(com_pdb, ring):
     so a file kept from an interrupted run is fine.
     """
     lines = open(com_pdb).readlines()
+    if lig_chain is None:
+        lig_chain = peptide_chain_in(lines)
     order = {}
     for l in lines:
-        if _is_atom(l) and l[21] == LIGAND_CHAIN and l[22:27] not in order:
+        if _is_atom(l) and l[21] == lig_chain and l[22:27] not in order:
             order[l[22:27]] = len(order) + 1
     n = len(order)
     pairs = [(int(a), int(b)) for a, b in ring.get("pairs") or []]
@@ -688,7 +892,7 @@ def _ring_ready(com_pdb, ring):
     joined = {p for pr in pairs for p in pr}
     out = []
     for l in lines:
-        if _is_atom(l) and l[21] == LIGAND_CHAIN:
+        if _is_atom(l) and l[21] == lig_chain:
             pos = order[l[22:27]]
             res = l[17:20].strip()
             if ring["kind"] == "backbone" and l[12:16].strip() == "OXT":
@@ -704,7 +908,7 @@ def _ring_ready(com_pdb, ring):
         out.append(l)
     with open(com_pdb, "w") as fh:
         fh.writelines(out)
-    return _units([l for l in out if _is_atom(l) and l[21] == LIGAND_CHAIN])
+    return _units([l for l in out if _is_atom(l) and l[21] == lig_chain])
 
 
 def _pep_leap(ring, pep_file, units):
@@ -720,13 +924,15 @@ def _pep_leap(ring, pep_file, units):
             "\n".join("bond pep.%d.SG pep.%d.SG" % pr for pr in pairs))
 
 
-def _ring_leap(com_pdb, ring, workdir, prefix, radii):
+def _ring_leap(com_pdb, ring, workdir, prefix, radii, lig_chain=None):
     """The tleap input for a ring peptide, and the two files it reads."""
-    units = _ring_ready(com_pdb, ring)
+    if lig_chain is None:
+        lig_chain = peptide_chain_in(com_pdb)
+    units = _ring_ready(com_pdb, ring, lig_chain)
     lines = open(com_pdb).readlines()
     rec, last_ter = [], False
     for l in lines:
-        if _is_atom(l) and l[21] != LIGAND_CHAIN:
+        if _is_atom(l) and l[21] != lig_chain:
             rec.append(l)
             last_ter = False
         elif l.startswith("TER") and rec and not last_ter:
@@ -736,7 +942,7 @@ def _ring_leap(com_pdb, ring, workdir, prefix, radii):
     with open(os.path.join(workdir, rec_file), "w") as fh:
         fh.writelines(rec + ([] if last_ter else ["TER\n"]) + ["END\n"])
     with open(os.path.join(workdir, pep_file), "w") as fh:
-        fh.writelines(_peptide_lines(lines))
+        fh.writelines(_peptide_lines(lines, lig_chain=lig_chain))
     load, bonds = _pep_leap(ring, pep_file, units)
     return LEAP_RING.format(radii=radii, rec_pdb=rec_file, load_pep=load,
                             bonds=bonds, prefix=prefix)
@@ -747,7 +953,7 @@ def _is_h_name(name):
 
 
 def mirror_hydrogens(workdir, prefix, com_pdb, spec, n_rec_res, home, env,
-                     radii=RADII, log=print):
+                     radii=RADII, log=print, lig_chain=None):
     """Put the atoms tleap adds to a D residue where a D residue has them.
 
     tleap adds every hydrogen from its residue template's own geometry, so
@@ -770,8 +976,10 @@ def mirror_hydrogens(workdir, prefix, com_pdb, spec, n_rec_res, home, env,
     import numpy as np
     from . import amberfiles as af
     lines = open(com_pdb).readlines()
+    if lig_chain is None:
+        lig_chain = peptide_chain_in(lines)
     mfile = f"{prefix}_mirror_pep.pdb"
-    pep = _peptide_lines(lines, mirror=True)
+    pep = _peptide_lines(lines, mirror=True, lig_chain=lig_chain)
     with open(os.path.join(workdir, mfile), "w") as fh:
         fh.writelines(pep)
     load, bonds = _pep_leap(spec.get("ring"), mfile, _units(pep))
@@ -810,7 +1018,7 @@ def mirror_hydrogens(workdir, prefix, com_pdb, spec, n_rec_res, home, env,
     # added by tleap.
     docked, order = {}, {}
     for l in lines:
-        if _is_atom(l) and l[21] == LIGAND_CHAIN:
+        if _is_atom(l) and l[21] == lig_chain:
             pos = order.setdefault(l[22:27], len(order) + 1)
             docked.setdefault(pos, set()).add(l[12:16].strip())
     moved = 0
@@ -969,12 +1177,15 @@ class _Topo:
     """
 
     def __init__(self, workdir, prefix, com_pdb, rec_mask, lig_mask,
-                 n_rec_res, n_lig_res, asl, home, env, radii=RADII):
+                 n_rec_res, n_lig_res, asl, home, env, radii=RADII,
+                 lig_chain=LIGAND_CHAIN):
         self.workdir, self.prefix, self.com_pdb = workdir, prefix, com_pdb
         self.rec_mask, self.lig_mask, self.asl = rec_mask, lig_mask, asl
         self.n_rec_res, self.n_lig_res = n_rec_res, n_lig_res
         self.home, self.env, self.radii = home, env, radii
         self.spec = {"ring": None, "d": []}
+        # The chain the peptide is written under (peptide_chain).
+        self.lig_chain = lig_chain
 
     def path(self, kind, ext):
         return os.path.join(self.workdir, "%s_%s.%s" % (self.prefix, kind, ext))
@@ -998,15 +1209,28 @@ def _topologies(rec, pose_mol, workdir, prefix, log=print,
         return None
     env = dict(os.environ, AMBERHOME=home)
     spec = peptide_spec(pose_mol)
-    rec_pdb, lig_pdb, com_pdb = _write_pdbs(rec, pose_mol, workdir, prefix)
+    # The peptide's own chain, one the receptor does not use, and recorded
+    # beside the pose for whatever reads the complex later (the panel).
+    used = receptor_chains(rec)
+    lig_chain = peptide_chain(used)
+    if lig_chain != LIGAND_CHAIN:
+        log(f"    {prefix}: the receptor uses chain {LIGAND_CHAIN}, so the "
+            f"peptide is chain {lig_chain} in the complex")
+    rec_pdb, lig_pdb, com_pdb = _write_pdbs(rec, pose_mol, workdir, prefix,
+                                            lig_chain=lig_chain)
+    import json as _json
+    with open(os.path.join(workdir, f"{prefix}_chains.json"), "w") as fh:
+        _json.dump({"peptide": lig_chain, "receptor": sorted(used)}, fh)
     if prep_ph is not None:
         com_pdb = prep_complex(com_pdb, workdir, prefix, prep_ph, log,
-                               protonation=getattr(rec, "protonation", None))
+                               protonation=getattr(rec, "protonation", None),
+                               lig_chain=lig_chain)
     leap = os.path.join(workdir, f"{prefix}.leap")
     if spec["ring"]:
         # The closing bond, and for a head to tail ring no termini.
         try:
-            text = _ring_leap(com_pdb, spec["ring"], workdir, prefix, radii)
+            text = _ring_leap(com_pdb, spec["ring"], workdir, prefix, radii,
+                              lig_chain=lig_chain)
         except (ValueError, KeyError) as exc:
             log(f"    {prefix}: the ring cannot be built ({exc}), skipped")
             return None
@@ -1071,9 +1295,10 @@ def _topologies(rec, pose_mol, workdir, prefix, log=print,
     # MMPBSA.py split the complex in the middle of the receptor.
     # Receptor and ligand are taken from the CHAINS of the file tleap is about
     # to read, not from an assumed ordering. See masks_by_chain.
-    rec_mask, lig_mask, n_rec_res, n_lig_res, asl = masks_by_chain(com_pdb)
+    rec_mask, lig_mask, n_rec_res, n_lig_res, asl = masks_by_chain(
+        com_pdb, lig_chain)
     if not n_rec_res or not n_lig_res:
-        log(f"    {prefix}: chain {LIGAND_CHAIN} holds {n_lig_res} residue(s) "
+        log(f"    {prefix}: chain {lig_chain} holds {n_lig_res} residue(s) "
             f"and the receptor {n_rec_res} in {os.path.basename(com_pdb)} - "
             f"the complex cannot be split, skipped")
         return None
@@ -1081,7 +1306,7 @@ def _topologies(rec, pose_mol, workdir, prefix, log=print,
     log(f"    {prefix}: receptor_mask {rec_mask[:60]}  ligand_mask {lig_mask}")
     if spec["d"]:
         placed = mirror_hydrogens(workdir, prefix, com_pdb, spec, n_rec_res,
-                                  home, env, radii, log)
+                                  home, env, radii, log, lig_chain=lig_chain)
         if placed is None:
             return None
         log(f"    {prefix}: D residue(s) {', '.join(map(str, spec['d']))} "
@@ -1103,7 +1328,8 @@ def _topologies(rec, pose_mol, workdir, prefix, log=print,
         return None
 
     topo = _Topo(workdir, prefix, com_pdb, rec_mask, lig_mask,
-                 n_rec_res, n_lig_res, asl, home, env, radii)
+                 n_rec_res, n_lig_res, asl, home, env, radii,
+                 lig_chain=lig_chain)
     topo.spec = spec
     return topo
 
@@ -1499,7 +1725,8 @@ def prime_dg(topo, log=print, schro=None, env=None) -> float | None:
     flags, ff = prime_forcefield(log)
     log(f"    {prefix}: Prime MM-GBSA on {ff} with VSGB 2.0")
     cmd = [os.path.join(schro, "prime_mmgbsa"), os.path.basename(mae),
-           "-ligand", "chain.name " + LIGAND_CHAIN,
+           "-ligand", "chain.name " + getattr(topo, "lig_chain",
+                                               LIGAND_CHAIN),
            "-jobname", prefix, "-WAIT", "-NOJOBID", "-OVERWRITE"] + flags
     r = subprocess.run(cmd, cwd=topo.workdir, capture_output=True, text=True,
                        env=env)

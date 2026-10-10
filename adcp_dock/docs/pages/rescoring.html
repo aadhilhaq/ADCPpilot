@@ -13,7 +13,11 @@ agreement between the two is worth more than either alone.</p>
 <ol>
 <li>The complex is protonated with the peptide bound, at the run's pH.</li>
 <li><code>tleap</code> builds Amber topologies for the complex, the receptor and
-the peptide, with the ff14SB protein force field.</li>
+the peptide, with the ff14SB protein force field. The peptide is written as a
+chain of its own, B unless the receptor uses B and then the first letter it does
+not use, and a TER record ends the receptor, each of its chains and each piece of
+a chain broken by a gap, so nothing is bonded that is not bonded in the
+structure.</li>
 <li><code>sander</code> minimises the complex with the receptor's heavy atoms
 restrained, up to 1,000 cycles.</li>
 <li><code>MMPBSA.py</code> computes the interaction energy and its four parts on

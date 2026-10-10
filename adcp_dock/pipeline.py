@@ -874,7 +874,11 @@ def _panel_scored(rundir, j, seq, out, mmdir, folders, ranks, values,
         posedir = os.path.join(mmdir, mm, "pose%d" % folders[i])
         quiet = (lambda *a: None) if workers > 1 else log
         try:
-            return i, metrics.for_pose(posedir, mm, hotspots=hot, log=quiet)
+            # The peptide is whichever chain the complex gave it, which is
+            # B unless the receptor uses B (mmgbsa.peptide_chain).
+            return i, metrics.for_pose(
+                posedir, mm, hotspots=hot, log=quiet,
+                lig_chain=mmgbsa.peptide_chain_of(posedir, mm))
         except metrics.Mismatch as exc:
             log("    pose %d: %s, so it is not measured" % (ranks[i], exc))
         except Exception as exc:                                # noqa: BLE001
@@ -983,14 +987,20 @@ def _panel_geometry(rundir, j, seq, out, pdir, log=print):
                 a = _copy.copy(a)
                 a.resname = new
             rec_atoms.append(a)
+    # The peptide under a chain letter of its own: a receptor on chain B and
+    # the peptide stamped B as well were one molecule to every measure here,
+    # and the interface came out empty.
+    lig = mmgbsa.peptide_chain({(getattr(a, "chain", "") or "A")
+                                for a in rec_atoms})
     poses, rows_best, best = [], [], None
     for k in range(1, n + 1):
         pose = adcp.read_pose(pdir, k)
         if pose is None:
             break
         try:
-            st = metrics.from_atoms(rec_atoms, pose)
-            m, per_res, per_pep = metrics.for_structure(st, hotspots=hot)
+            st = metrics.from_atoms(rec_atoms, pose, lig_chain=lig)
+            m, per_res, per_pep = metrics.for_structure(st, hotspots=hot,
+                                                        lig_chain=lig)
         except Exception as exc:                                # noqa: BLE001
             log("  pose %d: the panel could not be measured (%s)" % (k, exc))
             continue
