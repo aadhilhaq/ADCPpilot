@@ -47,8 +47,8 @@ def banner_layout(width, height, line_heights, line_widths, panel=80,
     """Where everything in the header banner goes, as plain arithmetic.
 
     Kept apart from Tk for the same reason centre_on is: the drawing cannot
-    run on the cluster this is developed on, and the arithmetic is where
-    alignment goes wrong. What it guarantees:
+    run without a display, and the arithmetic is where alignment goes
+    wrong. What it guarantees:
 
     - every text line starts at the same x, so the left edges align;
     - the text block is centred vertically as a BLOCK, on the same centre
@@ -130,9 +130,9 @@ def place_over(win, parent, log=None):
 #: Bumped when a default changes in a way that makes a REMEMBERED answer
 #: wrong. A settings file from an older schema keeps the cluster and the
 #: account, those are the person's, and lets the site table fill the paths
-#: again. Without this, a stale "~/ADCP_docking" from a previous version
-#: outranked the shared checkout the site table knows about, and the
-#: launcher went on pointing at a home directory that has nothing in it.
+#: again. Without this, a default an older version wrote went on outranking
+#: the table's, and the launcher kept pointing at a folder with nothing in
+#: it.
 SCHEMA = 2
 
 
@@ -276,11 +276,12 @@ class App:
         form = ttk.LabelFrame(root, text="Connection")
         form.pack(fill="x", **pad)
 
-        # Selecting a site fills in the rest. The only field that
-        # must be typed is the username; a checkout path on a shared
-        # allocation is a property of the cluster rather than of the
-        # person.
-        self.site = tk.StringVar(value=cfg.get("site", clusters.sites()[0]))
+        # Selecting a site fills in what the table knows. On a cluster
+        # the address and the username are typed once and remembered. A
+        # saved site this version does not offer becomes the cluster,
+        # with its address and path kept.
+        self.site = tk.StringVar(value=clusters.site_of(
+            cfg.get("site", clusters.sites()[0])))
         ttk.Label(form, text="Cluster").grid(row=0, column=0, sticky="e",
                                              padx=6, pady=4)
         self.site_box = ttk.Combobox(form, textvariable=self.site,
@@ -614,8 +615,8 @@ class App:
     def work(self, host, user):
         try:
             self.say("Connecting to %s as %s..." % (host, user))
-            self.say("If your cluster uses two-factor sign-in, approve the "
-                     "request when it reaches your phone.")
+            self.say("Complete your cluster's second sign-in step, if it "
+                     "has one, when it is asked for.")
             self.t = tunnel.connect(host, user, self.ask, log=self.detail)
             self.say("Signed in.")
             self.q.put(("status", "starting the tool"))
@@ -624,14 +625,13 @@ class App:
             port = clusters.parse_port(self.port.get())
             if port:
                 self.detail("asking the cluster for port %d" % port)
-            # The facility acknowledgement travels with the server, so
-            # every run started from this session records it.
-            ack = clusters.SITES.get(self.site.get(), {}).get("ack", "")
+            # A facility's acknowledgement is not set here: the server
+            # reads ADCP_ACKNOWLEDGEMENT from activate.sh on the cluster,
+            # which the command sources first.
             self.session = sessionmod.start(
                 self.t, self.install.get().strip(), "",
                 port=port, tools_roots=roots, on_output=self.from_cluster,
-                forward=tunnel.forward, free_port=tunnel.free_port,
-                env={"ADCP_ACKNOWLEDGEMENT": ack})
+                forward=tunnel.forward, free_port=tunnel.free_port)
             self.say("Ready. Opening it in your browser.")
             # The link stays on screen because "Open in browser" opens the
             # DEFAULT browser, and on a managed laptop that is not always the
@@ -643,8 +643,6 @@ class App:
             # of the window already shows it, where it stays
             # visible instead of scrolling away.
             self.say(HOW_TO_CITE)
-            if ack:
-                self.say(ack)
             self.q.put(("status", "connected"))
             self.q.put(("ready", ""))
         except Exception as exc:                                # noqa: BLE001

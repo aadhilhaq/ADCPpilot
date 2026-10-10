@@ -170,7 +170,7 @@ check(tunnel.AUTH_PATIENCE >= 120,
       "choosing, then finding a phone and approving; 120 is OpenSSH's own "
       "LoginGraceTime" % tunnel.AUTH_PATIENCE)
 h = tunnel._handler(lambda *a: ["should not be asked"], log=lambda *a: None)
-check(h("", "Duo says hello", []) == [],
+check(h("", "The server says hello", []) == [],
       "a keyboard-interactive request with NO prompts was answered with a "
       "dialog. RFC 4256 3.3 says that is a message to display and the client "
       "must not prompt, and the seconds spent on it come out of the same "
@@ -189,12 +189,12 @@ check(asked and asked[0] == [("Passcode: ", False)],
 import inspect                                                  # noqa: E402
 body = inspect.getsource(tunnel._handler)
 body = body.split('"""', 2)[-1] if body.count('"""') >= 2 else body
-for word in ("password", "passcode", "duo", "push", "lower()"):
+for word in ("password", "passcode", "push", "lower()"):
     check(word not in body.lower(),
-          "the handler looks at the prompt text (%r in its body). Duo writes "
-          "that wording and changes it; a handler that recognised 'password' "
-          "in a hidden prompt would one day hand the account password to Duo"
-          % word)
+          "the handler looks at the prompt text (%r in its body). The site's "
+          "sign-in service writes that wording and changes it; a handler that "
+          "recognised 'password' in a hidden prompt would one day hand the "
+          "account password to the second step" % word)
 
 # --- selftest and version -------------------------------------------------
 check(entry.main(["x", "--selftest"]) == 0, "--selftest does not pass")
@@ -282,15 +282,17 @@ check(_L.ENGINE_CREDIT in _c,
       "can drift")
 check("HOW_TO_CITE.txt" in _L.HOW_TO_CITE and "CITATION.bib" in _L.HOW_TO_CITE,
       "the launcher never says the citation files come with a download")
-# A facility's acknowledgement belongs to its preset, and is passed to the
-# server so that every run records it; other sites get none from here.
+# A facility's acknowledgement is the cluster's to set, in activate.sh, which
+# the command sources; the launcher's own table names no facility.
 from adcp_launcher import clusters as _C                         # noqa: E402
-_tamu = [n for n, s in _C.SITES.items() if "tamu.edu" in s.get("host", "")]
-check(_tamu and all("Texas A&M High Performance Research Computing"
-                    in _C.SITES[n].get("ack", "") for n in _tamu),
-      "the TAMU presets do not carry HPRC's acknowledgement")
-check(not _C.SITES.get(_C.OTHER, {}).get("ack"),
-      "the generic Slurm preset carries a facility's acknowledgement")
+check(not any(s.get("ack") for s in _C.SITES.values()),
+      "the launcher's site table carries a facility's acknowledgement")
+check(_C.sites() == [_C.OTHER, _C.THIS] and not _C.SITES[_C.OTHER]["host"],
+      "the cluster box offers more than a cluster the person names and this "
+      "computer, or fills in an address: %r" % _C.sites())
+check(_C.site_of("Some cluster an older version offered") == _C.OTHER
+      and _C.site_of(_C.THIS) == _C.THIS,
+      "a site saved by an older version is not read as the cluster")
 _line = session.command("/x", env={"ADCP_ACKNOWLEDGEMENT": "Thanks, HPC."})
 check("export ADCP_ACKNOWLEDGEMENT='Thanks, HPC.';" in _line,
       "the acknowledgement is not passed to the server: %s" % _line[:160])
@@ -333,8 +335,6 @@ check('self.say("Connecting to %s as %s..." % (host, user))' in _app,
       "the log does not open by saying it is connecting")
 check("self.say(HOW_TO_CITE)" in _app,
       "the log never shows HOW_TO_CITE once connected")
-check("self.say(ack)" in _app and '"ack"' in _app,
-      "the log never shows the site's acknowledgement")
 # The sentence appears once in a window: credit() and engine_credit() are the
 # same sentence, so a window that shows the label and also logs the sentence
 # would show it twice.

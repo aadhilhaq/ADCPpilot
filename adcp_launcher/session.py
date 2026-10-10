@@ -24,7 +24,6 @@ OLD_PYTHON_MARKER = "ADCP_PYTHON_TOO_OLD"
 #: Where the tool might be, when the person has not said. Tried in order.
 GUESSES = (
     "~/ADCP_docking",
-    "/scratch/user/$USER/ADCP_docking",
     "$SCRATCH/ADCP_docking",
 )
 

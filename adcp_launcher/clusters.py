@@ -1,11 +1,9 @@
-"""What differs between one cluster and the next, as a table rather than in code.
+"""What the launcher's cluster box offers, as a table rather than in code.
 
 By Aadhil Haq
 
-Selecting a site fills in the rest: a user should need to know their
-account and password, not a group allocation path.
-
-"Other (SLURM)" covers any other cluster; "This computer" runs the work
+"Slurm cluster" is any cluster with Slurm: the person types its login
+address once and the launcher remembers it. "This computer" runs the work
 locally instead.
 """
 from __future__ import annotations
@@ -17,42 +15,12 @@ import shlex
 # to change.
 FEEDBACK_TO = os.environ.get("ADCP_FEEDBACK_TO") or "aadhil.haq@tamu.edu"
 
-OTHER = "Other (SLURM)"
+#: Any cluster with Slurm, reached at the address the person types.
+OTHER = "Slurm cluster"
 #: No cluster at all: `adcp-dock local` on this machine (or in WSL).
 THIS = "This computer"
 
-# Texas A&M HPRC asks for this acknowledgement in publications. The two
-# presets below pass it to the server, so each run records it.
-TAMU_ACK = ("The authors acknowledge the Texas A&M High Performance Research "
-            "Computing (HPRC) facility for providing the computational "
-            "resources used in this work. URL: https://hprc.tamu.edu")
-
 SITES = {
-    # Presets for two public HPC systems. The install path is where the
-    # repository was cloned on that cluster; it is remembered after the
-    # first connection, so it only has to be typed once.
-    "Grace (TAMU)": {
-        "host": "grace.hprc.tamu.edu",
-        "auth": "password",
-        "install": "~/ADCP_docking",
-        "runs": "/scratch/user/$USER/adcp_runs",
-        "hint": "Your cluster username",
-        "label": "Username",
-        "modules": ["Anaconda3/2024.02-1", "Anaconda3", "Miniconda3"],
-        "note": "Password and a second-factor approval on every login.",
-        "ack": TAMU_ACK,
-    },
-    "ACES (TAMU)": {
-        "host": "aces.hprc.tamu.edu",
-        "auth": "password",
-        "install": "~/ADCP_docking",
-        "runs": "/scratch/user/$USER/adcp_runs",
-        "hint": "Your cluster username",
-        "label": "Username",
-        "modules": ["Anaconda3/2024.02-1", "Anaconda3", "Miniconda3"],
-        "note": "Password and a second-factor approval on every login.",
-        "ack": TAMU_ACK,
-    },
     OTHER: {
         "host": "",
         "auth": "password",
@@ -61,9 +29,10 @@ SITES = {
         "hint": "Whatever you log in with",
         "label": "Username",
         "modules": ["Anaconda3", "Miniconda3"],
-        "note": "Any cluster with SLURM. Install it there once: clone the repository and "
-                "run ./install.sh with a folder that has room (INSTALL.md, 1.2); then give "
-                "the clone's path below.",
+        "note": "Any cluster with Slurm. Install it there once: clone the repository and "
+                "run ./install.sh with a folder that has room (INSTALL.md, 1.2); then type "
+                "the cluster's login address and the clone's path above. Both are "
+                "remembered.",
     },
     THIS: {
         "host": "",
@@ -81,15 +50,22 @@ SITES = {
 
 
 def sites():
-    """The names, with the real clusters first and Other last."""
-    return [n for n in SITES if n not in (OTHER, THIS)] + [OTHER, THIS]
+    """The names, the cluster first and this computer last."""
+    return [OTHER, THIS]
+
+
+def site_of(saved):
+    """The site a saved settings file names, or the cluster when it names
+    one this version does not offer, so that a remembered address and path
+    still come back."""
+    return saved if saved in SITES else OTHER
 
 
 def _fill(template, user):
     """A path template, only once there is something to fill it with.
 
-    "/scratch/user//adcp_runs" is worse than an empty box, because it looks
-    like an answer.
+    "/home//adcp_runs" is worse than an empty box, because it looks like an
+    answer.
     """
     if not template:
         return ""
@@ -101,9 +77,9 @@ def _fill(template, user):
 def defaults_for(site_name, user=""):
     """Every field the form can fill in by itself, for this site and account.
 
-    This is the whole of "only your account has to be typed". The window
-    calls it when the site changes and again when the account is typed, and
-    writes whatever comes back into the boxes the user has not edited.
+    The window calls it when the site changes and again when the account is
+    typed, and writes whatever comes back into the boxes the person has not
+    edited.
     """
     site = SITES.get(site_name) or {}
     return {

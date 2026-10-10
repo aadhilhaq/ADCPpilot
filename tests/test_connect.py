@@ -56,10 +56,10 @@ def check(cond, why):
         fails.append(why)
 
 
-DUO = ("Duo two-factor login for someone\n\n"
-       "Enter a passcode or select one of the following options:\n\n"
-       " 1. Duo Push to XXX-XXX-0000\n 2. Phone call to XXX-XXX-0000\n\n"
-       "Passcode or option (1-2): ")
+SECOND = ("Second sign-in step for someone\n\n"
+          "Enter a passcode or select one of the following options:\n\n"
+          " 1. Push to XXX-XXX-0000\n 2. Phone call to XXX-XXX-0000\n\n"
+          "Passcode or option (1-2): ")
 
 #: What the real server sends after the push is approved: a message, and NO
 #: prompts. RFC 4256 3.3 says display it and reply empty: the client "MUST
@@ -98,7 +98,7 @@ class Server(paramiko.ServerInterface):
             if responses[0] != "correct horse":
                 return paramiko.AUTH_FAILED
             self.stage = 2
-            return paramiko.InteractiveQuery("", DUO, ("", True))
+            return paramiko.InteractiveQuery("", SECOND, ("", True))
         if self.stage == 2:
             if responses[0] != "1":
                 return paramiko.AUTH_FAILED
@@ -234,7 +234,7 @@ shown = []
 def ask(title, instructions, prompts):
     """Stand in for the person: record what was shown, answer in order."""
     shown.append((title, instructions, [p for p, _ in prompts]))
-    if instructions and "Duo" in instructions:
+    if instructions and "Second sign-in step" in instructions:
         return ["1"]
     return ["correct horse"]
 
@@ -243,9 +243,9 @@ noted = []
 t = tunnel.connect("127.0.0.1", "someone", ask, port=port, try_keys=False,
                    log=noted.append)
 check(t.is_authenticated(),
-      "the launcher did not get through a password-then-Duo challenge")
+      "the launcher did not get through a password, then a second step")
 check(srv.seen == [["correct horse"], ["1"], []],
-      "the server saw %r; it should see the password, the Duo choice, then "
+      "the server saw %r; it should see the password, the second step's choice, then "
       "an EMPTY reply to the message that carries no question" % (srv.seen,))
 check(len(shown) == 2,
       "%d dialog(s) were opened for 3 requests. The third carries a message "
@@ -253,8 +253,8 @@ check(len(shown) == 2,
       "box here appears AFTER the person has already approved on their "
       "phone, and the seconds spent dismissing it come out of the same "
       "auth_timeout budget as the approval did" % len(shown))
-check(any("Duo" in (i or "") for _t, i, _p in shown),
-      "Duo's own wording did not reach the dialog. It lists the methods and "
+check(any("Second sign-in step" in (i or "") for _t, i, _p in shown),
+      "the second step's own wording did not reach the dialog. It lists the methods and "
       "their numbers; a launcher that paraphrases it is asking a user to "
       "choose between options it invented")
 check(tunnel.AUTH_PATIENCE >= 120,
