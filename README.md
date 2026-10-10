@@ -32,7 +32,7 @@ cd $SCRATCH
 git clone https://github.com/aadhilhaq/ADCP_docking.git
 cd ADCP_docking
 ./install.sh --check $SCRATCH/adcp    # a few seconds: what it found, what it would add, and whether there is room
-./install.sh $SCRATCH/adcp            # about 7 minutes; if it stops, run the same line again
+./install.sh $SCRATCH/adcp            # about 7 to 10 minutes; if it stops, run the same line again
 source activate.sh
 adcp-dock check
 ```

@@ -84,7 +84,7 @@ It lists what it found on the cluster, what it would add, and whether the
 folder has room. If it says **NOT ENOUGH ROOM**, choose another folder before
 going on.
 
-**4. Install** (about 7 minutes when it builds everything, under a minute
+**4. Install** (about 7 to 10 minutes when it builds everything, under a minute
 when the cluster already has it all):
 
 ```bash
@@ -108,8 +108,9 @@ question, and writes nothing into your home folder. In order, it:
    checkout, which records where everything is, then checks the result.
 
 Measured on a clean account on the Grace cluster at Texas A&M, the whole of
-it took 7 minutes, most of it the two environments, with about 1 GB of
-downloads; a slower network or a busy login node takes longer. It uses your
+it took 7 and 10 minutes on two days, most of it the two environments, with
+about 1 GB of downloads; a slower network or a busy login node takes longer.
+It leaves about 95,000 files. It uses your
 cluster's own conda when it is recent, and otherwise fetches micromamba, a
 single file, into the folder; no conda module is needed.
 
