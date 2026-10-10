@@ -2224,10 +2224,19 @@ _gone = [doi for _k, _w, _d, _r, doi in _cite.REFERENCES
          if "https://doi.org/" + doi not in _readme]
 check(not _gone, "README does not link these references: %s" % _gone)
 _cff = open(os.path.join(ROOT, "CITATION.cff"), encoding="utf-8").read().lower()
+import urllib.parse as _up                                      # noqa: E402
 _gone = [doi for _k, _w, _d, _r, doi in _cite.REFERENCES
-         if '"%s"' % doi.lower() not in _cff]
+         if '"%s"' % doi.lower() not in _cff
+         and '"https://doi.org/%s"' % _up.quote(doi, safe="/:;()").lower() not in _cff]
 check(not _gone, "CITATION.cff does not list these references (run "
       "scripts/cff_references.py): %s" % _gone)
+# Every doi in it fits the Citation File Format 1.2.0 schema's pattern, or
+# GitHub's citation box rejects the file; MSMS's has < and >, so it is given
+# as its doi.org address.
+_cff_doi = re.compile(r"^10\.\d{4,9}(\.\d+)?/[A-Za-z0-9:/_;\-\.\(\)\[\]\\]+$")
+_bad = [l.strip() for l in _cff.splitlines() if l.strip().startswith("doi:")
+        and not _cff_doi.match(l.split(":", 1)[1].strip().strip('"'))]
+check(not _bad, "CITATION.cff has dois the CFF schema refuses: %s" % _bad)
 
 # --- deleting a run, and showing where it is ---------------------------------
 #

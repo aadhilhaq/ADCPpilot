@@ -12,6 +12,7 @@ import json
 import os
 import re
 import sys
+import urllib.parse
 import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -41,6 +42,18 @@ NOTES = {"adcp": "The docking engine. Scripps Research Institute.",
          "molstar": "The Mol* structure viewer.",
          "numpy": "Array arithmetic.",
          "rdkit": "Peptide topologies."}
+
+
+#: The DOI pattern of the Citation File Format 1.2.0 schema. A DOI it cannot
+#: hold, as MSMS's with its < and >, goes in as its doi.org address instead,
+#: so GitHub still reads the file.
+CFF_DOI = re.compile(r"^10\.\d{4,9}(\.\d+)?/[A-Za-z0-9:/_;\-\.\(\)\[\]\\]+$")
+
+
+def doi_line(doi):
+    if CFF_DOI.match(doi):
+        return "    doi: %s" % q(doi)
+    return "    url: %s" % q("https://doi.org/" + urllib.parse.quote(doi, safe="/:;()"))
 
 
 def q(text):
@@ -94,7 +107,7 @@ for key, when, did, ref, doi in cite.REFERENCES:
         if ep:
             out.append("    end: %s" % q(ep))
     out.append("    year: %d" % m["issued"]["date-parts"][0][0])
-    out.append("    doi: %s" % q(m["DOI"].lower()))
+    out.append(doi_line(m["DOI"].lower()))
     notes = NOTES.get(key, did)
     if key == "pdbfixer":
         notes = "OpenMM, including PDBFixer: receptor minimization, missing atoms and ADCP 1.1's pose minimization."

@@ -504,7 +504,7 @@ references:
     start: "305"
     end: "320"
     year: 1996
-    doi: "10.1002/(sici)1097-0282(199603)38:3<305::aid-bip4>3.0.co;2-y"
+    url: "https://doi.org/10.1002/(sici)1097-0282(199603)38:3%3C305::aid-bip4%3E3.0.co;2-y"
     notes: "MSMS, the molecular surfaces the viewers draw."
   - type: article
     title: "3Dmol.js: molecular visualization with WebGL"
