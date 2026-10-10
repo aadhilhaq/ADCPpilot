@@ -278,7 +278,11 @@ EOF
   printf '%s\n' "$out" > "$L/06_gate_submit.txt"
   gid=$(printf '%s\n' "$out" | grep -oE 'Submitted batch job [0-9]+' | awk '{print $4}')
   [ -n "$gid" ] && JOBS="$JOBS$gid"
-  say "           ${gid:+job $gid}${gid:-not submitted: $(printf '%s' "$out" | tail -1)}"
+  if [ -n "$gid" ]; then
+    say "           job $gid"
+  else
+    say "           not submitted: $(printf '%s' "$out" | tail -1)"
+  fi
   save_state
 fi
 

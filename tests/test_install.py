@@ -320,6 +320,33 @@ rc, out = install(dict(base_env), "--bogus")
 check(rc == 2 and "there is no option --bogus" in out and "Usage" in out,
       "an unknown option was not explained:\n" + out[-400:])
 
+# --- scripts/cleanroom_test.sh refuses what it must, before doing anything ---------
+CRT = os.path.join(ROOT, "scripts", "cleanroom_test.sh")
+
+
+def cleanroom(*args):
+    p = subprocess.run(["bash", CRT, *args], env=dict(base_env), stdin=subprocess.DEVNULL,
+                       capture_output=True, text=True, timeout=60)
+    return p.returncode, p.stdout + p.stderr
+
+
+rc, out = cleanroom()
+check(rc == 2 and "Usage" in out, "cleanroom_test.sh without a folder did not explain:\n" + out)
+rc, out = cleanroom(os.path.join(ROOT, "tools", "cleanroom_here"))
+check(rc == 2 and "inside this checkout" in out
+      and not os.path.exists(os.path.join(ROOT, "tools", "cleanroom_here")),
+      "cleanroom_test.sh accepted a folder inside the checkout:\n" + out)
+busy = os.path.join(tmp, "busy")
+write(os.path.join(busy, "precious.txt"), "keep\n", 0o644)
+rc, out = cleanroom(busy)
+check(rc == 2 and "left alone" in out and "rm -rf" not in out
+      and os.listdir(busy) == ["precious.txt"],
+      "cleanroom_test.sh did not leave a folder of other files alone, or offered to delete it:\n"
+      + out)
+rc, out = cleanroom("--report", os.path.join(tmp, "never_run"))
+check(rc == 1 and "No clean-room test" in out,
+      "--report on a folder with no test did not say so:\n" + out)
+
 # --- update.sh leaves an environment it did not build alone -------------------------
 subprocess.run(["git", "init", "-q", dep], env=base_env, check=True)
 reset()
