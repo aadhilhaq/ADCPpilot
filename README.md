@@ -2,6 +2,10 @@
   <img src="brand/banner.png" alt="GUI to ADCP Docking" width="100%">
 </p>
 
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aadhilhaq/ADCP_docking/blob/main/notebooks/ADCP_docking_colab.ipynb)
+
+Try it in your browser with nothing to install: open the notebook and press **Start GUI to ADCP Docking**, which takes about five minutes the first time and then opens the interface inside the notebook.
+
 GUI to ADCP Docking is a browser interface and command line for peptide docking with [AutoDock CrankPep (ADCP)](https://ccsb.scripps.edu/adcp/). Give it a receptor structure and peptide sequences: it prepares the receptor, builds the grid maps, docks each peptide, can rescore the poses with MM-GBSA, and reports ranked results with the structures. The calculations run on a Slurm cluster, on your own computer, or in Google Colab.
 
 Developed by Aadhil Haq, HOPE Lab, under the supervision of Dr. Sandun Fernando. ADCP and ADFRsuite are developed by the Scripps Research Institute; this project is independent of it.
@@ -23,7 +27,7 @@ Developed by Aadhil Haq, HOPE Lab, under the supervision of Dr. Sandun Fernando.
 |---|---|
 | A Slurm cluster | [INSTALL.md, section 1](INSTALL.md#1-on-a-slurm-cluster) |
 | Your own computer (Linux, macOS, or Windows through WSL) | [INSTALL.md, section 2](INSTALL.md#2-on-your-own-computer) |
-| Google Colab | [Open the notebook](https://colab.research.google.com/github/aadhilhaq/ADCP_docking/blob/main/notebooks/ADCP_docking_colab.ipynb); nothing is installed on your computer |
+| Google Colab | The **Open in Colab** badge at the top of this page; nothing is installed on your computer, and [INSTALL.md, section 3](INSTALL.md#3-in-google-colab) says what the notebook does |
 
 On a Slurm cluster, connect with `ssh` to a login node (where you arrive; calculations never run there) and type, one line at a time, using a folder with room for about 150,000 files rather than your home folder:
 

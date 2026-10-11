@@ -1400,8 +1400,9 @@ class App:
         if os.environ.get("COLAB_RELEASE_TAG"):
             return {"opened": False, "path": path, "where": "colab",
                     "hint": "In Colab, open the Files panel (the folder icon "
-                            "on the left) and go to this folder. Step 3 of "
-                            "the notebook downloads a run as a zip."}
+                            "on the left) and go to this folder. The "
+                            "notebook's Download a run step saves a run as a "
+                            "zip."}
         system = platform.system()
         desktop = (os.environ.get("ADCP_DESKTOP") == "1"
                    or system in ("Darwin", "Windows"))

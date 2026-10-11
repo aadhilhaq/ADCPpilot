@@ -455,18 +455,17 @@ merely has the Slurm client installed.
 
 [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aadhilhaq/ADCP_docking/blob/main/notebooks/ADCP_docking_colab.ipynb)
 
-The notebook runs the same interface on a Google Colab machine. Nothing is installed on your own computer. Press ▶ on each step in order.
+The notebook runs the same interface on a Google Colab machine. Nothing is installed on your own computer. There is one thing to press: ▶ on **Start GUI to ADCP Docking**. Colab never runs a notebook by itself, so that press is how it begins.
 
-1. **Install.** Installs the package, PDB2PQR, OpenMM and PDBFixer, then downloads ADFRsuite from the Scripps Research Institute and checks it against its pinned checksum. With **add_MM_GBSA** ticked (the default), it also installs AmberTools from conda-forge into its own folder, using micromamba, for MM-GBSA rescoring. It takes about five minutes, a few more with AmberTools, and ends with a single line such as *Installed in 6 min 10 s, with MM-GBSA*.
-2. **Open GUI to ADCP Docking.** Starts the interface on the Colab machine and shows it inside the notebook, across the full width of the page. **Open in a separate tab** shows the same interface in its own browser tab. The list of runs includes a finished example, MDM2 with three peptides docked and rescored with MM-GBSA, to open and explore before docking anything.
-3. **Download a run.** Optional. Finished runs can be downloaded from the interface; this step zips a run and downloads it instead.
+1. **Start GUI to ADCP Docking.** The first press installs what the session needs, then opens the interface inside the notebook, across the full width of the page. It installs the package, PDB2PQR, OpenMM and PDBFixer, then downloads ADFRsuite from the Scripps Research Institute and checks it against its pinned checksum. With **add_MM_GBSA** ticked (the default), it also installs AmberTools from conda-forge into its own folder, using micromamba, for MM-GBSA rescoring. It takes about five minutes, a few more with AmberTools, and ends with a single line such as *Installed in 6 min 10 s, with MM-GBSA; the interface is below*. **Open in a separate tab** shows the same interface in its own browser tab. The list of runs includes a finished example, MDM2 with three peptides docked and rescored with MM-GBSA, to open and explore before docking anything. Pressing ▶ again in the same session installs nothing and shows the interface again, with the runs it already has; it installs only what is not there yet, so a press after ticking **add_ADCP_1_1** adds ADCP 1.1 and nothing else.
+2. **Download a run.** Optional, and only once something has been docked. Finished runs can be downloaded from the interface; this step zips a run and downloads it instead.
 
 Things to know before you start:
 
 * The calculations run on the Colab machine, one step after another. The number of cores, the memory, and the session length depend on your Colab plan. The interface shows the cores it found and starts with small search settings.
-* Colab deletes the session's files when the session ends. Download the runs you want to keep. **Runtime → Disconnect and delete runtime** removes every run at once; the example returns the next time step 2 runs.
+* Colab deletes the session's files when the session ends. Download the runs you want to keep. **Runtime → Disconnect and delete runtime** removes every run at once; the example returns the next time **Start GUI to ADCP Docking** runs.
 * Each person who opens the notebook gets a separate Colab machine, so nobody else sees your runs.
-* MM-GBSA rescoring needs AmberTools, which step 1 installs when **add_MM_GBSA** is ticked. Without it, docking and the ADCP scores work normally and the interface disables the MM-GBSA option. On two cores MM-GBSA is slow: allow several minutes per pose.
+* MM-GBSA rescoring needs AmberTools, which the first press installs when **add_MM_GBSA** is ticked. Without it, docking and the ADCP scores work normally and the interface disables the MM-GBSA option. On two cores MM-GBSA is slow: allow several minutes per pose.
 * Some components of ADFRsuite and of ADCP 1.1 are free for academic use only; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 Use the notebook to explore the workflow and inspect inputs. Reduced search settings are not a validated production protocol.
