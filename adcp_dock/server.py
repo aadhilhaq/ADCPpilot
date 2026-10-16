@@ -407,7 +407,7 @@ class App:
     @staticmethod
     def _msms_said(T):
         from . import surface as surf
-        return surf.describe(surf.msms_command(T))
+        return surf.describe(toolmod.msms_command(T))
 
     def adapt_warm(self):
         """Start ADapt in the background, once, if it can run here.
@@ -734,7 +734,7 @@ class App:
         each surfaced (surface.compute).
         """
         from . import surface as surf
-        exe = surf.msms_command(toolmod.discover(roots=self.tools_roots))
+        exe = toolmod.msms_command(toolmod.discover(roots=self.tools_roots))
         one = lambda k: (q.get(k) or [""])[0]                # noqa: E731
         rundir, what = one("dir"), one("what") or "receptor"
         try:

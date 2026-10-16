@@ -87,7 +87,14 @@ class Tools:
         return adfr_program(name, self, self.roots)
 
     def missing_required(self):
-        return [n for n in REQUIRED if not self._found.get(n)]
+        """The required tools not found. ADCP and AGFR count as found where
+        the ADCP 1.1 suite is installed, which runs them with its own Python
+        (adcp11.command, agfr_command) rather than through bin/adcp and
+        bin/agfr; those names are kept for ADFRsuite 1.0's programs."""
+        gone = [n for n in REQUIRED if not self._found.get(n)]
+        if ("adcp" in gone or "agfr" in gone) and suite11(self.roots):
+            gone = [n for n in gone if n not in ("adcp", "agfr")]
+        return gone
 
     def can_rescore(self):
         """True when every tool MM-GBSA needs was found."""
@@ -107,6 +114,17 @@ def _from_env():
             if os.path.isfile(p) and os.access(p, os.X_OK):
                 out[n] = p
     return out
+
+
+def suite11(roots=()):
+    """The ADCP 1.1 suite's folder, when it is installed with its own AGFR,
+    or None."""
+    try:
+        from . import adcp11
+        exe, script = adcp11.find_agfr(list(roots))
+        return adcp11.home_of(exe) if exe and script else None
+    except Exception:                                          # noqa: BLE001
+        return None
 
 
 def discover(roots=(), env=True):
@@ -144,6 +162,16 @@ def discover(roots=(), env=True):
                 p = os.path.join(d, n)
                 if os.path.isfile(p) and os.access(p, os.X_OK):
                     found[n] = p
+    # Where ADFRsuite 1.0 is not installed, the receptor is written as PDBQT
+    # by the ADCP 1.1 suite's prepare_receptor, the same AutoDockTools script
+    # ported to Python 3. Its launcher runs whichever python is first on
+    # PATH, so receptor.prepare_pdbqt runs it with the suite's bin first.
+    if not found.get("prepare_receptor"):
+        home = suite11(roots)
+        if home:
+            p = os.path.join(home, "bin", "prepare_receptor")
+            if os.path.isfile(p) and os.access(p, os.X_OK):
+                found["prepare_receptor"] = p
     return Tools(found, roots)
 
 
@@ -174,6 +202,32 @@ def adfr_program(name, tools=None, roots=()):
         p = os.path.join(d, name)
         if os.path.isfile(p) and os.access(p, os.X_OK):
             return p
+    return None
+
+
+def msms_command(tools=None, roots=()):
+    """How MSMS is run here: ADFRsuite's msms program, or, where only the
+    ADCP 1.1 suite is installed, its MSMS library (mslib) through
+    msms_mslib.py and the suite's own Python, which take the program's
+    arguments and write its files (surface.run_msms runs either). None when
+    neither is installed."""
+    import glob
+    from . import adcp11
+    tools = tools or discover(roots=roots)
+    prog = tools.adfr_program("msms")
+    if prog:
+        return prog
+    exe = adcp11.find(list(roots) or list(getattr(tools, "roots", [])))
+    if not exe:
+        return None
+    home = adcp11.home_of(exe)
+    py = os.path.join(home, "bin", "python")
+    lib = glob.glob(os.path.join(home, "lib", "python3*", "site-packages",
+                                 "mslib", "__init__.py"))
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                          "msms_mslib.py")
+    if lib and os.path.isfile(py) and os.path.isfile(script):
+        return [py, script]
     return None
 
 

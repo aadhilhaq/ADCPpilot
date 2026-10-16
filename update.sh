@@ -156,9 +156,18 @@ if [ -f "$HERE/scripts/adapt_fetch.sh" ]; then
   if [ -z "$ADFR_AT" ] && command -v prepare_receptor >/dev/null 2>&1; then
     ADFR_AT=$(dirname "$(dirname "$(command -v prepare_receptor)")")
   fi
-  ADAPT_DIR=$(adapt_dest "$ADFR_AT" "${ADCP_HOME:-}")
+  # An install without ADFRsuite 1.0 has ADCP 1.1's folder instead, and
+  # ADapt beside it; activate.sh names both.
+  if [ -z "$ADFR_AT" ] && [ -n "${ADCPSUITE_HOME:-}" ]; then
+    ADFR_AT="$(dirname "$ADCPSUITE_HOME")/ADFRsuite"
+  fi
+  if [ -n "${ADAPT_HOME:-}" ]; then
+    ADAPT_DIR="$ADAPT_HOME"
+  else
+    ADAPT_DIR=$(adapt_dest "$ADFR_AT" "${ADCP_HOME:-}")
+  fi
   if [ -z "$ADAPT_DIR" ]; then
-    note "ADapt: not fetched, since no ADFRsuite was found to put it beside (activate.sh names none, and none is on PATH; run ./install.sh)"
+    note "ADapt: not fetched, since no tools folder was found to put it in (activate.sh names none; run ./install.sh)"
   else
     if [ -e "$ADAPT_DIR" ]; then
       adapt_update "$ADAPT_DIR"

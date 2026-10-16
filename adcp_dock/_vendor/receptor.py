@@ -587,7 +587,13 @@ def _run_prepare_receptor(prep: str, src: str, out: str, add_h: bool):
     if os.path.exists(out):
         os.remove(out)
     cmd = [prep, "-r", src, "-o", out] + (["-A", "hydrogens"] if add_h else [])
-    return subprocess.run(cmd, capture_output=True, text=True)
+    # The launcher runs whichever python is first on PATH: its own folder
+    # comes first, so ADCP 1.1's prepare_receptor gets the suite's Python.
+    env = dict(os.environ)
+    env["PATH"] = os.path.dirname(os.path.abspath(prep)) + os.pathsep + env.get("PATH", "")
+    env.pop("PYTHONPATH", None)
+    env.pop("PYTHONHOME", None)
+    return subprocess.run(cmd, capture_output=True, text=True, env=env)
 
 
 def count_hydrogens(pdb_path: str) -> int:

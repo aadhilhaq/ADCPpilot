@@ -53,7 +53,7 @@ python3 -m venv ~/.adcp-dock/venv
 ~/.adcp-dock/venv/bin/adcp-dock local
 ```
 
-ADCP 1.1 is optional. On a cluster `install.sh` installs it (`--no-adcp11` leaves it out); elsewhere `adcp-dock install-adcp11` does ([INSTALL.md, section 4](INSTALL.md#4-adcp-11-optional)). On top of it, ADapt, a separate tool by Michel Sanner that shows what a structure file holds and prepares the receptor the way AGFR does, opens inside the Receptor card on the structure loaded there. `install.sh` and `update.sh` fetch it beside ADFRsuite from its repository once that is public; until then they say so in one line and carry on ([INSTALL.md, ADapt](INSTALL.md#adapt-optional)).
+On a cluster `install.sh` installs ADCP 1.1, which brings everything the docking needs; ADFRsuite 1.0 is added only with `--with-adfr10`, for the ADCP 1.0 choices. Elsewhere `adcp-dock install-adcp11` adds it ([INSTALL.md, section 4](INSTALL.md#4-adcp-11)). On top of it, ADapt, a separate tool by Michel Sanner that shows what a structure file holds and prepares the receptor the way AGFR does, opens inside the Receptor card on the structure loaded there. `install.sh` and `update.sh` fetch it beside ADFRsuite from its repository once that is public; until then they say so in one line and carry on ([INSTALL.md, ADapt](INSTALL.md#adapt-optional)).
 
 `adcp-dock example` adds a finished run, MDM2 with three peptides, to open before docking anything. The Colab notebook includes it.
 

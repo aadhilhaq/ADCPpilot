@@ -98,19 +98,22 @@ question, and writes nothing into your home folder. In order, it:
 1. looks for what the cluster already has (below);
 2. builds a Python environment with RDKit, AmberTools, PDB2PQR, OpenMM,
    PDBFixer and Biopython, from conda-forge;
-3. downloads ADFRsuite from the Scripps Research Institute, checks it against
-   a pinned checksum, and installs it;
-4. installs ADCP 1.1 beside it with Scripps' own recipe
-   ([section 4](#4-adcp-11-optional)); `--no-adcp11` leaves it out;
-5. fetches ADapt beside it, once ADapt's repository is public
+3. installs ADCP 1.1 with Scripps' own recipe ([section 4](#4-adcp-11)),
+   which brings everything the docking needs: `adcp`, `agfr`,
+   `prepare_receptor`, `reduce`, and MSMS as its library for the surfaces. If
+   it fails, the script stops and says why, rather than finish without it.
+   ADFRsuite 1.0, from 2019, is no longer installed; `--with-adfr10` adds it,
+   for the ADCP 1.0 and AGFR 1.0 choices, and `--no-adcp11` installs it alone
+   instead of ADCP 1.1;
+4. fetches ADapt beside it, once ADapt's repository is public
    ([ADapt](#adapt-optional));
-6. deletes the packages it downloaded, and writes `activate.sh` in the
+5. deletes the packages it downloaded, and writes `activate.sh` in the
    checkout, which records where everything is, then checks the result.
 
 On a typical cluster, from a clean account, the whole of it takes 7 to 10
 minutes, most of it the two environments, with about 1 GB of downloads; a
 slower network or a busy login node takes longer.
-It leaves about 95,000 files. It uses your
+It leaves about 84,000 files, about 95,000 with `--with-adfr10`. It uses your
 cluster's own conda when it is recent, and otherwise fetches micromamba, a
 single file, into the folder; no conda module is needed.
 
@@ -121,7 +124,7 @@ commands, for example (your paths and times will differ):
 == Summary ==
   Python environment  /scratch/you/adcp/envs/adcp
   AmberTools          in that environment
-  ADFRsuite           /scratch/you/adcp/tools/docking/ADFRsuite
+  ADFRsuite 1.0       not installed (not needed; --with-adfr10 adds the ADCP 1.0 choices)
   ADCP 1.1            /scratch/you/adcp/tools/docking/adcpsuite
   ADapt               not installed (optional; ./update.sh fetches it once it is public)
 
@@ -472,9 +475,9 @@ Use the notebook to explore the workflow and inspect inputs. Reduced search sett
 
 ---
 
-## 4. ADCP 1.1 (optional)
+## 4. ADCP 1.1
 
-ADCP 1.1 is the current version of AutoDock CrankPep. It adds non-standard and D amino acids, all-atom poses in one file, and an optional OpenMM minimization and re-ranking of the top poses. The Scripps Research Institute distributes it as its own Python 3.7 environment. On a cluster, `install.sh` installs it beside ADFRsuite unless given `--no-adcp11`. Otherwise, or to add it later, install it on a cluster login node, a workstation or in Colab with:
+ADCP 1.1 is the current version of AutoDock CrankPep. It adds non-standard and D amino acids, all-atom poses in one file, and an optional OpenMM minimization and re-ranking of the top poses. The Scripps Research Institute distributes it as its own Python 3.7 environment, and on a cluster it is all the docking needs: its own `adcp`, `agfr`, `prepare_receptor` and `reduce`, and MSMS as the library mslib, which draws the surfaces. `install.sh` installs it, and stops if that fails. ADFRsuite 1.0 is needed only for the ADCP 1.0 and AGFR 1.0 choices and is installed with `--with-adfr10`; an installation that already has it keeps using its `prepare_receptor`, `reduce` and `msms`. `--no-adcp11` installs ADFRsuite 1.0 alone, and then the page says plainly, in the Docking card, that runs use ADCP 1.0. To add ADCP 1.1 later, or outside a cluster, install it on a login node, a workstation or in Colab with:
 
 ```bash
 adcp-dock install-adcp11                      # beside ADFRsuite, in the tools folder
@@ -483,7 +486,7 @@ adcp-dock install-adcp11 --dest /path/adcpsuite
 
 This follows Scripps' own installation script: it creates the environment with micromamba (downloaded if needed), installs OpenMM, Open Babel and PDBFixer from conda-forge, and fetches the Scripps packages from ccsb.scripps.edu, checking each against a pinned SHA-256. It takes a few minutes and 3 GB, and deletes the packages it downloaded once it is done. Scripps' own instructions are at <https://ccsb.scripps.edu/adcpv11/downloads/>.
 
-Without `--dest` it goes beside ADFRsuite (`$ADFRSUITE_HOME/../adcpsuite`), in the installation's own tools folder, and on a computer without ADFRsuite set up yet into `~/.adcp-dock/adcpsuite`. The interface finds ADCP 1.1 at `$ADCPSUITE_HOME`, in a folder named `adcpsuite` beside ADFRsuite or in a tools folder given with `--tools-root`, at `~/.adcp-dock/adcpsuite`, or at `/content/adcpsuite` in Colab. ADFRsuite 1.0 is still needed, for `prepare_receptor` and for ADCP 1.0. The suite carries its own AGFR, found from the same installation, and the grid maps are built with it wherever the suite is installed (`--agfr auto`, the default; `--agfr 1.0` asks for ADFRsuite's).
+Without `--dest` it goes beside ADFRsuite where there is one (`$ADFRSUITE_HOME/../adcpsuite`), otherwise into the installation's own tools folder, or on a computer with neither into `~/.adcp-dock/adcpsuite`. The interface finds ADCP 1.1 at `$ADCPSUITE_HOME`, which `activate.sh` sets, in a folder named `adcpsuite` beside ADFRsuite or in a tools folder given with `--tools-root`, at `~/.adcp-dock/adcpsuite`, or at `/content/adcpsuite` in Colab. Its `bin` folder is never put on `PATH`, since it holds the suite's own Python. The suite carries its own AGFR, found from the same installation, and the grid maps are built with it wherever the suite is installed (`--agfr auto`, the default; `--agfr 1.0` asks for ADFRsuite's).
 
 Each run chooses its engine under **Docking engine**: *ADCP, newest installed* (the default) uses 1.1 when it is found and 1.0 otherwise. On the command line, `adcp-dock new ... --engine 1.1`. With ADCP 1.1:
 
@@ -500,7 +503,7 @@ Every run, on either engine, also takes these settings; each is named the same i
 
 A run can also start from a target file made in AGFR or AGFRGUI: give its path under *or a target file* (`--target-file`). The receptor, maps and box then come from that file, and this package's receptor preparation is not run. The file's name must not be changed, since ADCP finds the maps by it.
 
-Scripps' ADCP 1.1 environment includes the MSMS library (mslib) and the UT packages, which are free for academic use only; check their terms before commercial use. A 1.1 run still uses ADFRsuite 1.0's `prepare_receptor`, and the packages it loads there carry non-commercial terms of their own that ADFRsuite's `LICENSE.txt` does not list; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Scripps' ADCP 1.1 environment includes the MSMS library (mslib) and the UT packages, which are free for academic use only; check their terms before commercial use. `prepare_receptor` comes from ADFRsuite 1.0 where it is installed and from the ADCP 1.1 suite otherwise, and the packages it loads carry non-commercial terms of their own; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ### ADapt (optional)
 
@@ -556,9 +559,9 @@ ADapt runs beside the interface on the same machine, started with `--base-path /
 
 ### reduce and MSMS
 
-The receptor is protonated by default with reduce, the program ADFR's own preparation and ADapt use, taken from ADFRsuite's `bin` folder (`reduce` 3.23 there). Checked against the protein structures in the PDB solved by neutron diffraction, where the hydrogens are placed from the data, reduce matched the deposited histidines more often than pdb2pqr (55% against 31% of 1,457 histidines) and turned fewer rings, and fewer Asn and Gln amides, the wrong way. What reduce does not do is pH: it never protonates an Asp or Glu and rarely puts hydrogens on both nitrogens of a histidine, whatever the pH. PDB2PQR with PROPKA at a chosen pH stays as the other choice (`--protonation propka --ph 5.5`), and a job file from before the choice keeps it, so old runs reproduce.
+The receptor is protonated by default with reduce, the program ADFR's own preparation and ADapt use, taken from ADFRsuite 1.0's `bin` folder where it is installed and from the ADCP 1.1 suite's otherwise, which carries the same build (`reduce` 3.23). Checked against the protein structures in the PDB solved by neutron diffraction, where the hydrogens are placed from the data, reduce matched the deposited histidines more often than pdb2pqr (55% against 31% of 1,457 histidines) and turned fewer rings, and fewer Asn and Gln amides, the wrong way. What reduce does not do is pH: it never protonates an Asp or Glu and rarely puts hydrogens on both nitrogens of a histidine, whatever the pH. PDB2PQR with PROPKA at a chosen pH stays as the other choice (`--protonation propka --ph 5.5`), and a job file from before the choice keeps it, so old runs reproduce.
 
-The site view and the pose viewer draw molecular surfaces computed by MSMS, the `bin/msms` program in ADFRsuite, which the interface's server calls on request. MSMS is free for non-commercial scientific research only, so it is called where ADFRsuite installed it and is not part of this package (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)). Without it the viewers draw their own surfaces. `adcp-dock check` lists both programs.
+The site view and the pose viewer draw molecular surfaces computed by MSMS, which the interface's server calls on request: the `bin/msms` program in ADFRsuite 1.0 where it is installed, and otherwise MSMS's own library, mslib, in the ADCP 1.1 suite, run with the suite's Python by `adcp_dock/msms_mslib.py`. The two give the same surface: the same points and triangles, listed in another order. MSMS is free for non-commercial scientific research only, so it is used where Scripps installed it and is not part of this package (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)). Without either the viewers draw their own surfaces. `adcp-dock check` lists which is used.
 
 ---
 

@@ -823,9 +823,14 @@ function gbEngines(rows){
   // Short on screen, full explanation on hover. This sits between two
   // fields it is explaining, and at paragraph length it pushed them apart.
   const en = $('enginenote');
-  en.textContent = d.adcp11
-    ? 'ADCP ' + (d.adcp11_version || '1.1') + ' installed.'
-    : 'ADCP 1.0 only.';
+  /* Without ADCP 1.1 the page runs on ADFRsuite 1.0 and says so plainly,
+     here where the engine is chosen: an install whose ADCP 1.1 step failed
+     would otherwise dock with the older tools without anyone noticing. */
+  if(d.adcp11) en.textContent = 'ADCP ' + (d.adcp11_version || '1.1') + ' installed.';
+  else en.innerHTML = '<span class=warn><b>ADCP 1.1 is not installed here,</b> so '
+    + 'runs use ADCP 1.0 and AGFR 1.0 from ADFRsuite 1.0. D and non-standard '
+    + 'residues, AGFR 1.1 and OpenMM minimisation are off. ./install.sh adds '
+    + 'ADCP 1.1.</span>';
   en.title = d.adcp11
     ? 'ADCP ' + (d.adcp11_version || '1.1') + ' is installed, so non-standard '
       + 'residues (N<BHD>), D residues (&D) and OpenMM pose minimization are '

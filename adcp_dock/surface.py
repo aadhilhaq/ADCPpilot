@@ -340,31 +340,10 @@ def adfr_home(msms_exe):
     return os.path.dirname(os.path.dirname(os.path.realpath(first)))
 
 
-def msms_command(tools=None, roots=()):
-    """How MSMS is run here: ADFRsuite's msms program, or, where only the
-    ADCP 1.1 suite is installed, its MSMS library (mslib) through
-    msms_mslib.py and the suite's own Python, which take the program's
-    arguments and write its files. None when neither is installed."""
-    from . import adcp11, tools as toolmod
-    tools = tools or toolmod.discover(roots=roots)
-    prog = tools.adfr_program("msms")
-    if prog:
-        return prog
-    exe = adcp11.find(list(roots) or list(getattr(tools, "roots", [])))
-    if not exe:
-        return None
-    home = adcp11.home_of(exe)
-    py = os.path.join(home, "bin", "python")
-    lib = glob.glob(os.path.join(home, "lib", "python3*", "site-packages",
-                                 "mslib", "__init__.py"))
-    script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                          "msms_mslib.py")
-    if lib and os.path.isfile(py) and os.path.isfile(script):
-        return [py, script]
-    return None
-
-
 def _cmd(exe):
+    """MSMS as a command: the msms program's path, or a list such as a
+    Python and a script that take the program's arguments and write its
+    files (the ADCP 1.1 suite's mslib, for one)."""
     return list(exe) if isinstance(exe, (list, tuple)) else [exe]
 
 

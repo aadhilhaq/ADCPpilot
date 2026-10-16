@@ -200,11 +200,18 @@ def tool_exports(roots=()):
         amber = toolmod.amber_home(found)
         if amber:
             lines.append("export AMBERHOME=%s" % shlex.quote(amber))
+    # The ADCP 1.1 suite is named rather than put on PATH: its bin folder
+    # holds its own python, which would then be every program's python.
+    suite = toolmod.suite11(roots)
+    if suite and not os.environ.get("ADCPSUITE_HOME"):
+        lines.append("export ADCPSUITE_HOME=%s" % shlex.quote(suite))
+    skip = os.path.join(suite, "bin") if suite else None
     dirs = []
     for name in toolmod.NEEDED:
         where = found.get(name)
-        if where and os.path.dirname(where) not in dirs:
-            dirs.append(os.path.dirname(where))
+        d = os.path.dirname(where) if where else None
+        if d and d != skip and d not in dirs:
+            dirs.append(d)
     if dirs:
         lines.append("export PATH=%s:$PATH" % ":".join(shlex.quote(d) for d in dirs))
     return "\n".join(lines)

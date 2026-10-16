@@ -30,12 +30,17 @@ amino acids, all-atom poses in one file, and an optional OpenMM minimisation and
 re-ranking of the top poses. Scripps distributes it as its own Python 3.7
 environment:</p>
 <pre>adcp-dock install-adcp11</pre>
-<p>On a cluster, <code>install.sh</code> runs this for you, beside ADFRsuite, unless
-given <code>--no-adcp11</code>. It follows Scripps' own installation recipe: it creates the environment with
+<p>On a cluster, <code>install.sh</code> runs this for you, and stops if it fails.
+It follows Scripps' own installation recipe: it creates the environment with
 micromamba, installs OpenMM, Open Babel and PDBFixer from conda-forge, and fetches
 the Scripps packages, checking each against a pinned checksum. It takes about ten
-minutes and 3 GB. ADFRsuite 1.0 is still needed, for <code>prepare_receptor</code>
-and for ADCP 1.0.</p>
+minutes and 3 GB. The suite is all the docking needs: its own <code>adcp</code>,
+<code>agfr</code>, <code>prepare_receptor</code> and <code>reduce</code>, and MSMS as
+its library, mslib, for the surfaces. ADFRsuite 1.0 is needed only for the ADCP 1.0
+and AGFR 1.0 choices, and <code>install.sh --with-adfr10</code> adds it; an
+installation that already has it keeps using its <code>prepare_receptor</code>,
+<code>reduce</code> and <code>msms</code>. Where only ADFRsuite 1.0 is installed,
+the Docking card says so plainly: runs then use ADCP 1.0 and AGFR 1.0.</p>
 <p>The suite carries its own AGFR, newer than ADFRsuite's, and the grid maps are
 built with it wherever the suite is installed: <i>AGFR, newest installed</i> under
 <b>Grid maps</b> in the Site card. It is found with ADCP 1.1, from the same

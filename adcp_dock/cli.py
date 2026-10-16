@@ -432,7 +432,12 @@ def main(argv=None):
         print()
         T = toolmod.discover(roots=a.tools_root)
         missing = 0
+        suite = toolmod.suite11(a.tools_root)
         for name, path in T.report():
+            if not path and name in ("adcp", "agfr") and suite:
+                # ADCP 1.1 runs them with its own Python, not as programs.
+                print("  %-16s from the ADCP 1.1 suite in %s" % (name, suite))
+                continue
             print("  %-16s %s" % (name, path or "NOT FOUND  (%s)"
                                   % toolmod.NEEDED[name]))
             missing += 0 if path else 1
@@ -441,7 +446,7 @@ def main(argv=None):
             if name == "msms" and not path:
                 # The ADCP 1.1 suite has no msms program but MSMS's library.
                 from . import surface as _surf
-                path = _surf.describe(_surf.msms_command(T))
+                path = _surf.describe(toolmod.msms_command(T))
             print("  %-16s %s" % (name, path or "not found, optional (%s)"
                                   % why))
         # The Python packages, in the Python running this. The optional ones
