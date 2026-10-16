@@ -75,18 +75,27 @@ Clashes are not a term. See CLASH_PENALTY.
 
 Weights are trust, not an exchange rate
 ---------------------------------------
-There is no outcome data for these designs - no measured affinities, no known
-binders - so no weight here is fitted, and none should be presented as
-validated. The terms are converted to a position within the run before they
-are weighted, exactly as ``panel.AGREE`` argues, so a weight says HOW MUCH
-THAT MEASURE IS TRUSTED and nothing else. The relative order follows the
+No weight here is fitted, and none should be presented as validated. A
+designed construct that has not been tested has no affinity to fit against;
+and the benchmark set of solved complexes that is available - peptides whose
+bound answer is on the deposited coordinates - runs to eleven, nowhere near
+enough to fit seven weights without fitting the noise instead.
+
+So the terms are converted to a position within the run before they are
+weighted, exactly as ``panel.AGREE`` argues, and a weight says HOW MUCH THAT
+MEASURE IS TRUSTED and nothing else. The relative order follows the
 literature ``panel`` already cites: MM-GBSA the best of the cheap predictors
 of affinity but modest in absolute terms, buried area a real correlate of
 binding across interfaces, an interface hydrogen bond worth roughly 0.5 to 1.5
 kcal/mol, salt bridges similar and highly dependent on burial.
 
-Whether the weights matter at all is a question with an answer rather than an
-opinion: ``stability`` sweeps them and reports how much the order moves.
+Two questions follow, and they are different. Whether the weights matter at
+all is answered here: ``stability`` sweeps them and reports how much the
+order moves. Whether this ordering beats the single column it sits beside is
+NOT answered here and cannot be - that needs those solved complexes, asking
+whether the score puts a known binder above decoys and how far down the list
+you must go to find it. Until somebody runs that, this metric is better
+argued for than the single column, not better shown.
 """
 from __future__ import annotations
 
@@ -570,11 +579,15 @@ def _spearman(a, b):
 def stability(rows, cuts=(5, 10, 20), sweep=SWEEP, log=None):
     """How much the order actually depends on the weights.
 
-    With no outcome data the weights cannot be fitted, and presenting any of
-    them as validated would be a claim nothing here can support. What CAN
-    be established is whether the choice matters: every weight is swept over
-    ``sweep`` one at a time, and the resulting order is compared with the
-    order the defaults give.
+    The weights are not fitted - the module docstring says why - so none of
+    them can be presented as validated. What CAN be established without
+    fitting anything is whether the choice matters at all: every weight is
+    swept over ``sweep`` one at a time, and the resulting order is compared
+    with the order the defaults give.
+
+    This measures the ordering's sensitivity to its own weights. It is not a
+    check that the ordering is right, and cannot be read as one: a metric
+    can be perfectly insensitive to its weights and still rank badly.
 
     If the top of the table barely moves, the weights are not worth arguing
     about and that is a real finding. If it churns, the honest presentation is
