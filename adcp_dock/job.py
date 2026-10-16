@@ -79,7 +79,20 @@ def default(**kw):
         # one it finds merged (site_pocket).
         "site_mode": "residues",
         "site_ligand": "",
+        # The structure the ligand is read from, when it is not the receptor
+        # docked into: with ADapt's receptor, the structure ADapt was opened
+        # on, which still holds a ligand ADapt left out of its receptor.
+        "site_ligand_from": "",
         "site_pocket": "best",
+        # Pockets chosen on the page (pockets.py): the ranks of AutoSite's
+        # pockets the search starts from, their points saved in the run as
+        # site_points, and for a box built around a pocket, that box.
+        "site_pockets": {},
+        # How AutoSite ranks the pockets the page finds: its peptide score
+        # (energy x buriedness^1.5) or its general one.
+        "pocket_score": "peptide",
+        "site_points": "",
+        "site_box": None,
         "hotspots": "",          # "A:41, A:45" or "41,45"
         "shell_radius": 10.0,    # what counts as "near the site"
         "box_padding": 8.0,
@@ -269,15 +282,20 @@ def site_problems(j):
     if not spec:
         return ["No ligand chosen. Pick the ligand or peptide in the structure "
                 "the box should be built around."]
-    rec = j.get("receptor") or ""
+    rec = j.get("site_ligand_from") or j.get("receptor") or ""
     if not os.path.isfile(rec):
         return []
     try:
         atoms = structure.read(rec)
     except Exception as exc:                                    # noqa: BLE001
         return ["The receptor could not be read: %s" % exc]
-    return structure.ligand_problems(atoms, spec, j.get("chains") or [],
-                                     bool(j.get("keep_hetatms")))
+    # With ADapt's receptor, ADapt chose what it holds: a ligand it kept is
+    # taken out of it before the maps are built (pipeline._drop_ligand), so
+    # neither the chains ticked here nor Keep heteroatoms decide that.
+    adapt = bool((j.get("adapt") or {}).get("folder"))
+    return structure.ligand_problems(atoms, spec,
+                                     [] if adapt else (j.get("chains") or []),
+                                     False if adapt else bool(j.get("keep_hetatms")))
 
 
 def protonation_of(j):

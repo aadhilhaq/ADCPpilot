@@ -47,6 +47,7 @@ says why and the viewer draws its own surface instead.
 """
 import ast
 import base64
+import glob
 import hashlib
 import json
 import os
@@ -331,21 +332,78 @@ _TABLES = {}
 
 
 def adfr_home(msms_exe):
-    """ADFRsuite's folder, from the msms program inside its bin folder."""
+    """The suite MSMS comes from: ADFRsuite's folder, from the msms program
+    in its bin folder, or the ADCP 1.1 suite's, from its Python."""
     if not msms_exe:
         return None
-    return os.path.dirname(os.path.dirname(os.path.realpath(msms_exe)))
+    first = msms_exe[0] if isinstance(msms_exe, (list, tuple)) else msms_exe
+    return os.path.dirname(os.path.dirname(os.path.realpath(first)))
+
+
+def msms_command(tools=None, roots=()):
+    """How MSMS is run here: ADFRsuite's msms program, or, where only the
+    ADCP 1.1 suite is installed, its MSMS library (mslib) through
+    msms_mslib.py and the suite's own Python, which take the program's
+    arguments and write its files. None when neither is installed."""
+    from . import adcp11, tools as toolmod
+    tools = tools or toolmod.discover(roots=roots)
+    prog = tools.adfr_program("msms")
+    if prog:
+        return prog
+    exe = adcp11.find(list(roots) or list(getattr(tools, "roots", [])))
+    if not exe:
+        return None
+    home = adcp11.home_of(exe)
+    py = os.path.join(home, "bin", "python")
+    lib = glob.glob(os.path.join(home, "lib", "python3*", "site-packages",
+                                 "mslib", "__init__.py"))
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                          "msms_mslib.py")
+    if lib and os.path.isfile(py) and os.path.isfile(script):
+        return [py, script]
+    return None
+
+
+def _cmd(exe):
+    return list(exe) if isinstance(exe, (list, tuple)) else [exe]
+
+
+def _env(exe):
+    """The environment MSMS runs in: as it is for the program, and for the
+    library the suite's own, with nothing of this package's Python in it."""
+    if not isinstance(exe, (list, tuple)):
+        return None
+    env = dict(os.environ)
+    for k in ("PYTHONPATH", "PYTHONHOME"):
+        env.pop(k, None)
+    env["PYTHONNOUSERSITE"] = "1"
+    lib = os.path.join(adfr_home(exe), "lib")
+    env["LD_LIBRARY_PATH"] = (env.get("LD_LIBRARY_PATH", "") + os.pathsep
+                              + lib).strip(os.pathsep)
+    return env
+
+
+def describe(exe):
+    """The MSMS in use, in words, for the page's list of tools."""
+    if not exe:
+        return ""
+    if isinstance(exe, (list, tuple)):
+        return "mslib in %s (ADCP 1.1 suite)" % adfr_home(exe)
+    return exe
 
 
 def radii_file(home):
-    """MolKit's copy of pdb_to_xyzr's table in an ADFRsuite folder, or None."""
+    """MolKit's copy of pdb_to_xyzr's table in an ADFRsuite folder, or in
+    the ADCP 1.1 suite's, or None."""
     if not home:
         return None
     for sub in ("CCSBpckgs", os.path.join("lib", "python2.7", "site-packages")):
         p = os.path.join(home, sub, "MolKit", "radii_patterns.py")
         if os.path.isfile(p):
             return p
-    return None
+    found = glob.glob(os.path.join(home, "lib", "python3*", "site-packages",
+                                   "MolKit", "radii_patterns.py"))
+    return found[0] if found else None
 
 
 def read_radii_table(path):
@@ -558,8 +616,8 @@ def version(exe):
     if not exe:
         return ""
     try:
-        p = subprocess.run([exe], capture_output=True, text=True, timeout=20,
-                           stdin=subprocess.DEVNULL)
+        p = subprocess.run(_cmd(exe), capture_output=True, text=True, timeout=20,
+                           stdin=subprocess.DEVNULL, env=_env(exe))
     except (OSError, subprocess.SubprocessError):
         return ""
     for line in (p.stdout + "\n" + p.stderr).splitlines():
@@ -590,11 +648,11 @@ def run_msms(exe, xyzr, workdir, probe=PROBE, density=1.0, timeout=TIMEOUT,
     out = os.path.join(workdir, name)
     with open(inp, "w") as fh:
         fh.write(xyzr)
-    cmd = [exe, "-if", inp, "-of", out, "-probe_radius", "%g" % probe,
-           "-density", "%g" % density, "-no_area"]
+    cmd = _cmd(exe) + ["-if", inp, "-of", out, "-probe_radius", "%g" % probe,
+                       "-density", "%g" % density, "-no_area"]
     try:
         p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
-                           stdin=subprocess.DEVNULL, cwd=workdir,
+                           stdin=subprocess.DEVNULL, cwd=workdir, env=_env(exe),
                            preexec_fn=_limits if os.name == "posix" else None)
     except subprocess.TimeoutExpired:
         raise SurfaceError("MSMS took longer than %d s" % timeout)
@@ -646,9 +704,10 @@ def compute(atoms, exe, probe=PROBE, density=None, timeout=TIMEOUT,
 
     Raises SurfaceError with a reason a person can read.
     """
-    if not exe or not os.path.isfile(exe):
-        raise SurfaceError("MSMS is not installed here (ADFRsuite's bin/msms "
-                           "was not found)")
+    if not exe or not all(os.path.isfile(p) for p in _cmd(exe)):
+        raise SurfaceError("MSMS is not installed here: neither ADFRsuite's "
+                           "msms program nor the ADCP 1.1 suite's MSMS library "
+                           "(mslib) was found")
     table_path = radii_file(adfr_home(exe))
     table = None
     if table_path:
@@ -729,8 +788,9 @@ def cache_key(atoms, exe, probe=PROBE, density=None):
                      getattr(a, "altloc", "") or "", a.resname, a.name,
                      a.x, a.y, a.z)).encode())
     try:
-        st = os.stat(exe)
-        h.update(("%s %d %d" % (exe, st.st_size, int(st.st_mtime))).encode())
+        for part in _cmd(exe):
+            st = os.stat(part)
+            h.update(("%s %d %d" % (part, st.st_size, int(st.st_mtime))).encode())
     except (OSError, TypeError):
         h.update(b"no msms")
     h.update(("%g %s %d" % (probe, density, CACHE_VERSION)).encode())

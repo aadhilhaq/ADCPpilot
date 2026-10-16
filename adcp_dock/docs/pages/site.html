@@ -81,6 +81,13 @@ B's 132 atoms, so its maps had the peptide in the site. So the box is worked out
 here by AGFR's rule and given to AGFR as a box. AGFR's own box for chain B came
 within half an &Aring;ngstr&ouml;m of it; the difference is the hydrogens AGFR
 adds to the ligand before it measures it.</div>
+<p><b>With ADapt&rsquo;s receptor.</b> The list is read from the structure
+ADapt was opened on, not from ADapt&rsquo;s receptor, so a peptide or ligand set
+aside in ADapt&rsquo;s <b>lig.</b> column can still set the box. One that ADapt
+kept in its receptor is marked in the list and under the box, and the run takes
+it out of ADapt&rsquo;s receptor before the maps are built, as this page&rsquo;s
+own preparation does; its log and <code>receptor/preparation.log</code> say so.
+To dock with it left in the receptor, build the box around residues instead.</p>
 
 <h2 id="pocket">Around an AutoSite pocket</h2>
 <p>With no ligand in the structure and no residues in mind, AutoSite can find
@@ -92,18 +99,56 @@ one (<code>agfr -b fill -p best</code>). <b>Every pocket it finds</b> puts one
 box around all of them (<code>-p all</code>), which on a whole protein is close
 to docking blind. The residues lining the pocket, within 4 &Aring; of its
 points, become the site.</p>
-<p>The pocket is found on the prepared receptor, so there is nothing to draw
-before the run. Afterwards, load the run's own target file,
+<p>AutoSite's general score ranks pockets for any ligand, so the best one need
+not be where a peptide binds. Press <b>Find pockets</b> to see them ranked before
+anything is submitted, as described <a href="#pockets">below</a>, and choose the
+one or ones the box goes around. Without that, the pocket is found on the
+prepared receptor once the run starts; afterwards, load the run's own target file,
 <code>target/receptor.trg</code> in its folder, in the target file box of the
-Receptor card: the site view then shows the receptor, the box and the AutoSite
-points in pink, and the run's <code>job.json</code> lists every pocket AutoSite
-found with its score.</p>
+Receptor card to see the receptor, the box and the AutoSite points, and the
+run's <code>job.json</code> lists every pocket AutoSite found with its score.</p>
 <div class="note"><b>The maps for a pocket are built twice.</b> agfr builds the
 maps for <code>-b fill</code> at the 1 &Aring; spacing AutoSite searched at,
 which is too coarse to dock into, so the box it chose is kept and the maps are
 built over it again at the usual 0.375 &Aring;. On MDM2 the best scoring pocket
 was the p53 groove: its box is centred 3.5 &Aring; from the centre of the
 crystal p53 peptide.</div>
+
+<h2 id="pockets">Choosing the pockets</h2>
+<p>AutoSite's pockets are where ADCP's search starts its replicas. With a box
+set from residues or a ligand, agfr runs AutoSite inside the box and, by
+default, merges every pocket it finds there into the starting points, however
+far apart they are. With a box built around a pocket, it searches the whole
+receptor and keeps the best scoring one. <b>Find pockets</b>, under the site,
+shows these pockets before anything is submitted and lets you choose.</p>
+<ul>
+<li>It searches inside the box once the site has been checked, or over the whole
+receptor for a box built around a pocket. It runs AutoSite 1.1 on a quick copy
+of the receptor (the chains kept, waters out, hydrogens added by
+<code>prepare_receptor</code>) and takes a few seconds; the answer is kept, so
+asking again is instant.</li>
+<li>The pockets are listed ranked, with AutoSite's score, energy, number of
+points, radius and buriedness, and drawn in the site view in their own colours.
+<b>Rank them by</b> chooses AutoSite's peptide score (energy &times;
+buriedness<sup>1.5</sup>), the default here since a peptide is what is docked,
+or its general score, the one agfr uses.</li>
+<li>Tick the pockets the search should start from, or press <b>the best
+pocket</b> or <b>every pocket</b>. The best one is ticked to begin with. For a
+box built around a pocket, the box is drawn around the pockets ticked, with the
+padding and the limits, and stated under the site, before Submit.</li>
+<li>The run uses exactly the points shown: once agfr has built the maps, the
+target's starting points are replaced by those of the pockets ticked, and the
+run's log says how many. They are kept in the run as
+<code>target/site_points.npy</code>.</li>
+</ul>
+<p>Without a search here, the run does what agfr does. Changing the site, the
+chains or the receptor clears the list, since the pockets belonged to that
+site.</p>
+<p><b>Picking every residue is not a pocket search.</b> A box around the whole
+protein sets up blind docking, with starting points spread over the surface,
+and the maximum box clips it on any protein larger than about 30 &Aring;. To
+find where a peptide binds on a protein you know little about, build the box
+around an AutoSite pocket and look at the pockets it finds.</p>
 
 <h2 id="box-size">The size of the box</h2>
 <p>Along each axis the box spans the residues, the ligand or the pocket, plus
@@ -121,8 +166,10 @@ so a 13-mer wants about 23 &Aring; and up to 29 &Aring; if it binds extended.
 The page works this out from your longest peptide and says so before you
 submit, and the run says it again in its log. If your residues span more than
 the maximum, they are probably two sites and are better docked as two runs.</p>
-<div class="note"><b>A site larger than the maximum is clipped.</b> The run
-reports which of your residues the box does not contain and by how much. In the
+<div class="note"><b>A site larger than the maximum is clipped.</b> The page
+says so as soon as the site is checked, with the width the site and its padding
+would need along each axis, and the run reports which of your residues the box
+does not contain and by how much. In the
 example, three of the 22 residues fall outside the 30 &Aring; box, by 2.7, 1.3
 and 0.6 &Aring;. No pose can reach them, and they still count in the site
 coverage column, so read that column knowing it.</div>
@@ -223,7 +270,9 @@ existed is rebuilt, if it ever needs to be, the way it was first built.</p>
 <p>AutoSite marks the places in the box where a ligand is likely to bind:
 clusters of grid points where a carbon, an oxygen acceptor or a hydrogen donor
 binds well. ADCP's search starts its replicas from them, and for a box from a
-pocket they are the pocket.</p>
+pocket they are the pocket. Inside a box built from residues or a ligand, every
+pocket AutoSite finds is used unless pockets are chosen with <b>Find
+pockets</b> (see <a href="#pockets">Choosing the pockets</a>).</p>
 <p>AutoSite 1.0 keeps only the grid points that bind most strongly, so it tends
 to miss the weakly bound parts of a large ligand such as a peptide. AutoSite 1.1
 relaxes those cutoffs and scans several, which is why the ADCP authors recommend

@@ -438,6 +438,10 @@ def main(argv=None):
             missing += 0 if path else 1
         for name, why in sorted(toolmod.ADFR_PROGRAMS.items()):
             path = T.adfr_program(name)
+            if name == "msms" and not path:
+                # The ADCP 1.1 suite has no msms program but MSMS's library.
+                from . import surface as _surf
+                path = _surf.describe(_surf.msms_command(T))
             print("  %-16s %s" % (name, path or "not found, optional (%s)"
                                   % why))
         # The Python packages, in the Python running this. The optional ones

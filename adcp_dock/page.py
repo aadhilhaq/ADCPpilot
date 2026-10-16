@@ -574,6 +574,13 @@ button.q:focus-visible{outline:1px dotted var(--accent);outline-offset:2px}
 .sitegrid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);
   gap:14px;margin-top:12px}
 @media (max-width:820px){.sitegrid{grid-template-columns:minmax(0,1fr)}}
+/* AutoSite's pockets: a dot in each pocket's colour beside its row. */
+.pkdot{display:inline-block;width:10px;height:10px;border-radius:50%;
+  margin-right:6px;vertical-align:-1px}
+#pocketlist table td,#pocketlist table th{padding:5px 10px}
+/* A 3D panel the browser cannot draw in says why, in place of the view. */
+.nogl{padding:14px 16px;text-align:left;line-height:1.55}
+#adaptnogl{padding:6px 0 8px}
 #viewD{width:100%;height:330px;border:1px solid var(--line);border-radius:10px;
   background:#fff;position:relative}
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]) #viewD{background:#0b0e14}}
@@ -1426,6 +1433,9 @@ __STALE__
       <!-- While ADapt starts, the space the frame will fill holds the
            loading stage (app.js, Wait): a quiet outline of ADapt's tree and
            view, and over it a card whose steps tick as they happen. -->
+      <!-- ADapt's own 3D view needs WebGL as this page's do; when the browser
+           has it off, this says so above the frame (app.js, adaptFrame). -->
+      <div class="why nogl hide" id=adaptnogl></div>
       <div id=adaptframewrap class=hide>
         <iframe id=adaptframe title="ADapt" loading=eager
           sandbox="allow-scripts allow-same-origin allow-forms allow-downloads allow-popups allow-popups-to-escape-sandbox"
@@ -1491,6 +1501,24 @@ __STALE__
       <input type=checkbox id=box_chains style="width:auto;margin-top:2px">
       <span id=otherchainstext></span>
     </label>
+  </div>
+  <!-- AutoSite's pockets, found here rather than after the run: inside the
+       box, or over the whole receptor for a box built around a pocket
+       (pockets.py). The ones ticked are where the search starts; without a
+       search here the run takes them as agfr does. app.js draws the list and
+       the pockets in the view. -->
+  <div class=prepgroup id=pocketsgroup>
+    <div class=grouphead>AutoSite pockets <span>where the search starts from</span></div>
+    <div class=bar style="margin-top:6px;align-items:center">
+      <button class=secondary id=pocketfind type=button>Find pockets</button>
+      <label class=chk for=pocketscore><span>Rank them by</span>
+        <select id=pocketscore>
+          <option value=peptide selected>AutoSite's peptide score</option>
+          <option value=general>AutoSite's general score</option>
+        </select></label>
+    </div>
+    <div class=why id=pocketnote style="margin-top:6px"></div>
+    <div id=pocketlist></div>
   </div>
   <!-- How the grid maps over the box are built: three settings of one
        program, agfr, in one panel like the receptor's preparation. -->

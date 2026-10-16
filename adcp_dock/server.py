@@ -402,7 +402,12 @@ class App:
                 # The two programs taken from ADFRsuite itself: reduce, the
                 # default protonation, and msms, for the viewers' surfaces.
                 "reduce": T.adfr_program("reduce") or "",
-                "msms": T.adfr_program("msms") or ""}
+                "msms": self._msms_said(T)}
+
+    @staticmethod
+    def _msms_said(T):
+        from . import surface as surf
+        return surf.describe(surf.msms_command(T))
 
     def adapt_warm(self):
         """Start ADapt in the background, once, if it can run here.
@@ -729,7 +734,7 @@ class App:
         each surfaced (surface.compute).
         """
         from . import surface as surf
-        exe = toolmod.discover(roots=self.tools_roots).adfr_program("msms")
+        exe = surf.msms_command(toolmod.discover(roots=self.tools_roots))
         one = lambda k: (q.get(k) or [""])[0]                # noqa: E731
         rundir, what = one("dir"), one("what") or "receptor"
         try:
@@ -1633,6 +1638,39 @@ class App:
         except Exception as exc:                                # noqa: BLE001
             return {"error": "could not resubmit: %s" % exc}
 
+    def pockets(self, body):
+        """AutoSite's pockets for the site as the page has it: inside the box
+        the site check builds, or over the whole receptor for a box built
+        around a pocket (pockets.py). Seconds on the server, cached."""
+        from . import pockets as pk
+        exe = self._adcp11()[0]
+        if not exe:
+            return {"error": "finding pockets needs AutoSite 1.1, which comes "
+                             "with the ADCP 1.1 suite; it is not installed here"}
+        path = str(body.get("receptor") or "").strip()
+        mode = str(body.get("site_mode") or "residues")
+        drop, centre, size = [], None, None
+        if mode != "pocket":
+            box = self.site(body)
+            if box.get("error"):
+                return box
+            centre, size = box["centre"], box["size"]
+            if mode == "ligand":
+                p = structure.parse_ligand(body.get("site_ligand"))
+                if p and p[0] == "chain":
+                    drop = [p[1]]
+        try:
+            found = pk.find(path, os.path.join(self.runs, "_pockets"), exe,
+                            chains=body.get("chains") or [], drop=drop,
+                            keep_het=bool(body.get("keep_hetatms")),
+                            centre=centre, size=size,
+                            peptide=str(body.get("pocket_score") or "peptide") == "peptide")
+        except pk.PocketError as exc:
+            return {"error": str(exc)}
+        out = pk.for_page(found)
+        out["mode"] = mode
+        return out
+
     def site(self, body):
         """Where the box would go, before anything is submitted."""
         path = body.get("receptor")
@@ -1645,22 +1683,32 @@ class App:
             # AutoSite runs on the prepared receptor, on a compute node, so
             # there is no box to draw before the run has prepared it.
             return {"mode": "pocket", "pending": True,
-                    "note": "AutoSite places this box when the receptor has "
-                            "been prepared, on a compute node, around the %s. "
-                            "Load the run's target file afterwards to see the "
-                            "pocket and its box."
+                    "note": "Without a choice below, AutoSite places this box "
+                            "when the receptor has been prepared, on a compute "
+                            "node, around the %s. Find pockets to see them now, "
+                            "ranked, and choose."
                     % ("best scoring pocket it finds"
                        if (body.get("site_pocket") or "best") == "best"
                        else "pockets it finds, all of them")}
         exclude = set()
         contacts = []
+        in_receptor = False
         if mode == "ligand":
             spec = str(body.get("site_ligand") or "").strip()
             if not spec:
                 return {"error": "choose the ligand or peptide the box should "
                                  "be built around"}
-            probs = structure.ligand_problems(all_atoms, spec, keep,
-                                              bool(body.get("keep_hetatms")))
+            # With ADapt's receptor the ligand is read from the structure
+            # ADapt was opened on: ADapt may have left it out of its receptor.
+            src = str(body.get("site_ligand_from") or "").strip()
+            from_adapt = bool(src) and src != path and os.path.isfile(src)
+            if from_adapt:
+                rec_atoms = all_atoms
+                all_atoms = structure.read(src)
+                in_receptor = bool(structure.ligand_atoms(rec_atoms, spec))
+            probs = structure.ligand_problems(
+                all_atoms, spec, [] if from_adapt else keep,
+                False if from_adapt else bool(body.get("keep_hetatms")))
             if probs:
                 return {"error": probs[0]}
             lig = structure.ligand_atoms(all_atoms, spec)
@@ -1676,6 +1724,7 @@ class App:
                                           chains_keep=chains_rec)
             hs = contacts
             keep = chains_rec
+            site_pts = [(a.x, a.y, a.z) for a in lig if not a.is_hydrogen()]
         else:
             atoms = ([a for a in all_atoms if a.chain in keep] if keep
                      else all_atoms)
@@ -1687,8 +1736,18 @@ class App:
                 atoms, hs, padding=float(body.get("box_padding", 8.0)),
                 minimum=float(body.get("box_min", 20.0)),
                 maximum=float(body.get("box_max", 30.0)))
+            want = {(c, int(n)) for c, n in hs}
+            site_pts = [(a.x, a.y, a.z) for a in atoms
+                        if not a.is_hydrogen()
+                        and ((a.chain, a.resnum) in want
+                             or (None, a.resnum) in want)]
         if centre is None:
             return {"error": note}
+        # Where the site and its padding are wider than the largest box,
+        # the box is held to that size and part of the site falls outside
+        # it, which nothing else on the page would say.
+        clip = structure.clipped(site_pts, float(body.get("box_padding", 8.0)),
+                                 float(body.get("box_max", 30.0)))
         # Which other chains the box reaches, so that the decision
         # about them is an informed one. A box around an interface
         # groove routinely covers the chain on the far side.
@@ -1715,7 +1774,12 @@ class App:
             others = []
         out = {"centre": [round(c, 3) for c in centre],
                "size": list(size), "note": note, "n": len(hs),
-               "other_chains": others, "mode": mode}
+               "other_chains": others, "mode": mode,
+               "clipped": [{"axis": a, "span": sp, "padding": pd}
+                           for a, sp, pd in clip],
+               "box_padding": float(body.get("box_padding", 8.0)),
+               "ligand_in_receptor": in_receptor,
+               "box_max": float(body.get("box_max", 30.0))}
         if mode == "ligand":
             # The residues the ligand touches: the site every pose is then
             # measured against.
@@ -1847,6 +1911,31 @@ class App:
                                 "MM-GBSA, or install AmberTools.")
             if problems:
                 return {"error": "this run is not ready", "problems": problems}
+            # Pockets chosen on the page: their points go into the run, and
+            # for a box built around a pocket the box is set from them.
+            sp = body.get("site_pockets") or {}
+            j["site_pockets"], j["site_points"], j["site_box"] = {}, "", None
+            if sp.get("key") and sp.get("ranks"):
+                from . import pockets as pk
+                try:
+                    sel, pts, found = pk.chosen(os.path.join(self.runs, "_pockets"),
+                                                sp["key"], sp["ranks"])
+                except pk.PocketError as exc:
+                    return {"error": str(exc)}
+                pk.save_points(pts, os.path.join(rundir, "target", "site_points.npy"))
+                j["site_points"] = os.path.join("target", "site_points.npy")
+                j["site_pockets"] = {
+                    "ranks": [p["rank"] for p in sel], "points": len(pts),
+                    "scored": found.get("scored"),
+                    "searched": "box" if found.get("box") else "receptor",
+                    "table": [{k: p[k] for k in ("rank", "score", "energy", "points",
+                                                 "radius", "buriedness")}
+                              for p in found["pockets"][:20]]}
+                if j.get("site_mode") == "pocket":
+                    c, s, _clip = pk.box_around(
+                        pts, float(j.get("box_padding", 8.0)),
+                        float(j.get("box_min", 20.0)), float(j.get("box_max", 30.0)))
+                    j["site_box"] = {"centre": c, "size": s}
             jobmod.save(rundir, j)
             try:
                 ids = pipeline.submit(rundir, j, log=lambda *a: None)
@@ -2445,6 +2534,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(app.adapt_warm())
         if u.path == "/api/site":
             return self._send(app.site(body))
+        if u.path == "/api/pockets":
+            return self._send(app.pockets(body))
         if u.path == "/api/peptides":
             return self._send(app.peptides(body))
         if u.path == "/api/upload":

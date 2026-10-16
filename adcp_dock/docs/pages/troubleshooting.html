@@ -108,6 +108,25 @@ now</b>, and the line says the receptor as set in ADapt will be docked; ADapt
 writes it when you submit.</li>
 </ul>
 
+<h2 id="webgl">The 3D views are blank</h2>
+<p>Every 3D view on the page, and ADapt's, draws with WebGL. When the browser has
+it switched off, the page says so in each view: <b>3D view unavailable: WebGL is off
+in this browser</b>. The usual reasons are a graphics driver the browser does not
+trust, often after a driver update, and a remote desktop session. Everything else
+works without it: residues are picked from the sequence, and a pose's contacts and
+interaction diagram are drawn as usual.</p>
+<p>To check, open <a href="https://get.webgl.org">get.webgl.org</a>, or in Chrome
+<code>chrome://gpu</code>, where the WebGL lines say whether it is available.</p>
+<p>The way round it is software rendering, which is slower but draws everything.
+Quit Chrome completely, then start it with two switches:</p>
+<pre>google-chrome --use-angle=swiftshader --enable-unsafe-swiftshader</pre>
+<p>On a Mac:</p>
+<pre>open -a "Google Chrome" --args --use-angle=swiftshader --enable-unsafe-swiftshader</pre>
+<p>On Windows, run the same two switches after the path to
+<code>chrome.exe</code>, or add them to the end of the Target box of a Chrome
+shortcut. The switches last until Chrome is closed. Where the cause is the driver,
+updating or reinstalling it brings WebGL back for good.</p>
+
 <h2 id="asking-for-help">Asking for help</h2>
 <p><b>Report an issue</b> on a run's row collects that run's logs, its settings and
 what Slurm said, and nothing else: no poses and no structures. <b>Send feedback</b>

@@ -173,6 +173,60 @@ def _reccfg(j, prepared=None):
         forcefield=j.get("forcefield", "AMBER"))
 
 
+def _drop_ligand(spec, paths, recdir, log=print):
+    """A ligand that sets the box, taken out of a receptor ADapt kept it in,
+    as this package's own preparation leaves it out: otherwise it would sit
+    in the site its box is built around and the peptide would dock around
+    it. Said in the log and in preparation.log."""
+    p = structure.parse_ligand(spec)
+    if not p:
+        return 0
+    if p[0] == "chain":
+        hit = lambda line: line[21:22] == p[1]
+    else:
+        ch, name, num = p[1][0], p[1][1], p[1][2]
+        hit = lambda line: (line[21:22] == ch and line[17:20].strip() == name
+                            and line[22:26].strip() == str(num).strip())
+    removed = 0
+    for path in paths:
+        if not path or not os.path.isfile(path):
+            continue
+        keep, n = [], 0
+        for line in open(path):
+            if line.startswith(("ATOM", "HETATM")) and hit(line):
+                n += 1
+                continue
+            keep.append(line)
+        if n:
+            with open(path, "w") as fh:
+                fh.writelines(keep)
+            removed = max(removed, n)
+    if removed:
+        msg = ("%s was kept in ADapt's receptor and sets the box, so it is "
+               "taken out of the receptor (%d atoms) before the maps are built"
+               % (spec, removed))
+        log("  WARNING: " + msg)
+        with open(os.path.join(recdir, "preparation.log"), "a") as fh:
+            fh.write("  ligand: %s\n" % msg)
+    return removed
+
+
+def _chosen_points(rundir, j):
+    """The points of the pockets chosen on the page, as [[x, y, z]], or None
+    when none were chosen. Kept in the run folder, so a resume finds them."""
+    path = j.get("site_points")
+    if not path:
+        return None
+    if not os.path.isabs(path):
+        path = os.path.join(rundir, path)
+    if not os.path.isfile(path):
+        raise SystemExit("the pocket points chosen on the page are missing: %s"
+                         % path)
+    import numpy
+    j["site_points"] = path
+    return numpy.load(path).reshape(-1, 3).tolist()
+
+
 def _clamp(size, j):
     lo, hi = float(j.get("box_min", 20.0)), float(j.get("box_max", 30.0))
     return [max(lo, min(hi, float(s))) for s in size]
@@ -221,7 +275,9 @@ def stage_prepare(rundir, j=None, log=print):
     if mode == "ligand":
         # The ligand's own residues are the site: the box is built around
         # the ligand and each pose is then measured against what it touched.
-        atoms_in = structure.read(j["receptor"])
+        # The ligand is read from the structure ADapt was opened on when
+        # ADapt's receptor is docked into, since ADapt may have left it out.
+        atoms_in = structure.read(j.get("site_ligand_from") or j["receptor"])
         chain_list = receptor_chains(j, atoms_in)
         lig = structure.ligand_atoms(atoms_in, j.get("site_ligand"))
         if not lig:
@@ -298,6 +354,8 @@ def stage_prepare(rundir, j=None, log=print):
         # its PDBQT is docked as it is, and its _rec_H.pdb, the same
         # receptor with every hydrogen reduce placed, is the prepared one.
         prepared, recq = _take_adapt(rundir, j, log)
+        if mode == "ligand":
+            _drop_ligand(j.get("site_ligand"), (recq, prepared), recdir, log)
     else:
         # The full preparation: alternate locations, modified residues,
         # waters, cofactors, missing side chains, termini, disulphides,
@@ -350,7 +408,29 @@ def stage_prepare(rundir, j=None, log=print):
                          "hydrogens added geometrically\n")
     tdir = os.path.join(rundir, "target")
     hot_keys = [[c, int(n)] for c, n in rec.hotspot_keys]
-    if mode == "pocket":
+    # Pockets chosen on the page before submitting: their points are what
+    # the search starts from, and for a box built around a pocket they set
+    # the box as well, so AutoSite is not asked to choose again here.
+    chosen = _chosen_points(rundir, j)
+    if mode == "pocket" and chosen is not None and j.get("site_box"):
+        centre = [float(v) for v in j["site_box"]["centre"]]
+        size = _clamp(j["site_box"]["size"], j)
+        lining = structure.near_points(
+            structure.read(prepared if prepared and os.path.isfile(prepared)
+                           else j["receptor"]),
+            chosen, chains_keep=list(rec.chains))
+        hot_keys = [[c, int(n)] for c, n in lining]
+        sp = j.get("site_pockets") or {}
+        site.update({"pocket": "chosen", "pockets": sp.get("table") or [],
+                     "pocket_points": len(chosen), "pocket_box": size})
+        log("  the box is around the pocket(s) chosen on the page (%s): "
+            "centre %.2f %.2f %.2f, %.1f x %.1f x %.1f A"
+            % (", ".join(str(r) for r in sp.get("ranks") or []),
+               centre[0], centre[1], centre[2], size[0], size[1], size[2]))
+        log("  %d residue(s) line it: %s"
+            % (len(hot_keys), ", ".join("%s:%d" % (c, n)
+                                         for c, n in hot_keys[:30])))
+    elif mode == "pocket":
         # AutoSite on the prepared receptor, through agfr -b fill, for the
         # box; the residues lining the pocket are then the site.
         found = target.find_pocket(recq, tdir, T, maps,
@@ -383,6 +463,15 @@ def stage_prepare(rundir, j=None, log=print):
     # mismatched .trg still docks, into empty maps.
     trg = target.build(recq, centre, size, tdir, T, name="receptor", log=log,
                        maps=maps)
+    if chosen is not None:
+        from . import pockets as _pk
+        n = _pk.swap_points(trg, j["site_points"])
+        sp = j.get("site_pockets") or {}
+        site["chosen_pockets"] = sp.get("ranks") or []
+        site["start_points"] = n
+        log("  the search starts from the %d point(s) of AutoSite pocket(s) %s, "
+            "as chosen on the page, in place of every pocket agfr found in "
+            "the box" % (n, ", ".join(str(r) for r in sp.get("ranks") or [])))
 
     site.update({"centre": [float(v) for v in centre],
                  "size": [float(v) for v in size],

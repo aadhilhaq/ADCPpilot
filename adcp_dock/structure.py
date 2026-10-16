@@ -319,6 +319,22 @@ def box_for(atoms, hotspots, padding=8.0, minimum=20.0, maximum=30.0):
     return ctr, size, note
 
 
+def clipped(points, padding, maximum):
+    """[(axis, span, padding left)] for each axis along which the site and
+    its padding are wider than the largest box allowed, so the box is held
+    to the maximum there. Where the span itself is wider than the maximum,
+    part of the site lies outside the box and cannot be docked into; where
+    only the padding is cut, every residue is still inside it."""
+    out = []
+    if not points:
+        return out
+    for i, axis in enumerate("xyz"):
+        span = max(p[i] for p in points) - min(p[i] for p in points)
+        if span + 2 * padding > maximum + 0.05:
+            out.append((axis, round(span, 1), round(max(0.0, (maximum - span) / 2.0), 1)))
+    return out
+
+
 def distance(a, b):
     return math.sqrt(sum((a[i] - b[i]) ** 2 for i in range(3)))
 

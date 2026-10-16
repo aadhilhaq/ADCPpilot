@@ -1227,6 +1227,11 @@ function adaptTabShow(tab, A){
    from this origin's storage when its page loads. */
 function adaptFrame(){
   if(!ADAPTF) return;
+  if(!webglOK()){
+    $('adaptnogl').innerHTML = NOGL + '. ADapt draws with it too; its tree and its '
+      + 'choices still work, and the receptor is written as usual.';
+    $('adaptnogl').classList.remove('hide');
+  }
   try { localStorage.setItem('adapt.theme', isDark() ? 'dark' : 'light'); } catch(e){}
   ADAPT_AWAY = false;
   ADAPT_FRAMED = ADAPTF.session;
@@ -1865,6 +1870,7 @@ function gotReceptor(d){
   if(adaptOn()) $('chainbox').querySelectorAll('.chk').forEach(x => x.disabled = true);
   HOT = [];
   fillLigands(d.ligands || []);
+  adaptLigands(d);
   drawChips();
   drawPicker();
   /* A new structure means the site has not been checked against it. It is
@@ -2168,6 +2174,39 @@ const chosenChains = () => Array.from(document.querySelectorAll('.chk:checked'))
 /* ===================== site ========================================== */
 /* A hotspot is a chain and a residue number, held as "A:56". A bare number
    would land on whichever chain carries that number. */
+/* ===================== WebGL ========================================= */
+/* Every 3D panel draws with WebGL. A browser that has it switched off, after a
+   graphics driver it distrusts or in a remote desktop session, loads the
+   structure and leaves the panel blank without a word. So the browser is asked
+   once, and a panel that cannot draw says why and where the way round it is.
+   The rest of the page does not need WebGL: residues are picked from the
+   sequence, and a pose's contacts and diagram are drawn without it. */
+let GL_OK = null;
+function webglOK(){
+  if(GL_OK !== null) return GL_OK;
+  try {
+    const c = document.createElement('canvas');
+    GL_OK = !!(window.WebGLRenderingContext
+               && (c.getContext('webgl2') || c.getContext('webgl')
+                   || c.getContext('experimental-webgl')));
+  } catch(e){ GL_OK = false; }
+  return GL_OK;
+}
+const NOGL = '<b>3D view unavailable:</b> WebGL is off in this browser (test it at '
+  + '<a href="https://get.webgl.org" target=_blank rel=noopener>get.webgl.org</a>). '
+  + '<a href="/docs/troubleshooting.html#webgl" target=_blank rel=noopener>How to '
+  + 'turn it on</a>';
+function noGL(el, more){
+  if(el) el.innerHTML = '<div class="why nogl">' + NOGL + (more ? '. ' + more : '')
+    + '.</div>';
+}
+/* A 3Dmol viewer in `el`, or null with the reason written into `el`. */
+function viewerIn(el, opts, more){
+  if(!webglOK()){ noGL(el, more); return null; }
+  try { return $3Dmol.createViewer(el, opts); }
+  catch(e){ GL_OK = false; noGL(el, more); return null; }
+}
+
 let HOT = [], VD = null, SEQRES = [], SITE = null;
 /* The box mode the site was last checked in without a complaint, or null:
    what the step guide reads to decide whether the site is done. */
@@ -2256,7 +2295,9 @@ async function drawPicker(){
       + esc(pdb.slice(0, 200)) + '</div>';
     return;
   }
-  if(!VD) VD = $3Dmol.createViewer($('viewD'), {backgroundColor: viewBg(false)});
+  if(!VD) VD = viewerIn($('viewD'), {backgroundColor: viewBg(false)},
+                        'Pick the residues from the sequence instead');
+  if(!VD) return;
   VD.removeAllModels();
   VD.addModel(pdb, 'pdb');
   stylePicker();
@@ -2273,6 +2314,7 @@ async function drawPicker(){
 }
 function stylePicker(){
   if(!VD) return;
+  setTimeout(restylePockets, 0);
   if(TARGET){
     VD.setStyle({}, {cartoon:{color:'spectrum'}});
     // The AutoSite points keep their spheres (addPoints).
@@ -2452,6 +2494,7 @@ async function refreshSite(){
      answer is shown. */
   const gen = ++SITE_GEN;
   waitDone($('sitenote'));
+  clearPockets();
   /* A target file carries its own box and the run uses that one, so the
      residues here are not turned into another. */
   if(TARGET){ targetSite(); return; }
@@ -2478,6 +2521,7 @@ async function refreshSite(){
     hotspots: $('hotspots').value, box_padding:+$('pad').value,
     box_min:+$('bmin').value, box_max:+$('bmax').value,
     site_mode: mode, site_ligand: $('site_ligand').value,
+    site_ligand_from: ligandFrom(),
     site_pocket: $('site_pocket').value,
     keep_hetatms: $('keep_hetatms').checked});
   // A newer check is under way: its answer is the one to show.
@@ -2506,7 +2550,13 @@ async function refreshSite(){
       + d.size.map(x => x.toFixed(1)).join(' × ') + ' Å'
       + (d.contacts ? '<br>' + d.contacts.length + ' residue'
          + (d.contacts.length === 1 ? '' : 's') + ' touch it, and each pose '
-         + 'is measured against them: ' + esc(d.contacts.join(', ')) : '');
+         + 'is measured against them: ' + esc(d.contacts.join(', ')) : '')
+      + clippedNote(d, mode)
+      + (d.ligand_in_receptor ? '<br><span class=warn><b>' + esc($('site_ligand').value)
+         + ' is in ADapt\u2019s receptor.</b> It sets the box, so it is taken out of '
+         + 'the receptor before the maps are built, as this page\u2019s own '
+         + 'preparation leaves it out. To keep it in the receptor, build the box '
+         + 'another way.</span>' : '');
   // What else the box reaches, offered as a choice. Unticked, the docking
   // loads only the chains chosen above, so the peptide is placed against a gap
   // where the far wall of the groove should be; ticked, those chains are
@@ -2535,6 +2585,229 @@ async function refreshSite(){
   drawBox();
 }
 $('sitecheck').onclick = refreshSite;
+
+/* ===================== AutoSite pockets ============================== */
+/* AutoSite's pockets, found while the site is set (pockets.py on the
+   server): inside the box, or over the whole receptor for a box built around
+   a pocket. The ones ticked are the points the search starts from, and for a
+   box built around a pocket they set the box too, drawn here before anything
+   is submitted. Without a search here the run takes them as agfr does: every
+   pocket inside the box merged, or the best scoring one over the receptor. */
+let POCKETS = null, POCKET_GEN = 0, POCKETMODELS = [];
+const POCKET_COLOURS = ['#d61f69', '#0f9d58', '#e8710a', '#7c3aed', '#0891b2',
+                        '#b91c1c', '#65a30d', '#c026d3', '#475569', '#ca8a04'];
+const pocketColour = i => POCKET_COLOURS[i % POCKET_COLOURS.length];
+
+function pocketNoteDefault(){
+  $('pocketnote').innerHTML = siteMode() === 'pocket'
+    ? 'Find pockets to see the ones AutoSite finds over the whole receptor, '
+      + 'ranked, and to choose the one or ones the box is built around. Without '
+      + 'that, the run takes the best scoring pocket once the receptor has been '
+      + 'prepared.'
+    : 'Find pockets to see the ones AutoSite finds inside the box, ranked, and '
+      + 'to choose where the search starts. Without that, the run starts from '
+      + 'every pocket AutoSite finds in the box, merged into one: agfr\u2019s '
+      + 'default.';
+}
+function clearPockets(){
+  POCKET_GEN++;
+  POCKETS = null;
+  $('pocketlist').innerHTML = '';
+  drawPockets();
+  pocketNoteDefault();
+}
+/* What the run is told: the search the ticks belong to, and the ticks. */
+function pocketsOut(){
+  return POCKETS && POCKETS.ranks && POCKETS.ranks.length
+    ? {key: POCKETS.key, ranks: POCKETS.ranks.slice()} : {};
+}
+async function findPockets(){
+  const mode = siteMode();
+  if(TARGET){
+    $('pocketnote').innerHTML = 'A target file carries its own maps and its own '
+      + 'points, and the run uses those.';
+    return;
+  }
+  if(mode !== 'pocket' && !(SITE && SITE.centre)){
+    $('pocketnote').innerHTML = '<span class=bad>Check the site first: the '
+      + 'pockets are found inside its box.</span>';
+    return;
+  }
+  const gen = ++POCKET_GEN;
+  const w = waitIn($('pocketnote'), (mode === 'pocket'
+    ? 'AutoSite is searching the whole receptor' : 'AutoSite is searching the box')
+    + '; the first search takes a minute or so while AutoSite starts', {delay: 0});
+  const d = await ask('/api/pockets', {
+    receptor: $('recpath').value.trim(), chains: chosenChains(),
+    hotspots: $('hotspots').value, box_padding: +$('pad').value,
+    box_min: +$('bmin').value, box_max: +$('bmax').value, site_mode: mode,
+    site_ligand: $('site_ligand').value, site_ligand_from: ligandFrom(),
+    keep_hetatms: $('keep_hetatms').checked, pocket_score: $('pocketscore').value});
+  if(gen !== POCKET_GEN){ w.drop(); return; }
+  w.finish();
+  if(!d || d.error){
+    $('pocketnote').innerHTML = '<span class=bad>' + esc((d && d.error)
+      || 'no answer from the server') + '</span>';
+    return;
+  }
+  POCKETS = d;
+  POCKETS.ranks = d.pockets.length ? [d.pockets[0].rank] : [];
+  drawPocketList();
+  pocketChosen();
+}
+function drawPocketList(){
+  const P = POCKETS;
+  if(!P) return;
+  if(!P.pockets.length){
+    $('pocketlist').innerHTML = '';
+    return;
+  }
+  const on = new Set(P.ranks);
+  $('pocketlist').innerHTML = '<div class=bar style="margin:8px 0 6px">'
+    + '<span class=why>Start from</span>'
+    + '<button class="ghost sm" type=button data-pk=best>the best pocket</button>'
+    + '<button class="ghost sm" type=button data-pk=all>every pocket</button>'
+    + '<span class=why>or tick the ones to use.</span></div>'
+    + '<div class=rtable><table class=rt><thead><tr><th></th><th>pocket</th>'
+    + '<th>score</th><th>energy</th><th>points</th><th>radius (\u00c5)</th>'
+    + '<th>buriedness</th></tr></thead><tbody>'
+    + P.pockets.map((p, i) => '<tr><td><input type=checkbox data-rank="' + p.rank
+      + '"' + (on.has(p.rank) ? ' checked' : '') + ' aria-label="Use pocket ' + p.rank
+      + '"></td><td><span class=pkdot style="background:' + pocketColour(i)
+      + '"></span>' + p.rank + '</td><td>' + p.score.toFixed(1) + '</td><td>'
+      + p.energy.toFixed(1) + '</td><td>' + p.points + '</td><td>'
+      + p.radius.toFixed(1) + '</td><td>' + p.buriedness.toFixed(2)
+      + '</td></tr>').join('') + '</tbody></table></div>';
+  $('pocketlist').querySelectorAll('input[data-rank]').forEach(cb =>
+    cb.onchange = () => {
+      const r = +cb.getAttribute('data-rank');
+      P.ranks = P.ranks.filter(x => x !== r);
+      if(cb.checked) P.ranks.push(r);
+      P.ranks.sort((a, b) => a - b);
+      pocketChosen();
+    });
+  $('pocketlist').querySelectorAll('button[data-pk]').forEach(b =>
+    b.onclick = () => {
+      P.ranks = b.getAttribute('data-pk') === 'all'
+        ? P.pockets.map(p => p.rank) : [P.pockets[0].rank];
+      drawPocketList();
+      pocketChosen();
+    });
+}
+/* After the ticks change: what the run will do, and for a box built around
+   a pocket, that box, drawn and stated as the site check states its own. */
+function pocketChosen(){
+  const P = POCKETS;
+  if(!P) return;
+  const sel = P.pockets.filter(p => P.ranks.indexOf(p.rank) >= 0);
+  const where = P.box ? 'inside the box' : 'over the whole receptor';
+  let html;
+  if(!P.pockets.length){
+    html = 'AutoSite found no pocket ' + where + ' (' + P.seconds + ' s). '
+      + (P.box ? 'Build the box somewhere else, or let the run use the box as it is.'
+               : 'Build the box around residues instead.');
+  } else if(!sel.length){
+    html = '<span class=warn>No pocket is ticked, so the run takes them as agfr '
+      + 'does: ' + (P.box ? 'every pocket in the box, merged.'
+                          : 'the best scoring one.') + '</span>';
+  } else {
+    html = 'AutoSite found ' + P.pockets.length + ' pocket'
+      + (P.pockets.length === 1 ? '' : 's') + ' ' + where + ' in ' + P.seconds
+      + ' s, ranked by its ' + P.scored + ' score. The search starts from pocket'
+      + (sel.length === 1 ? ' ' : 's ') + sel.map(p => p.rank).join(', ') + ' ('
+      + sel.reduce((n, p) => n + p.points, 0) + ' points), and from nowhere else.';
+  }
+  if(siteMode() === 'pocket'){
+    if(sel.length){
+      const pad = +$('pad').value, lo = [0, 1, 2].map(i =>
+        Math.min(...sel.map(p => p.centre[i] - p.span[i] / 2)));
+      const hi = [0, 1, 2].map(i => Math.max(...sel.map(p => p.centre[i] + p.span[i] / 2)));
+      const want = [0, 1, 2].map(i => hi[i] - lo[i] + 2 * pad);
+      const size = want.map(w => Math.max(+$('bmin').value, Math.min(+$('bmax').value, w)));
+      const centre = [0, 1, 2].map(i => +((lo[i] + hi[i]) / 2).toFixed(3));
+      SITE = {centre: centre, size: size, mode: 'pocket'};
+      const clip = want.map((w, i) => [w, 'xyz'[i], hi[i] - lo[i]])
+        .filter(x => x[0] > +$('bmax').value + 0.05)
+        .map(x => ({axis: x[1], span: x[2],
+                    padding: Math.max(0, (+$('bmax').value - x[2]) / 2)}));
+      $('sitenote').innerHTML = 'The box is around pocket' + (sel.length === 1 ? ' ' : 's ')
+        + sel.map(p => p.rank).join(', ') + ': centre ' + centre.join(', ') + '; box '
+        + size.map(x => x.toFixed(1)).join(' \u00d7 ') + ' \u00c5'
+        + clippedNote({clipped: clip, box_max: +$('bmax').value,
+                       box_padding: pad}, 'pocket');
+    } else {
+      SITE = null;
+    }
+    drawBox();
+  }
+  $('pocketnote').innerHTML = html;
+  drawPockets();
+}
+/* Each pocket's points in its own colour: the ones ticked large, the rest
+   small and faint. One model of pseudo atoms per pocket, on a chain no
+   structure uses, so the picker's styling never reaches them. */
+function drawPockets(){
+  if(!VD) return;
+  POCKETMODELS.forEach(m => { try { VD.removeModel(m); } catch(e){} });
+  POCKETMODELS = [];
+  const P = POCKETS;
+  if(P && P.pockets.length){
+    P.pockets.forEach((p, i) => {
+      const f = v => (+v).toFixed(3).padStart(8);
+      const lines = p.xyz.map((q, k) => 'HETATM' + String(k + 1).padStart(5)
+        + '  C   PKT ~   1    ' + f(q[0]) + f(q[1]) + f(q[2])
+        + '  1.00  0.00           C');
+      const m = VD.addModel(lines.join('\n') + '\nEND\n', 'pdb');
+      m.__rank = p.rank;
+      m.__colour = pocketColour(i);
+      POCKETMODELS.push(m);
+    });
+  }
+  restylePockets();
+  VD.render();
+}
+function restylePockets(){
+  if(!VD || !POCKETMODELS.length) return;
+  const on = new Set((POCKETS && POCKETS.ranks) || []);
+  POCKETMODELS.forEach(m => m.setStyle({}, {sphere: on.has(m.__rank)
+    ? {radius: 0.55, color: m.__colour}
+    : {radius: 0.3, color: m.__colour, opacity: 0.35}}));
+}
+$('pocketfind').onclick = findPockets;
+$('pocketscore').onchange = () => { if(POCKETS) findPockets(); };
+pocketNoteDefault();
+
+/* A site wider than the largest box, with its padding, is cut to that size,
+   and the part outside the box cannot be docked into. Said where the box is
+   described, with what to do about it. */
+function clippedNote(d, mode){
+  const c = (d && d.clipped) || [];
+  if(!c.length) return '';
+  const max = +d.box_max;
+  const list = xs => xs.length === 1 ? xs[0]
+    : xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1];
+  const out = c.filter(x => x.span > max + 0.05);
+  if(!out.length){
+    /* Every residue is inside; only the padding is less than asked. */
+    return '<br>Held to the ' + max.toFixed(0) + ' Å maximum along '
+      + list(c.map(x => x.axis)) + ', which leaves '
+      + list(c.map(x => x.padding.toFixed(1) + ' Å')) + ' of padding there '
+      + 'instead of ' + (+d.box_padding || 0).toFixed(1) + ' Å. Every residue of '
+      + 'the site is inside the box.';
+  }
+  return '<br><span class=warn><b>The ' + (mode === 'ligand' ? 'ligand' : 'site')
+    + ' is wider than the ' + max.toFixed(0) + ' Å maximum box along '
+    + list(out.map(x => x.axis)) + '</b> (' + list(out.map(x => x.span.toFixed(1)
+    + ' Å along ' + x.axis)) + '), so part of it is outside the box and cannot be '
+    + 'docked into. '
+    + (mode === 'ligand'
+       ? 'Raise Max box to take it all in.'
+       : 'Pick fewer residues, or raise Max box; a larger box takes longer to '
+         + 'build. Picking every residue sets up blind docking rather than '
+         + 'finding the best pocket: for that, build the box around an AutoSite '
+         + 'pocket.')
+    + '</span>';
+}
 /* Redrawing only. The box the run uses is computed on the server from the
    residues, the padding and the limits. */
 if($('showbox')) $('showbox').onchange = drawBox;
@@ -2575,6 +2848,26 @@ function fillLigands(list){
   if(!sel.value && real.length === 1) sel.value = real[0].id;
 }
 
+/* With ADapt's receptor in use, the ligands are listed from the structure
+   ADapt was opened on, not from ADapt's receptor: a ligand ADapt left out of
+   its receptor can still set the box. One ADapt kept in its receptor is
+   marked, and is taken out of the receptor before the maps are built. */
+function ligandFrom(){
+  return adaptOn() && ADAPTSRC && ADAPTSRC.path ? ADAPTSRC.path : '';
+}
+async function adaptLigands(d){
+  const src = ligandFrom();
+  if(!src) return;
+  const o = await ask('/api/receptor?path=' + encodeURIComponent(src));
+  if(!o || o.error || src !== ligandFrom()) return;
+  const inRec = new Set((d.ligands || []).map(l => l.id));
+  fillLigands((o.ligands || []).map(l => inRec.has(l.id)
+    ? Object.assign({}, l, {label: l.label + ' (kept in ADapt\u2019s receptor: '
+                                       + 'taken out of it before docking)'})
+    : l));
+  if(siteMode() === 'ligand') siteSoon();
+}
+
 /* The viewer's selection for a ligand named as the server names it. */
 function ligandSel(spec){
   spec = String(spec || '').trim();
@@ -2592,8 +2885,8 @@ const PICKHINT = {
   residues: 'Click a residue in the structure to add it to the site. Click '
     + 'it again to drop it.',
   ligand: 'The ligand or peptide the box is built around is drawn in orange.',
-  pocket: 'AutoSite finds the pocket when the receptor is prepared; the view '
-    + 'shows the structure until then.'};
+  pocket: 'Find pockets below to see AutoSite\u2019s pockets drawn here and '
+    + 'choose; otherwise it finds the pocket when the receptor is prepared.'};
 
 /* The lines over the view and the strip. With a target file the view shows
    the file's receptor and its own box, so neither line may invite a click on
@@ -2823,7 +3116,8 @@ function drawTarget(){
       + 'did not load</div>';
     return;
   }
-  if(!VD) VD = $3Dmol.createViewer($('viewD'), {backgroundColor: viewBg(false)});
+  if(!VD) VD = viewerIn($('viewD'), {backgroundColor: viewBg(false)});
+  if(!VD) return;
   VD.removeAllModels();
   VD.addModel(TARGET.pdb, 'pdb');
   stylePicker();
@@ -3692,6 +3986,8 @@ $('submit').onclick = async () => {
     box_min:+$('bmin').value, box_max:+$('bmax').value, peptides: PEPS,
     box_chains: $('box_chains').checked ? 'include' : 'ignore',
     site_mode: siteMode(), site_ligand: $('site_ligand').value,
+    site_ligand_from: ligandFrom(), site_pockets: pocketsOut(),
+    pocket_score: $('pocketscore').value,
     site_pocket: $('site_pocket').value,
     agfr: $('agfr').value, autosite: $('autosite').value,
     receptor_gradient: $('receptor_gradient').checked,
@@ -4022,7 +4318,8 @@ const REUSE_FIELDS = {
   site_mode:'site_mode', site_pocket:'site_pocket',
   // Set again once the receptor is loaded, since its choices come from it.
   site_ligand:'site_ligand',
-  agfr:'agfr', autosite:'autosite', cyclic:'cyclic', helical:'helical'
+  agfr:'agfr', autosite:'autosite', cyclic:'cyclic', helical:'helical',
+  pocketscore:'pocket_score'
 };
 const REUSE_TICKS = {minimise:'minimise', keep_hetatms:'keep_hetatms',
                      rebuild_sidechains:'rebuild_sidechains',
@@ -4041,7 +4338,8 @@ const REUSE_TICK_DEFAULTS = {rebuild_sidechains: true, receptor_gradient: true,
    every replica as a coil. */
 const REUSE_FIELD_DEFAULTS = {site_mode: 'residues', site_pocket: 'best',
                               agfr: '1.0', autosite: '1.0', cyclic: 'none',
-                              helical: 0, protonation: 'propka'};
+                              helical: 0, protonation: 'propka',
+                              pocketscore: 'peptide'};
 
 function reuseSet(id, v){
   const el = $(id);
@@ -5007,6 +5305,17 @@ async function loadPose(rank){
     return;
   }
   showEngine();
+  if(!webglOK()){
+    PEPCHAIN = peptideChain(pdb);
+    CONTACTS = classifyContacts(pdb, PEPCHAIN);
+    drawContactList(RCONTACT ? CONTACTS.res : []);
+    drawLid(RCONTACT ? CONTACTS : null);
+    noGL($(engineIs('molstar') ? 'viewM' : 'viewR'),
+         'The contacts and the diagram below are drawn without it');
+    $('viewmsg').textContent = 'pose ' + rank + ': peptide is chain ' + PEPCHAIN + ', '
+      + CONTACTS.res.length + ' receptor residue(s) in contact';
+    return;
+  }
   if(engineIs('molstar')){
     CONTACTS = classifyContacts(pdb, peptideChain(pdb));
     PEPCHAIN = peptideChain(pdb);
@@ -5018,7 +5327,8 @@ async function loadPose(rank){
     return;
   }
   if(!VR){
-    VR = $3Dmol.createViewer($('viewR'), {backgroundColor: viewBg(RPUB)});
+    VR = viewerIn($('viewR'), {backgroundColor: viewBg(RPUB)});
+    if(!VR) return;
     // Label dragging (drag.js). A figure author moves labels clear of the structure before
     // saving; the helper keeps a dragged label inside the canvas and draws its
     // leader line into the saved PNG, which pngURI() does not include because
@@ -5477,6 +5787,7 @@ async function drawMolstar(pdb){
     $('viewmsg').innerHTML = '<span class=bad>Mol* did not load</span>';
     return;
   }
+  if(!webglOK()){ noGL($('viewM')); return; }
   if(MVBUSY) return;
   MVBUSY = true;
   try {
@@ -5949,8 +6260,10 @@ async function viewFile(rel, kind, name){
   }
   if(kind === 'structure' && typeof $3Dmol !== 'undefined'){
     $('file3d').classList.remove('hide');
-    if(!VF) VF = $3Dmol.createViewer($('file3d'), {backgroundColor: viewBg(false)});
-    else VF.setBackgroundColor(viewBg(false));
+    if(!VF) VF = viewerIn($('file3d'), {backgroundColor: viewBg(false)},
+                         'Download the file to open it elsewhere');
+    if(!VF) return;
+    VF.setBackgroundColor(viewBg(false));
     VF.removeAllModels();
     const fmt = structFormat(name || rel);
     const m = VF.addModel(text, fmt);
