@@ -585,15 +585,16 @@ installed there.
 
 The bundles are not yet code-signed, so the first run shows a warning:
 Windows says *Windows protected your PC* (**More info → Run anyway**); macOS
-refuses to open it (**right-click → Open → Open**). Signing removes those
-prompts.
+refuses to open it (**right-click → Open → Open**, or on macOS 15 and later,
+open it once, then **System Settings → Privacy & Security → Open Anyway**).
+Signing removes those prompts.
 
 ### 5.2 What it asks for
 
 | field | what to put |
 |---|---|
-| **Cluster** | **Slurm cluster**, or **This computer** to run on the machine the launcher is on |
-| **Address** | your cluster's login address, the one you use with `ssh`; it is remembered |
+| **Cluster** | a cluster it knows by name (**Grace** or **ACES** at Texas A&M, **Garibaldi** at Scripps Research), which fills in everything but your username; **Slurm cluster** for any other; **This computer** to run on the machine the launcher is on |
+| **Address** | your cluster's login address, the one you use with `ssh`; filled in for a named cluster, and remembered |
 | **Username** | your cluster username |
 | **Tool directory** | the folder you cloned into on the cluster, for example `/scratch/you/ADCP_docking`; `pwd` inside it prints it |
 | **ADFRsuite / Amber roots** | leave blank: `activate.sh` in that folder names them |
@@ -602,6 +603,13 @@ Then press connect. It asks for your password, and for your cluster's second
 sign-in step if it has one, or signs in with your SSH key. The first start on a
 busy login node can take a minute; the browser opens by itself when the page
 is ready. Everything but the password is remembered for next time.
+
+A named cluster also tells the page what its jobs need, where the cluster's
+own `activate.sh` has not: on **Garibaldi**, the Sanner lab's Slurm account
+(`sanner`) and `--partition=highcpu` are filled in on the page, and runs go to
+`/gpfs/group/sanner/<you>/adcp_runs_v2` when that folder's parent exists. Its
+tool directory is `/gpfs/group/sanner/<you>/ADCP_docking_v2`; change it once if
+yours is elsewhere. Off campus, connect to the Scripps VPN first.
 
 ---
 

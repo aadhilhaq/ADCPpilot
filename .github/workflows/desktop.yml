@@ -311,7 +311,7 @@ jobs:
           **Desktop launcher**: signs in to a Slurm cluster, starts the interface there and opens it in your browser.
 
           - **Windows**: unzip, keep the folder together, run \`ADCP-Docking-launcher.exe\`. On first run: *More info -> Run anyway* (the bundle is not yet code-signed).
-          - **macOS (Apple silicon)**: unzip, then right-click the app and choose *Open* the first time.
+          - **macOS (Apple silicon)**: unzip, then right-click the app and choose *Open* the first time; on macOS 15 and later, open it once, then *System Settings -> Privacy & Security -> Open Anyway*.
 
           Verify a download against \`SHA256SUMS.txt\`. To run without a cluster, or in a browser with nothing installed, see [INSTALL.md](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/INSTALL.md).
 

@@ -627,11 +627,18 @@ class App:
                 self.detail("asking the cluster for port %d" % port)
             # A facility's acknowledgement is not set here: the server
             # reads ADCP_ACKNOWLEDGEMENT from activate.sh on the cluster,
-            # which the command sources first.
+            # which the command sources first. A named cluster's table only
+            # suggests where runs go and the Slurm account its jobs need,
+            # where activate.sh has not said.
+            suggest = clusters.server_env(self.site.get(), user)
+            if suggest:
+                self.detail("suggested to the server: %s" % ", ".join(
+                    "%s=%s" % kv for kv in sorted(suggest.items())))
             self.session = sessionmod.start(
                 self.t, self.install.get().strip(), "",
                 port=port, tools_roots=roots, on_output=self.from_cluster,
-                forward=tunnel.forward, free_port=tunnel.free_port)
+                forward=tunnel.forward, free_port=tunnel.free_port,
+                defaults=suggest)
             self.say("Ready. Opening it in your browser.")
             # The link stays on screen because "Open in browser" opens the
             # DEFAULT browser, and on a managed laptop that is not always the

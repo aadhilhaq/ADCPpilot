@@ -378,6 +378,12 @@ class App:
                 # Cores per task starts at something a node here can give.
                 "node_cores": None if slurm.local_mode() else slurm.node_cores(),
                 "roots": self.tools_roots,
+                # The Slurm account and options every job on this cluster
+                # needs, when activate.sh or the desktop launcher says: the
+                # page fills its own boxes with them when they are empty.
+                "slurm_defaults": {
+                    "account": os.environ.get("ADCP_SLURM_ACCOUNT", "").strip(),
+                    "extra": os.environ.get("ADCP_SLURM_EXTRA", "").strip()},
                 # Required tools only. Optional ones are listed apart, so a
                 # machine without AmberTools reads as able to dock.
                 "missing": T.missing_required(),

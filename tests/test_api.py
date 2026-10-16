@@ -74,6 +74,15 @@ t = get("/api/tools")
 check("tools" in t, "/api/tools returned nothing useful")
 check(any(x["name"] == "adcp" for x in t["tools"]),
       "adcp is not among the tools the server reports on")
+# A cluster's Slurm account and options, from activate.sh or the launcher's
+# table, reach the page, which fills its empty boxes with them.
+os.environ.update(ADCP_SLURM_ACCOUNT="sanner", ADCP_SLURM_EXTRA="--partition=highcpu")
+check(get("/api/tools").get("slurm_defaults") == {"account": "sanner", "extra": "--partition=highcpu"},
+      "the server does not pass a cluster's Slurm account and options to the page")
+for _v in ("ADCP_SLURM_ACCOUNT", "ADCP_SLURM_EXTRA"):
+    os.environ.pop(_v)
+check(get("/api/tools").get("slurm_defaults") == {"account": "", "extra": ""},
+      "with nothing set the page is given nothing to fill in")
 
 # --- the peptide validation the form depends on ---------------------------
 CASES = [

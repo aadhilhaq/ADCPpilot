@@ -287,9 +287,35 @@ check("HOW_TO_CITE.txt" in _L.HOW_TO_CITE and "CITATION.bib" in _L.HOW_TO_CITE,
 from adcp_launcher import clusters as _C                         # noqa: E402
 check(not any(s.get("ack") for s in _C.SITES.values()),
       "the launcher's site table carries a facility's acknowledgement")
-check(_C.sites() == [_C.OTHER, _C.THIS] and not _C.SITES[_C.OTHER]["host"],
-      "the cluster box offers more than a cluster the person names and this "
-      "computer, or fills in an address: %r" % _C.sites())
+check(_C.sites()[-2:] == [_C.OTHER, _C.THIS] and not _C.SITES[_C.OTHER]["host"]
+      and not _C.SITES[_C.OTHER]["runs"],
+      "any other cluster and this computer do not come last, or the other "
+      "cluster fills in an address or a runs folder: %r" % _C.sites())
+_named = [n for n in _C.sites() if n not in (_C.OTHER, _C.THIS)]
+check(_named == ["Grace (TAMU)", "ACES (TAMU)", "Garibaldi (Scripps)"]
+      and all(_C.SITES[n]["host"] and _C.SITES[n]["install"] and _C.SITES[n]["runs"]
+              for n in _named),
+      "each named cluster brings its address, install and runs folder: %r" % _named)
+_g = _C.defaults_for("Garibaldi (Scripps)", "ksojitra")
+check(_g["host"] == "garibaldi.scripps.edu"
+      and _g["install"] == "/gpfs/group/sanner/ksojitra/ADCP_docking_v2"
+      and _g["runs"] == "/gpfs/group/sanner/ksojitra/adcp_runs_v2",
+      "Garibaldi fills in the Sanner lab's address and folders: %r" % _g)
+check(_C.server_env("Garibaldi (Scripps)", "ksojitra") == {
+          "ADCP_RUNS": "/gpfs/group/sanner/ksojitra/adcp_runs_v2",
+          "ADCP_SLURM_ACCOUNT": "sanner", "ADCP_SLURM_EXTRA": "--partition=highcpu"},
+      "Garibaldi suggests the lab's account and partition to the server: %r"
+      % _C.server_env("Garibaldi (Scripps)", "ksojitra"))
+check(_C.server_env(_C.OTHER, "someone") == {} and _C.server_env("Grace (TAMU)", "") == {},
+      "a cluster the launcher does not know, or one with no username yet, is told nothing")
+_d = session.command("/x", defaults=_C.server_env("Garibaldi (Scripps)", "ksojitra"))
+check('[ -n "${ADCP_SLURM_ACCOUNT:-}" ] || export ADCP_SLURM_ACCOUNT=sanner;' in _d
+      and '[ -n "${ADCP_RUNS:-}" ] || export ADCP_RUNS=/gpfs/group/sanner/ksojitra/adcp_runs_v2;' in _d
+      and "export ADCP_SLURM_EXTRA=--partition=highcpu;" in _d
+      and _d.index(". ./activate.sh") < _d.index("ADCP_SLURM_ACCOUNT"),
+      "the suggestions are set after activate.sh, and only where it set none: %s" % _d[:400])
+check("'~" not in session.command("/x", defaults={"ADCP_RUNS": "~/adcp_runs"}),
+      "a suggested runs folder under ~ is quoted so the tilde never expands")
 check(_C.site_of("Some cluster an older version offered") == _C.OTHER
       and _C.site_of(_C.THIS) == _C.THIS,
       "a site saved by an older version is not read as the cluster")

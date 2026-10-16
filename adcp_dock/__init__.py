@@ -13,7 +13,7 @@ cli (the command line), slurm (scheduling and local execution), cite
 rescoring engine is in _vendor.
 """
 
-__version__ = "0.1.18"
+__version__ = "0.1.19"
 
 # Authorship and attribution, defined once and read by the launcher, the
 # page, the CLI and the README. ADCP and ADFRsuite are products of the

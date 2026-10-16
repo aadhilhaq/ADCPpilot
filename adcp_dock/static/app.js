@@ -741,6 +741,11 @@ document.querySelectorAll('#guide button[data-goto]').forEach(b => {
 let ADCP11 = false, AGFR11 = false;
 api('/api/tools').then(d => {
   if(d.error) return;
+  // A cluster's Slurm account and options, when its activate.sh or the
+  // desktop launcher names them: written into the boxes only while empty.
+  const sd = d.slurm_defaults || {};
+  if(sd.account && !$('account').value.trim()) $('account').value = sd.account;
+  if(sd.extra && !$('sbatch_extra').value.trim()) $('sbatch_extra').value = sd.extra;
   const miss = d.missing || [];
 // Offer only the MM-GBSA engines this machine can run, and say what the
 // chosen one computes. Three engines that do not compute the same quantity

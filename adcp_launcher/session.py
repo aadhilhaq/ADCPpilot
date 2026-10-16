@@ -34,7 +34,8 @@ GUESSES = (
 MIN_PYTHON = (3, 9)
 
 
-def command(install, runs="", python="", port=0, tools_roots=(), env=None):
+def command(install, runs="", python="", port=0, tools_roots=(), env=None,
+            defaults=None):
     """The line run on the far end.
 
     The server is started on the login node: it reads files, validates a form
@@ -47,6 +48,10 @@ def command(install, runs="", python="", port=0, tools_roots=(), env=None):
     Python can parse. A cluster whose default python3 is too old would
     otherwise fail on a SyntaxError deep in an import, which reaches the user
     as a traceback instead of a sentence.
+
+    `defaults` are set only where activate.sh has not set them already: what
+    a named cluster's table suggests (where runs go, the Slurm account),
+    which the installation's own settings override.
     """
     where = clusters.remote_path(install)
     bits = ["-m", "adcp_dock.cli", "serve",
@@ -66,8 +71,12 @@ def command(install, runs="", python="", port=0, tools_roots=(), env=None):
         '%(pick)s; '
         '"$PY" -c %(check)s 2>/dev/null || { '
         'echo "%(marker)s $("$PY" -V 2>&1)"; exit 78; }; '
-        '%(env)sPYTHONPATH=%(where)s exec "$PY" %(args)s'
+        '%(defaults)s%(env)sPYTHONPATH=%(where)s exec "$PY" %(args)s'
         % {"where": where, "pick": pick, "marker": OLD_PYTHON_MARKER,
+           "defaults": "".join(
+               '[ -n "${%s:-}" ] || export %s=%s; '
+               % (k, k, clusters.remote_path(v) if k == "ADCP_RUNS" else shlex.quote(v))
+               for k, v in sorted((defaults or {}).items()) if v),
            "env": "".join("export %s=%s; " % (k, shlex.quote(v))
                           for k, v in sorted((env or {}).items()) if v),
            "check": shlex.quote(
@@ -105,13 +114,13 @@ class Session:
 
 def start(t, install, runs="", python="python3", tools_roots=(),
           timeout=90, on_output=None, forward=None, free_port=None,
-          port=0, env=None):
+          port=0, env=None, defaults=None):
     """Run the server, read its URL, forward a local port to it."""
     say = on_output or (lambda *a: None)
     # Port 0 means the server picks a free one and prints it, which is
     # the only choice that cannot collide on a shared login node. A
     # number here is a deliberate request for a stable one.
-    line = command(install, runs, python, port, tools_roots, env=env)
+    line = command(install, runs, python, port, tools_roots, env=env, defaults=defaults)
     say("$ " + line)
     ch = t.open_session()
     ch.get_pty()          # so the server dies with the connection

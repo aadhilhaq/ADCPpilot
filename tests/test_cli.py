@@ -157,6 +157,23 @@ if os.path.isfile(os.path.join(ex, "job.json")):
           and os.path.isfile(os.path.join(ex, "job.json")),
           "adcp-dock example --force did not replace the example")
 
+# Where runs go: $ADCP_RUNS when it, or the folder it would go in, exists (the
+# launcher suggests one for a cluster it knows), else $SCRATCH, else home.
+_tmp = tempfile.mkdtemp(prefix="adcp_runs_")
+_env = {k: os.environ.get(k) for k in ("ADCP_RUNS", "SCRATCH")}
+os.environ["SCRATCH"] = _tmp
+os.environ["ADCP_RUNS"] = os.path.join(_tmp, "mine", "adcp_runs_v2")
+check(cli.default_runs() == os.path.join(_tmp, "adcp_runs"),
+      "a suggested runs folder whose parent does not exist was taken: %s" % cli.default_runs())
+os.makedirs(os.path.join(_tmp, "mine"))
+check(cli.default_runs() == os.path.join(_tmp, "mine", "adcp_runs_v2"),
+      "a suggested runs folder whose parent exists was not taken: %s" % cli.default_runs())
+for _k, _v in _env.items():
+    if _v is None:
+        os.environ.pop(_k, None)
+    else:
+        os.environ[_k] = _v
+
 if fails:
     print("test_cli FAILED (%d)" % len(fails))
     for f in fails:

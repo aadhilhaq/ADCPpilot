@@ -134,14 +134,19 @@ def _local(a):
 def default_runs():
     """Where runs go when none is given.
 
-    $SCRATCH on a cluster that provides it: a home directory usually has a
-    small file allowance and a docking run writes tens of thousands of files.
+    $ADCP_RUNS when it is set and it, or the folder it would go in, exists:
+    activate.sh may set it, and the desktop launcher suggests one for a
+    cluster it knows. Otherwise $SCRATCH on a cluster that provides it: a
+    home directory usually has a small file allowance and a docking run
+    writes tens of thousands of files.
     """
-    for var in ("ADCP_RUNS", "SCRATCH"):
-        root = os.environ.get(var)
-        if root and os.path.isdir(root):
-            return (root if var == "ADCP_RUNS"
-                    else os.path.join(root, "adcp_runs"))
+    asked = os.path.expanduser(os.environ.get("ADCP_RUNS", "").strip())
+    if asked and (os.path.isdir(asked)
+                  or os.path.isdir(os.path.dirname(asked.rstrip("/")) or "/")):
+        return asked
+    root = os.environ.get("SCRATCH")
+    if root and os.path.isdir(root):
+        return os.path.join(root, "adcp_runs")
     return os.path.expanduser("~/adcp_runs")
 
 

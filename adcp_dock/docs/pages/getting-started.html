@@ -35,7 +35,9 @@ computer and open the same address there:</p>
 <pre>ssh -N -L 41823:127.0.0.1:41823 you@login.your-cluster.edu</pre>
 <p>The desktop launcher does all of that for you: it signs in, starts the
 server, forwards the port and opens the browser. Closing it stops the
-server.</p>
+server. For a cluster it knows by name (Grace and ACES at Texas A&amp;M,
+Garibaldi at Scripps Research) only your username is typed: the address, the
+folders and the Slurm account and partition its jobs need are filled in.</p>
 <div class="note"><b>The server submits jobs; it does not dock.</b> Starting it
 on a login node is light work: it reads files, checks what you typed and hands
 the rest to Slurm. If your site stops long-running processes on login nodes
