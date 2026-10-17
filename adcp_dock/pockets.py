@@ -34,8 +34,10 @@ import zipfile
 
 from . import adcp11
 
-#: AutoSite on a 30 A box takes a few seconds and over a whole 400 residue
-#: receptor well under a minute; this is the most it is given.
+#: The most AutoSite is given. Measured on a 98 residue receptor: 98 s inside
+#: a 26 A box, 13 s over the whole receptor. A box is the slower of the two,
+#: not the quicker, because the grid is finer inside it, so a large receptor
+#: can reach this limit; find() says so rather than failing quietly.
 TIMEOUT = 240
 #: Its address space, capped as the surfaces' msms is, since it runs beside
 #: the page's server.

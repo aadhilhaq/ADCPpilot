@@ -1143,8 +1143,9 @@ say "Wrote $ACT"
 # --- ADCP 1.1, beside ADFRsuite --------------------------------------------
 # With the package's own installer, which follows the Scripps Research
 # Institute's recipe and checks every Scripps package against a pinned
-# checksum. Optional for docking, which ADCP 1.0 does, so a failure here is
-# reported and the install carries on; running this script again retries it.
+# checksum. This is what a run docks with, so the install stops on a failure
+# here rather than leave a copy that cannot dock, or that would fall back to
+# older tools; running this script again retries it.
 adfr_at="${found_adfr:-${PREFIX:-$HERE}/tools/docking/ADFRsuite}"
 TOOLS_AT=$(adapt_tools "$adfr_at" "$HERE")
 if [ "$need_suite" = 1 ]; then

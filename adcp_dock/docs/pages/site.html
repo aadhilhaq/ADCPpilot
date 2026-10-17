@@ -125,8 +125,10 @@ shows these pockets before anything is submitted and lets you choose.</p>
 <li>It searches inside the box once the site has been checked, or over the whole
 receptor for a box built around a pocket. It runs AutoSite 1.1 on a quick copy
 of the receptor (the chains kept, waters out, hydrogens added by
-<code>prepare_receptor</code>) and takes a few seconds; the answer is kept, so
-asking again is instant.</li>
+<code>prepare_receptor</code>). Allow it up to a minute or two: on a small
+receptor it took 13 seconds over the whole structure and 98 seconds inside a
+box, which is the slower way round, because the grid inside a box is finer. The
+answer is kept, so asking again is instant.</li>
 <li>The pockets are listed ranked, with AutoSite's score, energy, number of
 points, radius and buriedness, and drawn in the site view in their own colours.
 <b>Rank them by</b> chooses AutoSite's peptide score (energy &times;
