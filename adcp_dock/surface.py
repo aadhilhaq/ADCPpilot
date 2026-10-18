@@ -8,14 +8,15 @@ identical.
 
 MSMS, by Michel Sanner, triangulates the solvent excluded surface: the
 surface a probe sphere of 1.5 Angstrom traces as it rolls over the atoms.
-The msms program ships in ADFRsuite's bin folder. It is called here as the
-installed program, never copied, because its licence allows non-commercial
-scientific research only (see the third party notices). Published
-work that shows one of these surfaces cites Sanner, Olson and Spehner,
-Biopolymers 38:305-320, 1996.
+It is run from the ADCP 1.1 suite, which carries it as the Python library
+mslib, through msms_mslib.py beside this module and the suite's own Python;
+or as an msms program, where one is installed and named. Neither is copied
+into this package (see the third party notices). Published work that shows
+one of these surfaces cites Sanner, Olson and Spehner, Biopolymers
+38:305-320, 1996.
 
 MSMS's own inputs are used. Each atom is a sphere with the radius
-pdb_to_xyzr, MSMS's own converter, would give it. ADFRsuite carries that
+pdb_to_xyzr, MSMS's own converter, would give it. The suite carries that
 table as MolKit's radii_patterns.py, "array of radii taken from
 pdb_to_xyzr", and it is read from the installed tree as data rather than
 imported or copied. Hydrogens are left out and the heavy atoms take the
@@ -95,7 +96,7 @@ def density_for(n_atoms):
     coarser as it grows, so a small one is smooth and a large complex stays
     a size a browser draws without trouble. MSMS's own default is 1.0.
 
-    Measured with ADFRsuite's msms 2.6.1 on a compute node: MDM2 (1YCR
+    Measured with the msms program 2.6.1 on a compute node: MDM2 (1YCR
     chain A, 705 heavy atoms) at 3.0 gives 11,488 vertices in 0.15 s; the
     dengue envelope dimer (7A3R, 5,912) at 1.0 gives 38,530 in 0.4 s; GroEL
     with GroES (1AON, 58,870) at 0.5 gives 234,229 in 4.5 s.
@@ -318,7 +319,7 @@ def one_conformer(atoms):
 
 # --- radii -----------------------------------------------------------------
 
-#: Element radii for a heavy atom when ADFRsuite's table cannot be read, in
+#: Element radii for a heavy atom when the suite's table cannot be read, in
 #: Angstrom, as united atoms: a carbon or nitrogen counts the hydrogens it
 #: carries, as pdb_to_xyzr's own united radii do.
 ELEMENT_RADII = {"C": 1.90, "N": 1.70, "O": 1.50, "S": 1.80, "P": 1.80,
@@ -332,8 +333,8 @@ _TABLES = {}
 
 
 def adfr_home(msms_exe):
-    """The suite MSMS comes from: ADFRsuite's folder, from the msms program
-    in its bin folder, or the ADCP 1.1 suite's, from its Python."""
+    """The suite MSMS comes from: the ADCP 1.1 suite's folder, from its
+    Python, or the folder above an msms program's bin folder."""
     if not msms_exe:
         return None
     first = msms_exe[0] if isinstance(msms_exe, (list, tuple)) else msms_exe
@@ -356,6 +357,10 @@ def _env(exe):
     for k in ("PYTHONPATH", "PYTHONHOME"):
         env.pop(k, None)
     env["PYTHONNOUSERSITE"] = "1"
+    # mslib loads numpy, whose OpenBLAS starts a thread for every CPU; on a
+    # 48-core node under the memory cap MSMS runs with, they cannot all be
+    # given memory and no surface is written.
+    env["OPENBLAS_NUM_THREADS"] = "1"
     lib = os.path.join(adfr_home(exe), "lib")
     env["LD_LIBRARY_PATH"] = (env.get("LD_LIBRARY_PATH", "") + os.pathsep
                               + lib).strip(os.pathsep)
@@ -372,14 +377,10 @@ def describe(exe):
 
 
 def radii_file(home):
-    """MolKit's copy of pdb_to_xyzr's table in an ADFRsuite folder, or in
-    the ADCP 1.1 suite's, or None."""
+    """MolKit's copy of pdb_to_xyzr's table in the ADCP 1.1 suite's folder,
+    or None."""
     if not home:
         return None
-    for sub in ("CCSBpckgs", os.path.join("lib", "python2.7", "site-packages")):
-        p = os.path.join(home, sub, "MolKit", "radii_patterns.py")
-        if os.path.isfile(p):
-            return p
     found = glob.glob(os.path.join(home, "lib", "python3*", "site-packages",
                                    "MolKit", "radii_patterns.py"))
     return found[0] if found else None
@@ -569,23 +570,46 @@ def pieces(rows, probe=PROBE):
 
 # --- msms itself -------------------------------------------------------------
 
+#: Where the ADCP 1.1 suite is looked for inside a place: the place itself,
+#: or the folders its installers put it in.
+SUITE_SUBDIRS = ("", "adcpsuite", os.path.join("tools", "docking", "adcpsuite"))
+
+
+def find_suite(places=(), env="ADCPSUITE_HOME"):
+    """The ADCP 1.1 suite's folder: $ADCPSUITE_HOME, then inside each of
+    `places`, or None. It is the one whose own Python has mslib."""
+    cands = [os.environ.get(env)]
+    for place in places or ():
+        if place:
+            cands += [os.path.join(place, sub) for sub in SUITE_SUBDIRS]
+    for home in cands:
+        if (home and os.path.isfile(os.path.join(home, "bin", "python"))
+                and glob.glob(os.path.join(home, "lib", "python3*", "site-packages",
+                                           "mslib", "__init__.py"))):
+            return os.path.realpath(home)
+    return None
+
+
 def find_msms(places=(), env="MSMS_EXE"):
-    """The msms program: $MSMS_EXE, then inside each of `places`, then the
-    PATH. A place can be ADFRsuite's folder or its bin folder, a tools
-    folder holding ADFRsuite, or a repository with ADFRsuite in third_party,
-    which is where some installers put it."""
+    """How MSMS is run here: $MSMS_EXE, or an msms program in the bin
+    folder of one of `places`; else the ADCP 1.1 suite's MSMS library,
+    mslib, as the command [suite's Python, msms_mslib.py], which takes the
+    program's arguments and writes its files; else an msms on the PATH.
+    None when there is none of them."""
     given = os.environ.get(env)
     if given and os.path.isfile(given) and os.access(given, os.X_OK):
         return given
     for place in places or ():
         if not place:
             continue
-        for sub in ("bin", "", os.path.join("ADFRsuite", "bin"),
-                    os.path.join("third_party", "ADFRsuite", "bin"),
-                    os.path.join("tools", "docking", "ADFRsuite", "bin")):
+        for sub in ("bin", ""):
             p = os.path.join(place, sub, "msms")
             if os.path.isfile(p) and os.access(p, os.X_OK):
                 return p
+    home = find_suite(places)
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "msms_mslib.py")
+    if home and os.path.isfile(script):
+        return [os.path.join(home, "bin", "python"), script]
     return shutil.which("msms")
 
 
@@ -684,9 +708,9 @@ def compute(atoms, exe, probe=PROBE, density=None, timeout=TIMEOUT,
     Raises SurfaceError with a reason a person can read.
     """
     if not exe or not all(os.path.isfile(p) for p in _cmd(exe)):
-        raise SurfaceError("MSMS is not installed here: neither ADFRsuite's "
-                           "msms program nor the ADCP 1.1 suite's MSMS library "
-                           "(mslib) was found")
+        raise SurfaceError("MSMS is not installed here: neither the ADCP 1.1 "
+                           "suite's MSMS library (mslib) nor an msms program "
+                           "was found")
     table_path = radii_file(adfr_home(exe))
     table = None
     if table_path:

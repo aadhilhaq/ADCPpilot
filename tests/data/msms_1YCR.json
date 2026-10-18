@@ -1,0 +1,11 @@
+{
+ "structure": "adcp_dock/example_run/receptor/1YCR.pdb, every atom",
+ "made_with": "the msms program, MSMS 2.6.1, given pdb_to_xyzr's radii from MolKit's table, as surface.compute gives them",
+ "made_on": "2026-10-18",
+ "probe": 1.5,
+ "density": 3.0,
+ "vertices": 11835,
+ "triangles": 23666,
+ "pieces": 1,
+ "shape_sha256": "b3a6bacd97a61530b9cf4fd89461766e231ae5e3079be8b386ef29f75ecfdc44"
+}

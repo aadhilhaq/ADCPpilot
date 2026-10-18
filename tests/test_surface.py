@@ -2,10 +2,11 @@
 
 By Aadhil Haq
 
-MSMS ships in ADFRsuite's bin folder and is called as the installed program.
-What is checked: the radii it is given are pdb_to_xyzr's, read from
-ADFRsuite's own copy of that table; the triangulation it writes comes back
-whole and decodes to the counts it states; the second request for the same
+MSMS comes with the ADCP 1.1 suite as its library, mslib, and is run through
+msms_mslib.py with the suite's own Python, which takes the msms program's
+arguments and writes its files. What is checked: the radii it is given are
+pdb_to_xyzr's, read from the suite's own copy of that table; the
+triangulation it writes comes back whole and decodes to the counts it states; the second request for the same
 structure is read from the cache; and every way it can fail (no msms, an msms
 that writes nothing, a structure too large) comes back as a reason, which the
 server turns into the viewer drawing its own surface.
@@ -38,10 +39,10 @@ def check(cond, why):
 TMP = tempfile.mkdtemp(prefix="adcp_surface_")
 os.environ["HOME"] = TMP
 REC = os.path.join(ROOT, "adcp_dock", "example_run", "receptor", "1YCR.pdb")
-# Where the tools are, for the checks that run them: ADCP_TEST_TOOLS, or else the folder
-# holding ADFRsuite. Without either those checks are skipped.
+# Where the tools are, for the checks that run them: ADCP_TEST_TOOLS, or else
+# ADCPSUITE_HOME. Without either those checks are skipped.
 ROOTS = [r for r in (os.environ.get("ADCP_TEST_TOOLS", ""),
-                     os.path.dirname(os.environ.get("ADFRSUITE_HOME", "").rstrip("/")))
+                     os.environ.get("ADCPSUITE_HOME", ""))
          if r and os.path.isdir(r)]
 atoms = [a for a in structure.read(REC) if a.chain == "A"]
 
@@ -228,13 +229,10 @@ surface.MAX_ATOMS = was
 # The server turns any of these into the viewer's own surface, with the reason.
 runs = os.path.join(TMP, "runs")
 app = server.App(runs)
-for k in ("ADFRSUITE_HOME",):
-    os.environ.pop(k, None)
-app.tools_roots = []
-_was_find = toolmod.adfr_program
-toolmod.adfr_program = lambda name, tools=None, roots=(): None
+_was_find = toolmod.msms_command
+toolmod.msms_command = lambda tools=None, roots=(): None
 got = app.surface({"path": [REC], "chains": ["A"]})
-toolmod.adfr_program = _was_find
+toolmod.msms_command = _was_find
 check(got.get("source") == "fallback" and "not installed" in got.get("why", ""),
       "without msms the page is told to draw its own surface, and why (%s)" % got)
 got = app.surface({"path": [os.path.join(TMP, "nothing.pdb")]})
@@ -332,8 +330,8 @@ check("function msmsAdd" in surface.VIEWER_JS
       and "function msmsSurface" in surface.VIEWER_JS,
       "the module carries the page code that draws its answers")
 
-# --- the real msms, where ADFRsuite has one ------------------------------------
-exe = toolmod.discover(roots=ROOTS).adfr_program("msms")
+# --- the real MSMS, the ADCP 1.1 suite's -----------------------------------------
+exe = toolmod.msms_command(toolmod.discover(roots=ROOTS), roots=ROOTS)
 if not exe:
     print("skip  msms is not installed here; the fallbacks were checked (%d checks)"
           % ran)
@@ -345,7 +343,7 @@ if not exe:
 
 table_path = surface.radii_file(surface.adfr_home(exe))
 check(table_path and table_path.endswith(os.path.join("MolKit", "radii_patterns.py")),
-      "pdb_to_xyzr's table is found in ADFRsuite (%s)" % table_path)
+      "pdb_to_xyzr's table is found in the ADCP 1.1 suite (%s)" % table_path)
 table = surface.read_radii_table(table_path)
 # pdb_to_xyzr's united atom radii: a methyl carbon 2.00, a carbonyl oxygen
 # 1.40, a carbonyl carbon 1.74, an Arg NH 1.80, a zinc 1.40.
@@ -358,7 +356,7 @@ check(surface.version(exe).startswith("MSMS"), "msms names itself (%r)" % surfac
 
 cache = os.path.join(TMP, "cache")
 got = surface.cached(atoms, exe, cache)
-check(got["source"] == "msms" and not got["cached"], "the first request runs msms")
+check(got["source"] == "msms" and not got["cached"], "the first request runs MSMS")
 check(got["probe"] == 1.5 and got["density"] == 3.0,
       "a 1.5 A probe, and the density for a small receptor (%s, %s)"
       % (got["probe"], got["density"]))
@@ -453,7 +451,7 @@ check(both_ans["pieces"] == 1 and len(parts_both) == 1 and parts_both[0][1] > 0,
       % (len(parts_both), [round(v) for _i, v in parts_both]))
 
 # Through the server, for the site view and for a run.
-os.environ["ADFRSUITE_HOME"] = surface.adfr_home(exe)
+os.environ["ADCPSUITE_HOME"] = surface.adfr_home(exe)
 app = server.App(runs, tools_roots=ROOTS)
 got = app.surface({"path": [REC], "chains": ["A"]})
 check(got.get("source") == "msms" and got.get("vertices") == nv,
@@ -470,8 +468,10 @@ ans = surface.answer(pdb_text, exe, None, name="1YCR.pdb", chains=["A"])
 check(ans.get("source") == "msms" and ans.get("vertices") == nv,
       "a viewer's text gives the surface its atoms give (%s)"
       % {k: ans.get(k) for k in ("source", "vertices", "why")})
-check(surface.find_msms([surface.adfr_home(exe)]) is not None,
-      "msms is found from ADFRsuite's folder")
+_found = surface.find_msms([surface.adfr_home(exe)])
+check(isinstance(_found, list)
+      and [os.path.realpath(x) for x in _found] == [os.path.realpath(x) for x in exe],
+      "MSMS is found from the suite's folder (%s)" % _found)
 
 if fails:
     print("test_surface FAILED (%d of %d)" % (len(fails), ran))
