@@ -7,6 +7,8 @@ By Aadhil Haq
     python -m adcp_dock.worker /path/to/job.json report
     python -m adcp_dock.worker /path/to/job.json panel   (an older run)
     python -m adcp_dock.worker /path/to/job.json rescore:openmm
+    python -m adcp_dock.worker /path/to/job.json tidy    (a finished run)
+    python -m adcp_dock.worker /path/to/job.json untidy  (undo its tidy)
 """
 import os
 import sys
@@ -21,6 +23,11 @@ def main(argv=None):
         return 2
     jobfile, stage = argv[0], argv[1]
     rundir = os.path.dirname(os.path.abspath(jobfile))
+    if stage in ("tidy", "untidy"):
+        # The run's tidy, or its undo, in a short job of its own. Its exit
+        # code is the job's, so a tidy that stopped shows as failed.
+        from . import tidy
+        return tidy.main([rundir] + (["--undo"] if stage == "untidy" else []))
     j = jobmod.load(jobfile)
 
     def log(*a):

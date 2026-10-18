@@ -1546,6 +1546,9 @@ class App:
         """
         if not rundir or not os.path.isfile(jobmod.path_of(rundir)):
             return {"error": "no such run"}
+        busy = self._tidying(rundir)
+        if busy:
+            return {"error": busy}
         try:
             return {"jobs": pipeline.submit_panel(rundir, log=lambda *a: None)}
         except SystemExit as exc:
@@ -1626,6 +1629,9 @@ class App:
         eng = gbengines.get(engine)
         if not eng.available():
             return {"error": "%s is not installed here" % eng.label}
+        busy = self._tidying(rundir)
+        if busy:
+            return {"error": busy}
         try:
             return {"jobs": pipeline.submit_rescore(rundir, engine,
                                                     log=lambda *a: None)}
@@ -1637,6 +1643,9 @@ class App:
     def resume_run(self, rundir):
         if not rundir or not os.path.isfile(jobmod.path_of(rundir)):
             return {"error": "no such run"}
+        busy = self._tidying(rundir)
+        if busy:
+            return {"error": busy}
         try:
             return pipeline.resume(rundir, log=lambda *a: None)
         except SystemExit as exc:
@@ -2136,13 +2145,42 @@ class App:
             todo = pipeline.outstanding(rundir, j)
         except Exception:                                       # noqa: BLE001
             todo = []
+        from . import tidy as tidymod
         return {"rundir": rundir, "job": j, "jobs": jobs,
                 "prep_warnings": prep_warnings(rundir, j),
                 "outstanding": [{"index": i, "name": n, "sequence": s2}
                                 for i, n, s2 in todo],
                 "done": done, "total": len(j.get("peptides") or []),
                 "results": results,
+                # Whether the run is tidied, and its tidy job: the page's
+                # Tidy button reads these. Neither walks the run.
+                "tidy": dict(tidymod.status(rundir),
+                             job=tidymod.job_state(rundir)),
                 "log_tail": _tail(os.path.join(rundir, "logs"))}
+
+    def tidy_run(self, rundir, undo=False):
+        """Tidy a finished run, or undo it, in a short job of its own."""
+        bad = self.check_run(rundir)
+        if bad:
+            return {"error": bad}
+        from . import tidy as tidymod
+        try:
+            return tidymod.submit(rundir, undo_=bool(undo))
+        except (RuntimeError, OSError, ValueError) as exc:
+            return {"error": "could not submit the %s: %s"
+                             % ("undo" if undo else "tidy", exc)}
+
+    @staticmethod
+    def _tidying(rundir):
+        """Why a job that reads the run's files must wait, or None: a tidy
+        moves them while it runs."""
+        from . import tidy as tidymod
+        job = tidymod.job_state(rundir)
+        if job.get("live"):
+            return ("this run is being %s (job %s); try again once that has "
+                    "finished" % ("put back" if job.get("undo") else "tidied",
+                                  job.get("job_id")))
+        return None
 
 
 def _tail(logdir, n=40):
@@ -2572,6 +2610,9 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/api/rescore":
             return self._send(app.rescore_run(body.get("rundir"),
                                               body.get("engine")))
+        if u.path == "/api/tidy":
+            return self._send(app.tidy_run(body.get("rundir"),
+                                           body.get("undo")))
         if u.path == "/api/adapt":
             return self._send(app.adapt_open(body))
         if u.path == "/api/adapt/write":

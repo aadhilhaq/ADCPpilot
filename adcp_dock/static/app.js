@@ -4903,6 +4903,51 @@ function pinResults(el){
 }
 
 
+/* Tidy: the files a finished run's results no longer read, packed into one
+   archive in the run by a short job, and Undo to put them back. Offered once a
+   peptide has a result and none of the run's jobs is queued or running; while
+   its own job runs it says so. No question first: it is undone as easily. */
+const TIDY_BUSY = ['PENDING', 'RUNNING', 'CONFIGURING', 'COMPLETING',
+                   'REQUEUED', 'SUSPENDED'];
+const TIDYMSG = {};
+function tidyLine(dir, d){
+  const t = d.tidy || {}, job = t.job || {};
+  const num = v => Number(v || 0).toLocaleString();
+  const busy = Object.values(d.jobs || {}).some(v =>
+    Object.keys(v.state || {}).some(s =>
+      TIDY_BUSY.includes(String(s).split(' ')[0].toUpperCase())));
+  let b = '', note = '';
+  if(job.live){
+    b = '<button class=ghost id=rtidy type=button disabled>'
+      + (job.undo ? 'Putting the files back…' : 'Tidying…') + '</button>';
+  } else if(t.tidied){
+    b = '<button class=ghost id=rtidy data-undo=1 type=button'
+      + (busy ? ' disabled' : '') + ' title="' + esc(busy
+        ? 'Undo is offered once the run\'s jobs have finished.'
+        : 'Put the ' + num(t.packed) + ' packed files back where they were, '
+          + 'in a short job.') + '">Undo tidy</button>';
+    note = num(t.packed) + ' files packed into archive/'
+      + (t.inodes_after != null ? ', ' + num(t.inodes_before) + ' down to '
+         + num(t.inodes_after) : '');
+  } else if(d.done && !busy){
+    b = '<button class=ghost id=rtidy type=button title="Pack the files the '
+      + 'results no longer read (replica trajectories, MM-GBSA working files) '
+      + 'into one archive in the run\'s folder, in a short job. The scratch '
+      + 'quota counts files. The table, the viewer, the report, rescoring and '
+      + 'the downloads keep working, and Undo puts every file back.">'
+      + 'Tidy</button>';
+  }
+  if(!b) return '';
+  if(!job.live && /FAIL|TIMEOUT|OUT_OF_MEMORY|CANCELLED/.test(job.state || ''))
+    note = 'The last ' + (job.undo ? 'undo' : 'tidy') + ' did not finish ('
+      + String(job.state).toLowerCase() + '); its log is in logs/.';
+  // A refusal is shown once, on the redraw the click asked for.
+  const said = TIDYMSG[dir];
+  delete TIDYMSG[dir];
+  return '<div style="margin-top:11px">' + b + ' <span class=why id=tidymsg>'
+    + (said || esc(note)) + '</span></div>';
+}
+
 async function openRun(dir){
   clearInterval(WATCH);
   RUN = dir;
@@ -4964,7 +5009,17 @@ async function openRun(dir){
           + 'only these go back to the queue</span>'
           + '<div class=why id=resumemsg style="margin-top:7px"></div></div>'
         : '')
+      + tidyLine(dir, d)
       + (d.log_tail ? '<pre>' + esc(d.log_tail) + '</pre>' : '');
+    const tb = $('rtidy');
+    if(tb) tb.onclick = async () => {
+      const undo = tb.dataset.undo === '1';
+      tb.disabled = true;
+      tb.textContent = undo ? 'Putting the files back…' : 'Tidying…';
+      const r = await api('/api/tidy', {rundir: dir, undo: undo});
+      TIDYMSG[dir] = r.error ? '<span class=bad>' + esc(r.error) + '</span>' : '';
+      show();
+    };
     const rb = $('resume');
     if(rb) rb.onclick = async () => {
       $('resumemsg').textContent = 'resubmitting...';
