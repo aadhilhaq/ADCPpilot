@@ -190,6 +190,26 @@ and leaving a hole there would be worse than filling it. The example leaves 24
 missing residues alone, in two stretches well away from the p53 groove, which
 is the ordinary case. A loop is built from whole residues, side chains
 included, whichever way the side-chain setting is.</p>
+<p>What is built, and what is not:</p>
+<ul>
+<li><b>Gaps inside a chain, of up to 12 residues.</b> A longer one is left open
+and named in the preparation log.</li>
+<li><b>Never the residues missing from either end of a chain.</b> The sequence
+records list them, but they are missing because they are disordered. Built,
+they come out as a long straight strand lying across the solvent, which can
+reach into the docking box and offer the peptide a surface that is not
+there.</li>
+<li><b>Never a gap that is only a skipped number</b>, where the residues either
+side are in fact bonded.</li>
+</ul>
+<p>Each built loop is relaxed before the receptor is protonated. The loop moves
+freely, the two measured residues at each end may give slightly on a spring so
+it can close, and every other atom stays where it was measured. Then every
+join between the loop and the measured chain is checked: the bond and both
+backbone angles must be in range. If a loop cannot be made to fit after
+several attempts, the preparation stops and the log says which join failed.
+Untick the setting to dock the structure as measured. The final minimisation
+leaves built loops free too, since nobody measured them.</p>
 
 <h2 id="adapt">A receptor prepared in ADapt</h2>
 <figure>

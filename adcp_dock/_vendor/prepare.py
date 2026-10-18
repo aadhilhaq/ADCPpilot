@@ -28,6 +28,7 @@ because a modelled loop cannot be told from a measured one afterwards.
 from __future__ import annotations
 
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -53,6 +54,12 @@ class Step:
     def __str__(self):
         mark = "done" if self.done else "skipped"
         return f"  {self.name}: {mark}{('; ' + self.detail) if self.detail else ''}"
+
+
+class PrepError(RuntimeError):
+    """A preparation that cannot be trusted. Raised rather than logged, so the
+    run stops here instead of docking against a receptor the log has already
+    said is wrong."""
 
 
 def _is_hydrogen(name, element=""):
@@ -278,6 +285,29 @@ def drop_hetatms(lines, steps, keep_ions=True):
     return out
 
 
+def drop_hydrogens(lines, steps):
+    """The hydrogens a structure arrives with, taken off.
+
+    Both ways this protonates, reduce and PDB2PQR with PROPKA, build every
+    hydrogen again from the heavy atoms. One already there is not neutral:
+    a protonated C terminus (HXT) stops PDB2PQR outright ("Unable to debump
+    biomolecule"), which left a receptor that had been prepared elsewhere
+    with no hydrogens and no minimisation, docked anyway."""
+    keep, n = [], 0
+    for line in lines:
+        # the polymer's and the waters' only: a kept ligand's hydrogens are
+        # not rebuilt by either route, so they stay as given
+        polymer = line.startswith("ATOM") or line[17:20].strip() in ("HOH", "WAT", "DOD")
+        if polymer and line.startswith(("ATOM", "HETATM")) and _is_hydrogen(line[12:16], line[76:78]):
+            n += 1
+            continue
+        keep.append(line)
+    steps.append(Step("hydrogens as given", bool(n),
+                      f"removed {n}; protonation below builds them again from the heavy atoms"
+                      if n else "none present"))
+    return keep
+
+
 def disulfides(lines, steps, cutoff=2.5):
     """Find SG-SG pairs and say so. Naming is left to whatever consumes this.
 
@@ -319,13 +349,47 @@ AMINO_ACIDS = frozenset({
     "LYN", "ARN", "TYM"})
 
 
+#: The longest gap rebuilt as a loop, as HOPE-MD's preparation has it
+#: (model_loops_max). A longer one is a domain's worth of guessing.
+MAX_LOOP = 12
+
+
+def _bonded_across(fixer, before, after, cutoff=2.0):
+    """Whether two residues either side of a gap in the numbering are in fact
+    joined: C to N for amino acids, O3' to P for nucleotides. Then the gap is
+    a skipped number, not missing residues."""
+    from openmm import unit
+    pairs = (("C", "N"), ("O3'", "P"))
+    for a_name, b_name in pairs:
+        a = next((x for x in before.atoms() if x.name == a_name), None)
+        b = next((x for x in after.atoms() if x.name == b_name), None)
+        if a is not None and b is not None:
+            p = fixer.positions[a.index].value_in_unit(unit.angstrom)
+            q = fixer.positions[b.index].value_in_unit(unit.angstrom)
+            return math.dist(tuple(p), tuple(q)) < cutoff
+    return False
+
+
 def fix_structure(path, out_path, steps, fill_loops=False, cap_termini=True,
-                  log=print, rebuild_sidechains=True, model_missing=True):
+                  log=print, rebuild_sidechains=True, model_missing=True,
+                  built=None, max_loop=MAX_LOOP, rebuild_termini=False):
     """Missing side-chain atoms rebuilt, and optionally missing residues.
 
-    PDBFixer's findMissingResidues finds gaps between residues that are
-    present. Filling them is off by default: a rebuilt loop is a prediction,
-    and once written it is indistinguishable from measured coordinates.
+    PDBFixer's findMissingResidues does NOT find only gaps between residues
+    that are present. It aligns the chain with SEQRES, so it also returns
+    every residue missing before the first one present and after the last:
+    the disordered termini a crystal does not resolve. Built, those come out
+    as a straight strand laid across solvent with stretched bonds; 7A3R's
+    38-residue C-terminal tail spanned 177 A, more than a chain that long can
+    reach at full stretch. So what is rebuilt is, as in HOPE-MD's preparation:
+    internal gaps only (termini only if rebuild_termini), no longer than
+    max_loop, and never a gap in the numbering whose two sides are bonded.
+
+    Filling is off by default: a rebuilt loop is a prediction, and once
+    written it is indistinguishable from measured coordinates. `built`, a
+    list, receives the (chain, number, insertion code) of every residue made,
+    so later steps can relax them and not hold them to positions nobody
+    measured.
 
     With rebuild_sidechains off the same atoms are still built here when
     model_missing is on, because pdb2pqr completes any residue it is given
@@ -350,8 +414,28 @@ def fix_structure(path, out_path, steps, fill_loops=False, cap_termini=True,
         fixer = PDBFixer(filename=path)
         fixer.findMissingResidues()
         gaps = dict(fixer.missingResidues)
-        if not fill_loops:
-            fixer.missingResidues = {}
+        chains = list(fixer.topology.chains())
+        buildable, left = {}, []
+        for key, names in gaps.items():
+            ci, pos = key
+            res = list(chains[ci].residues())
+            cid = chains[ci].id
+            if pos == 0 or pos == len(res):
+                if not rebuild_termini:
+                    left.append(f"{len(names)} at the {'N' if pos == 0 else 'C'} terminus of chain "
+                                f"{cid}, disordered and not built")
+                    continue
+            elif _bonded_across(fixer, res[pos - 1], res[pos]):
+                left.append(f"chain {cid} {res[pos - 1].id}-{res[pos].id}, a gap in the "
+                            f"numbering only: the two residues are bonded")
+                continue
+            if len(names) > max_loop:
+                left.append(f"{len(names)} in chain {cid}, longer than {max_loop}")
+                continue
+            buildable[key] = names
+        fixer.missingResidues = buildable if fill_loops else {}
+        present = {(r.chain.id, str(r.id).strip(), (r.insertionCode or "").strip())
+                   for r in fixer.topology.residues()}
         fixer.findMissingAtoms()
         n_side = sum(len(v) for v in fixer.missingAtoms.values())
         # Of those, the ones on an amino acid's side chain. missingAtoms also
@@ -376,6 +460,11 @@ def fix_structure(path, out_path, steps, fill_loops=False, cap_termini=True,
                 else:
                     del fixer.missingAtoms[res]
         fixer.addMissingAtoms()
+        made = [(r.chain.id, str(r.id).strip(), (r.insertionCode or "").strip())
+                for r in fixer.topology.residues()
+                if (r.chain.id, str(r.id).strip(), (r.insertionCode or "").strip()) not in present]
+        if built is not None:
+            built.extend(made)
         with open(out_path, "w") as fh:
             PDBFile.writeFile(fixer.topology, fixer.positions, fh,
                               keepIds=True)
@@ -396,14 +485,199 @@ def fix_structure(path, out_path, steps, fill_loops=False, cap_termini=True,
                   f"atom(s)")
     if n_term:
         detail += f", completed {n_term} terminal atom(s)"
-    if gaps and not fill_loops:
+    if buildable and not fill_loops:
         where = ", ".join(f"{len(v)} residue(s) after {k[1]}"
-                          for k, v in list(gaps.items())[:4])
-        detail += (f"; LEFT {sum(len(v) for v in gaps.values())} missing "
+                          for k, v in list(buildable.items())[:4])
+        detail += (f"; LEFT {sum(len(v) for v in buildable.values())} missing "
                    f"residue(s) alone ({where}); a rebuilt loop is a guess")
-    elif gaps and fill_loops:
-        detail += f"; built {sum(len(v) for v in gaps.values())} missing residue(s)"
+    elif buildable and fill_loops:
+        detail += (f"; built {len(made)} missing residue(s) in {len(buildable)} loop(s), "
+                   f"relaxed before protonation")
+    if left:
+        detail += "; not built: " + "; ".join(left[:6]) + (" ..." if len(left) > 6 else "")
     steps.append(Step("missing atoms", True, detail))
+    return out_path
+
+
+#: Measured residues either side of a rebuilt loop that may move a little
+#: (on a spring) so the loop can close: the loop's stems.
+FLANK = 2
+#: The relaxation attempts, in order: the stems' spring (kcal/mol/A^2) and the
+#: warm spell (ps). The first that leaves every junction in shape is kept.
+RELAX_SCHEDULE = ((10.0, 2.0), (5.0, 5.0), (2.0, 10.0), (1.0, 10.0), (0.5, 20.0))
+
+#: Where a peptide junction must sit after relaxation: the C-N bond (A) and the
+#: two backbone angles across it (degrees). Ideal is 1.33 A, 116 and 122.
+JUNCTION = {"bond": (1.20, 1.45), "ca_c_n": (105.0, 130.0), "c_n_ca": (110.0, 135.0)}
+
+
+def _angle(a, b, c):
+    v1 = [a[i] - b[i] for i in range(3)]
+    v2 = [c[i] - b[i] for i in range(3)]
+    n = math.sqrt(sum(x * x for x in v1)) * math.sqrt(sum(x * x for x in v2))
+    return math.degrees(math.acos(max(-1.0, min(1.0, sum(x * y for x, y in zip(v1, v2)) / n))))
+
+
+def junction_geometry(path, built):
+    """Every peptide bond that touches a built residue, checked against
+    JUNCTION. Returns the ones out of range, as text. Bond lengths alone are
+    not enough: PDBFixer closed 7A3R's loops at 1.31-1.36 A with the CA-C-N
+    angle at 42 degrees, the N folded back onto the CA."""
+    at, order = {}, []
+    for line in open(path, errors="replace"):
+        if line.startswith(("ATOM", "HETATM")):
+            k = (line[21], line[22:26].strip(), line[26].strip())
+            if not order or order[-1] != k:
+                order.append(k)
+            at[k + (line[12:16].strip(),)] = (float(line[30:38]), float(line[38:46]),
+                                              float(line[46:54]))
+    made = set(built)
+    bad = []
+    for a, b in zip(order, order[1:]):
+        if a[0] != b[0] or not (a in made or b in made):
+            continue
+        ca1, c1, n2, ca2 = (at.get(a + ("CA",)), at.get(a + ("C",)),
+                            at.get(b + ("N",)), at.get(b + ("CA",)))
+        if None in (ca1, c1, n2, ca2):
+            continue
+        d = math.dist(c1, n2)
+        if d > 2.5:
+            continue                         # a chain break left open, not a junction
+        t1, t2 = _angle(ca1, c1, n2), _angle(c1, n2, ca2)
+        if not (JUNCTION["bond"][0] <= d <= JUNCTION["bond"][1]
+                and JUNCTION["ca_c_n"][0] <= t1 <= JUNCTION["ca_c_n"][1]
+                and JUNCTION["c_n_ca"][0] <= t2 <= JUNCTION["c_n_ca"][1]):
+            bad.append(f"{a[0]}{a[1]}-{b[1]}: C-N {d:.2f} A, CA-C-N {t1:.0f}, C-N-CA {t2:.0f}")
+    return bad
+
+
+def relax_built(path, out_path, steps, built, log=print):
+    """The residues fix_structure made, relaxed before anything protonates them.
+
+    Every measured atom is held exactly where it was measured (mass zero, so
+    the minimiser cannot move it); only built residues move, with hydrogens
+    from OpenMM's templates so the force field covers them. Done before
+    protonation because reduce cannot place an amide hydrogen on a junction
+    PDBFixer closed badly, and the minimisation that would have repaired it
+    then fails for the want of that hydrogen. Afterwards every junction is
+    checked, and a loop that still does not fit stops the preparation."""
+    if not built:
+        return path
+    import openmm
+    from openmm import app, unit
+    made = set(built)
+
+    def key(r):
+        return (r.chain.id, str(r.id).strip(), (r.insertionCode or "").strip())
+
+    try:
+        pdb = app.PDBFile(path)
+        ff = app.ForceField("amber14-all.xml")
+        m = app.Modeller(pdb.topology, pdb.positions)
+        other = [r for r in m.topology.residues() if r.name not in AMINO_ACIDS]
+        if other:
+            m.delete(other)              # relaxation only; the file keeps them
+        m.addHydrogens(ff, pH=7.0)
+        system = ff.createSystem(m.topology, nonbondedMethod=app.CutoffNonPeriodic,
+                                 nonbondedCutoff=1.2 * unit.nanometer, constraints=None)
+        # A loop held rigidly at both ends often cannot close: 7A3R's stayed
+        # at C-N-CA 92 degrees. As loop modelling does, the stems (FLANK
+        # measured residues either side) may give a little, on a spring to
+        # where they were measured; everything further away does not move.
+        res = list(m.topology.residues())
+        idx = {key(r): i for i, r in enumerate(res)}
+        stems = set()
+        for k in made:
+            i = idx.get(k)
+            if i is None:
+                continue
+            for j in range(i - FLANK, i + FLANK + 1):
+                if 0 <= j < len(res) and res[j].chain.id == res[i].chain.id and key(res[j]) not in made:
+                    stems.add(key(res[j]))
+        spring = openmm.CustomExternalForce("k*((x-x0)^2+(y-y0)^2+(z-z0)^2)")
+        spring.addGlobalParameter("k", 10.0 * 418.4)        # 10 kcal/mol/A^2 in kJ/mol/nm^2
+        for p in ("x0", "y0", "z0"):
+            spring.addPerParticleParameter(p)
+        for a in m.topology.atoms():
+            k = key(a.residue)
+            if k in made:
+                continue
+            if k in stems and a.element is not None and a.element.symbol != "H":
+                spring.addParticle(a.index, m.positions[a.index].value_in_unit(unit.nanometer))
+            elif k not in stems:
+                system.setParticleMass(a.index, 0.0)
+        system.addForce(spring)
+        start = {a.index: m.positions[a.index].value_in_unit(unit.angstrom)
+                 for a in m.topology.atoms() if key(a.residue) in stems}
+        integ = openmm.LangevinMiddleIntegrator(300 * unit.kelvin, 5.0 / unit.picosecond,
+                                                0.0005 * unit.picoseconds)
+        ctx = openmm.Context(system, integ, openmm.Platform.getPlatformByName("CPU"))
+        ctx.setPositions(m.positions)
+        e0 = ctx.getState(getEnergy=True).getPotentialEnergy()
+    except Exception as e:  # noqa: BLE001 - any failure here leaves invented atoms unrelaxed
+        raise PrepError(f"the {len(made)} rebuilt residue(s) could not be relaxed ({str(e)[:200]}). "
+                        f"Untick 'fill missing loops' to dock the structure as measured.") from e
+
+    def write(pos):
+        new = {}
+        for a in m.topology.atoms():
+            if (key(a.residue) in made or key(a.residue) in stems) \
+                    and a.element is not None and a.element.symbol != "H":
+                new[key(a.residue) + (a.name,)] = pos[a.index]
+        out, moved = [], 0
+        for line in open(path, errors="replace"):
+            if line.startswith(("ATOM", "HETATM")):
+                k = (line[21], line[22:26].strip(), line[26].strip(), line[12:16].strip())
+                if k in new:
+                    x, y, z = new[k]
+                    line = line[:30] + "%8.3f%8.3f%8.3f" % (x, y, z) + line[54:]
+                    moved += 1
+            out.append(line)
+        with open(out_path, "w") as fh:
+            fh.writelines(out)
+        return moved
+
+    # Each attempt starts again from PDBFixer's loop: minimise, a warm spell to
+    # leave its closure, minimise again. Later attempts loosen the stems and
+    # stay warm longer. The first whose every junction passes is kept.
+    tried = []
+    for n, (k_spring, warm_ps) in enumerate(RELAX_SCHEDULE, 1):
+        try:
+            ctx.setPositions(m.positions)
+            ctx.setParameter("k", k_spring * 418.4)
+            integ.setRandomNumberSeed(n)
+            openmm.LocalEnergyMinimizer.minimize(ctx, 1.0, 5000)
+            ctx.setVelocitiesToTemperature(300 * unit.kelvin, n)
+            integ.step(int(round(warm_ps / 0.0005)))
+            openmm.LocalEnergyMinimizer.minimize(ctx, 0.5, 10000)
+            e1 = ctx.getState(getEnergy=True).getPotentialEnergy()
+            pos = ctx.getState(getPositions=True).getPositions(asNumpy=True).value_in_unit(unit.angstrom)
+        except Exception as e:  # noqa: BLE001
+            raise PrepError(f"the {len(made)} rebuilt residue(s) could not be relaxed "
+                            f"({str(e)[:200]}). Untick 'fill missing loops' to dock the structure "
+                            f"as measured.") from e
+        stem_rmsd = math.sqrt(sum(math.dist(tuple(pos[i]), tuple(p)) ** 2 for i, p in start.items())
+                              / max(1, len(start))) if start else 0.0
+        moved = write(pos)
+        bad = junction_geometry(out_path, built)
+        tried.append((len(bad), bad, k_spring))
+        if not bad:
+            break
+    else:
+        fewest = min(tried, key=lambda t: t[0])
+        raise PrepError(f"{fewest[0]} junction(s) between rebuilt and measured residues are still "
+                        f"out of shape after {len(tried)} relaxation attempts "
+                        f"({'; '.join(fewest[1][:4])}). Untick 'fill missing loops' to dock the "
+                        f"structure as measured.")
+    steps.append(Step("rebuilt loops relaxed", True,
+                      f"{len(made)} residue(s) free; {len(stems)} stem residue(s) either side on a "
+                      f"{k_spring:g} kcal/mol/A^2 spring (attempt {n} of {len(RELAX_SCHEDULE)}), "
+                      f"moved {stem_rmsd:.2f} A RMSD; every other measured atom held; "
+                      f"{moved} heavy atoms moved; energy "
+                      f"{e0.value_in_unit(unit.kilocalories_per_mole):,.0f} -> "
+                      f"{e1.value_in_unit(unit.kilocalories_per_mole):,.0f} kcal/mol; every "
+                      f"junction within C-N {JUNCTION['bond'][0]}-{JUNCTION['bond'][1]} A and "
+                      f"backbone angles in range"))
     return out_path
 
 
@@ -546,7 +820,7 @@ def amber_cap_names(path):
 
 
 def minimise(path, out_path, steps, restraint=10.0, max_iterations=500,
-             log=print):
+             log=print, free=()):
     """A restrained minimisation, the way the wizard's last step is.
 
     Heavy atoms are held with a spring rather than frozen, so hydrogens and
@@ -629,12 +903,20 @@ def minimise(path, out_path, steps, restraint=10.0, max_iterations=500,
             "k", restraint * unit.kilocalories_per_mole / unit.angstroms ** 2)
         for p in ("x0", "y0", "z0"):
             force.addPerParticleParameter(p)
-        heavy, free_caps = 0, 0
+        heavy, free_caps, free_built = 0, 0, 0
+        # Built residues are guesses too, so by the rule above they are not
+        # held either: holding them kept 6B88's rebuilt loops where PDBFixer
+        # put them (6.4 million kcal/mol at the start, 0.15 A moved).
+        guessed = set(free)
         for atom in topology.atoms():
             if atom.element is None or atom.element.symbol == "H":
                 continue
             if atom.residue.name in CAP_RESIDUES:
                 free_caps += 1          # placed by geometry; let it relax
+                continue
+            r = atom.residue
+            if (r.chain.id, str(r.id).strip(), (r.insertionCode or "").strip()) in guessed:
+                free_built += 1         # built by fix_structure; let it relax
                 continue
             force.addParticle(atom.index, positions[atom.index])
             heavy += 1
@@ -674,7 +956,9 @@ def minimise(path, out_path, steps, restraint=10.0, max_iterations=500,
         "minimisation", True,
         f"{heavy} heavy atoms restrained at {restraint:g} kcal/mol/A^2"
         + (f" ({free_caps} cap atom(s) left free to settle)" if free_caps
-           else "") + "; "
+           else "")
+        + (f" ({free_built} atom(s) of rebuilt loops left free, as no one measured them)"
+           if free_built else "") + "; "
         f"energy {before.value_in_unit(kc):,.0f} -> {after.value_in_unit(kc):,.0f} "
         f"kcal/mol; heavy atoms moved {rmsd:.2f} A RMSD"))
     if rmsd > 1.0:
@@ -1736,6 +2020,7 @@ def run(pdb_in, workdir, ph=7.4, forcefield="AMBER", log=print, chain="",
 
     lines = pick_altloc(lines, steps)
     lines = standardise(lines, steps)
+    lines = drop_hydrogens(lines, steps)
     lines = drop_waters(lines, steps, keep_waters_within, site_points)
     if not keep_hetatms:
         lines = drop_hetatms(lines, steps, keep_ions)
@@ -1748,11 +2033,21 @@ def run(pdb_in, workdir, ph=7.4, forcefield="AMBER", log=print, chain="",
     # what cannot work without them (see above).
     modelled = (not rebuild_sidechains
                 and (protonation != "reduce" or minimise_structure))
+    built = []
     fixed = fix_structure(current, os.path.join(workdir, "rebuilt.pdb"), steps,
                           fill_loops=fill_loops, cap_termini=cap_termini,
                           log=log, rebuild_sidechains=rebuild_sidechains,
-                          model_missing=rebuild_sidechains or modelled)
+                          model_missing=rebuild_sidechains or modelled, built=built)
     current = fixed or current
+    if built:
+        try:
+            current = relax_built(current, os.path.join(workdir, "relaxed.pdb"), steps,
+                                  built, log=log)
+        except PrepError as e:
+            steps.append(Step("rebuilt loops relaxed", False, str(e)))
+            _write_prep_log(workdir, pdb_in, out, protonation, ph, forcefield, steps,
+                            n_before, None)
+            raise
 
     by_reduce = False
     if protonation == "reduce":
@@ -1788,7 +2083,7 @@ def run(pdb_in, workdir, ph=7.4, forcefield="AMBER", log=print, chain="",
 
     if minimise_structure:
         mini = minimise(current, os.path.join(workdir, "minimised.pdb"), steps,
-                        restraint=restraint, log=log)
+                        restraint=restraint, log=log, free=built)
         current = mini or current
     else:
         steps.append(Step("minimisation", False, "not asked for"))
@@ -1819,27 +2114,14 @@ def run(pdb_in, workdir, ph=7.4, forcefield="AMBER", log=print, chain="",
     n_h = sum(1 for line in open(out, errors="replace")
               if line.startswith(("ATOM", "HETATM"))
               and _is_hydrogen(line[12:16], line[76:78]))
+    _write_prep_log(workdir, pdb_in, out, protonation, ph, forcefield, steps,
+                    n_before, n_after)
     if n_h == 0:
-        bar = "  " + "!" * 68
-        log("")
-        log(bar)
-        log("  NO HYDROGENS ON THE PREPARED STRUCTURE")
-        log("  The protonation line above says why. Docking from here uses")
-        log("  hydrogens placed geometrically and IGNORES the run's pH, or")
-        log("  fails outright in the grid step. Worth fixing before trusting")
-        log("  any score this run produces.")
-        log(bar)
-        log("")
-
-    with open(os.path.join(workdir, "preparation.log"), "w") as fh:
-        fh.write("Protein preparation\n===================\n\n")
-        fh.write(f"in  : {pdb_in}\nout : {out}\n"
-                 + (f"protonation: reduce   force field: {forcefield}\n\n"
-                    if protonation == "reduce" else
-                    f"pH  : {ph}   force field: {forcefield}\n\n"))
-        for s in steps:
-            fh.write(str(s) + "\n")
-        fh.write(f"\n{n_before} atoms in, {n_after} out\n")
+        # Stopped, not warned: a banner in a log nobody opens let a receptor
+        # with no hydrogens be docked, at a pH it never had.
+        raise PrepError("the prepared receptor has no hydrogens: protonation failed (the "
+                        "protonation line in preparation.log says why). Docking it would "
+                        "ignore the run's pH, so the run stops here.")
     # Record what this preparation was made from, so the next attempt at this
     # run can tell "already done" from "done differently".
     try:
@@ -1848,6 +2130,22 @@ def run(pdb_in, workdir, ph=7.4, forcefield="AMBER", log=print, chain="",
     except OSError:
         pass                      # reuse is an optimisation, not the result
     return out
+
+
+def _write_prep_log(workdir, pdb_in, out, protonation, ph, forcefield, steps,
+                    n_before, n_after):
+    """preparation.log, which the results page reads. Written on the way out of
+    a failed preparation too, so the step that stopped it is on the page."""
+    with open(os.path.join(workdir, "preparation.log"), "w") as fh:
+        fh.write("Protein preparation\n===================\n\n")
+        fh.write(f"in  : {pdb_in}\nout : {out}\n"
+                 + (f"protonation: reduce   force field: {forcefield}\n\n"
+                    if protonation == "reduce" else
+                    f"pH  : {ph}   force field: {forcefield}\n\n"))
+        for s in steps:
+            fh.write(str(s) + "\n")
+        fh.write(f"\n{n_before} atoms in, "
+                 + (f"{n_after} out\n" if n_after is not None else "stopped before an output\n"))
 
 
 def summarise(prepared_pdb, log=print):
