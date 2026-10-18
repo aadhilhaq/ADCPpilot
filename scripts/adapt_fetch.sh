@@ -1,11 +1,12 @@
-# ADapt, fetched and kept up to date beside ADFRsuite. Sourced by install.sh
-# and update.sh; it is not a program of its own.
+# ADapt, fetched and kept up to date beside the ADCP 1.1 suite, and the suite
+# found where the interface finds it. Sourced by install.sh and update.sh; it
+# is not a program of its own.
 #
 # By Aadhil Haq
 #
 # ADapt, by Michel Sanner, is its own repository. The interface finds it in a
-# folder named adapt beside ADFRsuite, among other places (adcp_dock/adapt.py),
-# and these functions put it there and keep it current.
+# folder named adapt beside the ADCP 1.1 suite, among other places
+# (adcp_dock/adapt.py), and these functions put it there and keep it current.
 #
 # Every git command that reaches the repository is anonymous: it never
 # prompts, never runs an askpass program and never uses a stored credential.
@@ -78,11 +79,11 @@ adapt_why() {  # $1 = git's output, $2 = its exit status
   esac
 }
 
-# The folder beside ADFRsuite, where the interface looks for ADapt and for
-# ADCP 1.1, or the installation's own tools folder when that one cannot be
+# The folder that holds the ADCP 1.1 suite, where the interface looks for
+# ADapt, or the installation's own tools folder when that one cannot be
 # written (the interface looks there too, through ADCP_HOME). A folder that
 # is not there yet counts as writable: an install is about to create it.
-adapt_tools() {  # $1 = ADFRsuite (may be empty), $2 = the installation (ADCP_HOME)
+adapt_tools() {  # $1 = the ADCP 1.1 suite (may be empty), $2 = the installation (ADCP_HOME)
   local side="" own=""
   [ -n "${1:-}" ] && side="$(dirname "$1")"
   [ -n "${2:-}" ] && own="$2/tools/docking"
@@ -95,10 +96,10 @@ adapt_tools() {  # $1 = ADFRsuite (may be empty), $2 = the installation (ADCP_HO
 }
 
 # The folder that holds ADapt for this installation, whether or not it is
-# there yet. An existing folder named adapt or ADapt beside ADFRsuite or in
+# there yet. An existing folder named adapt or ADapt beside the suite or in
 # the installation's tools folder is the one kept up to date; otherwise it is
 # fetched into adapt_tools.
-adapt_dest() {  # $1 = ADFRsuite (may be empty), $2 = the installation (ADCP_HOME)
+adapt_dest() {  # $1 = the ADCP 1.1 suite (may be empty), $2 = the installation (ADCP_HOME)
   local d places=() tools
   [ -n "${1:-}" ] && places+=("$(dirname "$1")/adapt" "$(dirname "$1")/ADapt")
   [ -n "${2:-}" ] && places+=("$2/tools/docking/adapt" "$2/tools/docking/ADapt")
@@ -110,37 +111,53 @@ adapt_dest() {  # $1 = ADFRsuite (may be empty), $2 = the installation (ADCP_HOM
   return 0
 }
 
-# Where the interface finds ADapt, in its order (adapt.candidates() without
-# --tools-root): the first that is ADapt, or nothing.
-adapt_found() {  # $1 = the checkout this interface runs from
-  local d places=()
-  [ -n "${ADAPT_HOME:-}" ] && places+=("$ADAPT_HOME")
-  [ -n "${ADFRSUITE_HOME:-}" ] && places+=("$(dirname "$ADFRSUITE_HOME")/adapt" \
-                                           "$(dirname "$ADFRSUITE_HOME")/ADapt")
-  [ -n "${ADCP_HOME:-}" ] && places+=("$ADCP_HOME/tools/docking/adapt" \
-                                      "$ADCP_HOME/tools/docking/ADapt")
-  places+=("$(dirname "$1")/adapt" "$(dirname "$1")/ADapt" "$HOME/.adcp-dock/adapt")
+# Whether a folder holds the ADCP 1.1 suite, as the interface decides it
+# (adcp11.at): its bin/adcp and ADCP's runADCP.py.
+adcp11_is() {
+  [ -n "${1:-}" ] && [ -f "$1/bin/adcp" ] || return 1
+  ls "$1"/lib/python3*/site-packages/ADCP/runADCP.py >/dev/null 2>&1
+}
+
+# The ADCP 1.1 suite, where the interface finds it, in its order
+# (adcp11.candidates() without --tools-root): ADCPSUITE_HOME; inside and
+# beside the installation (ADCP_HOME) and this checkout, as the folder
+# itself, adcpsuite or tools/docking/adcpsuite; then the folder `adcp-dock
+# local` installs it in, and Colab's. The first that holds it, or nothing.
+adcp11_found() {  # $1 = the checkout this interface runs from (optional)
+  local d h places=() homes=()
+  [ -n "${ADCPSUITE_HOME:-}" ] && places+=("$ADCPSUITE_HOME")
+  [ -n "${ADCP_HOME:-}" ] && homes+=("$ADCP_HOME")
+  [ -n "${1:-}" ] && homes+=("$1")
+  for h in ${homes[@]+"${homes[@]}"}; do
+    places+=("$h" "$h/adcpsuite" "$h/tools/docking/adcpsuite")
+  done
+  for h in ${homes[@]+"${homes[@]}"}; do
+    places+=("$(dirname "$h")" "$(dirname "$h")/adcpsuite" \
+             "$(dirname "$h")/tools/docking/adcpsuite")
+  done
+  places+=("$HOME/.adcp-dock/adcpsuite" /content/adcpsuite)
   for d in "${places[@]}"; do
-    adapt_is "$d" && { printf '%s' "$d"; return 0; }
+    if adcp11_is "$d"; then printf '%s' "$(cd "$d" && pwd -P)"; return 0; fi
   done
   return 0
 }
 
-# The ADCP 1.1 environment, where the interface finds it (adcp11.candidates()
-# and find()): the first folder with bin/adcp and ADCP's runADCP.py.
-adcp11_found() {
-  local d places=()
-  [ -n "${ADCPSUITE_HOME:-}" ] && places+=("$ADCPSUITE_HOME")
-  [ -n "${ADFRSUITE_HOME:-}" ] && places+=("$(dirname "$ADFRSUITE_HOME")/adcpsuite" \
-                                           "$(dirname "$ADFRSUITE_HOME")")
-  [ -n "${ADCP_HOME:-}" ] && places+=("$ADCP_HOME/tools/docking/adcpsuite" \
-                                      "$ADCP_HOME/tools/docking")
-  places+=("$HOME/.adcp-dock/adcpsuite" /content/adcpsuite)
+# Where the interface finds ADapt, in its order (adapt.candidates() without
+# --tools-root): the first that is ADapt, or nothing.
+adapt_found() {  # $1 = the checkout this interface runs from
+  local d h suite places=() homes=()
+  [ -n "${ADAPT_HOME:-}" ] && places+=("$ADAPT_HOME")
+  suite=$(adcp11_found "$1")
+  [ -n "$suite" ] && places+=("$(dirname "$suite")/adapt" "$(dirname "$suite")/ADapt")
+  [ -n "${ADCP_HOME:-}" ] && homes+=("$ADCP_HOME")
+  homes+=("$1")
+  for h in "${homes[@]}"; do
+    places+=("$h/tools/docking/adapt" "$h/tools/docking/ADapt" \
+             "$(dirname "$h")/tools/docking/adapt" "$(dirname "$h")/tools/docking/ADapt")
+  done
+  places+=("$(dirname "$1")/adapt" "$(dirname "$1")/ADapt" "$HOME/.adcp-dock/adapt")
   for d in "${places[@]}"; do
-    [ -f "$d/bin/adcp" ] || continue
-    if ls "$d"/lib/python3*/site-packages/ADCP/runADCP.py >/dev/null 2>&1; then
-      printf '%s' "$d"; return 0
-    fi
+    adapt_is "$d" && { printf '%s' "$d"; return 0; }
   done
   return 0
 }

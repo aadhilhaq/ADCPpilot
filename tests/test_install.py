@@ -6,8 +6,8 @@ Stand-ins for everything: an environment whose python answers imports from
 a list of installed modules (and fails every import while a module's
 PYTHONPATH is set, as a real conda Python does), a micromamba that records
 what it was asked and "installs" by adding to that list, an AmberTools whose
-MMPBSA.py runs only with its module's PYTHONPATH, and an ADFRsuite with ADCP
-1.1 beside it, so nothing is downloaded. Against those:
+MMPBSA.py runs only with its module's PYTHONPATH, and an ADCP 1.1 suite, so
+nothing is downloaded. Against those:
 
   * a module's PYTHONPATH does not make install.sh think numpy is missing;
   * AmberTools from PATH or a module is used, through wrappers that work
@@ -67,11 +67,8 @@ for f in ("install.sh", "update.sh"):
 shutil.copy(os.path.join(ROOT, "scripts", "adapt_fetch.sh"), os.path.join(dep, "scripts"))
 os.symlink(os.path.join(ROOT, "adcp_dock"), os.path.join(dep, "adcp_dock"))
 
-# --- ADFRsuite with ADCP 1.1 beside it, so nothing is installed there ---------
+# --- an ADCP 1.1 suite, so nothing is installed there ---------------------------
 tools = os.path.join(tmp, "tools", "docking")
-adfr = os.path.join(tools, "ADFRsuite")
-for b in ("adcp", "agfr", "prepare_receptor"):
-    write(os.path.join(adfr, "bin", b), "#!/bin/sh\nexit 0\n")
 suite = os.path.join(tools, "adcpsuite")
 write(os.path.join(suite, "bin", "adcp"), "#!/bin/sh\nexit 0\n")
 write(os.path.join(suite, "lib", "python3.7", "site-packages", "ADCP", "runADCP.py"), "", 0o644)
@@ -163,10 +160,10 @@ write(os.path.join(amber_home, "bin", "MMPBSA.py"),
       'echo "ImportError: No module named MMPBSA_mods" >&2; exit 1\n' % MODULE_SITE)
 
 base_env = {k: v for k, v in os.environ.items()
-            if not k.startswith(("ADCP", "ADFR", "ADAPT", "AMBER", "CONDA", "MAMBA",
+            if not k.startswith(("ADCP", "ADAPT", "AMBER", "CONDA", "MAMBA",
                                  "PYTHON", "LOADEDMODULES", "SLURM"))}
 base_env.update(HOME=home, PATH="/usr/bin:/bin", ADCP_IGNORE_ROOM="1",
-                ADFRSUITE_HOME=adfr, ADAPT_REPO_URL=os.path.join(tmp, "no-adapt.git"),
+                ADCPSUITE_HOME=suite, ADAPT_REPO_URL=os.path.join(tmp, "no-adapt.git"),
                 GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1")
 module_env = dict(base_env, AMBERHOME=amber_home, PYTHONPATH=MODULE_SITE,
                   PATH=os.path.join(amber_home, "bin") + ":/usr/bin:/bin",

@@ -3,21 +3,20 @@
 #
 # By Aadhil Haq
 #
-# The tools it needs (ADFRsuite for the docking, AmberTools and pdb2pqr for
-# the rescoring, numpy and RDKit for everything else, and OpenMM, PDBFixer
-# and Biopython for preparing the receptor) are often already on a cluster,
+# The tools it needs (the ADCP 1.1 suite for the docking, AmberTools and
+# pdb2pqr for the rescoring, numpy and RDKit for everything else, and OpenMM,
+# PDBFixer and Biopython for preparing the receptor) are often already on a cluster,
 # in a shared scientific environment or as a module. A new environment with
 # AmberTools is about 49,000 files, and on a shared /scratch the file count
 # matters more than the size. So this looks for them first, adds only what
 # is missing, and builds only what it cannot find.
 #
-# The docking itself comes from ADCP 1.1, installed with the Scripps
-# Research Institute's own recipe (adcp_dock/adcp11_install.py): its adcp,
-# agfr, prepare_receptor and reduce, and its MSMS library for the surfaces.
-# ADFRsuite 1.0, from 2019, is no longer needed, and is added only with
-# --with-adfr10, for the ADCP 1.0 and AGFR 1.0 choices; one already on the
-# machine is still used. Beside ADCP 1.1 goes ADapt, Michel Sanner's tool for
-# choosing what stays in a receptor, which runs on it.
+# The docking itself comes from the ADCP 1.1 suite, installed with the
+# Scripps Research Institute's own recipe (adcp_dock/adcp11_install.py): its
+# adcp, agfr, prepare_receptor and reduce, and its MSMS library for the
+# surfaces. A suite already on the machine is used rather than installed
+# again. Beside it goes ADapt, Michel Sanner's tool for choosing what stays
+# in a receptor, which runs on it.
 # ADapt is fetched anonymously from its public repository; while that
 # repository is private this says so in one line and carries on, and
 # ./update.sh fetches it once it is public. ADapt never stops an install.
@@ -25,16 +24,16 @@
 #     ./install.sh <folder>             install into this folder
 #     ./install.sh                      use what is already here
 #     ./install.sh --check [<folder>]   report what it would do, change nothing
-#     ./install.sh --with-adfr10 ...    add ADFRsuite 1.0 for the ADCP 1.0 choices
-#     ./install.sh --no-adcp11 ...      ADFRsuite 1.0 alone, without ADCP 1.1
 #
 # Where it looks:
 #   an environment: ADCP_ENV, <folder>/envs/adcp, the one an earlier run
 #     wrote into activate.sh, and $ADCP_SHARED/envs/adcp when that is set;
 #   AmberTools: in that environment, then wherever AMBERHOME or PATH points,
 #     which is where `module load AmberTools` puts a cluster's own;
-#   ADFRsuite: ADFRSUITE_HOME, activate.sh, <folder>/tools/docking,
-#     this checkout's tools/docking, $ADCP_SHARED, then PATH.
+#   the ADCP 1.1 suite: ADCPSUITE_HOME, activate.sh, <folder>/tools/docking,
+#     the tools folder of the folder an earlier run built its environment
+#     in, this checkout's tools/docking, the tools/docking folder beside
+#     this checkout, and $ADCP_SHARED/tools/docking.
 #
 # An environment it did not build is never rebuilt or upgraded. A package it
 # lacks is added beside what is there, with everything already installed held
@@ -61,8 +60,6 @@ set -Eeuo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHECK_ONLY=0
-NO_ADCP11=0
-WITH_ADFR10=0
 PREFIX=""
 
 usage() {
@@ -71,11 +68,9 @@ Usage:
     ./install.sh <folder>             install into this folder
     ./install.sh                      use what is already here
     ./install.sh --check [<folder>]   report what it would do, change nothing
-    ./install.sh --with-adfr10 ...    add ADFRsuite 1.0 for the ADCP 1.0 choices
-    ./install.sh --no-adcp11 ...      ADFRsuite 1.0 alone, without ADCP 1.1
 
-Give a folder with room for about 150,000 files while it installs (about
-93,000 stay), in your scratch or project space rather than your home
+Give a folder with room for about 140,000 files while it installs (about
+84,000 stay), in your scratch or project space rather than your home
 directory. INSTALL.md explains each step.
 EOF
 }
@@ -83,8 +78,6 @@ EOF
 for a in "$@"; do
   case "$a" in
     --check) CHECK_ONLY=1 ;;
-    --no-adcp11) NO_ADCP11=1 ;;
-    --with-adfr10) WITH_ADFR10=1 ;;
     -h|--help) usage; exit 0 ;;
     -*) echo "install.sh: there is no option $a" >&2; usage >&2; exit 2 ;;
     *)
@@ -148,8 +141,8 @@ on_error() {
 }
 trap 'on_error $? $LINENO' ERR
 
-# Finding and fetching ADapt, and finding ADCP 1.1, the way the interface
-# finds them. The same file is what update.sh uses.
+# Finding and fetching ADapt, and finding the ADCP 1.1 suite, the way the
+# interface finds them. The same file is what update.sh uses.
 # shellcheck source=scripts/adapt_fetch.sh
 . "$HERE/scripts/adapt_fetch.sh"
 
@@ -157,7 +150,6 @@ trap 'on_error $? $LINENO' ERR
 PY_REQUIRED=(numpy rdkit)
 PY_OPTIONAL=(openmm pdbfixer Bio)
 AMBER_BINS=(tleap sander MMPBSA.py ante-MMPBSA.py)
-ADFR_BINS=(adcp agfr prepare_receptor)
 
 name_of() {
   case "$1" in
@@ -190,19 +182,18 @@ names() { local n out=""; for n in "$@"; do out="$out, $(name_of "$n")"; done; p
 # How many files and how much space each part needs while it is installed,
 # and what stays once its download cache is removed. Measured on a clean
 # install on a Linux cluster in October 2026: the environment 48,927 files,
-# ADFRsuite 11,272, ADCP 1.1 31,116, and their caches 50,579 more, 143,472
-# in all; the peak is rounded up to 150,000. So a folder without room is
+# the ADCP 1.1 suite 31,116, and their caches 50,579 more, 130,622 in all;
+# the room asked for below adds up to 138,000. So a folder without room is
 # found before anything is downloaded rather than part way through.
 ROOM_ENV_FILES=90000;    ROOM_ENV_GB=5;    KEEP_ENV_FILES=49000;    KEEP_ENV_GB=3
 ROOM_TOPUP_FILES=10000;  ROOM_TOPUP_GB=1;  KEEP_TOPUP_FILES=5000;   KEEP_TOPUP_GB=1
-ROOM_ADFR_FILES=12000;   ROOM_ADFR_GB=1;   KEEP_ADFR_FILES=11500;   KEEP_ADFR_GB=1
 ROOM_SUITE_FILES=48000;  ROOM_SUITE_GB=4;  KEEP_SUITE_FILES=31500;  KEEP_SUITE_GB=3
 
 # --- this computer ------------------------------------------------------------
 head_ "This computer"
 say "  $(uname -s) $(uname -m), $(hostname 2>/dev/null || echo 'name unknown')"
 if [ "$(uname -s)" != Linux ] || [ "$(uname -m)" != x86_64 ]; then
-  wrap "This script is for a Linux cluster on x86-64, which is what ADFRsuite is built for. On your own Mac or Windows computer, follow INSTALL.md section 2 instead."
+  wrap "This script is for a Linux cluster on x86-64, which is what the ADCP 1.1 suite is built for. On your own Mac or Windows computer, follow INSTALL.md section 2 instead."
   [ "$CHECK_ONLY" = 1 ] || exit 1
 fi
 lacking=""
@@ -220,7 +211,7 @@ fi
 if [ -n "$PREFIX" ] && [ -n "${HOME:-}" ] && [ "$HOME" != / ]; then
   case "$PREFIX/" in
     "${HOME%/}"/*)
-      wrap "$PREFIX is in your home directory. Most clusters allow only a few thousand files there, and this can need about 150,000 while it installs; a folder in your scratch or project space is usually the right place." ;;
+      wrap "$PREFIX is in your home directory. Most clusters allow only a few thousand files there, and this can need about 140,000 while it installs; a folder in your scratch or project space is usually the right place." ;;
   esac
 fi
 
@@ -233,7 +224,11 @@ recorded() {  # the value an earlier activate.sh gave one variable
 PREV_ENV=""
 prev_py=$(recorded ADCP_PYTHON)
 [ -n "$prev_py" ] && PREV_ENV="$(dirname "$(dirname "$prev_py")")"
-PREV_ADFR=$(recorded ADFRSUITE_HOME)
+PREV_SUITE=$(recorded ADCPSUITE_HOME)
+# The folder an earlier run was given, when its environment is the one it
+# builds there (<folder>/envs/<name>): its tools folder holds the suite.
+PREV_PREFIX=""
+case "$PREV_ENV" in */envs/*) PREV_PREFIX="$(dirname "$(dirname "$PREV_ENV")")" ;; esac
 
 # --- an environment ------------------------------------------------------------
 # env_inspect DIR sets: E_OK (1 when its Python is 3.9 or newer), E_WHY (why
@@ -368,53 +363,50 @@ else
   fi
 fi
 
-# --- ADFRsuite ------------------------------------------------------------------
-ADFR_CANDIDATES=()
-for d in "${ADFRSUITE_HOME:-}" "$PREV_ADFR" "${PREFIX:+$PREFIX/tools/docking/ADFRsuite}" \
-         "$HERE/tools/docking/ADFRsuite" \
-         "${ADCP_SHARED:+$ADCP_SHARED/tools/docking/ADFRsuite}" \
-         "${ADCP_SHARED:+$ADCP_SHARED/third_party/ADFRsuite}"; do
+# --- the ADCP 1.1 suite, and ADapt beside it -----------------------------------
+# Adopted wherever it already is, so a second 3 GB suite is never installed
+# beside one this machine has: the folder each of these names is checked for
+# the suite's adcp and ADCP's runADCP.py (adcp11_is, as the interface checks).
+SUITE_CANDIDATES=()
+for d in "${ADCPSUITE_HOME:-}" "$PREV_SUITE" \
+         "${PREFIX:+$PREFIX/tools/docking/adcpsuite}" \
+         "${PREV_PREFIX:+$PREV_PREFIX/tools/docking/adcpsuite}" \
+         "$HERE/tools/docking/adcpsuite" \
+         "$(dirname "$HERE")/tools/docking/adcpsuite" \
+         "${ADCP_SHARED:+$ADCP_SHARED/tools/docking/adcpsuite}"; do
   [ -n "$d" ] || continue
-  case " ${ADFR_CANDIDATES[*]-} " in *" $d "*) continue ;; esac
-  ADFR_CANDIDATES+=("$d")
+  case " ${SUITE_CANDIDATES[*]-} " in *" $d "*) continue ;; esac
+  SUITE_CANDIDATES+=("$d")
 done
-found_adfr=""
-head_ "Looking for ADFRsuite"
-for d in ${ADFR_CANDIDATES[@]+"${ADFR_CANDIDATES[@]}"}; do
-  ok=1
-  for b in "${ADFR_BINS[@]}"; do
-    [ -x "$d/bin/$b" ] || ok=0
-  done
-  if [ "$ok" = 1 ]; then
-    say "  USING $d"
-    found_adfr="$d"
+found_suite=""
+head_ "Looking for the ADCP 1.1 suite and ADapt"
+for d in ${SUITE_CANDIDATES[@]+"${SUITE_CANDIDATES[@]}"}; do
+  if adcp11_is "$d"; then
+    found_suite="$(cd "$d" && pwd -P)"
     break
   fi
-  [ -d "$d" ] && say "  $d exists but is missing one of: ${ADFR_BINS[*]}"
+  [ -d "$d" ] && say "  $d exists but holds no ADCP 1.1 suite"
 done
-if [ -z "$found_adfr" ]; then
-  if command -v adcp >/dev/null 2>&1 && command -v agfr >/dev/null 2>&1; then
-    found_adfr="$(dirname "$(dirname "$(command -v adcp)")")"
-    say "  USING $found_adfr (from PATH)"
-  else
-    say "  not found"
-  fi
+if [ -z "$found_suite" ]; then
+  found_suite=$(ADCP_HOME="$HERE" adcp11_found)
+fi
+if [ -n "$found_suite" ]; then
+  say "  USING the ADCP 1.1 suite at $found_suite"
+else
+  say "  ADCP 1.1 suite: not found"
 fi
 
-# Both go beside ADFRsuite, where the interface looks for them: beside the one
-# found, or the one this is about to install. ADCP_HOME is this checkout, as
-# activate.sh will say.
-adfr_at="${found_adfr:-${PREFIX:-$HERE}/tools/docking/ADFRsuite}"
-TOOLS_AT=$(adapt_tools "$adfr_at" "$HERE")
-suite_found() { ADFRSUITE_HOME="$adfr_at" ADCP_HOME="$HERE" adcp11_found; }
-head_ "Looking for ADCP 1.1 and ADapt"
-found_suite=$(suite_found)
-if [ -n "$found_suite" ]; then
-  say "  USING ADCP 1.1 at $found_suite"
+# Where the suite is, or goes: the one found, else the folder ADCPSUITE_HOME
+# names, else the tools folder of the folder given or of this checkout.
+# ADapt goes beside it, where the interface looks for it.
+suite_at="${found_suite:-${ADCPSUITE_HOME:-${PREFIX:-$HERE}/tools/docking/adcpsuite}}"
+TOOLS_AT=$(adapt_tools "$suite_at" "$HERE")
+if [ "$TOOLS_AT" = "$(dirname "$suite_at")" ]; then
+  SUITE_DEST="$suite_at"
 else
-  say "  ADCP 1.1: not found"
+  SUITE_DEST="$TOOLS_AT/adcpsuite"
 fi
-ADAPT_DIR=$(adapt_dest "$adfr_at" "$HERE")
+ADAPT_DIR=$(adapt_dest "$suite_at" "$HERE")
 adapt_at=$(adapt_commit "$ADAPT_DIR")
 if adapt_is "$ADAPT_DIR"; then
   if adapt_embeds "$ADAPT_DIR"; then
@@ -431,7 +423,7 @@ fi
 
 # --- decide -------------------------------------------------------------------
 # What the environment found lacks, and whether it can be added there.
-need_env=0; need_adfr=0; need_suite=0; need_adapt=0
+need_env=0; need_suite=0; need_adapt=0
 TOPUP=()        # what to add to the environment found
 CANNOT=()       # what it lacks and will go on lacking
 if [ -n "$found_env" ]; then
@@ -492,22 +484,9 @@ for m in ${CANNOT[@]+"${CANNOT[@]}"}; do
     wrap "$(name_of "$m") is missing from $found_env, $why, so $(what_for "$m") is off. Whoever looks after that environment can add $(conda_spec "$m"); or run this with a folder of your own (./install.sh <folder>) to build one that has it."
   fi
 done
-if [ -z "$found_adfr" ]; then
-  if [ "$WITH_ADFR10" = 1 ] || [ "$NO_ADCP11" = 1 ]; then
-    need_adfr=1
-    say "  ADFRsuite 1.0 (adcp, agfr, prepare_receptor, msms), downloaded from Scripps"
-  else
-    wrap "ADFRsuite 1.0 is not needed: ADCP 1.1 brings adcp, agfr, prepare_receptor, reduce and the MSMS library. --with-adfr10 adds it, for the ADCP 1.0 and AGFR 1.0 choices."
-  fi
-fi
 if [ -z "$found_suite" ]; then
-  if [ "$NO_ADCP11" = 1 ]; then
-    say "  ADCP 1.1 is not here, and --no-adcp11 leaves it out. ADapt, the"
-    say "        non-standard and D residues and AGFR 1.1 need it."
-  else
-    need_suite=1
-    wrap "ADCP 1.1, into $TOOLS_AT/adcpsuite (a few minutes and 3 GB; --no-adcp11 leaves it out)"
-  fi
+  need_suite=1
+  wrap "the ADCP 1.1 suite (adcp, agfr, prepare_receptor, reduce and the MSMS library), into $SUITE_DEST: a few minutes and 3 GB"
 fi
 if [ ! -e "$ADAPT_DIR" ]; then
   need_adapt=1
@@ -523,7 +502,7 @@ if [ ! -e "$ADAPT_DIR" ]; then
     say "  ADapt, into $ADAPT_DIR, if its repository is public"
   fi
 fi
-if [ "$need_env$need_adfr$need_suite$need_adapt${#TOPUP[@]}" = "00000" ]; then
+if [ "$need_env$need_suite$need_adapt${#TOPUP[@]}" = "0000" ]; then
   if [ ${#CANNOT[@]} -eq 0 ]; then
     say "  nothing. Everything it needs is already on this machine."
   else
@@ -589,7 +568,6 @@ add_room() {  # PART: adds what that part needs while installing, and keeps
 }
 [ "$need_env" = 1 ] && add_room ENV
 [ ${#TOPUP[@]} -gt 0 ] && add_room TOPUP
-[ "$need_adfr" = 1 ] && add_room ADFR
 [ "$need_suite" = 1 ] && add_room SUITE
 ROOM_OK=1
 if [ "$need_files" -gt 0 ]; then
@@ -629,7 +607,7 @@ was given to build one in. Run it again with a folder that has room:
     ./install.sh $example
 
 Use your scratch or project space, not your home directory: most clusters
-allow only a few thousand files in home, and this needs about 150,000
+allow only a few thousand files in home, and this needs about 140,000
 while it installs.
 envs/adcp is added to the folder you give.
 
@@ -920,15 +898,15 @@ if [ "$AMBER_SRC" = external ] && [ "$AMB_WRAPPED" = 1 ]; then AMB_ROOT="$(dirna
 # --- the one file that sets everything up --------------------------------------
 # Written as soon as the environment is known, and again at the end. The
 # launcher sources it to find a Python new enough to run this package, so it
-# must exist even if installing ADFRsuite fails partway.
+# must exist even if installing the ADCP 1.1 suite fails partway.
 write_activate() {
-  # $1 = the environment, $2 = ADFRsuite (may be empty).
+  # $1 = the environment.
   #
   # Written line by line rather than with ${2:+...} inside a heredoc, whose
   # quotes would need escaping twice (for the heredoc and for the shell that
   # later sources the file); a wrong escape puts literal quote marks into
   # the variable's value.
-  local env_dir="$1" adfr="$2"
+  local env_dir="$1"
   {
     echo "# Written by install.sh on $(date +%Y-%m-%d). Source it, do not run it:"
     echo "#"
@@ -953,15 +931,11 @@ write_activate() {
         echo "export PATH=\"$AMB_ROOT/bin:\$PATH\"" ;;
       *)
         echo "# No AmberTools was found, so MM-GBSA rescoring is off. Load your"
-        echo "# cluster's AmberTools module and run ./install.sh again to add it." ;;
+        echo "# cluster's AmberTools module and run ./install.sh again to add it."
+        ;;
     esac
-    if [ -n "$adfr" ]; then
-      echo "export ADFRSUITE_HOME=\"$adfr\""
-      echo "export PATH=\"$adfr/bin:\$PATH\""
-    fi
-    # ADCP 1.1 and ADapt by name: without ADFRsuite 1.0 there is no folder
-    # beside which the interface would otherwise look for them. The suite is
-    # not put on PATH, since its bin folder holds its own python.
+    # The ADCP 1.1 suite and ADapt by name. The suite is not put on PATH,
+    # since its bin folder holds its own python.
     if [ -n "${found_suite:-}" ]; then
       echo "export ADCPSUITE_HOME=\"$found_suite\""
     fi
@@ -978,130 +952,9 @@ write_activate() {
   mv "$ACT.part" "$ACT"
 }
 STEP="writing activate.sh"
-write_activate "$found_env" "$found_adfr"
+write_activate "$found_env"
 say ""
 say "Wrote $ACT (the launcher reads this to find the right Python)"
-
-# --- ADFRsuite ---------------------------------------------------------------------
-if [ "$need_adfr" = 1 ]; then
-  TOOLS="${PREFIX:-$HERE}/tools/docking"
-  head_ "Installing ADFRsuite into $TOOLS"
-  T1=$(date +%s)
-  STEP="installing ADFRsuite"
-  mkdir -p "$TOOLS"
-  cd "$TOOLS"
-  URL=https://ccsb.scripps.edu/adfr/download/1038/
-  TAR=ADFRsuite_x86_64Linux_1.0.tar.gz
-  if [ ! -s "$TAR" ]; then
-    say "  downloading from Scripps (about 100 MB)"
-    STEP="downloading ADFRsuite"
-    if ! download "$URL" "$TAR.part"; then
-      rm -f "$TAR.part"
-      cat >&2 <<MSG
-  Could not download ADFRsuite from $URL
-
-  This is a login-node step: compute nodes usually have no outbound
-  network. If you are on one, that is the whole explanation.
-
-  Otherwise fetch it by hand from https://ccsb.scripps.edu/adfr/downloads/,
-  put ADFRsuite_x86_64Linux_1.0.tar.gz in $TOOLS,
-  and run this script again; it uses the file that is already there.
-MSG
-      exit 1
-    fi
-    mv "$TAR.part" "$TAR"
-  else
-    say "  $TAR is already here, using it"
-  fi
-
-  # The same pinned checksum as adcp_dock/adfr.py: the archive is run as an
-  # installer, so a truncated or substituted download must stop here.
-  SHA=66539864ffb7ba87728d52ee50dde78586f551c7ca96aa455dae761875faf7e4
-  got=$(sha256sum "$TAR" 2>/dev/null | cut -d' ' -f1 || true)
-  [ -n "$got" ] || got=$(shasum -a 256 "$TAR" | cut -d' ' -f1)
-  if [ "$got" != "$SHA" ]; then
-    echo "  $TOOLS/$TAR does not match its published checksum (got $got)." >&2
-    echo "  It is probably an incomplete download. Delete it and run this script again:" >&2
-    echo "      rm $TOOLS/$TAR" >&2
-    exit 1
-  fi
-  say "  checksum verified"
-
-  # What the archive unpacks into, read from the archive rather than assumed:
-  # a wrong guess `cd`s into a directory that is not there and, under
-  # `set -e`, ends the script with no message, immediately after a 100 MB
-  # download.
-  say "  unpacking"
-  STEP="unpacking ADFRsuite"
-  # tar is still listing when head has its line and closes the pipe, so tar
-  # dies of SIGPIPE; under pipefail that would end the script here, so its
-  # status is not the pipeline's.
-  SRC=$( { tar tzf "$TAR" 2>/dev/null || true; } | head -1 | cut -d/ -f1)
-  [ -n "$SRC" ] || { echo "  $TAR is not a readable tar.gz; delete it (rm $TOOLS/$TAR) and run this again" >&2; exit 1; }
-  tar xzf "$TAR"
-  [ -d "$SRC" ] || { echo "  $TAR did not unpack into $SRC; delete it (rm $TOOLS/$TAR) and run this again" >&2; exit 1; }
-  cd "$SRC"
-
-  say "  running the Scripps installer (a few minutes)"
-  STEP="running the ADFRsuite installer"
-  LOG="$TOOLS/adfr_install.log"
-  # No licence answer is given on the user's behalf. The Scripps installer
-  # asks "ACADEMIC INSTALLATION (Y/N)?" about MSMS, a licence declaration
-  # only the installing user can make, and renames mslibACA or mslibCOM to
-  # mslib, the importable MSMS library, once it is answered. This tool never
-  # imports MSMS, so -l (the installer's own switch) skips the question and
-  # with it that rename. It therefore governs a tree built here from scratch
-  # and says nothing about one already at this path: unpacking over a tree
-  # built without -l leaves the library where it was, and the msms program
-  # is in bin/msms either way. What this tree holds is reported below.
-  # stdin is /dev/null so no prompt can block the install.
-  if ! ./install.sh -d "$TOOLS/ADFRsuite" -c 0 -l < /dev/null > "$LOG" 2>&1; then
-    say "  the installer returned non-zero; checking what it produced anyway"
-  fi
-
-  cd "$HERE"
-  missing=""
-  for b in "${ADFR_BINS[@]}"; do
-    [ -x "$TOOLS/ADFRsuite/bin/$b" ] || missing="$missing $b"
-  done
-  if [ -n "$missing" ]; then
-    cat >&2 <<MSG
-
-  ADFRsuite did not install properly. Missing:$missing
-
-  Its own log is at $LOG; the last few lines usually say why:
-
-      tail -20 $LOG
-
-  A part-installed tree is worse than none, because the next run would find
-  it and believe it. Remove it, then run this script again:
-
-      rm -rf $TOOLS/ADFRsuite
-
-MSG
-    exit 1
-  fi
-  found_adfr="$TOOLS/ADFRsuite"
-  say "  installed at $found_adfr, in $(mins "$T1")"
-  say "  verified: ${ADFR_BINS[*]} are all present and executable"
-  # Read back, rather than assumed from -l: CCSBpckgs/mslib exists only once
-  # the academic-or-commercial question has been answered and the rename it
-  # drives has happened.
-  if [ -d "$found_adfr/CCSBpckgs/mslib" ]; then
-    say "  the MSMS library is in place at CCSBpckgs/mslib, so its academic"
-    say "  or commercial terms were accepted for this tree; this script passes"
-    say "  -l, which skips that question, so it was left by an earlier install"
-    say "  or put there by hand. Nothing adcp-dock runs imports it."
-  elif [ -d "$found_adfr/CCSBpckgs/mslibACA" ]; then
-    say "  the MSMS library was not activated: CCSBpckgs still holds mslibACA"
-    say "  and mslibCOM under those names, so nothing can import mslib."
-  else
-    say "  this tree holds no MSMS library to import."
-  fi
-  if [ -f "$found_adfr/bin/msms" ]; then
-    say "  the msms program itself is in bin/msms, as in every installation"
-  fi
-fi
 
 # --- this package, and the adcp-dock command -------------------------------------
 # Into an environment this script built, with pip and --no-deps. One it did
@@ -1134,52 +987,40 @@ if [ "$pip_ok" = 0 ]; then
   wrap "$HERE/tools/bin/adcp-dock runs this checkout with $found_env/bin/python3. Nothing was written into that environment."
 fi
 
-# --- and again, now that ADFRsuite is known -------------------------------
-STEP="writing activate.sh"
-write_activate "$found_env" "$found_adfr"
-say ""
-say "Wrote $ACT"
-
-# --- ADCP 1.1, beside ADFRsuite --------------------------------------------
+# --- the ADCP 1.1 suite ----------------------------------------------------
 # With the package's own installer, which follows the Scripps Research
 # Institute's recipe and checks every Scripps package against a pinned
 # checksum. This is what a run docks with, so the install stops on a failure
-# here rather than leave a copy that cannot dock, or that would fall back to
-# older tools; running this script again retries it.
-adfr_at="${found_adfr:-${PREFIX:-$HERE}/tools/docking/ADFRsuite}"
-TOOLS_AT=$(adapt_tools "$adfr_at" "$HERE")
+# here rather than leave a copy that cannot dock; running this script again
+# retries it.
 if [ "$need_suite" = 1 ]; then
-  SUITE_DEST="$TOOLS_AT/adcpsuite"
-  head_ "Installing ADCP 1.1 into $SUITE_DEST"
+  head_ "Installing the ADCP 1.1 suite into $SUITE_DEST"
   T1=$(date +%s)
-  STEP="installing ADCP 1.1"
+  STEP="installing the ADCP 1.1 suite"
   say "  the Scripps Research Institute's recipe: a few minutes and 3 GB"
   # HOME points beside it for this one command, as for conda above: nothing
   # of it belongs in the home directory. A micromamba fetched above is
   # reused rather than fetched again.
   mkdir -p "$TOOLS_AT/.adcpsuite_home"
-  if HOME="$TOOLS_AT/.adcpsuite_home" ADFRSUITE_HOME="$adfr_at" ADCP_HOME="$HERE" \
+  if HOME="$TOOLS_AT/.adcpsuite_home" ADCP_HOME="$HERE" \
      PATH="$TOOLS_DIR:$PATH" PYTHONPATH="$HERE" \
      "$found_env/bin/python" -u -m adcp_dock.adcp11_install --dest "$SUITE_DEST" 2>&1 \
      | sed 's/^/  /'; then :; fi
   rmdir "$TOOLS_AT/.adcpsuite_home" 2>/dev/null || true
-  found_suite=$(suite_found)
+  found_suite=""
+  adcp11_is "$SUITE_DEST" && found_suite="$(cd "$SUITE_DEST" && pwd -P)"
   if [ -n "$found_suite" ]; then
-    say "  verified: ADCP 1.1 is at $found_suite, in $(mins "$T1")"
+    say "  verified: the ADCP 1.1 suite is at $found_suite, in $(mins "$T1")"
   else
-    # Stopped rather than carried on: the interface would otherwise run on
-    # ADFRsuite 1.0 where one is installed, or not at all, and an install
-    # that looks finished hides that.
+    # Stopped rather than carried on: nothing can dock without it, and an
+    # install that looks finished would hide that.
     cat >&2 <<MSG
 
-  ADCP 1.1 did not install; the lines above say why. This stops here rather
-  than leave an installation that docks with older tools, or cannot dock.
-  Run this script again to retry (what is already here is kept), or just
-  this step:
+  The ADCP 1.1 suite did not install; the lines above say why. This stops
+  here rather than leave an installation that cannot dock. Run this script
+  again to retry (what is already here is kept), or just this step:
 
       $found_env/bin/python -m adcp_dock.cli install-adcp11 --dest $SUITE_DEST
-
-  To use ADFRsuite 1.0 alone instead, run it with --no-adcp11.
 
 MSG
     exit 1
@@ -1193,7 +1034,7 @@ fi
 # to move one forward.
 head_ "ADapt"
 STEP="fetching ADapt"
-ADAPT_DIR=$(adapt_dest "$adfr_at" "$HERE")
+ADAPT_DIR=$(adapt_dest "${found_suite:-$suite_at}" "$HERE")
 if [ -z "$ADAPT_DIR" ]; then
   say "  not fetched: there is no tools folder to put it in"
 elif [ -e "$ADAPT_DIR" ]; then
@@ -1209,13 +1050,9 @@ elif command -v git >/dev/null 2>&1; then
 else
   wrap "not fetched: git is not installed here. ADCP docking works without it."
 fi
-if [ -z "$found_suite" ] && adapt_is "${ADAPT_DIR:-/nonexistent}"; then
-  wrap "ADapt runs on ADCP 1.1, which is not installed, so the interface will not offer it until ADCP 1.1 is added."
-fi
-
-# activate.sh once more, now that ADCP 1.1 and ADapt are known.
+# activate.sh once more, now that the ADCP 1.1 suite and ADapt are known.
 STEP="writing activate.sh"
-write_activate "$found_env" "$found_adfr"
+write_activate "$found_env"
 
 # --- prove it ------------------------------------------------------------
 head_ "Checking"
@@ -1235,8 +1072,7 @@ case "$AMBER_SRC" in
   external) say "  AmberTools          the cluster's own, $AMB_HOME" ;;
   *) say "  AmberTools          not found" ;;
 esac
-say "  ADFRsuite 1.0       ${found_adfr:-not installed (not needed; --with-adfr10 adds the ADCP 1.0 choices)}"
-say "  ADCP 1.1            ${found_suite:-not installed (--no-adcp11)}"
+say "  ADCP 1.1 suite      ${found_suite:-not installed}"
 if adapt_is "${ADAPT_DIR:-/nonexistent}"; then
   adapt_at=$(adapt_commit "$ADAPT_DIR")
   if adapt_embeds "$ADAPT_DIR"; then

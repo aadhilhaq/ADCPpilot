@@ -310,7 +310,7 @@ class App:
                              "which is what stops two people colliding",
                   foreground="#5f7070").grid(row=5, column=1, sticky="w",
                                              padx=6, pady=(0, 4))
-        self.tools = self._row(form, 6, "ADFRsuite / Amber roots",
+        self.tools = self._row(form, 6, "ADCP 1.1 suite / Amber roots",
                                cfg.get("tools", ""))
         ttk.Label(form, text="comma separated; leave blank once activate.sh "
                              "exists on the cluster",
@@ -595,8 +595,9 @@ class App:
         from . import localrun
         try:
             self.say("Starting on this computer...")
-            self.say("The first start installs ADFRsuite from the Scripps "
-                     "Research Institute, which takes a few minutes.")
+            self.say("The first start installs the ADCP 1.1 suite with the "
+                     "Scripps Research Institute's own recipe, which takes a "
+                     "few minutes and about 3 GB.")
             self.session = localrun.start(on_output=self.detail)
             self.say("Ready. Opening it in your browser.")
             self.say("  If it does not open, paste this in: %s"

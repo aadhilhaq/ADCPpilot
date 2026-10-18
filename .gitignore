@@ -18,7 +18,7 @@ dist/
 *.whl
 
 # What an installation puts inside the checkout (INSTALL.md, install.sh): the
-# conda environment, ADFRsuite and ADCP 1.1, their download caches and the
+# conda environment, the ADCP 1.1 suite, their download caches and the
 # activation script. Kept here rather than in the home directory.
 env/
 envs/

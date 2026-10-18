@@ -6,8 +6,8 @@ A local bare repository stands in for GitHub (ADAPT_REPO_URL points at it),
 and a small web server that answers every request with "sign in first" stands
 in for the repository while it is private. Against those:
 
-  * update.sh clones ADapt beside ADFRsuite when it is missing and public,
-    where the interface's own adapt.find() then finds it;
+  * update.sh clones ADapt beside the ADCP 1.1 suite when it is missing and
+    public, where the interface's own adapt.find() then finds it;
   * while it is private, or cannot be reached, both scripts say so in one
     line, create nothing and finish normally;
   * update.sh moves a clean checkout forward, refuses one with local changes,
@@ -71,12 +71,12 @@ gitconfig = os.path.join(tmp, "gitconfig")
 
 # Nothing from the environment this runs in may point at a real installation.
 base_env = {k: v for k, v in os.environ.items()
-            if k not in ("ADFRSUITE_HOME", "ADCP_HOME", "ADAPT_HOME", "ADCPSUITE_HOME",
+            if k not in ("ADCP_HOME", "ADAPT_HOME", "ADCPSUITE_HOME",
                          "ADAPT_REPO_URL", "ADAPT_REPO_BRANCH", "GIT_TERMINAL_PROMPT",
                          "GIT_ASKPASS", "SSH_ASKPASS", "ADCP_PYTHON", "ADCP_ENV",
                          "PYTHONPATH", "GIT_DIR", "GIT_WORK_TREE")}
-# Nor may PATH: update.sh puts ADapt beside the ADFRsuite whose programs are
-# on it when activate.sh names none.
+# Nor may PATH: an older installation's programs on it name nothing now, and
+# nothing here should find them.
 base_env["PATH"] = os.pathsep.join(
     d for d in base_env.get("PATH", "").split(os.pathsep)
     if d and not os.path.exists(os.path.join(d, "prepare_receptor")))
@@ -144,7 +144,7 @@ def publish(message, embeddable=True, extra="", force=False):
 
 c1 = publish("one")
 
-# --- a checkout of ADCP_docking, installed beside a stand-in ADFRsuite -----
+# --- a checkout of ADCP_docking, with a tools folder for the ADCP 1.1 suite --
 fakepy = os.path.join(tmp, "python")
 with open(fakepy, "w") as fh:
     fh.write("#!/bin/sh\nexit 0\n")
@@ -153,7 +153,9 @@ os.chmod(fakepy, 0o755)
 
 def deployment(name):
     """A checkout with this update.sh and its helper, cloned from a remote of
-    its own so its pull works, and an activate.sh naming a tools folder."""
+    its own so its pull works, and an activate.sh naming where the ADCP 1.1
+    suite is, in a tools folder of its own (the suite itself is not there
+    unless a check puts it there)."""
     remote = os.path.join(tmp, name + "_origin.git")
     git(tmp, "init", "-q", "--bare", "-b", "main", remote)
     src = os.path.join(tmp, name + "_src")
@@ -170,16 +172,21 @@ def deployment(name):
     dep = os.path.join(tmp, name)
     git(tmp, "clone", "-q", remote, dep)
     tools = os.path.join(tmp, name + "_tools", "docking")
-    adfr = os.path.join(tools, "ADFRsuite")
-    os.makedirs(os.path.join(adfr, "bin"))
-    for b in ("adcp", "agfr", "prepare_receptor"):
-        p = os.path.join(adfr, "bin", b)
-        open(p, "w").write("#!/bin/sh\nexit 0\n")
-        os.chmod(p, 0o755)
+    os.makedirs(tools)
     with open(os.path.join(dep, "activate.sh"), "w") as fh:
         fh.write('export ADCP_HOME="%s"\nexport ADCP_PYTHON="%s"\n'
-                 'export ADFRSUITE_HOME="%s"\n' % (dep, fakepy, adfr))
+                 'export ADCPSUITE_HOME="%s"\n'
+                 % (dep, fakepy, os.path.join(tools, "adcpsuite")))
     return dep, tools
+
+
+def make_suite(path):
+    """A stand-in ADCP 1.1 suite, as the interface recognises one."""
+    os.makedirs(os.path.join(path, "bin"))
+    os.makedirs(os.path.join(path, "lib", "python3.7", "site-packages", "ADCP"))
+    open(os.path.join(path, "bin", "adcp"), "w").close()
+    open(os.path.join(path, "lib", "python3.7", "site-packages", "ADCP",
+                      "runADCP.py"), "w").close()
 
 
 def update(dep, url, extra=None):
@@ -233,7 +240,7 @@ check(not leftovers(tools), "the clone left its temporary folder behind")
 found = subprocess.run(
     [sys.executable, "-c", "import sys; sys.path.insert(0, sys.argv[1]); "
      "from adcp_dock import adapt; print(adapt.find() or '')", ROOT],
-    env=dict(base_env, ADFRSUITE_HOME=os.path.join(tools, "ADFRsuite"), ADCP_HOME=dep),
+    env=dict(base_env, ADCPSUITE_HOME=os.path.join(tools, "adcpsuite"), ADCP_HOME=dep),
     capture_output=True, text=True).stdout.strip()
 check(os.path.realpath(found) == os.path.realpath(adapt_dir),
       "the interface does not find the ADapt update.sh fetched (it finds %r)" % found)
@@ -311,7 +318,7 @@ check(rc == 0 and "not a git checkout" in adapt_line(out) and sorted(os.listdir(
       "a plain ADapt folder was not left alone: %s" % adapt_line(out))
 
 # ... nor one inside another repository, whose own history must not be touched:
-# no ADFRsuite named, so ADapt lives in the checkout's own tools folder.
+# no suite named, so ADapt lives in the checkout's own tools folder.
 dep3, _ = deployment("inside")
 with open(os.path.join(dep3, "activate.sh"), "w") as fh:
     fh.write('export ADCP_HOME="%s"\nexport ADCP_PYTHON="%s"\n' % (dep3, fakepy))
@@ -325,36 +332,36 @@ check(rc == 0 and "not a git checkout" in adapt_line(out)
       "an ADapt folder inside the ADCP_docking checkout was treated as a checkout: %s"
       % adapt_line(out))
 
-# --- no ADFRsuite named in activate.sh: the one on PATH ------------------------
-dep5, tools5 = deployment("onpath")
+# --- no suite named in activate.sh: the one the interface finds -----------------
+# Here, in the checkout's own tools folder; ADapt is fetched beside it.
+dep5, tools5 = deployment("found")
 with open(os.path.join(dep5, "activate.sh"), "w") as fh:
     fh.write('export ADCP_HOME="%s"\nexport ADCP_PYTHON="%s"\n' % (dep5, fakepy))
-rc, out = update(dep5, upstream, {"PATH": os.path.join(tools5, "ADFRsuite", "bin")
-                                  + os.pathsep + base_env["PATH"]})
-check(rc == 0 and os.path.isdir(os.path.join(tools5, "adapt", ".git")),
-      "with ADFRsuite only on PATH, ADapt was not fetched beside it: %s" % adapt_line(out))
+make_suite(os.path.join(dep5, "tools", "docking", "adcpsuite"))
+rc, out = update(dep5, upstream)
+check(rc == 0 and os.path.isdir(os.path.join(dep5, "tools", "docking", "adapt", ".git")),
+      "with no suite named, ADapt was not fetched beside the one found: %s"
+      % adapt_line(out))
 
-# --- ADCP 1.1, which ADapt runs on: found where the interface finds it -------
+# --- the ADCP 1.1 suite, which ADapt runs on: found where the interface finds it
 suite = os.path.join(tools, "adcpsuite")
-os.makedirs(os.path.join(suite, "bin"))
-os.makedirs(os.path.join(suite, "lib", "python3.7", "site-packages", "ADCP"))
-open(os.path.join(suite, "bin", "adcp"), "w").close()
-open(os.path.join(suite, "lib", "python3.7", "site-packages", "ADCP", "runADCP.py"), "w").close()
+make_suite(suite)
 rc, out = update(dep, upstream)
-check(("ADCP 1.1: %s" % suite) in out, "update.sh does not report the ADCP 1.1 it has:\n"
-      + out[-600:])
+check(("the ADCP 1.1 suite: %s" % os.path.realpath(suite)) in out,
+      "update.sh does not report the ADCP 1.1 suite it has:\n" + out[-600:])
 exe = subprocess.run(
     [sys.executable, "-c", "import sys; sys.path.insert(0, sys.argv[1]); "
      "from adcp_dock import adcp11; print(adcp11.find() or '')", ROOT],
-    env=dict(base_env, ADFRSUITE_HOME=os.path.join(tools, "ADFRsuite"), ADCP_HOME=dep),
+    env=dict(base_env, ADCPSUITE_HOME=suite, ADCP_HOME=dep),
     capture_output=True, text=True).stdout.strip()
 check(os.path.realpath(exe) == os.path.realpath(os.path.join(suite, "bin", "adcp")),
-      "update.sh and the interface disagree on ADCP 1.1 (%r)" % exe)
+      "update.sh and the interface disagree on the ADCP 1.1 suite (%r)" % exe)
 shutil.rmtree(suite)
 rc, out = update(dep, upstream)
-check(rc == 0 and "ADCP 1.1 is not installed" in out
+check(rc == 0 and "ADCP 1.1 suite is not installed" in out
       and ("install-adcp11 --dest %s" % suite) in out,
-      "a missing ADCP 1.1 is not reported with the command that adds it:\n" + out[-600:])
+      "a missing ADCP 1.1 suite is not reported with the command that adds it:\n"
+      + out[-600:])
 
 
 # --- never a prompt, even with a terminal to prompt on --------------------------
@@ -443,7 +450,7 @@ for b in ("python3", "tleap", "sander", "MMPBSA.py", "ante-MMPBSA.py", "pdb2pqr"
 
 def install(dep, tools, url, *args):
     env = dict(base_env, ADAPT_REPO_URL=url, ADCP_ENV=envdir,
-               ADFRSUITE_HOME=os.path.join(tools, "ADFRsuite"), ADCP_SHARED=tmp)
+               ADCPSUITE_HOME=os.path.join(tools, "adcpsuite"), ADCP_SHARED=tmp)
     p = subprocess.run(["bash", os.path.join(dep, "install.sh"), *args], cwd=dep, env=env,
                        stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=300)
     # install.sh wraps its long lines; checked here as one line of text.
@@ -459,30 +466,28 @@ rc, out = install(dep4, tools4, upstream, "--check")
 check(rc == 0 and ("ADapt, into %s, from %s" % (adapt4, upstream)) in out,
       "install.sh --check does not say it would fetch a public ADapt (exit %d):\n%s"
       % (rc, out[-900:]))
-check(("ADCP 1.1, into %s" % os.path.join(tools4, "adcpsuite")) in out and "--no-adcp11" in out,
-      "install.sh --check does not say it would install ADCP 1.1:\n" + out[-900:])
+check(("MSMS library), into %s" % os.path.join(tools4, "adcpsuite")) in out,
+      "install.sh --check does not say it would install the ADCP 1.1 suite "
+      "where ADCPSUITE_HOME names:\n" + out[-900:])
 check(not os.path.exists(adapt4) and not os.path.exists(os.path.join(dep4, "activate.sh")),
       "install.sh --check changed something")
-rc, out = install(dep4, tools4, PRIVATE, "--check", "--no-adcp11")
+rc, out = install(dep4, tools4, PRIVATE, "--check")
 check(rc == 0 and "would not be fetched today" in out and "not public yet" in out,
       "install.sh --check does not say a private ADapt would be skipped:\n" + out[-900:])
-check("--no-adcp11 leaves it out" in out and ("ADCP 1.1, into") not in out,
-      "install.sh --check --no-adcp11 still says it would install ADCP 1.1:\n" + out[-900:])
 
-# The install itself, with ADCP 1.1 already there so nothing is downloaded.
+# The install itself, with the ADCP 1.1 suite already there so nothing is
+# downloaded.
 suite4 = os.path.join(tools4, "adcpsuite")
-os.makedirs(os.path.join(suite4, "bin"))
-os.makedirs(os.path.join(suite4, "lib", "python3.7", "site-packages", "ADCP"))
-open(os.path.join(suite4, "bin", "adcp"), "w").close()
-open(os.path.join(suite4, "lib", "python3.7", "site-packages", "ADCP", "runADCP.py"), "w").close()
+make_suite(suite4)
 rc, out = install(dep4, tools4, PRIVATE)
 check(rc == 0 and "not public yet" in out and "works without it" in out,
       "install.sh did not carry on calmly while ADapt is private (exit %d):\n%s"
       % (rc, out[-1200:]))
 check(not os.path.exists(adapt4) and os.path.isfile(os.path.join(dep4, "activate.sh")),
       "install.sh while ADapt is private: a folder was left, or the install did not finish")
-check(("USING ADCP 1.1 at %s" % suite4) in out,
-      "install.sh does not find the ADCP 1.1 beside ADFRsuite:\n" + out[-900:])
+check(("USING the ADCP 1.1 suite at %s" % os.path.realpath(suite4)) in out,
+      "install.sh does not find the ADCP 1.1 suite ADCPSUITE_HOME names:\n"
+      + out[-900:])
 rc, out = install(dep4, tools4, upstream)
 check(rc == 0 and os.path.isdir(adapt4) and head(adapt4) == c6 and "fetched at" in out,
       "install.sh did not fetch a public ADapt (exit %d):\n%s" % (rc, out[-1200:]))

@@ -12,7 +12,7 @@
 # `adcp-dock-launcher`. This is for a launcher that can be double-clicked.
 name: desktop launcher
 
-# Not on a push to main: the test suite needs ADFRsuite and Amber, so it
+# Not on a push to main: the test suite needs the ADCP 1.1 suite and Amber, so it
 # runs on a cluster. A version tag starts this build, since a
 # tag is pushed only when a release is wanted. It can also be run from the
 # Actions tab.
@@ -280,8 +280,8 @@ jobs:
   # and public, and is what an archive service reads to mint a DOI. Built only
   # from a v* tag, and only after both platform builds have passed.
   #
-  # ADFRsuite is not attached and must not be: Scripps asks that it be
-  # downloaded from them.
+  # The ADCP 1.1 suite is not attached and must not be: Scripps asks that it
+  # be downloaded from them.
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [windows, macos]
@@ -315,7 +315,7 @@ jobs:
 
           Verify a download against \`SHA256SUMS.txt\`. To run without a cluster, or in a browser with nothing installed, see [INSTALL.md](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/INSTALL.md).
 
-          ADFRsuite is not included: it is downloaded from the Scripps Research Institute on install, as they ask.
+          The ADCP 1.1 suite is not included: it is downloaded from the Scripps Research Institute on install, as they ask.
           EOF
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" assets/*.zip assets/SHA256SUMS.txt --clobber

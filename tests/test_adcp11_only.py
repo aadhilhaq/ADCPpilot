@@ -1,23 +1,28 @@
-"""An installation with ADCP 1.1 and without ADFRsuite 1.0.
+"""An installation with the ADCP 1.1 suite, and nothing else for the docking.
 
 By Aadhil Haq
 
-install.sh installs the ADCP 1.1 suite alone unless given --with-adfr10, so
-everything ADFRsuite 1.0 used to supply has to come from the suite. Checked
-here, with ADFRsuite 1.0 out of sight (no ADFRSUITE_HOME, nothing of it on
-PATH, no tools roots): the required tools are found, prepare_receptor and
-reduce are the suite's, MSMS is its library and draws the same surface as the
-msms program, the job scripts name the suite without putting its bin folder
-(and its python) on PATH, prepare_receptor is started with the suite's own
-Python, and install.sh decides what to install as it says it does.
+install.sh installs the ADCP 1.1 suite, and everything the docking needs
+comes from it. Checked here, with nothing else in sight (no tools roots, a
+bare PATH): the required tools are found in the suite, prepare_receptor and
+reduce are the suite's, MSMS is its library and draws the surface the msms
+program drew (tests/data/msms_1YCR.json, made with the program and kept as
+the reference), the job scripts name the suite without putting its bin
+folder (and its python) on PATH, prepare_receptor is started with the
+suite's own Python, the suite is found beside a checkout with nothing named,
+and install.sh decides what to install as it says it does.
 
     python3 tests/test_adcp11_only.py
 
-Without the ADCP 1.1 suite installed, the checks that need it are skipped
-(exit 77 when nothing at all could be checked).
+Without the ADCP 1.1 suite installed (ADCP_TEST_TOOLS or ADCPSUITE_HOME),
+nothing can be checked and it exits 77.
 """
+import base64
+import hashlib
+import json
 import os
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -26,7 +31,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock import adcp11, slurm, structure, surface, tools  # noqa: E402
+from adcp_dock import adcp11, slurm, surface, tools  # noqa: E402
 
 fails, ran = [], 0
 
@@ -40,39 +45,52 @@ def check(cond, why):
 
 
 roots = [r for r in (os.environ.get("ADCP_TEST_TOOLS", ""),
-                     os.path.dirname(os.environ.get("ADFRSUITE_HOME", "").rstrip("/")))
+                     os.environ.get("ADCPSUITE_HOME", ""))
          if r and os.path.isdir(r)]
 exe = adcp11.find(roots)
 if not exe:
-    print("skip  the ADCP 1.1 suite is not installed here (ADCP_TEST_TOOLS)")
+    print("skip  the ADCP 1.1 suite is not installed here (ADCP_TEST_TOOLS or "
+          "ADCPSUITE_HOME)")
     sys.exit(77)
 SUITE = adcp11.home_of(exe)
-ADFR10 = os.path.join(os.path.dirname(SUITE), "ADFRsuite")
-MSMS_PROG = os.path.join(ADFR10, "bin", "msms")
 EX = os.path.join(ROOT, "adcp_dock", "example_run", "receptor", "1YCR.pdb")
+REF = json.load(open(os.path.join(HERE, "data", "msms_1YCR.json")))
 
 saved = dict(os.environ)
-os.environ.pop("ADFRSUITE_HOME", None)
 os.environ["ADCPSUITE_HOME"] = SUITE
 here_bin = os.path.dirname(os.path.abspath(sys.executable))
 os.environ["PATH"] = os.pathsep.join([here_bin, "/usr/bin", "/bin"])
 try:
     T = tools.discover()
     check(T.missing_required() == [] or T.missing_required() == ["pdb2pqr"],
-          "a 1.1-only installation misses required tools: %s" % T.missing_required())
-    check(not T.get("adcp") and not T.get("agfr"),
-          "bin/adcp or bin/agfr is taken for ADFRsuite 1.0's programs")
+          "the suite alone misses required tools: %s" % T.missing_required())
+    for name in ("adcp", "agfr", "prepare_receptor"):
+        check(T.get(name) == os.path.join(SUITE, "bin", name),
+              "%s is not the suite's: %r" % (name, T.get(name)))
     pr = T.get("prepare_receptor") or ""
-    check(pr == os.path.join(SUITE, "bin", "prepare_receptor"),
-          "prepare_receptor is not the suite's: %r" % pr)
-    check(T.adfr_program("reduce") == os.path.join(SUITE, "bin", "reduce"),
-          "reduce is not the suite's: %r" % T.adfr_program("reduce"))
+    check(T.suite_program("reduce") == os.path.join(SUITE, "bin", "reduce"),
+          "reduce is not the suite's: %r" % T.suite_program("reduce"))
     m = tools.msms_command(T)
     check(isinstance(m, list) and m[0] == os.path.join(SUITE, "bin", "python")
           and m[1].endswith("msms_mslib.py"),
           "MSMS is not the suite's library: %r" % m)
     check("ADCP 1.1 suite" in surface.describe(m), "the page is not told where MSMS is")
-    check(tools.suite11() == SUITE, "the suite is not found by name")
+    check(tools.suite_home() == SUITE, "the suite is not found by name")
+    # Another copy of the programs on PATH is never taken for the suite's.
+    fake = tempfile.mkdtemp(prefix="adcp11only_path_")
+    for name in ("adcp", "agfr", "prepare_receptor", "reduce"):
+        with open(os.path.join(fake, name), "w") as fh:
+            fh.write("#!/bin/sh\nexit 0\n")
+        os.chmod(os.path.join(fake, name), 0o755)
+    os.environ["PATH"] = fake + os.pathsep + os.environ["PATH"]
+    T2 = tools.discover()
+    check(all(T2.get(n) == os.path.join(SUITE, "bin", n)
+              for n in ("adcp", "agfr", "prepare_receptor"))
+          and T2.suite_program("reduce") == os.path.join(SUITE, "bin", "reduce"),
+          "a program on PATH was taken for the suite's: %s"
+          % [T2.get(n) for n in ("adcp", "agfr", "prepare_receptor")])
+    os.environ["PATH"] = os.pathsep.join([here_bin, "/usr/bin", "/bin"])
+    shutil.rmtree(fake, ignore_errors=True)
     # The job scripts name the suite, and keep its bin folder off PATH.
     lines = slurm.tool_exports().splitlines()
     check(any(l.startswith("export ADCPSUITE_HOME=") for l in lines),
@@ -81,85 +99,106 @@ try:
                   for l in lines), "a job script puts the suite's python on PATH")
     # prepare_receptor, started as the receptor module starts it, with the
     # suite's own Python whatever is first on PATH.
-    if os.path.isfile(EX):
-        from adcp_dock._vendor import receptor as rec
-        tmp = tempfile.mkdtemp(prefix="adcp11only_")
-        src = os.path.join(tmp, "recA.pdb")
-        with open(EX) as fh, open(src, "w") as out:
-            out.writelines(l for l in fh if l.startswith("ATOM") and l[21:22] == "A")
-            out.write("END\n")
-        p = rec._run_prepare_receptor(pr, src, os.path.join(tmp, "recA.pdbqt"), add_h=True)
-        made = os.path.join(tmp, "recA.pdbqt")
-        check(p.returncode == 0 and os.path.isfile(made) and os.path.getsize(made) > 10000,
-              "the suite's prepare_receptor did not write a receptor: %s %s"
-              % (p.returncode, (p.stdout + p.stderr)[-300:]))
-        # The library draws the surface the program draws, vertex for vertex.
-        atoms = surface.read_text(open(EX).read(), "pdb")
-        lib = surface.compute(atoms, m)
-        check(lib.get("vertices") and lib.get("faces"), "mslib drew no surface")
-        if os.path.isfile(MSMS_PROG):
-            # The same points, triangles and residue per point; the library
-            # lists them in another order, which nothing that draws them minds.
-            import base64
-            import struct
+    from adcp_dock._vendor import receptor as rec
+    tmp = tempfile.mkdtemp(prefix="adcp11only_")
+    src = os.path.join(tmp, "recA.pdb")
+    with open(EX) as fh, open(src, "w") as out:
+        out.writelines(l for l in fh if l.startswith("ATOM") and l[21:22] == "A")
+        out.write("END\n")
+    p = rec._run_prepare_receptor(pr, src, os.path.join(tmp, "recA.pdbqt"), add_h=True)
+    made = os.path.join(tmp, "recA.pdbqt")
+    check(p.returncode == 0 and os.path.isfile(made) and os.path.getsize(made) > 10000,
+          "the suite's prepare_receptor did not write a receptor: %s %s"
+          % (p.returncode, (p.stdout + p.stderr)[-300:]))
+    # The library draws the surface the msms program drew, vertex for vertex:
+    # the same points, triangles and residue per point, compared through a
+    # digest of them in a fixed order (the library lists them in another
+    # order, which nothing that draws them minds).
+    atoms = surface.read_text(open(EX).read(), "pdb")
+    lib = surface.compute(atoms, m)
 
-            def dec(v, f):
-                r = base64.b64decode(v)
-                return struct.unpack("<%d%s" % (len(r) // 4, f), r)
+    def dec(v, f):
+        r = base64.b64decode(v)
+        return struct.unpack("<%d%s" % (len(r) // 4, f), r)
 
-            def shape(d):
-                v = dec(d["verts"], "f")
-                pts = [tuple(round(x, 2) for x in v[i:i + 3]) for i in range(0, len(v), 3)]
-                f = dec(d["faces"], "I")
-                tris = sorted(tuple(sorted(pts[f[i + k]] for k in range(3)))
-                              for i in range(0, len(f), 3))
-                return sorted(zip(pts, dec(d["res"], "I"))), tris
+    def shape(d):
+        v = dec(d["verts"], "f")
+        pts = [tuple(round(x, 2) for x in v[i:i + 3]) for i in range(0, len(v), 3)]
+        f = dec(d["faces"], "I")
+        tris = sorted(tuple(sorted(pts[f[i + k]] for k in range(3)))
+                      for i in range(0, len(f), 3))
+        return sorted(zip(pts, dec(d["res"], "I"))), tris
 
-            prog = surface.compute(atoms, MSMS_PROG)
-            check(prog["vertices"] == lib["vertices"] and shape(prog) == shape(lib),
-                  "mslib's surface differs from the msms program's")
-        else:
-            print("  (ADFRsuite 1.0's msms is not here to compare with)")
-        shutil.rmtree(tmp, ignore_errors=True)
+    check(lib.get("vertices") == REF["vertices"]
+          and lib.get("triangles") == REF["triangles"]
+          and lib.get("density") == REF["density"],
+          "mslib's surface of 1YCR has %s vertices and %s triangles; the msms "
+          "program's had %d and %d" % (lib.get("vertices"), lib.get("triangles"),
+                                       REF["vertices"], REF["triangles"]))
+    got = hashlib.sha256(json.dumps(shape(lib)).encode()).hexdigest()
+    check(got == REF["shape_sha256"],
+          "mslib's surface of 1YCR is not the msms program's, point for point "
+          "(%s, %s)" % (got[:12], REF["shape_sha256"][:12]))
+    shutil.rmtree(tmp, ignore_errors=True)
+
+    # Found with nothing named: beside a checkout, as install.sh leaves it
+    # on a cluster (<folder>/ADCP_docking and <folder>/tools/docking/adcpsuite).
+    os.environ.pop("ADCPSUITE_HOME", None)
+    side = tempfile.mkdtemp(prefix="adcp11only_side_")
+    os.makedirs(os.path.join(side, "tools", "docking"))
+    os.symlink(SUITE, os.path.join(side, "tools", "docking", "adcpsuite"))
+    os.makedirs(os.path.join(side, "ADCP_docking"))
+    os.environ["ADCP_HOME"] = os.path.join(side, "ADCP_docking")
+    found = adcp11.find()
+    check(found and os.path.realpath(adcp11.home_of(found)) == os.path.realpath(SUITE),
+          "the suite beside the installation is not found with nothing named: %r"
+          % found)
+    shutil.rmtree(side, ignore_errors=True)
 finally:
     os.environ.clear()
     os.environ.update(saved)
 
-# install.sh: what it would install into an empty folder, by option. --check
-# changes nothing.
+# install.sh: what it would install into an empty folder. --check changes
+# nothing.
 empty = tempfile.mkdtemp(prefix="adcp11only_prefix_")
 os.rmdir(empty)
 env = {"PATH": "/usr/bin:/bin", "HOME": os.environ.get("HOME", "/tmp")}
 
 
-def would(*opts):
+def would(*opts, extra=None):
     p = subprocess.run(["bash", os.path.join(ROOT, "install.sh"), "--check"]
-                       + list(opts) + [empty], capture_output=True, text=True,
-                       env=env, timeout=600)
-    return p.stdout + p.stderr
+                       + list(opts), capture_output=True, text=True,
+                       env=dict(env, **(extra or {})), timeout=600)
+    return " ".join((p.stdout + p.stderr).split())
 
 
-out = would()
-check("ADFRsuite 1.0 is not needed" in out and "ADCP 1.1, into" in out,
-      "by default install.sh does not install ADCP 1.1 alone:\n" + out[-600:])
-out = would("--with-adfr10")
-check("ADFRsuite 1.0 (adcp" in out and "ADCP 1.1, into" in out,
-      "--with-adfr10 does not add ADFRsuite 1.0 beside ADCP 1.1")
-out = would("--no-adcp11")
-check("ADFRsuite 1.0 (adcp" in out and "--no-adcp11 leaves it out" in out,
-      "--no-adcp11 does not install ADFRsuite 1.0 alone")
+out = would(empty)
+check("the ADCP 1.1 suite (adcp, agfr, prepare_receptor, reduce and the MSMS "
+      "library), into %s" % os.path.join(empty, "tools", "docking", "adcpsuite") in out,
+      "install.sh does not install the ADCP 1.1 suite into the folder given:\n"
+      + out[-600:])
+out = would(empty, extra={"ADCPSUITE_HOME": SUITE})
+check(("USING the ADCP 1.1 suite at %s" % os.path.realpath(SUITE)) in out
+      and "MSMS library), into" not in out,
+      "install.sh does not adopt the suite ADCPSUITE_HOME names:\n" + out[-600:])
+for gone in ("--with-adfr10", "--no-adcp11"):
+    p = subprocess.run(["bash", os.path.join(ROOT, "install.sh"), "--check", gone],
+                       capture_output=True, text=True, env=env, timeout=120)
+    check(p.returncode == 2 and "there is no option" in p.stderr,
+          "install.sh still takes %s" % gone)
 check(not os.path.exists(empty), "install.sh --check made the folder")
 src = open(os.path.join(ROOT, "install.sh")).read()
-check("exit 1" in src.split("ADCP 1.1 did not install")[1][:900],
-      "install.sh carries on when ADCP 1.1 fails to install")
+check("exit 1" in src.split("The ADCP 1.1 suite did not install")[1][:600],
+      "install.sh carries on when the ADCP 1.1 suite fails to install")
 check('echo "export ADCPSUITE_HOME=' in src and 'echo "export ADAPT_HOME=' in src,
-      "activate.sh does not name ADCP 1.1 and ADapt")
+      "activate.sh does not name the ADCP 1.1 suite and ADapt")
 appjs = open(os.path.join(ROOT, "adcp_dock", "static", "app.js")).read()
-check("ADCP 1.1 is not installed here,</b>" in appjs,
-      "the page does not say plainly when runs use ADCP 1.0")
+check("ADCP 1.1 is not installed here,</b>" in appjs
+      and "so nothing can dock" in appjs,
+      "the page does not say plainly when the ADCP 1.1 suite is missing")
 
 if fails:
     print("test_adcp11_only FAILED (%d of %d)" % (len(fails), ran))
     sys.exit(1)
-print("ok  an installation with ADCP 1.1 alone: tools, surfaces, job scripts and "
-      "install.sh, %d checks" % ran)
+print("ok  an installation with the ADCP 1.1 suite: tools, surfaces, job "
+      "scripts and install.sh, %d checks" % ran)

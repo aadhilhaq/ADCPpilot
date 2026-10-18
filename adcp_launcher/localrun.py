@@ -3,7 +3,7 @@
 By Aadhil Haq
 
 The launcher is a small SSH client; it does not carry the docking stack
-itself (RDKit, OpenMM, ADFRsuite are far too large to bundle). So "This
+itself (RDKit, OpenMM and the ADCP 1.1 suite are far too large to bundle). So "This
 computer" starts `adcp-dock local` (installed separately, once) reads the
 address it prints, and opens it, exactly as the cluster path reads the
 address `adcp-dock serve` prints on a login node.
@@ -39,12 +39,15 @@ SETUP = {
         "git+https://github.com/aadhilhaq/ADCP_docking\"\n\n"
         "Then choose This computer again."),
     "darwin": (
-        "Once, in Terminal:\n\n"
-        "  softwareupdate --install-rosetta      (Apple silicon only)\n"
+        "ADCP 1.1 is built for Linux only, so on a Mac the docking runs in a "
+        "Linux virtual machine (the Scripps Research Institute suggests "
+        "Ubuntu in UTM), on a cluster, or in the Colab notebook. In the "
+        "virtual machine, once:\n\n"
         "  python3 -m venv ~/.adcp-dock/venv\n"
         "  ~/.adcp-dock/venv/bin/pip install \"adcp-dock[local] @ "
-        "git+https://github.com/aadhilhaq/ADCP_docking\"\n\n"
-        "Then choose This computer again."),
+        "git+https://github.com/aadhilhaq/ADCP_docking\"\n"
+        "  ~/.adcp-dock/venv/bin/adcp-dock local\n\n"
+        "and open the address it prints. For a cluster, choose it above."),
     "linux": (
         "Once, in a terminal:\n\n"
         "  python3 -m venv ~/.adcp-dock/venv\n"
@@ -99,8 +102,9 @@ def start(on_output=None, timeout=1800, cmd=None, popen=subprocess.Popen):
     """Start it, and return a Local once it prints its address.
 
     The timeout is long on purpose: the FIRST start downloads and installs
-    ADFRsuite, which takes minutes, and everything it says meanwhile is
-    passed to on_output so the window is not silent while it happens.
+    the ADCP 1.1 suite, which takes minutes, and everything it says
+    meanwhile is passed to on_output so the window is not silent while it
+    happens.
     """
     say = on_output or (lambda *a: None)
     cmd = cmd or command()

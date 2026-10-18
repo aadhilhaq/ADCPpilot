@@ -8,8 +8,8 @@
 #
 #     srun --pty -c 8 -t 30 bash tests/run_all.sh
 #
-# The checks that matter need ADFRsuite and Amber, so the suite runs on a
-# cluster rather than on GitHub's runners. It does not replace a real
+# The checks that matter need the ADCP 1.1 suite and Amber, so the suite runs
+# on a cluster rather than on GitHub's runners. It does not replace a real
 # docking run.
 #
 # Each test is a script: exit 0 passes, 77 skips, and anything else fails

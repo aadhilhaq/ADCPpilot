@@ -11,13 +11,13 @@
 # rewritten, a plain pull refuses, and this script is what moves the checkout
 # onto the new history.
 #
-# It also brings ADapt, Michel Sanner's separate tool, up to date beside
-# ADFRsuite, or fetches it there when it is missing and its repository is
-# public. That step never stops or fails the update.
+# It also brings ADapt, Michel Sanner's separate tool, up to date beside the
+# ADCP 1.1 suite, or fetches it there when it is missing and its repository
+# is public. That step never stops or fails the update.
 #
 # What it does NOT do: build an environment. install.sh owns that, it only
 # has to run once, and it is the thing that needs a login node and a network.
-# So a missing ADCP 1.1 is reported with the command that adds it.
+# So a missing ADCP 1.1 suite is reported with the command that adds it.
 
 # Run, not sourced, and by bash. These lines are read by any shell.
 if [ -z "${BASH_VERSION:-}" ]; then
@@ -139,32 +139,26 @@ say "clearing cached bytecode"
 find "$HERE" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null
 note "done"
 
-# --- ADapt, and the ADCP 1.1 it runs on ---------------------------------------
-# ADapt is Michel Sanner's own repository, kept beside ADFRsuite, where the
-# interface finds it. It is fetched anonymously from its https address, never
-# through the remote its checkout has configured, and only ever moved forward
-# along its branch; scripts/adapt_fetch.sh says what is left alone and why.
-# Nothing here can stop this script, prompt, or make it fail: ADCP docking
-# works without ADapt.
-say "ADapt, and the ADCP 1.1 it runs on"
+# --- ADapt, and the ADCP 1.1 suite it runs on ---------------------------------
+# ADapt is Michel Sanner's own repository, kept beside the ADCP 1.1 suite,
+# where the interface finds it. It is fetched anonymously from its https
+# address, never through the remote its checkout has configured, and only
+# ever moved forward along its branch; scripts/adapt_fetch.sh says what is
+# left alone and why. Nothing here can stop this script, prompt, or make it
+# fail: ADCP docking works without ADapt.
+say "ADapt, and the ADCP 1.1 suite it runs on"
 if [ -f "$HERE/scripts/adapt_fetch.sh" ]; then
   # shellcheck source=scripts/adapt_fetch.sh
   . "$HERE/scripts/adapt_fetch.sh"
-  # The ADFRsuite this install uses: the one activate.sh names, else the one
-  # whose programs are on PATH, as the interface would find them.
-  ADFR_AT="${ADFRSUITE_HOME:-}"
-  if [ -z "$ADFR_AT" ] && command -v prepare_receptor >/dev/null 2>&1; then
-    ADFR_AT=$(dirname "$(dirname "$(command -v prepare_receptor)")")
-  fi
-  # An install without ADFRsuite 1.0 has ADCP 1.1's folder instead, and
-  # ADapt beside it; activate.sh names both.
-  if [ -z "$ADFR_AT" ] && [ -n "${ADCPSUITE_HOME:-}" ]; then
-    ADFR_AT="$(dirname "$ADCPSUITE_HOME")/ADFRsuite"
-  fi
+  # The suite this install uses, as the interface finds it, and where it is
+  # or goes: the folder activate.sh names, else the one found. ADapt is
+  # kept beside it.
+  SUITE=$(adcp11_found "$HERE")
+  SUITE_AT="${ADCPSUITE_HOME:-$SUITE}"
   if [ -n "${ADAPT_HOME:-}" ]; then
     ADAPT_DIR="$ADAPT_HOME"
   else
-    ADAPT_DIR=$(adapt_dest "$ADFR_AT" "${ADCP_HOME:-}")
+    ADAPT_DIR=$(adapt_dest "$SUITE_AT" "${ADCP_HOME:-$HERE}")
   fi
   if [ -z "$ADAPT_DIR" ]; then
     note "ADapt: not fetched, since no tools folder was found to put it in (activate.sh names none; run ./install.sh)"
@@ -184,14 +178,13 @@ if [ -f "$HERE/scripts/adapt_fetch.sh" ]; then
       note "  the interface uses the ADapt in $USED instead, which this leaves alone"
     fi
   fi
-  SUITE=$(adcp11_found)
   if [ -n "$SUITE" ]; then
-    note "ADCP 1.1: $SUITE"
+    note "the ADCP 1.1 suite: $SUITE"
   elif [ -n "$ADAPT_DIR" ]; then
-    warn "ADCP 1.1 is not installed, and ADapt runs on it. To add it, on a login node (ten minutes, 3 GB):"
+    warn "The ADCP 1.1 suite is not installed, and nothing can dock without it. To add it, on a login node (ten minutes, 3 GB):"
     note "  ${PY:-python3} -m adcp_dock.cli install-adcp11 --dest $(dirname "$ADAPT_DIR")/adcpsuite"
   else
-    warn "ADCP 1.1 is not installed, and ADapt runs on it. ./install.sh adds both."
+    warn "The ADCP 1.1 suite is not installed, and nothing can dock without it. ./install.sh adds it."
   fi
 else
   note "scripts/adapt_fetch.sh is missing from this checkout; ADapt left as it is"

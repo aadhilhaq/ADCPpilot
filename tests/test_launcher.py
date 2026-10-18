@@ -31,7 +31,7 @@ def check(cond, why):
 
 # --- the command it runs on the far end -----------------------------------
 line = session.command("/scratch/x/ADCP_docking", runs="~/adcp_runs",
-                       tools_roots=["/opt/adfr", "/opt/amber"])
+                       tools_roots=["/opt/adcpsuite", "/opt/amber"])
 check("adcp_dock.cli serve" in line, "the launcher does not start the server")
 check("--host 127.0.0.1" in line,
       "the server would be started on a public interface, not loopback")
@@ -202,8 +202,8 @@ check(entry.main(["x", "--version"]) == 0, "--version does not work")
 
 # --- one place says who made it -------------------------------------------
 #
-# ADCP and ADFRsuite are the Scripps Research Institute's; this is a GUI that
-# drives them. The credit line is what a screenshot carries, so the
+# ADCP and the suite it comes in are the Scripps Research Institute's; this is
+# a GUI that drives them. The credit line is what a screenshot carries, so the
 # distinction has to be in it.
 for name, fn in (("the tool", tool_credit), ("the launcher", launcher_credit)):
     c = fn()
@@ -411,7 +411,7 @@ for _os in ("windows", "darwin", "linux"):
 # so a server that prints its address and then blocks must flush that line; a
 # shell stand-in would not buffer and would hide the problem. This runs
 # `serve`, which prints the address and blocks like `local` does, without
-# `local`'s first-run ADFRsuite download.
+# `local`'s first-run installation of the ADCP 1.1 suite.
 _d = _tf2.mkdtemp()
 _seen = []
 # Only where the whole tool is installed. The launcher build machines carry
@@ -446,14 +446,14 @@ _fake = os.path.join(_d, "fake_local.py")
 open(_fake, "w").write(
     "import sys, time\n"
     "sys.stdout.reconfigure(line_buffering=True)\n"
-    "print('installing ADFRsuite...')\n"
+    "print('installing the ADCP 1.1 suite...')\n"
     "print('    http://127.0.0.1:43210/?t=AbC_d-9')\n"
     "time.sleep(60)\n")
 _seen = []
 _run = localrun.start(on_output=_seen.append, cmd=[sys.executable, _fake])
 check(_run.url == "http://127.0.0.1:43210/?t=AbC_d-9",
       "the address was not read from what it printed: %r" % _run.url)
-check("installing ADFRsuite..." in _seen,
+check("installing the ADCP 1.1 suite..." in _seen,
       "what it printed while starting was not passed on to the window")
 _run.stop()
 check(_run.proc.poll() is not None, "stop() left adcp-dock local running")
