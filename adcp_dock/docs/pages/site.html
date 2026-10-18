@@ -209,7 +209,8 @@ not touch, a domain whose linker is missing from the file, a metal ion standing
 apart. Pockets sealed inside the protein, which no probe from outside can reach,
 are not drawn, so the see-through surface in the pose viewer shows the outside
 of the receptor and nothing inside it.</p>
-<p>It is computed by MSMS, Michel Sanner's program, which ships with ADFRsuite.
+<p>It is computed by MSMS, Michel Sanner's program, which comes with the ADCP 1.1
+suite as its MSMS library.
 Each atom is given the radius MSMS's own converter, <code>pdb_to_xyzr</code>,
 gives it, and the surface is finer for a small receptor than for a large one.
 MDM2 takes a tenth of a second; GroEL with GroES, 58,870 atoms, takes a few. The
@@ -243,30 +244,20 @@ site between two chains</a> works through both answers on one structure.</p>
 
 <h2 id="maps">The grid maps</h2>
 <figure>
-<img src="img/site-maps.png" alt="The Grid maps panel of the Site card: built by AGFR, newest installed; AutoSite 1.1; the receptor gradient unticked; and a line saying which program builds them">
-<figcaption><b>How the box is filled.</b> The line under the three settings says
-which AGFR will build the maps on this machine, which AutoSite places the points
-the search starts from, and whether the gradient is added.</figcaption>
+<img src="img/site-maps.png" alt="The Grid maps panel of the Site card: AutoSite 1.1; the receptor gradient unticked; and a line saying how the maps will be built">
+<figcaption><b>How the box is filled.</b> The line under the two settings says
+which AutoSite places the points the search starts from, and whether the gradient
+is added.</figcaption>
 </figure>
 <p>ADCP does not dock into the receptor itself but into grid maps of it: for
 each atom type, the energy an atom of that type would have at each point of the
-box, 0.375 &Aring; apart. AGFR builds them. Two AGFR programs can:</p>
-<ul>
-<li><b>AGFR 1.1</b>, which comes with the ADCP 1.1 suite. <b>AGFR, newest
-installed</b> uses it wherever that suite is installed.</li>
-<li><b>AGFR 1.0</b>, which comes with ADFRsuite, and which every run made before
-this choice used.</li>
-</ul>
-<p>Over the MDM2 example's receptor and box, with the same settings, the two
-wrote the same box, the same receptor and the same starting points. Their maps
-differ slightly, because each runs its own build of AutoGrid: where a peptide
-atom can sit, by at most 0.15 kcal/mol in the atom type maps and by up to 1.2 in
-the hydrogen bond donor maps, with correlations of 0.998 and above. AGFR 1.1
-also writes a constriction map, which ADCP does not read. ADCP 1.0 and ADCP 1.1
-both dock into maps from either.</p>
-<p>The run records which AGFR built its maps, with the command it ran, in
-<code>job.json</code> under <code>maps</code>. A run made before the choice
-existed is rebuilt, if it ever needs to be, the way it was first built.</p>
+box, 0.375 &Aring; apart. AGFR builds them: the AGFR that comes with the ADCP 1.1
+suite, with its own AutoGrid. It also writes a constriction map, which ADCP does
+not read.</p>
+<p>The run records how its maps were built, with the command it ran, in
+<code>job.json</code> under <code>maps</code>. A run made before these settings
+existed is rebuilt, if it ever needs to be, with AutoSite 1.0 and the receptor
+gradient on, which comes closest to the maps it was first docked into.</p>
 
 <h2 id="autosite">AutoSite</h2>
 <p>AutoSite marks the places in the box where a ligand is likely to bind:
@@ -289,7 +280,7 @@ so a peptide atom caught inside is pushed out rather than stuck. Where a peptide
 atom can actually sit the maps are unchanged: on the MDM2 example they were the
 same to the last digit with and without it.</p>
 <p>It is off unless you tick <b>Add the receptor gradient</b>, because the ADCP
-authors found it expensive and of no real help to the search. AGFR 1.0 adds it
-unless told not to, so every run made before this choice has it. On the MDM2
-example it took AGFR 1.0 two and a half minutes, against 14 seconds without it,
-and AGFR 1.1 23 seconds more. The walltime estimate prices it either way.</p>
+authors found it expensive and of no real help to the search. Every run made
+before this choice has it. On the MDM2 example it added 23 to 53 seconds to the
+maps, which took 14 to 16 seconds without it. The walltime estimate prices it
+either way.</p>

@@ -50,7 +50,7 @@ in proportion and it is the largest cost of the run.</p>
 <p>More than one is worth having. A single pose can be lucky, and the spread
 across poses is what shows whether the peptide has settled on one way of binding
 or is still choosing. The results table reports that spread, and for the three
-peptides in the example run it is 27.0, 14.0 and 22.3 kcal/mol across five poses
+peptides in the example run it is 20.6, 16.2 and 15.5 kcal/mol across five poses
 each, which is as large as the differences between the peptides themselves. That
 is a property of the poses, not of the rescoring, and it is the single most
 important thing to know before quoting one of these numbers.</p>
@@ -81,7 +81,7 @@ across the two.</p>
 <table>
 <tr><th>Engine</th><th>What it computes</th><th>How to read it</th></tr>
 <tr><td><b>AmberTools</b></td><td>ff14SB with GB-OBC(II), through <code>sander</code> and <code>MMPBSA.py</code>. The default.</td><td>The reference. Every earlier number came from it.</td></tr>
-<tr><td><b>OpenMM</b></td><td>The same force field and the same solvent model, on the geometry <code>sander</code> minimised.</td><td>A check on the solver, not a second estimate. It lands within about 1.3 kcal/mol of AmberTools and leaves the order unchanged.</td></tr>
+<tr><td><b>OpenMM</b></td><td>The same force field and the same solvent model, on the geometry <code>sander</code> minimised.</td><td>A check on the solver, not a second estimate. On the example run's fifteen poses it lands 2.0 to 3.3 kcal/mol below AmberTools, pose by pose, and leaves the order unchanged.</td></tr>
 <tr><td><b>Schrodinger Prime</b></td><td>OPLS with VSGB 2.0, a different force field and a different solvent model.</td><td>Its own scale entirely. Nothing calibrates it against the other two.</td></tr>
 </table>
 <p>Each engine writes its own columns, none is merged into another, and the table
@@ -127,24 +127,19 @@ are no further apart than this:</p>
 <tr><td>head to tail</td><td>the first residue's N and the last residue's C</td><td>1.33 &Aring;</td><td>2.5 &Aring;</td></tr>
 <tr><td>disulfide</td><td>the sulfurs of the two cysteines</td><td>2.04 &Aring;</td><td>3.5 &Aring;</td></tr>
 </table>
-<p>The two distances come from 300 ring poses docked into MDM2 with ADCP 1.0
-and 1.1, each of which was also built with its closing bond and minimised
-whatever its distance, to see what closing it does. The ends of a head to tail
-ring sat anywhere from 0.4 to 4.7 &Aring; apart, half of them within about 2
-&Aring;, with no natural break. Closing the bond turned no stereocentre into its
-mirror image in any of the 100 poses whose ends were under 2.4 &Aring; apart,
-2 of 27 between 2.4 and 3.0 &Aring;, and 8 of 23 beyond that, always at an end
-residue. The sulfurs of a disulfide fell in two groups: with ADCP 1.1, 2.0 to
-3.2 &Aring; or 3.9 &Aring; and more, nothing in between; with ADCP 1.0, up to
-3.5 &Aring; and then 4.3 &Aring; and more. Two sulfurs that are not bonded touch
-at about 3.6 &Aring;, so a pair closer than 3.5 &Aring; is held there by the
-ring, and 3.5 &Aring; is also where ADCP 1.1's own minimisation adds the bond.
-In every closed pose the bond came out at its proper length after the
-minimisation, with an energy of under 0.3 kcal/mol. ADCP's head to tail
-restraint holds the two end residues closer together than a peptide bond would,
-so the minimisation opens the join out a little; even so, the closed rings moved
-by 1.0 &Aring; RMSD at the median, as much as linear peptides do in the same
-minimisation.</p>
+<p>The two distances come from ring poses docked into MDM2, each of which was
+also built with its closing bond and minimised whatever its distance, to see
+what closing it does. A carbon and a nitrogen that are not bonded touch at
+about 3.25 &Aring;, so ends within 2.5 &Aring; are held together by ADCP's
+restraint rather than resting in contact, and the further apart they are, the
+more the minimisation has to move an end residue to close the bond, which can
+turn its alpha carbon into its mirror image. The sulfurs of a disulfide fell in
+two groups with ADCP 1.1, 2.0 to 3.2 &Aring; or 3.9 &Aring; and more, nothing
+in between. Two sulfurs that are not bonded touch at about 3.6 &Aring;, so a
+pair closer than 3.5 &Aring; is held there by the ring, and 3.5 &Aring; is also
+where ADCP's own minimisation adds the bond. ADCP's head to tail restraint holds
+the two end residues closer together than a peptide bond would, so the
+minimisation opens the join out a little.</p>
 <p>A closed pose is built with its closing bond: a head to tail ring with no
 free amine and no carboxylate, and a disulfide between two CYX residues. The
 bond is checked after the minimisation as well, and a pose whose bond the

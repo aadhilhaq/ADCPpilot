@@ -5,7 +5,8 @@ want help.</p>
 <h2 id="before-anything-is-submitted">Before anything is submitted</h2>
 <table>
 <tr><th>What you see</th><th>What it means</th></tr>
-<tr><td><code>N tool(s) missing</code></td><td>ADFRsuite or AmberTools is not reachable. Set <code>ADFRSUITE_HOME</code> and <code>AMBERHOME</code>, or pass <code>--tools-root</code>, then <code>adcp-dock check</code>.</td></tr>
+<tr><td><code>N tool(s) missing</code></td><td>the ADCP 1.1 suite or AmberTools is not reachable. Set <code>ADCPSUITE_HOME</code> and <code>AMBERHOME</code>, or pass <code>--tools-root</code>, then <code>adcp-dock check</code>; or run <code>./install.sh</code> again, which finds them.</td></tr>
+<tr><td><b>ADCP 1.1 is not installed here, so nothing can dock</b></td><td>the interface found no ADCP 1.1 suite. <code>./install.sh</code> installs it, or uses one already on the machine; <code>adcp-dock check</code> says where it looked.</td></tr>
 <tr><td>a fetch from the RCSB fails</td><td>the machine running the server has no route to the internet, which is normal on a compute node. Upload the file, or browse to a copy on the cluster.</td></tr>
 <tr><td><code>no residues chosen</code></td><td>the site box is empty, or nothing you typed parsed as a residue.</td></tr>
 <tr><td><code>NOT in the structure</code></td><td>a residue you named is not there: usually the wrong chain letter, or a numbering that differs from the file's.</td></tr>
@@ -90,8 +91,9 @@ the launcher do it.</li>
 <li><b>The pose viewer is blank.</b> Switch the viewer with the <b>engine</b> choice
 in the bar; Mol* is the larger of the two and takes a moment the first time.</li>
 <li><b>A line under a view says the surface was drawn by the viewer.</b> MSMS gave
-none, for the reason the line gives: it is not installed with ADFRsuite here, the
-structure is larger than the server triangulates, or MSMS failed on it. The
+none, for the reason the line gives: the ADCP 1.1 suite's MSMS library is not
+installed here, the structure is larger than the server triangulates, or MSMS
+failed on it. The
 viewer's own surface is drawn instead, and nothing else is affected.</li>
 <li><b>ADapt does not open in the Receptor card.</b> It opens only where ADapt and
 ADCP 1.1 are both installed. <code>./update.sh</code> says on its ADapt line where
@@ -101,7 +103,7 @@ works as before.</li>
 <li><b>The Receptor card says the ADapt here is older.</b> Embedding needs the ADapt
 that takes <code>--base-path</code> and writes <code>_rec_H.pdb</code>. Run
 <code>./update.sh</code> in the ADCP_docking checkout, which brings ADapt beside
-ADFRsuite up to date, and restart the interface.</li>
+the ADCP 1.1 suite up to date, and restart the interface.</li>
 <li><b>The run did not use what was set in ADapt.</b> The line above the frame says
 which receptor will be docked, and it is this page&rsquo;s preparation until
 something is changed in ADapt, or again after <b>Use this page&rsquo;s preparation

@@ -60,34 +60,24 @@ SKIP_OLD_RING = "cyclic peptide"                   # what older runs recorded
 #
 # The closing bond is C to N (1.335 A in ff14SB) for a head to tail ring and
 # S to S (2.038 A) for a disulfide. A pose is rescored when the two atoms are
-# no further apart than these. Measured on 300 ring poses docked into MDM2
-# (1YCR) on 2026-10-09: five peptides docked head to tail with ADCP 1.1 (20
-# poses each) and 1.0 (10 each), and five with a cysteine at each end
-# (mostly the same cores) docked as disulfides with both. Every pose up to 6 A apart was then
-# built with its closing bond and minimised as MM-GBSA minimises, whatever
-# the cutoff would have said.
+# no further apart than these.
 #
-# HEAD TO TAIL, 2.5 A. ADCP's ring is no help here: its ends sit anywhere
-# from 0.39 to 4.65 A (median 2.04, quartiles 1.46 and 2.53), in one broad
-# spread with no gap in it, and its restraint holds the end residues' alpha
-# carbons about 2.2 A apart, where a peptide bond puts them 3.8 A apart. What
-# decides it is what closing the bond does. Below 2.40 A not one pose of 100
-# had a stereocentre change in the minimisation; from 2.40 to 3.0 A, 2 of 27
-# had an end residue's alpha carbon turned into its mirror image, and above
-# 3.0 A, 8 of 23. A carbon and a nitrogen that are not bonded touch at about
-# 3.25 A, so at 2.5 A they are held by the restraint, not resting in contact.
-# The bond closed to 1.33 to 1.36 A in every pose, its energy term under
-# 0.3 kcal/mol, and the peptide moved 1.0 A RMSD at the median.
+# HEAD TO TAIL, 2.5 A. ADCP's ring is no help here: its restraint holds the
+# end residues' alpha carbons about 2.2 A apart, where a peptide bond puts
+# them 3.8 A apart, and its ends sit at any distance up to a few angstroms,
+# with no gap to cut at. What decides it is what closing the bond does: the
+# further apart the ends, the more the minimisation moves an end residue to
+# close it, which can turn its alpha carbon into its mirror image. A carbon
+# and a nitrogen that are not bonded touch at about 3.25 A, so at 2.5 A they
+# are held by the restraint, not resting in contact.
 #
-# DISULFIDE, 3.5 A. Here the poses fall in two groups. ADCP 1.1's sulfurs
-# are 2.03 to 3.19 A apart or 3.94 A and more (to 22 A), with none between;
-# ADCP 1.0's run from 2.13 to 3.54 A, then 4.25 A and more. Two sulfurs that
-# are not bonded touch at about 3.6 A, twice sulfur's van der Waals radius,
-# so a pair closer than 3.5 A is held by the restraint; and 3.5 A is where
-# ADCP 1.1's own OpenMM minimisation adds the bond. Closing it was harmless
-# at any distance up to 6 A (no stereocentre changed, 1.0 A RMSD at the
-# median, the bond 2.02 to 2.06 A after), so it is the distribution that
-# sets this one.
+# DISULFIDE, 3.5 A. Here ADCP 1.1's poses fall in two groups: the sulfurs are
+# 2.03 to 3.19 A apart or 3.94 A and more (to 22 A), with none between,
+# measured on ring poses docked into MDM2 (1YCR). Two sulfurs that are not
+# bonded touch at about 3.6 A, twice sulfur's van der Waals radius, so a pair
+# closer than 3.5 A is held by the restraint; and 3.5 A is where ADCP's own
+# OpenMM minimisation adds the bond. So it is the distribution that sets this
+# one.
 BACKBONE_CLOSED = 2.5
 DISULFIDE_CLOSED = 3.5
 

@@ -4,16 +4,16 @@
 
 [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aadhilhaq/ADCP_docking/blob/main/notebooks/ADCP_docking_colab.ipynb)
 
-Try it in your browser with nothing to install: open the notebook and press **Start GUI to ADCP Docking**, which takes about five minutes the first time and then opens the interface inside the notebook.
+Try it in your browser with nothing to install: open the notebook and press **Start GUI to ADCP Docking**, which takes about a quarter of an hour the first time and then opens the interface inside the notebook.
 
 GUI to ADCP Docking is a browser interface and command line for peptide docking with [AutoDock CrankPep (ADCP)](https://ccsb.scripps.edu/adcp/). Give it a receptor structure and peptide sequences: it prepares the receptor, builds the grid maps, docks each peptide, can rescore the poses with MM-GBSA, and reports ranked results with the structures. The calculations run on a Slurm cluster, on your own computer, or in Google Colab.
 
-Developed by Aadhil Haq, HOPE Lab, under the supervision of Dr. Sandun Fernando. ADCP and ADFRsuite are developed by the Scripps Research Institute; this project is independent of it.
+Developed by Aadhil Haq, HOPE Lab, under the supervision of Dr. Sandun Fernando. ADCP and the ADCP 1.1 suite it comes in are developed by the Scripps Research Institute; this project is independent of it.
 
 ## Features
 
 * Receptor preparation: protonation at a chosen pH, missing side chains, a restrained minimization, and a docking box built around the residues you choose.
-* ADCP 1.0 and ADCP 1.1. With ADCP 1.1: non-standard and D amino acids, chosen from a peptide's menu with a drawing of each; OpenMM minimization of the top poses; runs that start from an AGFR or AGFRGUI target file.
+* ADCP 1.1, with its AGFR, AutoSite, reduce and MSMS: non-standard and D amino acids, chosen from a peptide's menu with a drawing of each; OpenMM minimization of the top poses; runs that start from an AGFR or AGFRGUI target file.
 * Linear and cyclic peptides in one run: each peptide is docked as a linear chain, a ring closed head to tail or a ring through a disulfide, as its own row says or as the run is set.
 * Optional MM-GBSA rescoring with AmberTools.
 * A ranked results table, a 3D pose viewer, and the citations for the tools each run used.
@@ -26,10 +26,10 @@ Developed by Aadhil Haq, HOPE Lab, under the supervision of Dr. Sandun Fernando.
 | Where the calculations run | How to install |
 |---|---|
 | A Slurm cluster | [INSTALL.md, section 1](INSTALL.md#1-on-a-slurm-cluster) |
-| Your own computer (Linux, macOS, or Windows through WSL) | [INSTALL.md, section 2](INSTALL.md#2-on-your-own-computer) |
+| Your own computer (Linux, or Windows through WSL; on a Mac, a Linux virtual machine) | [INSTALL.md, section 2](INSTALL.md#2-on-your-own-computer) |
 | Google Colab | The **Open in Colab** badge at the top of this page; nothing is installed on your computer, and [INSTALL.md, section 3](INSTALL.md#3-in-google-colab) says what the notebook does |
 
-On a Slurm cluster, connect with `ssh` to a login node (where you arrive; calculations never run there) and type, one line at a time, using a folder with room for about 150,000 files rather than your home folder:
+On a Slurm cluster, connect with `ssh` to a login node (where you arrive; calculations never run there) and type, one line at a time, using a folder with room for about 140,000 files rather than your home folder:
 
 ```bash
 cd $SCRATCH
@@ -53,7 +53,7 @@ python3 -m venv ~/.adcp-dock/venv
 ~/.adcp-dock/venv/bin/adcp-dock local
 ```
 
-On a cluster `install.sh` installs ADCP 1.1, which brings everything the docking needs; ADFRsuite 1.0 is added only with `--with-adfr10`, for the ADCP 1.0 choices. Elsewhere `adcp-dock install-adcp11` adds it ([INSTALL.md, section 4](INSTALL.md#4-adcp-11)). On top of it, ADapt, a separate tool by Michel Sanner that shows what a structure file holds and prepares the receptor the way AGFR does, opens inside the Receptor card on the structure loaded there. `install.sh` and `update.sh` fetch it beside ADFRsuite from its repository once that is public; until then they say so in one line and carry on ([INSTALL.md, ADapt](INSTALL.md#adapt-optional)).
+Everything the docking needs comes from the ADCP 1.1 suite, which the Scripps Research Institute builds for Linux: `install.sh` installs it on a cluster, or uses one already there, and `adcp-dock local` installs it on first use ([INSTALL.md, section 4](INSTALL.md#4-adcp-11)). On top of it, ADapt, a separate tool by Michel Sanner that shows what a structure file holds and prepares the receptor the way AGFR does, opens inside the Receptor card on the structure loaded there. `install.sh` and `update.sh` fetch it beside the suite from its repository once that is public; until then they say so in one line and carry on ([INSTALL.md, ADapt](INSTALL.md#adapt-optional)).
 
 `adcp-dock example` adds a finished run, MDM2 with three peptides, to open before docking anything. The Colab notebook includes it.
 
@@ -74,26 +74,26 @@ A run docked before version 0.1.17 has no interface panel in its results, becaus
 
 ## Peptides
 
-Sequences of 5 to 30 residues in one-letter codes, one per line, optionally named (`p53: ETFSDLWKLLP`) or as FASTA. Lines starting with `#` are comments. Columns work too, with an optional third for the peptide's own ring: `p53,ETFSDLWKLLP,head to tail`, with `linear`, `head to tail` or `disulfide`, or a header row `name,sequence,ring`; a peptide with no ring of its own is docked as the run is set (`--cyclic`). With ADCP 1.1, write a non-standard residue as its coarse one-letter code followed by its library name in angle brackets, and a D residue with `&` before its letter (`N<BHD>PIS&DVD`), or choose them in the interface.
+Sequences of 5 to 30 residues in one-letter codes, one per line, optionally named (`p53: ETFSDLWKLLP`) or as FASTA. Lines starting with `#` are comments. Columns work too, with an optional third for the peptide's own ring: `p53,ETFSDLWKLLP,head to tail`, with `linear`, `head to tail` or `disulfide`, or a header row `name,sequence,ring`; a peptide with no ring of its own is docked as the run is set (`--cyclic`). Write a non-standard residue as its coarse one-letter code followed by its library name in angle brackets, and a D residue with `&` before its letter (`N<BHD>PIS&DVD`), or choose them in the interface.
 
 ## Results
 
 Each run writes `results.tsv`, `results.json` and `results.txt`, the ranked poses, a `metrics/` folder, and its logs. Peptides are ranked by the mean of up to five top poses: by MM-GBSA where it ran, otherwise by the ADCP score. Both are ranking aids, not binding free energies. Look at the poses, and make sure the search settings suit your system. The logs record every preparation decision and any step that could not run.
 
-`metrics/` holds the interface panel: one file per peptide with every pose that was measured, and one residue map listing every residue of the peptide and each receptor residue at the interface, what kind of contact it makes, and its own share of the energy. The same map is shown under the 3D viewer when a peptide is opened. Every energy in the results and in the panel comes from AmberTools: tleap builds the topologies, sander minimizes the complex with the receptor restrained, and MMPBSA.py computes the energy and its per residue decomposition. This tool also runs OpenMM, but only in two places that produce no reported energy: the receptor's restrained minimization during preparation, and ADCP 1.1's own minimization of its top poses, whose energies are printed beside the scores and never ranked by. `results.json` names which of those a given run used. `results.json` carries the constants the panel was measured with, so a number in it can be compared with a number from somewhere else. Two limits are worth knowing before the columns are quoted: the contact counts test the distance between heavy atoms only, not hydrogen positions or ring orientation; and a per residue energy comes from a decomposition that agrees with the reported total to within a few per cent rather than exactly, and always slightly more negative, because Amber uses a per atom surface term in a decomposition where the total uses LCPO. The energy terms themselves agree to within 0.05 kcal/mol.
+`metrics/` holds the interface panel: one file per peptide with every pose that was measured, and one residue map listing every residue of the peptide and each receptor residue at the interface, what kind of contact it makes, and its own share of the energy. The same map is shown under the 3D viewer when a peptide is opened. Every energy in the results and in the panel comes from AmberTools: tleap builds the topologies, sander minimizes the complex with the receptor restrained, and MMPBSA.py computes the energy and its per residue decomposition. This tool also runs OpenMM, but only in two places that produce no reported energy: the receptor's restrained minimization during preparation, and ADCP's own minimization of its top poses, whose energies are printed beside the scores and never ranked by. `results.json` names which of those a given run used. `results.json` carries the constants the panel was measured with, so a number in it can be compared with a number from somewhere else. Two limits are worth knowing before the columns are quoted: the contact counts test the distance between heavy atoms only, not hydrogen positions or ring orientation; and a per residue energy comes from a decomposition that agrees with the reported total to within a few per cent rather than exactly, and always slightly more negative, because Amber uses a per atom surface term in a decomposition where the total uses LCPO. The energy terms themselves agree to within 0.05 kcal/mol.
 
 ## Requirements
 
-Python 3.9 or newer with NumPy and RDKit, ADFRsuite (installed by `python -m adcp_dock.adfr`, or on the first `adcp-dock local`), and PDB2PQR (installed with the package). Optional: AmberTools for MM-GBSA; OpenMM and PDBFixer for receptor repair and minimization; Biopython for mmCIF files; ADCP 1.1. `adcp-dock check` lists what it finds.
+Linux on x86-64 (on Windows, WSL). Python 3.9 or newer with NumPy and RDKit, the ADCP 1.1 suite (installed by `install.sh`, by `adcp-dock install-adcp11`, or on the first `adcp-dock local`), and PDB2PQR (installed with the package). Optional: AmberTools for MM-GBSA; OpenMM and PDBFixer for receptor repair and minimization; Biopython for mmCIF files. `adcp-dock check` lists what it finds.
 
 ## Citation
 
-This interface drives other programs, and each has its own paper. Cite the ones your run used; `adcp-dock cite <run>` and the `HOW_TO_CITE.txt`, `CITATION.bib` and `CITATION.ris` files written into every run list exactly those. ADCP and ADFRsuite are products of the Scripps Research Institute. The Amber developers ask for the AmberTools paper and the force field paper ([ambermd.org/CiteAmber.php](https://ambermd.org/CiteAmber.php)).
+This interface drives other programs, and each has its own paper. Cite the ones your run used; `adcp-dock cite <run>` and the `HOW_TO_CITE.txt`, `CITATION.bib` and `CITATION.ris` files written into every run list exactly those. ADCP, AGFR and AutoSite are products of the Scripps Research Institute. The Amber developers ask for the AmberTools paper and the force field paper ([ambermd.org/CiteAmber.php](https://ambermd.org/CiteAmber.php)).
 
 | Tool | Cite for | Reference | DOI |
 |---|---|---|---|
 | ADCP | every run | Zhang Y, Sanner MF. AutoDock CrankPep: combining folding and docking to predict protein-peptide complexes. Bioinformatics 35(24):5121-5127, 2019. | [10.1093/bioinformatics/btz459](https://doi.org/10.1093/bioinformatics/btz459) |
-| ADFRsuite (agfr, prepare_receptor) | every run | Ravindranath PA, Forli S, Goodsell DS, Olson AJ, Sanner MF. AutoDockFR: advances in protein-ligand docking with explicitly specified binding site flexibility. PLoS Comput Biol 11(12):e1004586, 2015. | [10.1371/journal.pcbi.1004586](https://doi.org/10.1371/journal.pcbi.1004586) |
+| AutoDockFR (agfr, prepare_receptor) | every run | Ravindranath PA, Forli S, Goodsell DS, Olson AJ, Sanner MF. AutoDockFR: advances in protein-ligand docking with explicitly specified binding site flexibility. PLoS Comput Biol 11(12):e1004586, 2015. | [10.1371/journal.pcbi.1004586](https://doi.org/10.1371/journal.pcbi.1004586) |
 | AutoGrid4 | every run | Morris GM, Huey R, Lindstrom W, Sanner MF, Belew RK, Goodsell DS, Olson AJ. AutoDock4 and AutoDockTools4: automated docking with selective receptor flexibility. J Comput Chem 30(16):2785-2791, 2009. | [10.1002/jcc.21256](https://doi.org/10.1002/jcc.21256) |
 | AutoSite | every run | Ravindranath PA, Sanner MF. AutoSite: an automated approach for pseudo-ligands prediction—from ligand-binding sites identification to predicting key ligand atoms. Bioinformatics 32(20):3142-3149, 2016. | [10.1093/bioinformatics/btw367](https://doi.org/10.1093/bioinformatics/btw367) |
 | reduce | receptor preparation (the default) and MM-GBSA in such runs, and receptors prepared with ADapt | Word JM, Lovell SC, Richardson JS, Richardson DC. Asparagine and glutamine: using hydrogen atom contacts in the choice of side-chain amide orientation. J Mol Biol 285(4):1735-1747, 1999. | [10.1006/jmbi.1998.2401](https://doi.org/10.1006/jmbi.1998.2401) |
@@ -135,6 +135,6 @@ Report problems through [GitHub Issues](https://github.com/aadhilhaq/ADCP_dockin
 | 3Dmol.js, bundled structure viewer | BSD 3-Clause | `adcp_dock/static/3Dmol.LICENSE.txt` |
 | Mol*, bundled structure viewer | MIT | `adcp_dock/static/molstar.LICENSE.txt` |
 | Table of ADCP 1.1's non-standard residues (codes, structures) | Derived from ADCP 1.1's SwissSidechain library | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) |
-| ADCP, ADFRsuite, AmberTools, PDB2PQR and the other programs it runs | Their own licences; not included in this repository | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) |
+| ADCP and the rest of the ADCP 1.1 suite, AmberTools, PDB2PQR and the other programs it runs | Their own licences; not included in this repository | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) |
 
-No Scripps code is included in this repository: ADCP and ADFRsuite are downloaded from the Scripps Research Institute by each user. Some of their components are free for academic use only; THIRD_PARTY_NOTICES.md says which, and which of them this package installs.
+No Scripps code is included in this repository: the ADCP 1.1 suite is downloaded from the Scripps Research Institute by each user. Some of its components are for non-commercial use only; THIRD_PARTY_NOTICES.md says which, and which of them this package runs.

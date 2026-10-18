@@ -14,8 +14,9 @@ peptides with different sequences are known to bind it.</p>
 <tr><td>Receptor</td><td>1YCR, chain A kept, chain B dropped</td></tr>
 <tr><td>Site</td><td>22 residues, including Leu54, Gly58, Ile61, Met62, Tyr67, Gln72, His73, Val93, His96 and Ile99</td></tr>
 <tr><td>Box</td><td>8 &Aring; padding, 20 &Aring; minimum, 30 &Aring; maximum, clamped to 30 &Aring; on every axis</td></tr>
-<tr><td>Preparation</td><td>pH 7.4, minimised, heteroatoms dropped, loops left alone</td></tr>
-<tr><td>Search</td><td>25 replicas, 2,000,000 steps, 10 poses kept, 16 cores</td></tr>
+<tr><td>Preparation</td><td>protonated by reduce, minimised, heteroatoms dropped, loops left alone</td></tr>
+<tr><td>Maps</td><td>AGFR 1.1, AutoSite 1.1, no receptor gradient</td></tr>
+<tr><td>Search</td><td>ADCP 1.1.21, 25 replicas, 2,000,000 steps, a quarter of the replicas starting as a helix, 10 poses kept, 16 cores</td></tr>
 <tr><td>Rescoring</td><td>MM-GBSA on 5 poses, reporting the mean of the top 5</td></tr>
 </table>
 <figure>
@@ -46,20 +47,21 @@ most negative first.</figcaption>
 </figure>
 <table>
 <tr><th>Rank</th><th>Name</th><th>ADCP best</th><th>ADCP top5</th><th>MM best</th><th>MM top5</th><th>MM spread</th></tr>
-<tr><td>1</td><td>p53</td><td>-21.1</td><td>-20.44</td><td>-74.60</td><td>-61.22</td><td>27.04</td></tr>
-<tr><td>2</td><td>PMI</td><td>-18.7</td><td>-18.24</td><td>-56.41</td><td>-49.48</td><td>14.04</td></tr>
-<tr><td>3</td><td>12/1 core</td><td>-17.8</td><td>-17.22</td><td>-55.21</td><td>-43.28</td><td>22.31</td></tr>
+<tr><td>1</td><td>p53</td><td>-21.4</td><td>-20.10</td><td>-65.45</td><td>-55.12</td><td>20.64</td></tr>
+<tr><td>2</td><td>PMI</td><td>-19.2</td><td>-18.14</td><td>-45.85</td><td>-36.82</td><td>16.25</td></tr>
+<tr><td>3</td><td>12/1 core</td><td>-19.4</td><td>-18.40</td><td>-42.08</td><td>-36.80</td><td>15.50</td></tr>
 </table>
-<p>Both measures put the three in the same order, which is worth more than either
-alone. The four parts of p53's best pose energy are van der Waals -92.5,
-electrostatic -374.8, polar solvation +405.0 and nonpolar solvation -12.2
+<p>Both measures put p53 first. PMI and the 12/1 core are 0.02 kcal/mol apart on
+MM-GBSA and change places on ADCP's own score, so this run cannot tell those two
+apart. The four parts of p53's best pose energy are van der Waals -84.3,
+electrostatic -328.7, polar solvation +360.1 and nonpolar solvation -12.5
 kcal/mol: a large electrostatic attraction almost cancelled by the cost of
 desolvating it, with the van der Waals term carrying the interaction. That is the
 ordinary shape of a hydrophobic groove.</p>
 
 <h2 id="what-to-notice">What to notice before quoting it</h2>
 <div class="note"><b>The spread is as large as the differences.</b> p53's five
-rescored poses span 27.0 kcal/mol, and p53 and PMI are 11.7 apart. The noise
+rescored poses span 20.6 kcal/mol, and p53 and PMI are 18.3 apart. The noise
 within one peptide is a large share of the signal between peptides. That is a
 property of the docked poses, not of the rescoring, and no choice of engine
 removes it.</div>
@@ -69,19 +71,20 @@ removes it.</div>
 published setting, because the run ships inside a Python package. The guideline is
 100 to 300 replicas and 1 to 3 million steps per residue, so a 13-mer wants 13 to
 39 million. Do not take this run's settings as a template.</li>
-<li><b>The top cluster is thin.</b> p53's best pose comes from a cluster of 68
-of the solutions ADCP clustered, which the table shows as 6 per cent of them,
-across 100 modes. A converged search puts much more of its weight in one
+<li><b>The top cluster is thin.</b> p53's top ranked pose comes from a cluster of 13
+of the solutions in the ten modes ADCP wrote, which the table shows as 12 per
+cent of them. A converged search puts much more of its weight in one
 place.</li>
 <li><b>Three site residues fall outside the box.</b> Residues 25, 70 and 26 miss
 it by 2.7, 1.3 and 0.6 &Aring;. No pose can reach them, and they still count in
 the site coverage denominator. Naming fewer, better chosen residues would have
 given a tighter box and a cleaner coverage number.</li>
 </ul>
-<p>The example also carries no interface columns. Its intermediate geometry was
-not kept, so only the energy terms could be read back, and
-<code>results.txt</code> says so in as many words. A run of your own, kept whole,
-has the buried area, the contacts and the site coverage as well.</p>
+<p>The interface columns come from the pose each energy was computed on. p53's
+pose 4, its best, buries 1,703 &Aring;&sup2; and makes 14 hydrogen bonds, and
+touches 18 of the 22 site residues; PMI's best touches 14 and the 12/1 core's 13.
+The example ships without the topologies and minimised coordinates they were
+measured from, which a run of your own keeps.</p>
 
 <h2 id="repeating-it">Repeating it properly</h2>
 <ol class="steps">

@@ -127,15 +127,14 @@ run.</div>
 
 <h2 id="tidy">Tidying a finished run</h2>
 <p>The scratch file system counts files as well as space: on Grace each person
-may keep 250&nbsp;000. A run holds far more files than its results need. One
-docked with ADCP 1.0 before trajectories were packed keeps every replica's
-trajectory and log loose, about 400 files per peptide, and MM-GBSA leaves some
-23 working files for every pose it scores.</p>
+may keep 250&nbsp;000. A run holds far more files than its results need: MM-GBSA
+leaves some 23 working files for every pose it scores, and a run that kept
+ADCP's working folder holds hundreds more for each peptide.</p>
 <p><b>Tidy</b>, under the table of an open run once a peptide has finished and
 none of the run's jobs is queued or running, packs the files the results no
 longer read into one archive in the run's <code>archive</code> folder, in a
-short job. What goes is each finished peptide's replica trajectories and ADCP's
-scratch, the copy of the grid maps its docking read, and the files tleap,
+short job. What goes is ADCP's working folder where one was left, the copy of
+the grid maps each finished peptide's docking read, and the files tleap,
 sander and MMPBSA.py were given or left while each pose was scored. What stays
 is everything the results page, the pose viewer, the report, MM-GBSA
 rescoring, re-ranking, <b>reuse settings</b> and the downloads open: the
@@ -147,9 +146,9 @@ there.</p>
 <p>Nothing is removed until the archive has been read back and found to hold
 every file. <b>Undo tidy</b> puts every file back as it was, also in a short
 job; a file a later rescoring has written again is newer than the copy in the
-archive, and is kept. The <b>all</b> download carries the archive as it is. A
-seven peptide screen docked with ADCP 1.0 holds 3&nbsp;879 files and folders;
-tidying packs 3&nbsp;185 of them and leaves 694.</p>
+archive, and is kept. The <b>all</b> download carries the archive as it is. The
+example run as it was docked, three peptides with MM-GBSA on five poses each,
+held 518 files and folders; tidying packs 153 of them and leaves 365.</p>
 <p>From the command line, on a compute node,
 <code>python -m adcp_dock.tidy RUNDIR --dry-run</code> lists what would be
 packed without touching anything, <code>python -m adcp_dock.tidy RUNDIR</code>

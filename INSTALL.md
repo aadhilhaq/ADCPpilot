@@ -9,7 +9,7 @@ Choose where the calculations will run:
 | where | what you do | section |
 |---|---|---|
 | **a Slurm cluster** | install once on the cluster, open the page from your laptop | [1](#1-on-a-slurm-cluster) |
-| **your own computer** (Linux, macOS, or Windows through WSL) | install in a Python environment | [2](#2-on-your-own-computer) |
+| **your own computer** (Linux, or Windows through WSL; on a Mac, a Linux virtual machine) | install in a Python environment | [2](#2-on-your-own-computer) |
 | **Google Colab** | install and run in the notebook runtime | [3](#3-in-google-colab) |
 
 The desktop launcher ([5](#5-the-desktop-launcher)) is an optional convenience
@@ -98,13 +98,12 @@ question, and writes nothing into your home folder. In order, it:
 1. looks for what the cluster already has (below);
 2. builds a Python environment with RDKit, AmberTools, PDB2PQR, OpenMM,
    PDBFixer and Biopython, from conda-forge;
-3. installs ADCP 1.1 with Scripps' own recipe ([section 4](#4-adcp-11)),
-   which brings everything the docking needs: `adcp`, `agfr`,
-   `prepare_receptor`, `reduce`, and MSMS as its library for the surfaces. If
-   it fails, the script stops and says why, rather than finish without it.
-   ADFRsuite 1.0, from 2019, is no longer installed; `--with-adfr10` adds it,
-   for the ADCP 1.0 and AGFR 1.0 choices, and `--no-adcp11` installs it alone
-   instead of ADCP 1.1;
+3. installs the ADCP 1.1 suite with Scripps' own recipe
+   ([section 4](#4-adcp-11)), which brings everything the docking needs:
+   `adcp`, `agfr`, `prepare_receptor`, `reduce`, and MSMS as its library for
+   the surfaces. A suite already on the machine is used instead of a second
+   one. If it fails, the script stops and says why, rather than finish
+   without it;
 4. fetches ADapt beside it, once ADapt's repository is public
    ([ADapt](#adapt-optional));
 5. deletes the packages it downloaded, and writes `activate.sh` in the
@@ -113,9 +112,9 @@ question, and writes nothing into your home folder. In order, it:
 On a typical cluster, from a clean account, the whole of it takes 7 to 10
 minutes, most of it the two environments, with about 1 GB of downloads; a
 slower network or a busy login node takes longer.
-It leaves about 84,000 files, about 95,000 with `--with-adfr10`. It uses your
-cluster's own conda when it is recent, and otherwise fetches micromamba, a
-single file, into the folder; no conda module is needed.
+It leaves about 84,000 files. It uses your cluster's own conda when it is
+recent, and otherwise fetches micromamba, a single file, into the folder; no
+conda module is needed.
 
 **What success looks like.** The output ends with a summary and the next
 commands, for example (your paths and times will differ):
@@ -124,8 +123,7 @@ commands, for example (your paths and times will differ):
 == Summary ==
   Python environment  /scratch/you/adcp/envs/adcp
   AmberTools          in that environment
-  ADFRsuite 1.0       not installed (not needed; --with-adfr10 adds the ADCP 1.0 choices)
-  ADCP 1.1            /scratch/you/adcp/tools/docking/adcpsuite
+  ADCP 1.1 suite      /scratch/you/adcp/tools/docking/adcpsuite
   ADapt               not installed (optional; ./update.sh fetches it once it is public)
 
   Finished in 6 min 58 s.
@@ -172,7 +170,7 @@ it runs: log in again, `cd` to the checkout and run the same line.
 | `No Python environment ... and no folder was given` | add the folder: `./install.sh $SCRATCH/adcp` |
 | `could not be added without changing what is already in ...` | an environment you pointed at (below) could not take a package without changing others, so it was left as it was; the summary says what that turns off |
 | `ADapt: not installed: ... is not public yet` | nothing to do; ADCP docking works without it, and `./update.sh` fetches it later |
-| `ADFRsuite did not install properly` | follow the two commands it prints: read its log, delete the half installed folder, and run the install again |
+| `The ADCP 1.1 suite did not install` | the lines above it say why; run the same command again, or just that step with the command it prints |
 | `Run this with bash` or `do not source it` | type it exactly as shown: `./install.sh $SCRATCH/adcp` |
 
 If it stops in the same place twice, open an issue at
@@ -188,7 +186,8 @@ source /path/to/ADCP_docking/activate.sh
 ```
 
 using the folder you cloned into (`pwd` inside it prints the full path).
-`activate.sh` sets `ADFRSUITE_HOME`, `AMBERHOME`, `ADCP_PYTHON` and `PATH`.
+`activate.sh` sets `ADCPSUITE_HOME`, `ADAPT_HOME`, `AMBERHOME`, `ADCP_PYTHON`
+and `PATH`.
 The desktop launcher sources it before it starts the server, and every job a
 run submits names the same programs itself, so a cluster that starts its jobs
 with a clean environment still finds them.
@@ -318,7 +317,7 @@ a failure and only the peptides with no result are docked again.
 | **cores per node** | a task asks for more than a node has | *Cores per task* starts at what a node of the default partition has, up to 48; a partition with smaller nodes needs it lowered |
 | **conda** | there is no conda module, or an old one | nothing: `install.sh` fetches micromamba when it finds no recent conda |
 | **AmberTools module** | the cluster provides AmberTools | load it before installing (1.10); `install.sh` then uses it |
-| **job environment** | the cluster starts jobs with a clean environment | nothing: each job script names ADFRsuite and AmberTools itself |
+| **job environment** | the cluster starts jobs with a clean environment | nothing: each job script names the ADCP 1.1 suite and AmberTools itself |
 | **compute nodes without internet** | PDB ids fail from a job | fetch from the login node, or upload the file |
 
 ### 1.9 Update later
@@ -331,10 +330,14 @@ git pull; ./update.sh
 ```
 
 `update.sh` moves the checkout to the newest version, brings ADapt up to date
-beside ADFRsuite ([ADapt](#adapt-optional)), and ends with the same list as
-`adcp-dock check`. It never builds an environment; when ADCP 1.1 is missing it
-gives the command that adds it. A server that was already running keeps the
-old code until you stop it with Ctrl-C and start it again.
+beside the ADCP 1.1 suite ([ADapt](#adapt-optional)), and ends with the same
+list as `adcp-dock check`. It never builds an environment; when the suite is
+missing it gives the command that adds it. An installation made before ADCP
+1.1 was the only engine still names an older suite in its `activate.sh`; run
+`./install.sh` once more, with no folder, and it writes `activate.sh` afresh,
+finding the ADCP 1.1 suite it installed beside the checkout. A server that was
+already running keeps the old code until you stop it with Ctrl-C and start it
+again.
 
 ### 1.10 Using what your cluster already has
 
@@ -399,15 +402,15 @@ conda create -p ./env -c conda-forge python=3.11 rdkit pdbfixer openmm \
 conda activate ./env
 pip install -e ".[local]"              # the package, and pdb2pqr
 
-python -m adcp_dock.adfr --dest tools/docking/ADFRsuite
+adcp-dock install-adcp11 --dest tools/docking/adcpsuite
 ```
 
-The last command downloads ADFRsuite from Scripps, checks the archive against
-a pinned SHA-256 checksum, and installs it. Then set the two variables
-yourself in each new terminal:
+The last command installs the ADCP 1.1 suite with Scripps' own recipe,
+checking each Scripps package against a pinned SHA-256 ([section 4](#4-adcp-11)).
+Then set the two variables yourself in each new terminal:
 
 ```bash
-export ADFRSUITE_HOME=/path/to/ADCP_docking/tools/docking/ADFRsuite
+export ADCPSUITE_HOME=/path/to/ADCP_docking/tools/docking/adcpsuite
 export AMBERHOME=$CONDA_PREFIX          # only if you installed ambertools
 ```
 
@@ -415,8 +418,8 @@ export AMBERHOME=$CONDA_PREFIX          # only if you installed ambertools
 
 ## 2. On your own computer
 
-For a workstation or a laptop with no cluster: **Linux**, **macOS**, or
-**Windows through WSL**. The work runs on that machine, one step after
+For a workstation or a laptop with no cluster: **Linux** or **Windows
+through WSL**, on x86-64. The work runs on that machine, one step after
 another.
 
 ```bash
@@ -429,18 +432,25 @@ Use a virtual environment to keep package dependencies separate from the system 
 The desktop launcher's **This computer** option looks for it in exactly this
 place, so after these three lines you can start it from the launcher too.
 
-The first `adcp-dock local` downloads and installs ADFRsuite from Scripps
-(about 100 MB, checked against its pinned checksum) into
-`~/.adcp-dock/ADFRsuite`, then opens the page in your browser. Subsequent launches reuse the installation. Runs are written to `~/adcp_runs`.
+The first `adcp-dock local` installs the ADCP 1.1 suite with Scripps' own
+recipe ([section 4](#4-adcp-11): a few minutes and about 3 GB) into
+`~/.adcp-dock/adcpsuite`, unless one is already installed where the interface
+looks, then opens the page in your browser. Subsequent launches reuse the
+installation. Runs are written to `~/adcp_runs`.
 
-* **macOS**: ADFRsuite is built for Intel. On Apple silicon it runs through
-  Rosetta 2; if you have never needed Rosetta, run
-  `softwareupdate --install-rosetta` once first.
+* **Linux**: x86-64, which is what the ADCP 1.1 suite is built for.
 * **Windows**: there is no native build of what this needs, so use WSL.
   Install Ubuntu from the Microsoft Store, open it, and run the three lines
   above inside it. WSL shares `localhost` with Windows, so open the address
   it prints in your usual Windows browser.
-* **Linux**: x86-64, which is what ADFRsuite is built for.
+* **macOS**: the Scripps Research Institute builds the ADCP 1.1 suite for
+  Linux only ("ADCP v1.1 is currently only available for Linux"), and its
+  packages carry Linux programs, so it does not run on macOS itself. On a
+  Mac, use the Colab notebook ([section 3](#3-in-google-colab)), a cluster
+  through the [desktop launcher](#5-the-desktop-launcher), or a Linux
+  virtual machine, which is what Scripps suggests for Apple silicon (Ubuntu
+  in UTM), with the three lines above run inside it. `adcp-dock local` on
+  macOS says so and stops.
 
 **Review the search settings.** Local mode displays the available cores and starts with reduced search settings. These settings are useful for checking the workflow, but do not establish convergence or suitability for a research result. Set the sampling budget for your system and available resources.
 
@@ -460,7 +470,7 @@ merely has the Slurm client installed.
 
 The notebook runs the same interface on a Google Colab machine. Nothing is installed on your own computer. There is one thing to press: ▶ on **Start GUI to ADCP Docking**. Colab never runs a notebook by itself, so that press is how it begins.
 
-1. **Start GUI to ADCP Docking.** The first press installs what the session needs, then opens the interface inside the notebook, across the full width of the page. It installs the package, PDB2PQR, OpenMM and PDBFixer, then downloads ADFRsuite from the Scripps Research Institute and checks it against its pinned checksum. With **add_MM_GBSA** ticked (the default), it also installs AmberTools from conda-forge into its own folder, using micromamba, for MM-GBSA rescoring. It takes about five minutes, a few more with AmberTools, and ends with a single line such as *Installed in 6 min 10 s, with MM-GBSA; the interface is below*. **Open in a separate tab** shows the same interface in its own browser tab. The list of runs includes a finished example, MDM2 with three peptides docked and rescored with MM-GBSA, to open and explore before docking anything. Pressing ▶ again in the same session installs nothing and shows the interface again, with the runs it already has; it installs only what is not there yet, so a press after ticking **add_ADCP_1_1** adds ADCP 1.1 and nothing else.
+1. **Start GUI to ADCP Docking.** The first press installs what the session needs, then opens the interface inside the notebook, across the full width of the page. It installs the package, PDB2PQR, OpenMM and PDBFixer, then the ADCP 1.1 suite with Scripps' own recipe, each Scripps package checked against its pinned checksum ([section 4](#4-adcp-11)). With **add_MM_GBSA** ticked (the default), it also installs AmberTools from conda-forge into its own folder, using micromamba, for MM-GBSA rescoring. It takes about a quarter of an hour and ends with a single line such as *Installed in 14 min 10 s, with MM-GBSA; the interface is below*. **Open in a separate tab** shows the same interface in its own browser tab. The list of runs includes a finished example, MDM2 with three peptides docked and rescored with MM-GBSA, to open and explore before docking anything. Pressing ▶ again in the same session installs nothing and shows the interface again, with the runs it already has; it installs only what is not there yet, so a press after ticking **add_MM_GBSA** adds AmberTools and nothing else.
 2. **Download a run.** Optional, and only once something has been docked. Finished runs can be downloaded from the interface; this step zips a run and downloads it instead.
 
 Things to know before you start:
@@ -469,7 +479,7 @@ Things to know before you start:
 * Colab deletes the session's files when the session ends. Download the runs you want to keep. **Runtime → Disconnect and delete runtime** removes every run at once; the example returns the next time **Start GUI to ADCP Docking** runs.
 * Each person who opens the notebook gets a separate Colab machine, so nobody else sees your runs.
 * MM-GBSA rescoring needs AmberTools, which the first press installs when **add_MM_GBSA** is ticked. Without it, docking and the ADCP scores work normally and the interface disables the MM-GBSA option. On two cores MM-GBSA is slow: allow several minutes per pose.
-* Some components of ADFRsuite and of ADCP 1.1 are free for academic use only; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+* Some components of the ADCP 1.1 suite are for non-commercial use only; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 Use the notebook to explore the workflow and inspect inputs. Reduced search settings are not a validated production protocol.
 
@@ -477,33 +487,33 @@ Use the notebook to explore the workflow and inspect inputs. Reduced search sett
 
 ## 4. ADCP 1.1
 
-ADCP 1.1 is the current version of AutoDock CrankPep. It adds non-standard and D amino acids, all-atom poses in one file, and an optional OpenMM minimization and re-ranking of the top poses. The Scripps Research Institute distributes it as its own Python 3.7 environment, and on a cluster it is all the docking needs: its own `adcp`, `agfr`, `prepare_receptor` and `reduce`, and MSMS as the library mslib, which draws the surfaces. `install.sh` installs it, and stops if that fails. ADFRsuite 1.0 is needed only for the ADCP 1.0 and AGFR 1.0 choices and is installed with `--with-adfr10`; an installation that already has it keeps using its `prepare_receptor`, `reduce` and `msms`. `--no-adcp11` installs ADFRsuite 1.0 alone, and then the page says plainly, in the Docking card, that runs use ADCP 1.0. To add ADCP 1.1 later, or outside a cluster, install it on a login node, a workstation or in Colab with:
+ADCP 1.1 is the current version of AutoDock CrankPep, and the one every run docks with. It docks non-standard and D amino acids, writes all-atom poses in one file, and can minimize and re-rank the top poses with OpenMM. The Scripps Research Institute distributes it as its own Python 3.7 environment, the ADCP 1.1 suite, for Linux on x86-64, and it is all the docking needs: its own `adcp`, `agfr` (with AutoSite and AutoGrid), `prepare_receptor` and `reduce`, and MSMS as the library mslib, which draws the surfaces. `install.sh` installs it, or uses one already there, and stops if that fails; `adcp-dock local` and the Colab notebook install it on first use. To install it by hand, on a login node or a workstation:
 
 ```bash
-adcp-dock install-adcp11                      # beside ADFRsuite, in the tools folder
+adcp-dock install-adcp11                      # in the installation's tools folder
 adcp-dock install-adcp11 --dest /path/adcpsuite
 ```
 
 This follows Scripps' own installation script: it creates the environment with micromamba (downloaded if needed), installs OpenMM, Open Babel and PDBFixer from conda-forge, and fetches the Scripps packages from ccsb.scripps.edu, checking each against a pinned SHA-256. It takes a few minutes and 3 GB, and deletes the packages it downloaded once it is done. Scripps' own instructions are at <https://ccsb.scripps.edu/adcpv11/downloads/>.
 
-Without `--dest` it goes beside ADFRsuite where there is one (`$ADFRSUITE_HOME/../adcpsuite`), otherwise into the installation's own tools folder, or on a computer with neither into `~/.adcp-dock/adcpsuite`. The interface finds ADCP 1.1 at `$ADCPSUITE_HOME`, which `activate.sh` sets, in a folder named `adcpsuite` beside ADFRsuite or in a tools folder given with `--tools-root`, at `~/.adcp-dock/adcpsuite`, or at `/content/adcpsuite` in Colab. Its `bin` folder is never put on `PATH`, since it holds the suite's own Python. The suite carries its own AGFR, found from the same installation, and the grid maps are built with it wherever the suite is installed (`--agfr auto`, the default; `--agfr 1.0` asks for ADFRsuite's).
+Without `--dest` it goes where `$ADCPSUITE_HOME` names, otherwise into the installation's own tools folder, or on a computer with neither into `~/.adcp-dock/adcpsuite`. The interface finds the suite at `$ADCPSUITE_HOME`, which `activate.sh` sets; in a tools folder given with `--tools-root`; in `tools/docking/adcpsuite` inside the installation or beside it (a checkout in `/scratch/group/lab/ADCP_docking` finds `/scratch/group/lab/tools/docking/adcpsuite`); at `~/.adcp-dock/adcpsuite`; or at `/content/adcpsuite` in Colab. Its `bin` folder is never put on `PATH`, since it holds the suite's own Python. `adcp-dock check` names the suite it found and its version.
 
-Each run chooses its engine under **Docking engine**: *ADCP, newest installed* (the default) uses 1.1 when it is found and 1.0 otherwise. On the command line, `adcp-dock new ... --engine 1.1`. With ADCP 1.1:
+What it brings:
 
 * **Non-standard and D amino acids.** Write a non-standard residue as the one-letter code of the standard residue whose coarse model it uses, followed by its library name in angle brackets, and a D residue with `&` before its letter: `N<BHD>PIS&DVD` is seven residues. The names are those of ADCP 1.1's library, built by the Scripps Research Institute from the SwissSidechain database: 209 non-natural side chains, each in L and D form, among them phosphorylated serine, threonine and tyrosine, oxidised methionine and tryptophan, citrulline and nitrotyrosine, and many synthetic residues. The 197 that ADCP gives a coarse potential can be written in this syntax, and the page offers those. Common modifications such as lysine acetylation or methylation are not in it. ADCP builds and docks every residue in the library, but its accuracy on peptides containing them has not yet been benchmarked in a publication, so treat such results as exploratory. Runs that use them also cite SwissSidechain, and GAFF when they are minimized. MM-GBSA rescoring is skipped for these peptides, since its force field has no parameters for them; use the OpenMM minimization instead.
 * **Choosing them in the page.** Open a peptide's &#8942; menu and choose *Non-standard and D amino acids*. Click a residue, then pick its D form or one of the non-standard residues ADCP has for it; the list offers only what the installed ADCP 1.1 contains. Each choice is drawn below the list as the residue sits in the chain, with the charge ADCP models it with, so variants such as SEP and SEP2 (charge &minus;1 and &minus;2) can be told apart. A D residue is drawn as the mirror image of the L one, which is how ADCP builds it. Saving writes the sequence in the syntax above.
 * **OpenMM minimization.** *Poses to minimize with OpenMM* (`--omm-minimize N`) minimizes the top N poses in implicit solvent and reports the lowest E(complex) minus E(receptor) beside the scores. ADCP uses the Amber ff99SB force field with the GBn2 solvent model, holds receptor residues away from the peptide in place, and runs at most five minimizer iterations, its default, so this relaxes each docked complex rather than refining it. The minimized complexes and their Amber topologies stay in the run's docking folder. It covers nearly every residue the dialog offers. ADCP 1.1.21 has no parameters for IYR, PBF, PHI and TYI, and its parameters for FVAL, FPG2, FPG3, FTR and FT6 fail in OpenMM; a peptide containing one of these is still docked, its poses are left unminimized, and the run's log says so.
 
-Every run, on either engine, also takes these settings; each is named the same in the page and on the command line:
+Every run also takes these settings; each is named the same in the page and on the command line:
 
 * **Where the box goes** (`--site-mode`): around residues you pick (`-s`, the default), around a ligand or peptide in the structure (`--site-mode ligand --site-ligand B`, or a hetero group as `A:NUT:201`), or around the pocket AutoSite finds once the receptor is prepared (`--site-mode pocket`, with `--site-pocket best` or `all`).
-* **The grid maps**: which AGFR builds them (`--agfr`), which AutoSite places the points the search starts from (`--autosite`, 1.1 by default), and the receptor gradient, off unless asked for (`--receptor-gradient`).
+* **The grid maps**, built by the suite's AGFR: which AutoSite places the points the search starts from (`--autosite`, 1.1 by default, or 1.0, which AGFR 1.1 still offers), and the receptor gradient, off unless asked for (`--receptor-gradient`). AutoSite is named on every command (`-asv`), and the gradient is added with `-g`. A run made before these settings existed has its maps built again, when they need building, with AutoSite 1.0 and the gradient on, which comes closest to the maps it was docked into.
 * **Peptides**: linear, or a ring head to tail or through a disulfide (`--cyclic none|backbone|disulfide` for the run; a disulfide needs two cysteines in each peptide docked that way, and one with fewer is refused), and the share of replicas that start as a helix (`--helical 25`, the default; 0 starts every replica as a coil, as runs did before). Each peptide can have its own ring: on its row in the page, or in a third column of the `-f` file (`p53,ETFSDLWKLLPEN,head to tail`, or a header row `name,sequence,ring`), with `linear`, `head to tail` or `disulfide`; a peptide without one takes `--cyclic`.
-* **Output**: the ranked poses written per peptide (`--poses`, up to 10 with ADCP 1.0 and 100 with 1.1), and every replica's trajectory, packed into one archive per peptide (`--keep-trajectories`).
+* **Output**: the ranked poses written per peptide (`--poses`, up to 100), and every replica's trajectory, packed into one archive per peptide (`--keep-trajectories`).
 
 A run can also start from a target file made in AGFR or AGFRGUI: give its path under *or a target file* (`--target-file`). The receptor, maps and box then come from that file, and this package's receptor preparation is not run. The file's name must not be changed, since ADCP finds the maps by it.
 
-Scripps' ADCP 1.1 environment includes the MSMS library (mslib) and the UT packages, which are free for academic use only; check their terms before commercial use. `prepare_receptor` comes from ADFRsuite 1.0 where it is installed and from the ADCP 1.1 suite otherwise, and the packages it loads carry non-commercial terms of their own; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Most of the suite's Scripps packages carry the BSD 2-Clause licence, but `prepare_receptor` (AutoDockTools) and the MolKit and PyBabel it loads carry the MGLTOOLS licence, which allows non-commercial use only, and every receptor this package prepares passes through them; check those terms before commercial use. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ### ADapt (optional)
 
@@ -511,7 +521,7 @@ ADapt, by Michel Sanner, shows what a PDB file holds before you dock into it: ea
 
 #### How it is fetched
 
-`install.sh` and `update.sh` fetch it from <https://github.com/michelsanner/adapt> into a folder named `adapt` beside ADFRsuite, where the interface looks for it. They fetch it anonymously: git runs so that it never asks for a username or password and never uses a saved credential, so the same thing happens for everyone, on every cluster.
+`install.sh` and `update.sh` fetch it from <https://github.com/michelsanner/adapt> into a folder named `adapt` beside the ADCP 1.1 suite, where the interface looks for it. They fetch it anonymously: git runs so that it never asks for a username or password and never uses a saved credential, so the same thing happens for everyone, on every cluster.
 
 * **While the repository is private**, as it is today, the fetch fails at once and the script says so in one line, then carries on:
 
@@ -519,11 +529,11 @@ ADapt, by Michel Sanner, shows what a PDB file holds before you dock into it: ea
   ADapt: not installed: https://github.com/michelsanner/adapt.git is not public yet. ADCP docking works without it; ./update.sh fetches it once it is public, or fetch it by hand with access (INSTALL.md, ADapt)
   ```
 
-  Where ADapt is already installed, the line is instead `ADapt: 1005e87, kept as it is: https://github.com/michelsanner/adapt.git is not public yet`. If you have access now, clone it yourself beside ADFRsuite, over whichever address your access works with (ssh as here, or https with a token):
+  Where ADapt is already installed, the line is instead `ADapt: 1005e87, kept as it is: https://github.com/michelsanner/adapt.git is not public yet`. If you have access now, clone it yourself beside the suite, over whichever address your access works with (ssh as here, or https with a token):
 
   ```bash
   source activate.sh
-  git clone git@github.com:michelsanner/adapt.git "$(dirname "$ADFRSUITE_HOME")/adapt"
+  git clone git@github.com:michelsanner/adapt.git "$(dirname "$ADCPSUITE_HOME")/adapt"
   ```
 
   `update.sh` never uses that address afterwards: it fetches from the public one.
@@ -536,15 +546,15 @@ ADapt, by Michel Sanner, shows what a PDB file holds before you dock into it: ea
 * **A git checkout**: it fetches the newest `master` from the https address, never through the remote the checkout has configured (on a cluster whose ssh setup gives github.com another repository's deploy key, that remote fails), and moves the checkout forward only when that is a plain fast forward. A checkout with local changes to its files, on another branch, or with commits of its own is left exactly as it is, and the line says why.
 * **Not a git checkout**, for example one copied without its `.git` folder: it is left as it is, and the line says it cannot be updated automatically.
 
-A checkout whose commit is no longer in the published history, as happens if the history is rewritten when the repository is made public, is left as it is too. In that case, and for a folder that is not a git checkout, move the folder aside (`mv adapt adapt.old` beside ADFRsuite) and the next `./update.sh` fetches a fresh checkout in its place.
+A checkout whose commit is no longer in the published history, as happens if the history is rewritten when the repository is made public, is left as it is too. In that case, and for a folder that is not a git checkout, move the folder aside (`mv adapt adapt.old` beside the suite) and the next `./update.sh` fetches a fresh checkout in its place.
 
-After moving ADapt forward, `update.sh` checks that the new version still has `bin/adapt` and takes `--base-path`, which this interface needs to embed it. If it does not, ADapt is moved back to the commit it was on and the line says so, so a change to ADapt never leaves an installation without a working ADapt. The line always says which commit ADapt is at and why; the next one says whether ADCP 1.1 is installed and, when it is not, gives the command that adds it.
+After moving ADapt forward, `update.sh` checks that the new version still has `bin/adapt` and takes `--base-path`, which this interface needs to embed it. If it does not, ADapt is moved back to the commit it was on and the line says so, so a change to ADapt never leaves an installation without a working ADapt. The line always says which commit ADapt is at and why; the next one says where the ADCP 1.1 suite is and, when it is not installed, gives the command that adds it.
 
 `ADAPT_REPO_URL` fetches from another address instead, a fork for example, and `ADAPT_REPO_BRANCH` follows another branch.
 
 #### Where the interface finds it
 
-At `$ADAPT_HOME`, in a folder named `adapt` beside ADFRsuite, in the installation's own `tools/docking`, beside this checkout or in a tools folder given with `--tools-root`, or at `~/.adcp-dock/adapt`. It needs ADapt from commit 6dae90b on, which takes `--base-path` and writes `_rec_H.pdb`. An older checkout is not offered, and the Receptor card says how to update it; `./update.sh` does.
+At `$ADAPT_HOME`, in a folder named `adapt` beside the ADCP 1.1 suite, in the installation's own `tools/docking` or the one beside it, beside this checkout or in a tools folder given with `--tools-root`, or at `~/.adcp-dock/adapt`. It needs ADapt from commit 6dae90b on, which takes `--base-path` and writes `_rec_H.pdb`. An older checkout is not offered, and the Receptor card says how to update it; `./update.sh` does.
 
 #### In the page
 
@@ -559,9 +569,9 @@ ADapt runs beside the interface on the same machine, started with `--base-path /
 
 ### reduce and MSMS
 
-The receptor is protonated by default with reduce, the program ADFR's own preparation and ADapt use, taken from ADFRsuite 1.0's `bin` folder where it is installed and from the ADCP 1.1 suite's otherwise, which carries the same build (`reduce` 3.23). Checked against the protein structures in the PDB solved by neutron diffraction, where the hydrogens are placed from the data, reduce matched the deposited histidines more often than pdb2pqr (55% against 31% of 1,457 histidines) and turned fewer rings, and fewer Asn and Gln amides, the wrong way. What reduce does not do is pH: it never protonates an Asp or Glu and rarely puts hydrogens on both nitrogens of a histidine, whatever the pH. PDB2PQR with PROPKA at a chosen pH stays as the other choice (`--protonation propka --ph 5.5`), and a job file from before the choice keeps it, so old runs reproduce.
+The receptor is protonated by default with reduce, the program ADFR's own preparation and ADapt use, taken from the ADCP 1.1 suite's `bin` folder (`reduce` 3.23) and never from `PATH`, where AmberTools may have another. Checked against the protein structures in the PDB solved by neutron diffraction, where the hydrogens are placed from the data, reduce matched the deposited histidines more often than pdb2pqr (55% against 31% of 1,457 histidines) and turned fewer rings, and fewer Asn and Gln amides, the wrong way. What reduce does not do is pH: it never protonates an Asp or Glu and rarely puts hydrogens on both nitrogens of a histidine, whatever the pH. PDB2PQR with PROPKA at a chosen pH stays as the other choice (`--protonation propka --ph 5.5`), and a job file from before the choice keeps it, so old runs reproduce.
 
-The site view and the pose viewer draw molecular surfaces computed by MSMS, which the interface's server calls on request: the `bin/msms` program in ADFRsuite 1.0 where it is installed, and otherwise MSMS's own library, mslib, in the ADCP 1.1 suite, run with the suite's Python by `adcp_dock/msms_mslib.py`. The two give the same surface: the same points and triangles, listed in another order. MSMS is free for non-commercial scientific research only, so it is used where Scripps installed it and is not part of this package (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)). Without either the viewers draw their own surfaces. `adcp-dock check` lists which is used.
+The site view and the pose viewer draw molecular surfaces computed by MSMS, which the interface's server calls on request: MSMS's own library, mslib, in the ADCP 1.1 suite, run with the suite's Python by `adcp_dock/msms_mslib.py`. It draws the surface the msms program draws, the same points and triangles listed in another order. An msms program can be named with `MSMS_EXE` instead. MSMS is used where Scripps installed it and is not part of this package (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)). Without it the viewers draw their own surfaces. `adcp-dock check` lists which is used.
 
 ---
 
@@ -597,7 +607,7 @@ Signing removes those prompts.
 | **Address** | your cluster's login address, the one you use with `ssh`; filled in for a named cluster, and remembered |
 | **Username** | your cluster username |
 | **Tool directory** | the folder you cloned into on the cluster, for example `/scratch/you/ADCP_docking`; `pwd` inside it prints it |
-| **ADFRsuite / Amber roots** | leave blank: `activate.sh` in that folder names them |
+| **ADCP 1.1 suite / Amber roots** | leave blank: `activate.sh` in that folder names them |
 
 Then press connect. It asks for your password, and for your cluster's second
 sign-in step if it has one, or signs in with your SSH key. The first start on a
@@ -622,7 +632,7 @@ For problems while installing, see [1.2, If it stops](#if-it-stops).
 | `adcp-dock: command not found` | this terminal has not loaded the tools yet: `source /path/to/ADCP_docking/activate.sh` (1.3) |
 | `N tool(s) missing` from `check` | something the install recorded is not reachable any more; run `./install.sh` again in the checkout, which finds it or says what to do |
 | `sbatch was not found` | Slurm is not available in this environment; load the required cluster environment or use `adcp-dock local` on a workstation |
-| the downloaded ADFRsuite *does not match its pinned checksum* | the archive differs from the pinned version, usually an incomplete download; delete it as the message says and run the install again |
+| a Scripps package *does not match its pinned checksum* | the download differs from the pinned version, usually because it was cut short; it has been deleted, so run the install again |
 | `the account on the job is not one you can use` | this cluster needs an **Account** (1.4) |
 | `the grid target is unusable` | the `.trg` was truncated or built from another structure. It is rebuilt once automatically; twice means agfr is failing, and its output is in the prepare log |
 | `tleap did not build topologies` | the preparation log names the residue. It is usually a HETATM kept by *keep heteroatoms*, or a gap that *rebuild missing loops* would close |

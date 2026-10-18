@@ -20,7 +20,7 @@ sys.path.insert(0, ROOT)
 from adcp_dock import cite  # noqa: E402
 
 NOTES = {"adcp": "The docking engine. Scripps Research Institute.",
-         "adfr": "ADFRsuite: agfr and prepare_receptor. Scripps Research Institute.",
+         "adfr": "AutoDockFR: agfr and prepare_receptor, from the ADCP 1.1 suite. Scripps Research Institute.",
          "autogrid": "AutoGrid4, which agfr uses to compute the affinity maps.",
          "autosite": "AutoSite, run by agfr on every grid target.",
          "reduce": "reduce, the default receptor protonation, as ADFR and ADapt run it.",

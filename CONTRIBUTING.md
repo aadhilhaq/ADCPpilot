@@ -12,7 +12,7 @@ On a compute node, adding the account and partition your cluster requires:
 srun --pty -c 8 -t 30 bash tests/run_all.sh
 ```
 
-Each test file is a standalone script: exit code 0 is a pass, 77 a skip (a program it needs is missing), anything else a failure. A skipped test has checked nothing. These need neither ADFRsuite nor AmberTools:
+Each test file is a standalone script: exit code 0 is a pass, 77 a skip (a program it needs is missing), anything else a failure. A skipped test has checked nothing. These need neither the ADCP 1.1 suite nor AmberTools:
 
 ```bash
 python3 tests/test_api.py

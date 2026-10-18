@@ -69,17 +69,15 @@ size of the answer rather than the size of the search.</p>
 where it binds. Keeping one pose hides that question entirely: the results table
 reports the spread across poses, and with a single pose there is none to
 report.</p>
-<p>ADCP 1.0 writes at most ten. ADCP 1.1 writes as many as you ask for, up to
-100, one for each cluster its search found, best first, so a search that found
-fewer clusters writes fewer. More poses cost a few seconds to write, not a
+<p>ADCP writes as many as you ask for, up to 100, one for each cluster its
+search found, best first, so a search that found fewer clusters writes fewer. More poses cost a few seconds to write, not a
 longer search, and the estimate includes them.</p>
 
 <h2 id="trajectories">Keeping the trajectories</h2>
 <p>Each replica of the search writes its trajectory, every pose it accepted on
-the way. ADCP 1.1 deletes them when the docking ends unless told to keep them
-(its <code>-k</code>). ADCP 1.0 always leaves them in the peptide's folder, and
-they are deleted there once its poses are written. Either way a run keeps only
-its ranked poses, unless <b>Keep every replica's trajectory</b> is ticked.</p>
+the way. ADCP deletes them when the docking ends unless told to keep them (its
+<code>-k</code>), so a run keeps only its ranked poses, unless <b>Keep every
+replica's trajectory</b> is ticked.</p>
 <p>Ticked, each peptide's trajectories are packed into one archive beside its
 poses, <code>docking/&lt;peptide&gt;/&lt;peptide&gt;_trajectories.tar.gz</code>,
 and the loose files are removed: for a 50 replica run, about 150 files become
@@ -93,12 +91,13 @@ megabytes, so leave it off unless you will look at the trajectories. A run that
 stops part way through packing finishes the archive when it is resumed, and a
 peptide whose archive is complete is not docked again.</p>
 
-<h2 id="the-engine">Which ADCP, and the minimisation</h2>
-<p><b>Docking engine</b> chooses between the versions installed here.
-<i>ADCP, newest installed</i> takes 1.1 where it is present and 1.0 otherwise.
-ADCP 1.1 adds non-standard and D amino acids and an OpenMM minimisation of the
-top poses; see <a href="tools.html#adcp-11">Optional tools</a>.</p>
-<p><b>Poses to minimize with OpenMM</b> is ADCP 1.1's own step. It minimises
+<h2 id="the-engine">The engine, and the minimisation</h2>
+<p><b>Docking engine</b> shows the ADCP installed here, ADCP 1.1 with its
+version, which every run docks with. It docks non-standard and D amino acids and
+can minimise the top poses with OpenMM; see <a href="tools.html#adcp-11">Tools</a>.
+Without the suite the line under it says nothing can dock, and the run cannot be
+submitted.</p>
+<p><b>Poses to minimize with OpenMM</b> is ADCP's own step. It minimises
 that many of the top poses in implicit solvent and reports the lowest
 E(complex) minus E(receptor) beside the scores. ADCP holds the receptor residues
 away from the peptide in place and runs at most five minimiser iterations, its

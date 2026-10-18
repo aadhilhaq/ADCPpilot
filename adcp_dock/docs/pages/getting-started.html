@@ -3,11 +3,11 @@
 address it prints in your own browser.</p>
 
 <h2 id="what-it-needs">What it needs</h2>
-<p>Four programs do the work, and the page reports any that are missing before
+<p>These programs do the work, and the page reports any that are missing before
 you can submit anything:</p>
 <table>
 <tr><th>Program</th><th>From</th><th>Needed for</th></tr>
-<tr><td><code>adcp</code>, <code>agfr</code>, <code>prepare_receptor</code></td><td>ADFRsuite (Scripps Research)</td><td>the search, the grid maps and the PDBQT file. Required. Where the ADCP 1.1 suite is also installed, its own <code>adcp</code> and <code>agfr</code> are used instead (see <a href="tools.html#adcp-11">Optional tools</a>).</td></tr>
+<tr><td><code>adcp</code>, <code>agfr</code>, <code>prepare_receptor</code>, <code>reduce</code></td><td>the ADCP 1.1 suite (Scripps Research)</td><td>the search, the grid maps, the PDBQT file and the receptor's hydrogens. Required; <code>install.sh</code> installs it (see <a href="tools.html#adcp-11">Tools</a>).</td></tr>
 <tr><td><code>pdb2pqr</code></td><td>pip or conda</td><td>protonating the receptor at your pH. Required.</td></tr>
 <tr><td><code>tleap</code>, <code>sander</code>, <code>MMPBSA.py</code>, <code>ante-MMPBSA.py</code></td><td>AmberTools (conda)</td><td>MM-GBSA rescoring only. Docking works without them.</td></tr>
 <tr><td><code>sbatch</code>, <code>squeue</code>, <code>sacct</code></td><td>Slurm</td><td>already there on a cluster.</td></tr>
@@ -48,11 +48,13 @@ RCSB</b> fails there. Upload the structure, or browse to a copy already on the
 cluster.</p>
 
 <h2 id="on-one-machine">On one machine</h2>
-<p>On a workstation, a laptop, or Windows through WSL, the same interface runs
-the work itself, one stage after another:</p>
+<p>On a Linux workstation or laptop, or on Windows through WSL, the same
+interface runs the work itself, one stage after another:</p>
 <pre>adcp-dock local</pre>
-<p>The first run installs ADFRsuite from Scripps, checks it against a pinned
-checksum and opens the page in your browser. Runs are written to
+<p>The first run installs the ADCP 1.1 suite with Scripps' own recipe, checking
+each Scripps package against a pinned checksum, and opens the page in your
+browser. Scripps builds the suite for Linux only, so on a Mac it runs in a Linux
+virtual machine. Runs are written to
 <code>~/adcp_runs</code>. The header says how many cores it found, and the
 search settings start smaller than the cluster defaults, because settings
 sized for a 48 core node take hours on four.</p>
