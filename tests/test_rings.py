@@ -565,10 +565,16 @@ check("ring" not in open(os.path.join(copy, "results.tsv")).readline()
 check(all(r.get("ring") == "linear" for r in
           json.load(open(os.path.join(copy, "results.json")))["rows"]),
       "the shipped example's rows do not say they were docked linear")
-# An old ring run, reported again: its one ring is every peptide's.
+# An old ring run, reported again: its one ring is every peptide's. Its
+# result files, written before a result recorded its own ring, say none.
 j_old = json.load(open(os.path.join(copy, "job.json")))
 j_old["cyclic"] = "backbone"
 jobmod.save(copy, j_old)
+for _f in os.listdir(os.path.join(copy, "results")):
+    _p = os.path.join(copy, "results", _f)
+    _r = json.load(open(_p))
+    _r.pop("cyclic", None)
+    json.dump(_r, open(_p, "w"), indent=1)
 pipeline.stage_report(copy, j_old, log=lambda *a: None)
 rows = json.load(open(os.path.join(copy, "results.json")))["rows"]
 check([r.get("ring") for r in rows] == ["head to tail"] * len(rows),

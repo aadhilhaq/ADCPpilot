@@ -817,10 +817,12 @@ check(est["cores"] <= 50,
 check("error" in post("/api/estimate", {"peptides": []}),
       "an estimate with no peptides was not refused")
 
-# the estimator is calibrated, not invented: these two are measured runs
-check(9 <= EST.dock_minutes(11, 100, 5_000_000, 48) <= 14,
-      "an 11-mer at 100x5M on 48 cores estimates %.1f min; it measured 8"
-      % EST.dock_minutes(11, 100, 5_000_000, 48))
+# the estimator is calibrated, not invented: the example run's dockings are
+# measured runs (ADCP 1.1.21, 25 replicas x 2,000,000 steps on 16 cores)
+for _len, _reps, _steps, _cores, _took, _what in EXAMPLE_DOCKINGS:
+    check(_took <= EST.dock_minutes(_len, _reps, _steps, _cores) <= 2 * _took,
+          "%s estimates %.1f min; it measured %.1f"
+          % (_what, EST.dock_minutes(_len, _reps, _steps, _cores), _took))
 
 check("error" in post("/api/resume", {"rundir": "/nope"}),
       "resume on a run that does not exist was not refused")
