@@ -1,10 +1,12 @@
 HOW TO CITE
 
 This interface:
-  Aadhil Haq, Sandun Fernando (2026). GUI to ADCP Docking v0.1.19: a browser and command-line workflow for peptide docking with ADCP. HOPE Lab, Texas A&M University.
+  Aadhil Haq, Sandun Fernando (2026). GUI to ADCP Docking v0.1.20: a browser and command-line workflow for peptide docking with ADCP. HOPE Lab, Texas A&M University.
 
 ADCP is a product of the Scripps Research Institute and is not ours. It must be cited whatever else is:
   https://ccsb.scripps.edu/adcp/
+
+Results published using this tool must cite the ADCP (Zhang and Sanner, 2019), AutoDockFR / AGFR (Ravindranath et al., 2015) and AutoSite (Ravindranath and Sanner, 2016) papers.
 
 For this run, from its job.json:
   - the docking search itself
@@ -19,14 +21,10 @@ For this run, from its job.json:
   - the translational points agfr computes for every grid target
       Ravindranath PA, Sanner MF. AutoSite: an automated approach for pseudo-ligands prediction—from ligand-binding sites identification to predicting key ligand atoms. Bioinformatics 32(20):3142-3149, 2016.
       doi:10.1093/bioinformatics/btw367
-  - protonation states and titration at the chosen pH
-      Jurrus E, Engel D, Star K, et al. Improvements to the APBS biomolecular solvation software suite. Protein Sci 27(1):112-128, 2018.
-      doi:10.1002/pro.3280
-      (only if: receptor preparation, or MM-GBSA)
-  - the pKa prediction pdb2pqr uses
-      Olsson MHM, Sondergaard CR, Rostkowski M, Jensen JH. PROPKA3: consistent treatment of internal and surface residues in empirical pKa predictions. J Chem Theory Comput 7(2):525-537, 2011.
-      doi:10.1021/ct100578z
-      (only if: receptor preparation, or MM-GBSA)
+  - the receptor's hydrogens: the histidine protons and the Asn, Gln and His flips
+      Word JM, Lovell SC, Richardson JS, Richardson DC. Asparagine and glutamine: using hydrogen atom contacts in the choice of side-chain amide orientation. J Mol Biol 285(4):1735-1747, 1999.
+      doi:10.1006/jmbi.1998.2401
+      (only if: receptor preparation with reduce (the default), a receptor from ADapt, or MM-GBSA in such a run)
   - rebuilding missing side chains and atoms
       Eastman P, et al. OpenMM 7: rapid development of high performance algorithms for molecular dynamics. PLoS Comput Biol 13(7):e1005659, 2017.  (PDBFixer is distributed with OpenMM.)
       doi:10.1371/journal.pcbi.1005659

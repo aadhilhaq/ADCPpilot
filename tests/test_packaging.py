@@ -114,6 +114,7 @@ if built is not None:
                  # the example run, at its deepest folder as well as its top
                  "adcp_dock/example_run/job.json",
                  "adcp_dock/example_run/docking/ETFSDLWKLLPEN/out_ranked_1.pdb",
+                 "adcp_dock/example_run/docking/ETFSDLWKLLPEN/modes.json",
                  "adcp_dock/example_run/mmgbsa/ETFSDLWKLLPEN/pose1/"
                  "ETFSDLWKLLPEN_mmgbsa.dat",
                  # which radii the example's energies were computed with

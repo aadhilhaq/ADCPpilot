@@ -1,24 +1,18 @@
-docking p53 (ETFSDLWKLLPEN), 25 replicas x 2000000 steps on 16 core(s)
+docking p53 (ETFSDLWKLLPEN) with ADCP 1.1.21, 25 replicas x 2000000 steps on 16 core(s); 25% of replicas start as a helix (adcp -p 25); linear; 10 pose(s) per peptide; trajectories not kept
+  adcp: -T receptor.trg -s ETFSDLWKLLPEN -N 25 -n 2000000 -m 10 -o out -w . -O -p 25 -c 16
   10 ranked pose(s)
   MM-GBSA uses the prepared receptor
-  MM-GBSA backend: amber, GB-OBC(II) with an interior dielectric of 1
+  the receptor's protonation from the prepared receptor: HIE x2
+  MM-GBSA engine: AmberTools, GB-OBC(II) (igb=5) with mbondi2 radii and an interior dielectric of 1
     1 construct(s) x up to 5 pose(s): 5 to compute, 0 kept from a previous run
     computing 5 pose energies, 5 at a time
-      [1/5] ETFSDLWKLLPEN pose 2: -61.44 kcal/mol
-      [2/5] ETFSDLWKLLPEN pose 5: -51.79 kcal/mol
-      [3/5] ETFSDLWKLLPEN pose 1: -46.97 kcal/mol
-      [4/5] ETFSDLWKLLPEN pose 3: -49.64 kcal/mol
-      [5/5] ETFSDLWKLLPEN pose 4: -70.05 kcal/mol
-    ETFSDLWKLLPEN: dG = -55.98 kcal/mol (mean of 5 pose(s), spread 23.1)
-
-MM-GBSA recomputed on the same poses with mbondi2 radii (version 0.1.16):
-  MM-GBSA uses the prepared receptor
-  MM-GBSA backend: amber, GB-OBC(II) with mbondi2 radii and an interior dielectric of 1
-    1 construct(s) x up to 5 pose(s): 5 to compute, 0 kept from a previous run
-    computing 5 pose energies, 5 at a time
-      [1/5] ETFSDLWKLLPEN pose 1: -47.56 kcal/mol
-      [2/5] ETFSDLWKLLPEN pose 5: -64.36 kcal/mol
-      [3/5] ETFSDLWKLLPEN pose 4: -74.60 kcal/mol
-      [4/5] ETFSDLWKLLPEN pose 3: -52.97 kcal/mol
-      [5/5] ETFSDLWKLLPEN pose 2: -66.59 kcal/mol
-    ETFSDLWKLLPEN: dG = -61.22 kcal/mol (mean of 5 pose(s), spread 27.0)
+      [1/5] ETFSDLWKLLPEN pose 1: -62.70 kcal/mol
+      [2/5] ETFSDLWKLLPEN pose 2: -54.62 kcal/mol
+      [3/5] ETFSDLWKLLPEN pose 5: -44.80 kcal/mol
+      [4/5] ETFSDLWKLLPEN pose 4: -65.45 kcal/mol
+      [5/5] ETFSDLWKLLPEN pose 3: -48.02 kcal/mol
+    ETFSDLWKLLPEN: dG = -55.12 kcal/mol (mean of 5 pose(s), spread 20.6)
+  measuring the interface on the geometry each of 5 pose(s) was scored on
+    5 pose(s) at a time
+    buried 1703 A2, 0.507 of the peptide buried, 14 H-bond(s), 1 salt bridge(s), 0 clash(es)
+    site: 18 of 22 residue(s) contacted, -49.09 kcal/mol of the total from them

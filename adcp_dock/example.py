@@ -4,7 +4,7 @@ By Aadhil Haq
 
 MDM2 (PDB 1YCR, chain A) with three peptides: p53 residues 17 to 29, PMI,
 and RFMDYWEGL, the core of the phage display peptide 12/1. Docked with ADCP
-(25 replicas of 2,000,000 steps) and rescored with MM-GBSA on five poses.
+1.1 (25 replicas of 2,000,000 steps) and rescored with MM-GBSA on five poses.
 
 The run is stored in the package with its own folder written as @RUN@, and
 copied into a runs folder on request:

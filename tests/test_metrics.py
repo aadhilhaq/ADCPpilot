@@ -644,15 +644,16 @@ check("through an endpoint of its own",
       '"/api/panel"' in open(os.path.join(ROOT, "adcp_dock", "server.py"),
                              encoding="utf-8").read())
 
-print("an older run shows its cluster populations too")
+print("a run shows its cluster populations from its docking folder")
 # Runs docked before 0.1.17 parsed ADCP's cluster sizes and threw them away,
-# but ADCP's own log, which every run keeps, still holds the whole table.
+# but the mode table each docking folder keeps (modes.json, from ADCP's own
+# summary) still holds them.
 _ex = os.path.join(ROOT, "adcp_dock", "example_run")
 _cc = _pl.cluster_counts(_ex, {"peptide": "RFMDYWEGL"})
-check("the example run's log gives its top cluster", _cc.get("cluster_top") == 47,
+check("the example run's mode table gives its top cluster", _cc.get("cluster_top") == 13,
       "%s" % _cc)
 check("and how many solutions were clustered, over how many modes",
-      _cc.get("cluster_total") == 949 and _cc.get("cluster_modes") == 100)
+      _cc.get("cluster_total") == 145 and _cc.get("cluster_modes") == 10)
 check("a peptide with no docking folder gets nothing rather than an error",
       _pl.cluster_counts(_ex, {"peptide": "NOSUCHPEPTIDE"}) == {})
 

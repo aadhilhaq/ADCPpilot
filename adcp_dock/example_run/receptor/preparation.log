@@ -3,17 +3,18 @@ Protein preparation
 
 in  : @RUN@/receptor/1YCR.pdb
 out : @RUN@/receptor/prepared.pdb
-pH  : 7.4   force field: AMBER
+protonation: reduce   force field: AMBER
 
-  header records: done - removed 314 bibliographic/cross-reference line(s) that no later step reads and that parsers trip over
-  chain: done - kept chain A, dropped B
-  alternate locations: skipped - none present
-  modified residues: skipped - none present
-  waters: skipped - removed 0
-  heteroatoms: skipped - removed none
-  disulfides: skipped - none within 2.5 A
-  missing atoms: done - rebuilt 0 side-chain atom(s), completed 1 terminal atom(s); LEFT 24 missing residue(s) alone (8 residue(s) after 0, 16 residue(s) after 85) - a rebuilt loop is a guess
-  protonation: done - AMBER force field at pH 7.4 with PROPKA titration states; 743 hydrogens added
-  minimisation: done - 706 heavy atoms restrained at 10 kcal/mol/A^2; energy -2,620 -> -3,295 kcal/mol; heavy atoms moved 0.11 A RMSD
+  header records: done; removed 314 bibliographic/cross-reference line(s) that no later step reads and that parsers trip over
+  chain: done; kept chain A, dropped B
+  alternate locations: skipped; none present
+  modified residues: skipped; none present
+  hydrogens as given: skipped; none present
+  waters: skipped; removed 0
+  heteroatoms: skipped; removed none
+  disulfides: skipped; none within 2.5 A
+  missing atoms: done; rebuilt 0 side-chain atom(s), completed 1 terminal atom(s); not built: 8 at the N terminus of chain A, disordered and not built; 16 at the C terminus of chain A, disordered and not built
+  protonation: done; reduce.3.23.130521 -BUILD, as ADFR and ADapt run it, with -Nterm25 so each chain's first residue is a terminus; 743 hydrogens added; histidines HIE x2; nothing turned over
+  minimisation: done; 706 heavy atoms restrained at 10 kcal/mol/A^2; energy -2,692 -> -3,291 kcal/mol; heavy atoms moved 0.10 A RMSD
 
 818 atoms in, 1449 out

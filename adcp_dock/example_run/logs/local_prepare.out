@@ -1,0 +1,22 @@
+reading the receptor and sizing the box
+  the docking box also reaches chain(s) B (112 atoms), which are NOT loaded.
+    set box_chains = include to dock against them, or name them (box_chains = B). Leave it alone if they are the partner this peptide is meant to replace.
+  site: 22 hotspot residue(s) on chain(s) A, box 30.0 x 30.0 x 30.0 A
+  WARNING the box does not contain 3 of the residues it was built from: 25 by 2.7 A, 70 by 1.3 A, 26 by 0.6 A
+    no pose can reach them. Raise box_max, or split the site into two runs.
+preparing the receptor (this is the full Amber preparation), protonated with reduce
+  preparing the receptor
+  header records: done; removed 314 bibliographic/cross-reference line(s) that no later step reads and that parsers trip over
+  chain: done; kept chain A, dropped B
+  alternate locations: skipped; none present
+  modified residues: skipped; none present
+  hydrogens as given: skipped; none present
+  waters: skipped; removed 0
+  heteroatoms: skipped; removed none
+  disulfides: skipped; none within 2.5 A
+  missing atoms: done; rebuilt 0 side-chain atom(s), completed 1 terminal atom(s); not built: 8 at the N terminus of chain A, disordered and not built; 16 at the C terminus of chain A, disordered and not built
+  protonation: done; reduce.3.23.130521 -BUILD, as ADFR and ADapt run it, with -Nterm25 so each chain's first residue is a terminus; 743 hydrogens added; histidines HIE x2; nothing turned over
+  minimisation: done; 706 heavy atoms restrained at 10 kcal/mol/A^2; energy -2,692 -> -3,291 kcal/mol; heavy atoms moved 0.10 A RMSD
+  818 atoms in, 1449 out -> @RUN@/receptor/prepared.pdb
+  maps built in 49 s
+  grid target receptor.trg: 31 maps, box user 28.517 -22.024 -4.624 30.0 30.0 30.0; AGFR 1.1, AutoSite 1.1, receptor gradient off

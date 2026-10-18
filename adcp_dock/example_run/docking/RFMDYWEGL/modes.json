@@ -1,0 +1,52 @@
+[
+ {
+  "rank": 1,
+  "affinity": -19.4,
+  "cluster": 13
+ },
+ {
+  "rank": 2,
+  "affinity": -18.4,
+  "cluster": 27
+ },
+ {
+  "rank": 3,
+  "affinity": -18.3,
+  "cluster": 24
+ },
+ {
+  "rank": 4,
+  "affinity": -18.0,
+  "cluster": 11
+ },
+ {
+  "rank": 5,
+  "affinity": -17.9,
+  "cluster": 15
+ },
+ {
+  "rank": 6,
+  "affinity": -17.7,
+  "cluster": 17
+ },
+ {
+  "rank": 7,
+  "affinity": -17.4,
+  "cluster": 7
+ },
+ {
+  "rank": 8,
+  "affinity": -17.3,
+  "cluster": 8
+ },
+ {
+  "rank": 9,
+  "affinity": -17.3,
+  "cluster": 16
+ },
+ {
+  "rank": 10,
+  "affinity": -17.2,
+  "cluster": 7
+ }
+]

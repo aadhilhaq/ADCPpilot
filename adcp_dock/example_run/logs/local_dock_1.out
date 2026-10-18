@@ -1,24 +1,18 @@
-docking PMI (TSFAEYWNLLS), 25 replicas x 2000000 steps on 16 core(s)
+docking PMI (TSFAEYWNLLS) with ADCP 1.1.21, 25 replicas x 2000000 steps on 16 core(s); 25% of replicas start as a helix (adcp -p 25); linear; 10 pose(s) per peptide; trajectories not kept
+  adcp: -T receptor.trg -s TSFAEYWNLLS -N 25 -n 2000000 -m 10 -o out -w . -O -p 25 -c 16
   10 ranked pose(s)
   MM-GBSA uses the prepared receptor
-  MM-GBSA backend: amber, GB-OBC(II) with an interior dielectric of 1
+  the receptor's protonation from the prepared receptor: HIE x2
+  MM-GBSA engine: AmberTools, GB-OBC(II) (igb=5) with mbondi2 radii and an interior dielectric of 1
     1 construct(s) x up to 5 pose(s): 5 to compute, 0 kept from a previous run
     computing 5 pose energies, 5 at a time
-      [1/5] TSFAEYWNLLS pose 4: -49.01 kcal/mol
-      [2/5] TSFAEYWNLLS pose 5: -31.99 kcal/mol
-      [3/5] TSFAEYWNLLS pose 3: -54.30 kcal/mol
-      [4/5] TSFAEYWNLLS pose 1: -39.27 kcal/mol
-      [5/5] TSFAEYWNLLS pose 2: -48.41 kcal/mol
-    TSFAEYWNLLS: dG = -44.59 kcal/mol (mean of 5 pose(s), spread 22.3)
-
-MM-GBSA recomputed on the same poses with mbondi2 radii (version 0.1.16):
-  MM-GBSA uses the prepared receptor
-  MM-GBSA backend: amber, GB-OBC(II) with mbondi2 radii and an interior dielectric of 1
-    1 construct(s) x up to 5 pose(s): 5 to compute, 0 kept from a previous run
-    computing 5 pose energies, 5 at a time
-      [1/5] TSFAEYWNLLS pose 4: -51.43 kcal/mol
-      [2/5] TSFAEYWNLLS pose 1: -42.37 kcal/mol
-      [3/5] TSFAEYWNLLS pose 2: -51.78 kcal/mol
-      [4/5] TSFAEYWNLLS pose 3: -56.41 kcal/mol
-      [5/5] TSFAEYWNLLS pose 5: -45.42 kcal/mol
-    TSFAEYWNLLS: dG = -49.48 kcal/mol (mean of 5 pose(s), spread 14.0)
+      [1/5] TSFAEYWNLLS pose 1: -45.85 kcal/mol
+      [2/5] TSFAEYWNLLS pose 4: -29.61 kcal/mol
+      [3/5] TSFAEYWNLLS pose 3: -30.54 kcal/mol
+      [4/5] TSFAEYWNLLS pose 2: -36.68 kcal/mol
+      [5/5] TSFAEYWNLLS pose 5: -41.43 kcal/mol
+    TSFAEYWNLLS: dG = -36.82 kcal/mol (mean of 5 pose(s), spread 16.2)
+  measuring the interface on the geometry each of 5 pose(s) was scored on
+    5 pose(s) at a time
+    buried 1522 A2, 0.539 of the peptide buried, 3 H-bond(s), 0 salt bridge(s), 0 clash(es)
+    site: 14 of 22 residue(s) contacted, -24.5 kcal/mol of the total from them

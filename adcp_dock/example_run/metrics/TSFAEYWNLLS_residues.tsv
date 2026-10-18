@@ -1,0 +1,28 @@
+side	chain	resnum	resname	site	kinds	d_min	n_partners	dg
+receptor	A	51	LYS	1	vdw	3.42	1	-0.876
+receptor	A	54	LEU	1	hbond,vdw	2.81	3	-5.494
+receptor	A	55	PHE	0	stack,vdw	3.78	1	-2.121
+receptor	A	57	LEU	1	vdw	3.3	1	-0.59
+receptor	A	58	GLY	1	vdw	3.73	2	-1.032
+receptor	A	61	ILE	1	vdw	3.41	2	-2.3
+receptor	A	62	MET	1	vdw	3.74	2	-1.637
+receptor	A	72	GLN	1	vdw	3.92	1	-1.047
+receptor	A	75	VAL	1	vdw	3.97	1	-0.64
+receptor	A	86	PHE	0	stack,vdw	3.4	1	-0.443
+receptor	A	91	PHE	1	stack,vdw	3.59	1	-0.57
+receptor	A	93	VAL	1	vdw	3.53	3	-2.921
+receptor	A	94	LYS	1	vdw	3.77	1	0.497
+receptor	A	96	HIE	1	hbond,vdw	3.28	3	-2.807
+receptor	A	99	ILE	1	vdw	3.35	2	-1.398
+receptor	A	100	TYR	1	hbond,vdw	3.37	2	-1.738
+peptide	B	110	THR	0	vdw	3.77	1	4.292
+peptide	B	111	SER	0			0	-0.383
+peptide	B	112	PHE	0	vdw	3.41	6	-5.906
+peptide	B	113	ALA	0			0	-0.213
+peptide	B	114	GLU	0	hbond,vdw	3.28	2	-0.001
+peptide	B	115	TYR	0	stack,vdw	3.3	7	-2.694
+peptide	B	116	TRP	0	hbond,stack,vdw	2.81	4	-4.407
+peptide	B	117	ASN	0	vdw	3.81	1	-0.617
+peptide	B	118	LEU	0	vdw	3.46	3	-4.94
+peptide	B	119	LEU	0	vdw	3.42	2	-2.856
+peptide	B	120	SER	0	hbond,vdw	3.37	1	0.693

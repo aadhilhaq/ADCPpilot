@@ -2,11 +2,19 @@
 ranked by mmgbsa_top5, most negative first
 
 #    name       peptide         len poses  ADCP best   ADCP top5     sd   MM n  MM best    MM top5   MM med     sd  spread
-1    p53        ETFSDLWKLLPEN    13    10      -21.1      -20.44   0.64      5   -70.05     -55.98   -51.79   8.56   23.08
-2    PMI        TSFAEYWNLLS      11    10      -18.7      -18.24   0.54      5   -54.30     -44.59   -48.41   7.94   22.31
-3    12/1 core  RFMDYWEGL         9    10      -17.8      -17.22   0.45      5   -53.82     -39.98   -41.35   9.65   27.80
+1    p53        ETFSDLWKLLPEN    13    10      -21.4      -20.10   0.66      5   -65.45     -55.12   -54.62   8.02   20.64
+2    PMI        TSFAEYWNLLS      11    10      -19.2      -18.14   0.56      5   -45.85     -36.82   -36.68   6.24   16.25
+3    12/1 core  RFMDYWEGL         9    10      -19.4      -18.40   0.53      5   -42.08     -36.80   -39.87   5.94   15.50
 
-MM-GBSA is an ordering within this run against this receptor.
-It is not a Kd and not a binding free energy: there is no entropy term
-in it. The whole picomolar-to-nanomolar range is 4.1 kcal/mol; the widest
-pose spread in this run is 27.8. `adcp-dock affinity` prints the ruler.
+Interface and sequence panel (the pose each row describes is in the pose column)
+
+#    name       pose     BSA buried apolar  HB  SB stack clash  site  site dG  GRAVY charge    PE
+1    p53           4    1703   0.51   0.61  14   1     2     0 18/22    -49.1  -0.59   -2.1  FLAG
+2    PMI           1    1522   0.54   0.79   3   0     3     0 14/22    -24.5   0.06   -1.1  PASS
+3    12/1 core     4    1327   0.53   0.79   2   0     4     0 13/22    -26.3  -0.62   -1.1  FLAG
+
+pose viewer files
+  receptor.pdb (1449 atoms, prepared structure)
+  3 complex_<name>.pdb (chain A receptor, chain L peptide)
+  ranked.pdb, ranked.sdf, ranked.mae (4 entries incl. receptor), best first
+  ranked.maegz as well (a Schrodinger install was found)

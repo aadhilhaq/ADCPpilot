@@ -1,7 +1,8 @@
 {
  "version": 1,
- "created": "2026-09-23 15:56:03",
+ "created": "2026-10-18 17:31:56",
  "label": "Example: MDM2 with three peptides",
+ "acknowledgement": "",
  "receptor": "@RUN@/receptor/1YCR.pdb",
  "chains": [
   "A"
@@ -12,13 +13,27 @@
  "restraint": 10.0,
  "forcefield": "AMBER",
  "keep_hetatms": false,
+ "rebuild_sidechains": true,
  "fill_loops": false,
+ "protonation": "reduce",
+ "adapt": {},
+ "site_mode": "residues",
+ "site_ligand": "",
+ "site_ligand_from": "",
+ "site_pocket": "best",
+ "site_pockets": {},
+ "pocket_score": "peptide",
+ "site_points": "",
+ "site_box": null,
  "hotspots": "A:25,A:26,A:50,A:51,A:54,A:57,A:58,A:61,A:62,A:67,A:70,A:71,A:72,A:73,A:75,A:91,A:93,A:94,A:96,A:99,A:100,A:104",
  "shell_radius": 10.0,
  "box_padding": 8.0,
  "box_min": 20.0,
  "box_max": 30.0,
  "spacing": 0.375,
+ "agfr": "1.1",
+ "autosite": "1.1",
+ "receptor_gradient": false,
  "box_chains": "ignore",
  "box_chains_min_atoms": 20,
  "peptides": [
@@ -36,15 +51,26 @@
   }
  ],
  "max_length": 30,
+ "cyclic": "none",
+ "helical": 25,
  "replicas": 25,
  "steps": 2000000,
  "poses": 10,
  "seed": null,
+ "keep_trajectories": false,
+ "adcp_engine": "1.1",
+ "omm_minimize": 0,
+ "omm_env": "implicit",
+ "target_file": "",
  "mmgbsa": true,
+ "mmgbsa_model": "obc2",
+ "mmgbsa_engine": "amber",
  "mmgbsa_poses": 5,
+ "mmgbsa_d_rings": true,
  "mmgbsa_aggregate": "mean",
  "mm_workers": 8,
  "top_n": 5,
+ "rank_combined": false,
  "partition": "",
  "cpus": 16,
  "mem": "32G",
@@ -58,10 +84,12 @@
  "account": "",
  "state": "done",
  "jobs": {
+  "prepare": "L-prepare",
   "dock": "L-dock",
   "report": "L-report"
  },
  "site": {
+  "mode": "residues",
   "centre": [
    28.51687628865982,
    -22.023809278350512,
@@ -180,9 +208,39 @@
    ]
   ]
  },
+ "maps": {
+  "agfr": "1.1",
+  "autosite": "1.1",
+  "receptor_gradient": false,
+  "command": [
+   "/path/to/adcpsuite/bin/python",
+   "/path/to/adcpsuite/lib/python3.7/site-packages/ADFR/bin/runAGFR.py",
+   "-r",
+   "@RUN@/receptor/receptor.pdbqt",
+   "-o",
+   "receptor",
+   "-b",
+   "user",
+   "28.517",
+   "-22.024",
+   "-4.624",
+   "30.0",
+   "30.0",
+   "30.0",
+   "-asv",
+   "1.1"
+  ],
+  "agfr_version": "1.2dev"
+ },
  "receptor_info": {
   "prepared_pdb": "@RUN@/receptor/prepared.pdb",
-  "pdbqt": "@RUN@/receptor/receptor.pdbqt"
+  "pdbqt": "@RUN@/receptor/receptor.pdbqt",
+  "protonation": {
+   "method": "reduce",
+   "program": "/path/to/adcpsuite/bin/reduce",
+   "version": "reduce.3.23.130521",
+   "flags": "-BUILD -Nterm<first residue> -DB reduce_wwPDB_het_dict.txt"
+  }
  },
  "target": "@RUN@/target/receptor.trg"
 }

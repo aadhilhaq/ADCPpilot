@@ -2,6 +2,9 @@
  "pid": null,
  "cores": 16,
  "stages": {
+  "prepare": {
+   "prepare": "COMPLETED"
+  },
   "dock": {
    "0": "COMPLETED",
    "1": "COMPLETED",

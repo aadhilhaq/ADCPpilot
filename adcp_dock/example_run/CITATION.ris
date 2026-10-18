@@ -71,35 +71,19 @@ N1  - used for: the translational points agfr computes for every grid target
 ER  - 
 
 TY  - JOUR
-TI  - Improvements to the APBS biomolecular solvation software suite
-AU  - Jurrus, Elizabeth
-AU  - Engel, Dave
-AU  - Star, Keith
-AU  - others
-JO  - Protein Science
-PY  - 2018
-VL  - 27
-IS  - 1
-SP  - 112
-EP  - 128
-DO  - 10.1002/pro.3280
-N1  - used for: protonation states and titration at the chosen pH
-ER  - 
-
-TY  - JOUR
-TI  - PROPKA3: consistent treatment of internal and surface residues in empirical pKa predictions
-AU  - Olsson, Mats H. M.
-AU  - S{\o}ndergaard, Chresten R.
-AU  - Rostkowski, Michal
-AU  - Jensen, Jan H.
-JO  - Journal of Chemical Theory and Computation
-PY  - 2011
-VL  - 7
-IS  - 2
-SP  - 525
-EP  - 537
-DO  - 10.1021/ct100578z
-N1  - used for: the pKa prediction pdb2pqr uses
+TI  - Asparagine and glutamine: using hydrogen atom contacts in the choice of side-chain amide orientation
+AU  - Word, J. Michael
+AU  - Lovell, Simon C.
+AU  - Richardson, Jane S.
+AU  - Richardson, David C.
+JO  - Journal of Molecular Biology
+PY  - 1999
+VL  - 285
+IS  - 4
+SP  - 1735
+EP  - 1747
+DO  - 10.1006/jmbi.1998.2401
+N1  - used for: the receptor's hydrogens: the histidine protons and the Asn, Gln and His flips
 ER  - 
 
 TY  - JOUR

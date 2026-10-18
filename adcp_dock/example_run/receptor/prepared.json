@@ -2,16 +2,17 @@
  "receptor": "@RUN@/receptor/1YCR.pdb",
  "stamp": [
   94041,
-  1790196564
+  1792362710
  ],
- "ph": 7.4,
+ "ph": null,
  "forcefield": "AMBER",
  "chain": "A",
  "waters": 0.0,
  "hetatms": false,
- "ions": true,
+ "ions": false,
  "loops": false,
  "termini": true,
  "minimise": true,
- "restraint": 10.0
+ "restraint": 10.0,
+ "protonation": "reduce"
 }
