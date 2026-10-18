@@ -347,7 +347,7 @@ def stage_prepare(rundir, j=None, log=print):
             "into two runs.")
 
     protonation = jobmod.protonation_of(j)
-    reduce_exe = T.adfr_program("reduce")
+    reduce_exe = T.suite_program("reduce")
     from_adapt = bool((j.get("adapt") or {}).get("folder"))
     if from_adapt:
         # ADapt chose what the receptor holds and AGFR's own code wrote it:
@@ -481,8 +481,7 @@ def stage_prepare(rundir, j=None, log=print):
     j["site"] = site
     j["maps"] = dict(maps.record(), command=target.command(
         maps, T, recq, "receptor", centre, size))
-    if maps.agfr == "1.1":
-        j["maps"]["agfr_version"] = adcp11.agfr_version(maps.exe)
+    j["maps"]["agfr_version"] = adcp11.agfr_version(maps.exe)
     j["receptor_info"] = {"prepared_pdb": prepared, "pdbqt": recq,
                           "protonation": _protonation_record(
                               j, recdir, reduce_exe, from_adapt)}
@@ -621,7 +620,7 @@ def _carry_protonation(rec, j, prepared, log=print):
         return rec
     states = mmgbsa.residue_states(prepared)
     rec.protonation = {"method": "reduce", "states": states,
-                       "reduce": tools_for(j).adfr_program("reduce")}
+                       "reduce": tools_for(j).suite_program("reduce")}
     changed = {}
     for v in states.values():
         changed[v] = changed.get(v, 0) + 1
@@ -658,8 +657,9 @@ def stage_dock(rundir, index, j=None, log=print):
     keep = int(j.get("poses", 10))
     engine, exe = jobmod.resolve_engine(j)
     if engine == "missing":
-        raise SystemExit("ADCP 1.1 was asked for but is not installed here")
-    label = "ADCP " + ((adcp11.version(exe) or "1.1") if engine == "1.1" else "1.0")
+        raise SystemExit("ADCP 1.1 is not installed here; ./install.sh "
+                         "installs it")
+    label = "ADCP " + (adcp11.version(exe) or "1.1")
     # This peptide's own ring, or the run's when it has none: the same
     # peptide the index names in peptide_list, so the same entry of the job.
     ring = jobmod.rings(j)[index]
@@ -671,29 +671,19 @@ def stage_dock(rundir, index, j=None, log=print):
         % (name, seq, label, int(j.get("replicas", 50)),
            int(j.get("steps", 2500000)), cpus or 1,
            describe_options(j, ring=ring)))
-    if engine == "1.1":
-        modes, pdir = adcp11.dock(seq, trg, wd, exe, key=jobmod.key(seq),
-                                  replicas=int(j.get("replicas", 50)),
-                                  steps=int(j.get("steps", 2_500_000)),
-                                  poses=keep, cpus=cpus,
-                                  minimize=int(j.get("omm_minimize") or 0),
-                                  omm_env=j.get("omm_env") or "implicit",
-                                  log=log, helical=opts["helical"],
-                                  cyclic=opts["cyclic"],
-                                  keep=bool(opts["keep"]))
-    else:
-        seq_arg, start = adcp11.start_arguments(seq, opts["helical"])
-        modes, pdir = adcp.dock(seq, trg, wd, T,
-                                replicas=int(j.get("replicas", 50)),
-                                steps=int(j.get("steps", 2_500_000)),
-                                cpus=cpus, log=log, seq_arg=seq_arg,
-                                extra_args=start + adcp11.cyclic_flags(
-                                    opts["cyclic"]))
+    modes, pdir = adcp11.dock(seq, trg, wd, exe, key=jobmod.key(seq),
+                              replicas=int(j.get("replicas", 50)),
+                              steps=int(j.get("steps", 2_500_000)),
+                              poses=keep, cpus=cpus,
+                              minimize=int(j.get("omm_minimize") or 0),
+                              omm_env=j.get("omm_env") or "implicit",
+                              log=log, helical=opts["helical"],
+                              cyclic=opts["cyclic"],
+                              keep=bool(opts["keep"]))
     # One archive per peptide, or nothing: hundreds of trajectory files per
     # peptide fill a cluster's file quota long before its byte quota.
     if modes:
-        trajectories.finish(pdir, jobmod.key(seq), engine, opts["keep"],
-                            log=log)
+        trajectories.finish(pdir, jobmod.key(seq), opts["keep"], log=log)
     out = {"name": name, "peptide": seq, "engine": label,
            # How it was docked, which the report and the rescoring read
            # rather than the job file, so a result says what it is.
@@ -718,11 +708,10 @@ def stage_dock(rundir, index, j=None, log=print):
         out["cluster_total"] = sum(clusters)
         out["cluster_modes"] = len(clusters)
     log("  %d ranked pose(s)" % len(out["modes"]))
-    if engine == "1.1":
-        omm = adcp11.read_openmm(pdir)
-        if omm:
-            out["openmm"] = omm
-            log("  OpenMM minimized %d pose(s)" % len(omm))
+    omm = adcp11.read_openmm(pdir)
+    if omm:
+        out["openmm"] = omm
+        log("  OpenMM minimized %d pose(s)" % len(omm))
 
     if j.get("mmgbsa") and out["modes"]:
         _stage_mmgbsa(rundir, j, seq, out, pdir, keep, cpus, opts, log=log)
@@ -1663,7 +1652,7 @@ def prep_time(j):
         maps = target.Maps()
     edge = float(j.get("box_max", 30.0))
     m = sizing.prep_minutes(atoms, kinds, bool(j.get("fill_loops")),
-                            (edge, edge, edge), agfr=maps.agfr,
+                            (edge, edge, edge),
                             gradient=maps.gradient, autosite=maps.autosite,
                             pocket=site_mode(j) == "pocket",
                             protonation=jobmod.protonation_of(j),
@@ -1698,8 +1687,8 @@ def batch_notes(j, stage):
             out.append("  receptor %s, chain(s) %s" % (j.get("receptor"),
                                                       chains))
             out.append("  protonation: %s" % (
-                "reduce -BUILD, ADFRsuite's (PDB2PQR with PROPKA if reduce "
-                "cannot run)" if jobmod.protonation_of(j) == "reduce"
+                "reduce -BUILD, the ADCP 1.1 suite's (PDB2PQR with PROPKA if "
+                "reduce cannot run)" if jobmod.protonation_of(j) == "reduce"
                 else "PDB2PQR with PROPKA at pH %g" % float(j.get("ph", 7.4))))
         if mode == "ligand":
             where = "around the ligand %s" % j.get("site_ligand")
@@ -1720,10 +1709,8 @@ def batch_notes(j, stage):
         except target.TargetError as exc:
             out.append("  maps: %s" % exc)
         return out
-    engine, _exe = jobmod.resolve_engine(j)
-    out.append("  docking ADCP %s, %d replicas x %d steps"
-               % (engine, int(j.get("replicas", 50)),
-                  int(j.get("steps", 2_500_000))))
+    out.append("  docking ADCP 1.1, %d replicas x %d steps"
+               % (int(j.get("replicas", 50)), int(j.get("steps", 2_500_000))))
     out.append("  " + describe_options(j))
     if j.get("mmgbsa"):
         out.append("  then MM-GBSA on %d pose(s), %s, %s; the complex keeps %s"
@@ -1792,6 +1779,17 @@ def _submit_local(rundir, j, stages, python, log):
 def submit(rundir, j=None, python=None, log=print):
     """prepare -> dock array -> report, each waiting on the one before."""
     j = j or jobmod.load(rundir)
+    # A job file from before ADCP 1.1 was the only engine, submitted again
+    # whole: every peptide is docked again, with ADCP 1.1, and that is what
+    # the file then says. Its maps keep the settings it records
+    # (target.maps_for).
+    for k in ("adcp_engine", "agfr"):
+        if str(j.get(k) or "") == "1.0":
+            log("this run's job file names an older %s; it is submitted "
+                "again with the ADCP 1.1 suite's" % ("ADCP" if k ==
+                                                     "adcp_engine" else "AGFR"))
+            j[k] = "1.1"
+            jobmod.save(rundir, j)
     problems = jobmod.validate(j)
     if problems:
         raise SystemExit("this run is not ready:\n  " + "\n  ".join(problems))

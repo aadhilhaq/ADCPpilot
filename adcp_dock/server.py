@@ -29,6 +29,7 @@ from . import agfr_target, fetch, job as jobmod, page, peptide, pipeline, report
 from . import sizing
 from . import slurm, structure
 from . import tools as toolmod
+from . import adcp11 as adcp11_mod
 
 MAX_BODY = 4 << 20
 # Uploads have their own ceiling. Every other request is a small JSON object,
@@ -395,19 +396,20 @@ class App:
                 # engine offered but not installed produces a run that
                 # rescores nothing and a table that cannot be ranked on.
                 "gb_engines": self._gb_engines(),
-                # ADCP 1.1, when it is installed: the page offers it, its
-                # non-standard residue syntax and OpenMM minimization.
+                # The ADCP 1.1 suite, which every run docks with: its
+                # folder, its version, and whether it carries its own AGFR,
+                # which builds the maps. Without it nothing can dock.
                 "adcp11": self._adcp11()[0],
                 "adcp11_version": self._adcp11()[1],
-                # AGFR from the same suite, which builds the maps by default
-                # where it is installed.
+                "suite": (adcp11_mod.home_of(self._adcp11()[0])
+                          if self._adcp11()[0] else ""),
                 "agfr11": self._agfr11(),
                 # ADapt, a separate tool for preparing the receptor, when it
                 # is installed where this can find it.
                 "adapt": self._adapt(),
-                # The two programs taken from ADFRsuite itself: reduce, the
-                # default protonation, and msms, for the viewers' surfaces.
-                "reduce": T.adfr_program("reduce") or "",
+                # The two programs taken from the suite as well: reduce, the
+                # default protonation, and MSMS, for the viewers' surfaces.
+                "reduce": T.suite_program("reduce") or "",
                 "msms": self._msms_said(T)}
 
     @staticmethod
@@ -858,12 +860,11 @@ class App:
                 "modifications": [r for r in rows if r["code"] in lib]}
 
     def _pepcheck(self, body):
-        """The keyword arguments a peptide check needs for the chosen engine."""
+        """The keyword arguments a peptide check needs: ADCP 1.1's syntax,
+        and the side chains this installation's library has."""
         mx = int(body.get("max_length") or peptide.MAX_LENGTH)
-        engine = str(body.get("adcp_engine") or "auto")
-        exe = self._adcp11()[0] if engine != "1.0" else None
-        return {"max_length": mx, "extended": bool(exe),
-                "library": self._a11lib if exe else None}
+        exe = self._adcp11()[0]
+        return {"max_length": mx, "library": self._a11lib if exe else None}
 
     def roots(self):
         """Where the browser should offer to start.
@@ -1311,15 +1312,12 @@ class App:
             return None
 
     def cost_options(self, body):
-        """The settings that change what a run costs, as the page holds them,
-        with "auto" resolved to the agfr this server would use."""
-        from . import target as _t
+        """The settings that change what a run costs, as the page holds
+        them."""
         j = jobmod.default(**{k: v for k, v in body.items()
                               if k in jobmod.default()})
         j["tools_roots"] = self.tools_roots
-        agfr = _t.resolve_agfr(j)[0]
-        return {"agfr": agfr if agfr != "missing" else "1.1",
-                "autosite": str(j.get("autosite") or "1.1"),
+        return {"autosite": str(j.get("autosite") or "1.1"),
                 "receptor_gradient": bool(j.get("receptor_gradient")),
                 "site_mode": str(j.get("site_mode") or "residues"),
                 "cyclic": str(j.get("cyclic") or "none"),
@@ -2640,8 +2638,9 @@ def serve(host="127.0.0.1", port=8765, runs="~/adcp_runs", tools_roots=()):
     print("runs are kept in %s" % httpd.app.runs)
     miss = httpd.app.tools()["missing"]
     if miss:
-        print("\nNOT FOUND: %s\nSet ADFRSUITE_HOME and AMBERHOME, or pass "
-              "--tools-root." % ", ".join(miss))
+        print("\nNOT FOUND: %s\nSet ADCPSUITE_HOME and AMBERHOME, or pass "
+              "--tools-root; ./install.sh installs the ADCP 1.1 suite."
+              % ", ".join(miss))
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

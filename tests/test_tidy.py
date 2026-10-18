@@ -4,9 +4,9 @@ back.
 By Aadhil Haq
 
 The fixture is the bundled example run (three peptides docked and rescored),
-given what real runs leave beside their results: ADCP 1.0's loose replica
-trajectories and scratch for one peptide, ADCP 1.1's working folder and
-packed trajectories for another, the copy of the grid target in each, MM-GBSA's
+given what real runs leave beside their results: the archive of an ADCP 1.0
+docking converted to today's layout for one peptide, ADCP 1.1's working folder
+and packed trajectories for another, the copy of the grid target in each, MM-GBSA's
 working files in every pose folder, Prime's output in one, a pose folder with
 no prepared complex, one peptide whose panel was never measured, and a peptide
 with no result yet.
@@ -48,7 +48,7 @@ sys.path.insert(0, ROOT)
 try:
     from adcp_dock import (bundle, example, pipeline, server, slurm,  # noqa: E402
                            tidy, worker)
-    from adcp_dock._vendor import adcp as adcp10, mmgbsa         # noqa: E402
+    from adcp_dock._vendor import adcp as adcpvendor, mmgbsa     # noqa: E402
 except ImportError as exc:
     print("skip: the package cannot be imported here (%s)" % exc)
     sys.exit(77)
@@ -108,14 +108,13 @@ J = lambda *p: os.path.join(run, *p)                          # noqa: E731
 expect = set()
 
 # ---- the fixture ------------------------------------------------------------
-# A: ADCP 1.0, docked before keep_trajectories, everything left loose.
-for n in range(1, 7):
-    for ext in ("pdb", "out"):
-        write(J("docking", A, "out_%d.%s" % (n, ext)), "replica %d\n" % n)
-        expect.add(os.path.join("docking", A, "out_%d.%s" % (n, ext)))
-for n in ("out.pdb", "constrains", "ramaprob.data", "tmp.pdb", "receptor.trg"):
-    write(J("docking", A, n), n + "\n")
-    expect.add(os.path.join("docking", A, n))
+# A: an ADCP 1.0 docking converted to today's layout: its replicas packed
+# into an archive of their own, which a tidy leaves alone, and a replica file
+# of the old kind left loose, which nothing reads and a tidy no longer knows.
+write(J("docking", A, "adcp10_replicas.tar.gz"), "replicas\n")
+write(J("docking", A, "out_7.pdb"), "replica 7\n")
+write(J("docking", A, "receptor.trg"), "receptor.trg\n")
+expect.add(os.path.join("docking", A, "receptor.trg"))
 write(J("docking", A, ".adcp_finished"), "25 replicas\n")
 # B: ADCP 1.1, its trajectories packed by the docking, a working folder left.
 for n in ("modes.json", "out_out.pdb", "out_summary.dlg", "adcp_run.log",
@@ -163,7 +162,7 @@ for n in ("out_1.pdb", "out_1.out", "ramaprob.data", "receptor.trg"):
     write(J("docking", "GGGGG", n), n + "\n")
 for n in ("GGGGG.leap", "GGGGG_rec.pdb", "mdinfo"):
     write(J("mmgbsa", "GGGGG", "pose1", n), n + "\n")
-os.chmod(J("docking", A, "out_1.pdb"), 0o640)    # an unusual permission, kept
+os.chmod(J("docking", A, "receptor.trg"), 0o640)  # an unusual permission, kept
 
 # ---- the plan -----------------------------------------------------------------
 files, left = tidy.plan(run)
@@ -187,6 +186,8 @@ LOAD_BEARING = ["job.json", "results.json", "results.tsv", "results.txt",
                 os.path.join("mmgbsa", B, "summary.csv"),
                 os.path.join("docking", A, "adcp.log"),
                 os.path.join("docking", A, ".adcp_finished"),
+                os.path.join("docking", A, "adcp10_replicas.tar.gz"),
+                os.path.join("docking", A, "out_7.pdb"),
                 os.path.join("docking", "notes.txt"),
                 os.path.join("mmgbsa", C, "pose5", C + "_com.pdb"),
                 os.path.join("mmgbsa", A, "pose1", "leap.log")]
@@ -206,8 +207,7 @@ check(not missing, "the fixture lacks %s" % missing[:4])
 check(not got & set(LOAD_BEARING),
       "the plan packs what a reader opens: %s" % sorted(got & set(LOAD_BEARING))[:6])
 kinds = tidy.breakdown(run)
-check(kinds.get("ADCP 1.0's replica trajectories and logs") == 13
-      and kinds.get("ADCP 1.1's working folder") == 3
+check(kinds.get("ADCP 1.1's working folder") == 3
       and kinds.get("the copy of the grid target ADCP docked from") == 2,
       "the plan's breakdown is not what the fixture holds: %s" % kinds)
 
@@ -233,7 +233,7 @@ def readings(rundir):
         out["engines " + p] = mmgbsa.engines_on_disk(
             os.path.join(rundir, "mmgbsa"), p)
         out["read_pose " + p] = [None if q is None else q["xyz"].tolist()
-                                 for q in (adcp10.read_pose(
+                                 for q in (adcpvendor.read_pose(
                                      os.path.join(rundir, "docking", p), k)
                                      for k in (1, 5))]
     out["receptor"] = app.structure_text(rundir, None, 1, "receptor")
@@ -374,8 +374,8 @@ check(u.get("restored") == len(files) and u.get("kept") == 0,
 now = snapshot(run)
 check(now == before, "undo does not put every file back as it was: %s"
       % sorted(k for k in set(now) | set(before) if now.get(k) != before.get(k))[:6])
-check(stat.S_IMODE(os.stat(J("docking", A, "out_1.pdb")).st_mode) == 0o640
-      and stat.S_IMODE(os.stat(J("docking", A, "out_2.pdb")).st_mode) == 0o664,
+check(stat.S_IMODE(os.stat(J("docking", A, "receptor.trg")).st_mode) == 0o640
+      and stat.S_IMODE(os.stat(J("docking", B, "receptor.trg")).st_mode) == 0o664,
       "undo changed the files' permissions")
 check(not os.path.exists(J("archive")), "the archive folder was left")
 check(not tidy.status(run)["tidied"], "status still says the run is tidied")

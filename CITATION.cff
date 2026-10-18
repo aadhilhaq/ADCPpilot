@@ -2,8 +2,8 @@ cff-version: 1.2.0
 title: "GUI to ADCP Docking"
 message: >-
   If you use this software, please cite it and the docking engine it runs.
-  ADCP (AutoDock CrankPep) and ADFRsuite were developed by the Scripps
-  Research Institute and are not part of this work; this package is a
+  ADCP (AutoDock CrankPep) and the ADCP 1.1 suite it comes in were developed
+  by the Scripps Research Institute and are not part of this work; this package is a
   browser and command-line workflow that runs them. The full citation list
   for a run, including the preparation and rescoring tools it used, is
   printed by `adcp-dock cite <run>`.
@@ -17,15 +17,15 @@ authors:
     family-names: Fernando
     affiliation: "HOPE Lab, Texas A&M University"
     orcid: "https://orcid.org/0000-0002-7692-2170"
-version: "0.1.19"
+version: "0.1.20"
 license: "BSD-3-Clause"
 abstract: >-
   Browser and command-line workflow for peptide docking with AutoDock
-  CrankPep (ADCP 1.0 and 1.1). It connects receptor preparation, grid
-  generation, docking, optional MM-GBSA rescoring or ADCP 1.1's OpenMM
-  minimization, and reporting, and runs on a Slurm cluster, a local computer
-  or Google Colab. With ADCP 1.1 it accepts non-standard and D amino acids,
-  and a run can start from a target file made in AGFRGUI.
+  CrankPep (ADCP 1.1). It connects receptor preparation, grid generation,
+  docking, optional MM-GBSA rescoring or ADCP's own OpenMM minimization, and
+  reporting, and runs on a Slurm cluster, a local computer or Google Colab.
+  It accepts non-standard and D amino acids, and a run can start from a
+  target file made in AGFRGUI.
 keywords:
   - peptide docking
   - ADCP
@@ -69,7 +69,7 @@ references:
     start: "e1004586"
     year: 2015
     doi: "10.1371/journal.pcbi.1004586"
-    notes: "ADFRsuite: agfr and prepare_receptor. Scripps Research Institute."
+    notes: "AutoDockFR: agfr and prepare_receptor, from the ADCP 1.1 suite. Scripps Research Institute."
   - type: article
     title: "AutoDock4 and AutoDockTools4: Automated docking with selective receptor flexibility"
     authors:

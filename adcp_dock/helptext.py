@@ -113,17 +113,6 @@ HELP = {
         "agfr builds the maps for a pocket at 1 \u00c5 spacing, too coarse to dock "
         "into, so its box is kept and the maps are built over it again at "
         "0.375 \u00c5, as for any other box."),
-    "agfr": (
-        "Which AGFR builds the maps",
-        "AGFR builds the grid maps over the box that the peptide is docked "
-        "into. AGFR 1.1 comes with the ADCP 1.1 suite and is used wherever "
-        "that suite is installed; AGFR 1.0 comes with ADFRsuite.\n\n"
-        "Over the same receptor and box the two give the same box, the same "
-        "receptor and the same starting points. Their maps differ slightly, "
-        "because each runs its own build of AutoGrid: by at most 0.15 "
-        "kcal/mol where a peptide atom can sit, and by up to 1.2 in the "
-        "hydrogen bond donor map. ADCP 1.0 and ADCP 1.1 dock into maps from "
-        "either."),
     "autosite": (
         "Which AutoSite",
         "AutoSite marks the places in the box where a ligand is likely to "
@@ -144,9 +133,8 @@ HELP = {
         "pushed out (AGFR's -g). Where a peptide atom can actually sit the "
         "maps are unchanged.\n\n"
         "It is off unless you tick it: the ADCP authors found it expensive "
-        "and of no real help to the search. ADFRsuite's AGFR 1.0 adds it "
-        "unless told not to, and on the MDM2 example it took 2.5 minutes "
-        "there against 14 seconds without; AGFR 1.1 took 23 seconds more."),
+        "and of no real help to the search. On the MDM2 example it added 23 "
+        "to 53 seconds to the maps."),
     "pad": (
         "Padding around what marks the site",
         "How far the box extends beyond the residues, the ligand or the "
@@ -194,10 +182,9 @@ HELP = {
         "are what you look at afterwards and what MM-GBSA rescores, so this "
         "sets the size of the answer rather than the size of the search.\n\n"
         "Ten is the default and enough to see whether the peptide's poses "
-        "agree on where it binds. ADCP 1.0 writes at most ten; ADCP 1.1 "
-        "writes up to 100, one for each cluster its search found, best "
-        "first. More poses cost a few seconds to write, not a longer "
-        "search."),
+        "agree on where it binds. ADCP writes up to 100, one for each "
+        "cluster its search found, best first. More poses cost a few "
+        "seconds to write, not a longer search."),
     "cyclic": (
         "A chain or a ring",
         "This is the run's choice, and every peptide whose Ring is left at "
@@ -240,9 +227,8 @@ HELP = {
     "keep_trajectories": (
         "Keep every replica's trajectory",
         "Each replica of ADCP's search writes its trajectory: every pose it "
-        "accepted on the way. ADCP 1.1 deletes them when the docking ends "
-        "unless told to keep them (its -k); ADCP 1.0 always leaves them, and "
-        "they are deleted here.\n\n"
+        "accepted on the way. ADCP deletes them when the docking ends "
+        "unless told to keep them (its -k).\n\n"
         "Ticked, they are packed into one archive per peptide, beside its "
         "poses: docking/<peptide>/<peptide>_trajectories.tar.gz. About 150 "
         "files per peptide become one. Two copies are left out of it: the "
@@ -442,8 +428,9 @@ HELP = {
         "groove shows as a groove and the patch the box is built around "
         "shows with it.\n\n"
         "The surface is computed by MSMS, Michel Sanner's program, which "
-        "ships with ADFRsuite: the surface a probe of 1.5 \u00c5, a water "
-        "molecule, traces as it rolls over the atoms. Where MSMS is not "
+        "comes with the ADCP 1.1 suite as its MSMS library: the surface a "
+        "probe of 1.5 \u00c5, a water molecule, traces as it rolls over the "
+        "atoms. Where MSMS is not "
         "installed or cannot triangulate the structure, the viewer draws "
         "its own surface instead and says so under the view.\n\n"
         "This changes only what you see; it has no effect on the docking."),

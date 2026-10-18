@@ -31,7 +31,7 @@ _WS = re.compile(r"\s+")
 # D form, the one-letter code of the standard residue whose coarse potential
 # is used, and the non-standard side chain's library name in angle brackets.
 # "N<BHD>PIS&DVD" is seven residues, the first an asparagine derivative and
-# the fifth a D-aspartate. ADCP 1.0 has no such syntax.
+# the fifth a D-aspartate.
 EXTENDED = re.compile(r"&?[A-Z](?:<[A-Z0-9]{1,4}>)?")
 
 
@@ -139,8 +139,8 @@ def cyclic_problem(seq, mode):
     """A Problem when `mode` cannot close this peptide, else None.
 
     ADCP does not check this itself. Given -cys and a peptide with one
-    cysteine or none, ADCP 1.1.21 and 1.0 both docked it and reported poses
-    with no warning, so a run would describe as cyclic a peptide that was
+    cysteine or none, ADCP 1.1.21 docked it and reported poses with no
+    warning, so a run would describe as cyclic a peptide that was
     never closed. It is refused here instead, before anything is submitted.
     """
     mode = str(mode or "none")
@@ -173,11 +173,10 @@ def clean(text):
     return _WS.sub("", "".join(lines)).upper()
 
 
-def check(text, min_length=MIN_LENGTH, max_length=MAX_LENGTH, extended=False,
-          library=None):
+def check(text, min_length=MIN_LENGTH, max_length=MAX_LENGTH, library=None):
     """(cleaned, [Problem]). An empty problem list means ADCP will take it.
 
-    With `extended` (ADCP 1.1), the non-standard syntax is accepted, and each
+    ADCP 1.1's syntax for non-standard and D residues is accepted, and each
     side-chain name is checked against `library` when one is given.
     """
     seq = clean(text)
@@ -185,8 +184,7 @@ def check(text, min_length=MIN_LENGTH, max_length=MAX_LENGTH, extended=False,
     if not seq:
         return seq, [Problem("empty", "Enter a peptide sequence.")]
     if is_extended(seq):
-        return seq, _check_extended(seq, min_length, max_length, extended,
-                                    library)
+        return seq, _check_extended(seq, min_length, max_length, library)
 
     bad_letters, not_letters = [], []
     for i, c in enumerate(seq):
@@ -223,11 +221,7 @@ def check(text, min_length=MIN_LENGTH, max_length=MAX_LENGTH, extended=False,
     return seq, out
 
 
-def _check_extended(seq, min_length, max_length, extended, library):
-    if not extended:
-        return [Problem("needs_adcp11",
-                        "Non-standard (<XXX>) and D (&) amino acids need "
-                        "ADCP 1.1; this run uses ADCP 1.0.")]
+def _check_extended(seq, min_length, max_length, library):
     out = []
     # Whatever the pattern does not account for is a mistake in the syntax.
     covered = set()

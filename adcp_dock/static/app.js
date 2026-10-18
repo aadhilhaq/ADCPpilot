@@ -660,7 +660,9 @@ function dockingProblem(){
   const wt = $('walltime') ? $('walltime').value.trim() : '';
   if(!/^\d+:[0-5]\d:[0-5]\d$/.test(wt) || hhmmToMin(wt) < 1)
     return 'The walltime must be hours, minutes and seconds, like 02:00:00.';
-  for(const id of ['adcp_engine', 'replicas', 'steps'].concat(mm ? ['mmengine'] : [])){
+  if(ADCP11 === false)
+    return 'ADCP 1.1 is not installed here, so nothing can dock.';
+  for(const id of ['replicas', 'steps'].concat(mm ? ['mmengine'] : [])){
     const el = $(id);
     const o = el && el.selectedOptions ? el.selectedOptions[0] : null;
     if(el && (!o || o.disabled))
@@ -738,7 +740,8 @@ document.querySelectorAll('#guide button[data-goto]').forEach(b => {
   guideSoon();
 }, true));
 
-let ADCP11 = false, AGFR11 = false;
+/* Whether the ADCP 1.1 suite is installed: null until the server says. */
+let ADCP11 = null;
 api('/api/tools').then(d => {
   if(d.error) return;
   // A cluster's Slurm account and options, when its activate.sh or the
@@ -823,35 +826,23 @@ function gbEngines(rows){
                  : '<span class=bad>sbatch not found</span>')
     + (d.mmgbsa === false ? ' &middot; MM-GBSA needs AmberTools, '
                             + 'which is not installed here' : '');
-  // ADCP 1.1, when it is installed; without it the 1.1 choices are off.
+  /* The ADCP 1.1 suite, which every run docks with and builds its maps
+     with: its version in the engine's field. Without it nothing can dock,
+     and that is said plainly here, where the engine is shown. Short on
+     screen, the suite's folder on hover. */
   ADCP11 = !!d.adcp11;
-  // Short on screen, full explanation on hover. This sits between two
-  // fields it is explaining, and at paragraph length it pushed them apart.
   const en = $('enginenote');
-  /* Without ADCP 1.1 the page runs on ADFRsuite 1.0 and says so plainly,
-     here where the engine is chosen: an install whose ADCP 1.1 step failed
-     would otherwise dock with the older tools without anyone noticing. */
-  if(d.adcp11) en.textContent = 'ADCP ' + (d.adcp11_version || '1.1') + ' installed.';
-  else en.innerHTML = '<span class=warn><b>ADCP 1.1 is not installed here,</b> so '
-    + 'runs use ADCP 1.0 and AGFR 1.0 from ADFRsuite 1.0. D and non-standard '
-    + 'residues, AGFR 1.1 and OpenMM minimisation are off. ./install.sh adds '
-    + 'ADCP 1.1.</span>';
-  en.title = d.adcp11
-    ? 'ADCP ' + (d.adcp11_version || '1.1') + ' is installed, so non-standard '
-      + 'residues (N<BHD>), D residues (&D) and OpenMM pose minimization are '
-      + 'available.'
-    : 'ADCP 1.1 is not installed here, so runs use ADCP 1.0. Non-standard '
-      + 'residues, D residues and OpenMM pose minimization need 1.1; '
-      + 'INSTALL.md says how to add it.';
-  if(!d.adcp11){
-    $('adcp_engine').querySelector('option[value="1.1"]').disabled = true;
+  if(d.adcp11){
+    $('enginename').textContent = 'ADCP ' + (d.adcp11_version || '1.1');
+    en.textContent = 'Installed.';
+    en.title = 'The ADCP 1.1 suite' + (d.suite ? ' in ' + d.suite : '')
+      + ': ADCP, AGFR and AutoSite, reduce and MSMS.';
+  } else {
+    en.innerHTML = '<span class=warn><b>ADCP 1.1 is not installed here,</b> '
+      + 'so nothing can dock. ./install.sh installs it.</span>';
+    en.title = 'INSTALL.md says how to install the ADCP 1.1 suite.';
     $('omm_minimize').disabled = true;
   }
-  /* AGFR 1.1 comes with the ADCP 1.1 suite; without it the maps are built
-     by ADFRsuite's AGFR 1.0, which "newest installed" then means. */
-  AGFR11 = !!d.agfr11;
-  if(!AGFR11) $('agfr').querySelector('option[value="1.1"]').disabled = true;
-  posesLimit();
   mapsNote();
   gbEngines(d.gb_engines);
   // ADapt, a separate tool, when the server can find it. It opens in the
@@ -2938,35 +2929,21 @@ $('keep_hetatms').addEventListener('change', () => {
 });
 
 /* ===================== the grid maps ================================ */
-/* Which AGFR builds the maps, which AutoSite places the translation points,
-   and whether the receptor gradient is added. Said in one line under the
-   three, because "newest installed" means a different program on a machine
-   without the ADCP 1.1 suite. */
+/* Which AutoSite places the translation points, and whether the receptor
+   gradient is added, said in one line under the two. */
 function mapsNote(){
   const el = $('mapsnote');
   if(!el) return;
-  const want = $('agfr').value;
-  const agfr = want === 'auto' ? (AGFR11 ? '1.1' : '1.0') : want;
-  el.textContent = 'AGFR ' + agfr + (agfr === '1.1' ? ', from the ADCP 1.1 '
-    + 'suite,' : ', from ADFRsuite,') + ' builds the maps; AutoSite '
+  el.textContent = 'AGFR 1.1 builds the maps; AutoSite '
     + $('autosite').value + ' places the points the search starts from'
     + ($('receptor_gradient').checked
        ? '; the receptor gradient is added, which takes longer.'
        : '; no receptor gradient.');
 }
-['agfr', 'autosite', 'receptor_gradient'].forEach(id =>
+['autosite', 'receptor_gradient'].forEach(id =>
   $(id).addEventListener('change', mapsNote));
 
 /* ===================== peptide options ============================== */
-/* ADCP 1.0 writes at most ten ranked poses per peptide; 1.1 writes as many
-   as asked for, up to its own default of 100. */
-function posesLimit(){
-  const eng = $('adcp_engine').value;
-  const most = (eng === '1.0' || (eng === 'auto' && !ADCP11)) ? 10 : 100;
-  const el = $('poses');
-  el.max = most;
-  if(+el.value > most) el.value = most;
-}
 /* How many replicas start as a helix, worked out the way ADCP does it:
    replicas 1 to N x p / 100, rounded down. At 0 every replica starts as a
    coil, and at 100 every one as a helix.
@@ -3594,13 +3571,10 @@ $('addpep').onclick = () => { PEPS.push({name:'', sequence:'', cyclic:''}); draw
   const b = $('peps').querySelectorAll('.ps'); b[b.length - 1].focus(); };
 
 let VT = null;
-// A different engine accepts a different syntax, so the list is checked again.
-$('adcp_engine').onchange = () => { posesLimit(); validate(); };
 function validate(){
   clearTimeout(VT);
   VT = setTimeout(async () => {
     const d = await api('/api/peptides', {peptides: PEPS, max_length: MAXLEN,
-                                          adcp_engine: $('adcp_engine').value,
                                           cyclic: $('cyclic').value});
     if(d.error) return;
     d.peptides.forEach((p, i) => {
@@ -3637,8 +3611,7 @@ function validate(){
 }
 $('pastepep').onclick = () => $('pastebox').classList.toggle('hide');
 $('pasteadd').onclick = async () => {
-  const d = await api('/api/paste', {text: $('pastetext').value, max_length: MAXLEN,
-                                     adcp_engine: $('adcp_engine').value});
+  const d = await api('/api/paste', {text: $('pastetext').value, max_length: MAXLEN});
   if(d.error){ pepmsg(d.error, true); return; }
   if(!d.peptides || !d.peptides.length){
     pepmsg('no peptides were found in the text. One per line, or name: sequence.', true);
@@ -3683,8 +3656,7 @@ $('pepfile').onchange = async () => {
             $('pepfile').value = ''; return; }
   /* Cleared either way, so the same file can be chosen again after a fix. */
   $('pepfile').value = '';
-  const d = await api('/api/paste', {text: text, max_length: MAXLEN,
-                                     adcp_engine: $('adcp_engine').value});
+  const d = await api('/api/paste', {text: text, max_length: MAXLEN});
   if(d.error){ pepmsg(d.error, true); return; }
   if(!d.peptides || !d.peptides.length){
     pepmsg('no peptides were found in ' + f.name +
@@ -3758,7 +3730,7 @@ $('autofill').onclick = async () => {
     box: (SITE && SITE.size) || null,
     // What the options cost: the maps, a pocket found by AutoSite, a ring,
     // helical starts, more poses and kept trajectories.
-    agfr: $('agfr').value, autosite: $('autosite').value,
+    autosite: $('autosite').value,
     receptor_gradient: $('receptor_gradient').checked,
     site_mode: siteMode(), box_max: +$('bmax').value,
     cyclic: $('cyclic').value, helical: +$('helical').value,
@@ -3986,7 +3958,7 @@ $('submit').onclick = async () => {
   const d = await ask('/api/create', {
     label: $('label').value || 'run', receptor: $('recpath').value.trim(),
     target_file: $('targetfile').value.trim(),
-    adcp_engine: $('adcp_engine').value, omm_minimize: +$('omm_minimize').value,
+    omm_minimize: +$('omm_minimize').value,
     chains: chosenChains(), hotspots: $('hotspots').value, ph:+$('ph').value,
     protonation: $('protonation').value, adapt: adaptBody(),
     minimise: $('minimise').checked, box_padding:+$('pad').value,
@@ -3999,7 +3971,7 @@ $('submit').onclick = async () => {
     site_ligand_from: ligandFrom(), site_pockets: pocketsOut(),
     pocket_score: $('pocketscore').value,
     site_pocket: $('site_pocket').value,
-    agfr: $('agfr').value, autosite: $('autosite').value,
+    autosite: $('autosite').value,
     receptor_gradient: $('receptor_gradient').checked,
     cyclic: $('cyclic').value, helical: +$('helical').value,
     keep_trajectories: $('keep_trajectories').checked,
@@ -4322,13 +4294,12 @@ const REUSE_FIELDS = {
   cpus:'cpus', walltime:'time', throttle:'throttle',
   mmposes:'mmgbsa_poses', mmmodel:'mmgbsa_model',
   mmengine:'mmgbsa_engine', topn:'top_n',
-  adcp_engine:'adcp_engine',
   omm_minimize:'omm_minimize', targetfile:'target_file',
   account:'account', sbatch_extra:'sbatch_extra',
   site_mode:'site_mode', site_pocket:'site_pocket',
   // Set again once the receptor is loaded, since its choices come from it.
   site_ligand:'site_ligand',
-  agfr:'agfr', autosite:'autosite', cyclic:'cyclic', helical:'helical',
+  autosite:'autosite', cyclic:'cyclic', helical:'helical',
   pocketscore:'pocket_score'
 };
 const REUSE_TICKS = {minimise:'minimise', keep_hetatms:'keep_hetatms',
@@ -4339,15 +4310,15 @@ const REUSE_TICKS = {minimise:'minimise', keep_hetatms:'keep_hetatms',
 /* What a tick means when the run's job file does not mention it: a run made
    before the setting existed did what it describes, which is not always what
    the default does now. Without this the tick would keep whatever this
-   session last left it at. Runs made before the maps could be chosen were
-   built by AGFR 1.0, whose receptor gradient is on unless turned off. */
+   session last left it at. Runs made before the maps could be chosen had the
+   receptor gradient on, and their maps are built again with it. */
 const REUSE_TICK_DEFAULTS = {rebuild_sidechains: true, receptor_gradient: true,
                              keep_trajectories: false};
 /* The same for the other settings: those runs built the box around residues
-   with ADFRsuite's AGFR and AutoSite 1.0, docked linear peptides, and started
-   every replica as a coil. */
+   with AutoSite 1.0, docked linear peptides, and started every replica as a
+   coil. */
 const REUSE_FIELD_DEFAULTS = {site_mode: 'residues', site_pocket: 'best',
-                              agfr: '1.0', autosite: '1.0', cyclic: 'none',
+                              autosite: '1.0', cyclic: 'none',
                               helical: 0, protonation: 'propka',
                               pocketscore: 'peptide'};
 
@@ -4456,7 +4427,7 @@ async function reuseRun(dir){
     sel.value = lig;
   }
   protNote();
-  posesLimit(); mapsNote(); pepOptsNote(); validate();
+  mapsNote(); pepOptsNote(); validate();
   await siteModeChanged();
   drawBox();
   $('outmsg').textContent = 'Settings loaded from ' + (j.label || dir)

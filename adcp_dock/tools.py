@@ -2,10 +2,16 @@
 
 By Aadhil Haq
 
-ADCP and agfr ship inside ADFRsuite, which is unpacked wherever the
-installer chose. Search order: this interpreter's own environment, the
-environment variables ADFRSUITE_HOME, AMBERHOME and ADCP_DOCK_TOOLS,
-PATH, then conventional subdirectories under any roots passed in.
+The docking comes from the ADCP 1.1 suite, a conda environment the Scripps
+Research Institute's own recipe builds (adcp11_install): adcp, agfr,
+prepare_receptor and reduce are taken from its bin folder and from nowhere
+else, and MSMS from its MSMS library (surface.find_msms). Where the suite is
+looked for is adcp11.candidates: ADCPSUITE_HOME, the roots passed in, the
+installation's tools folder and the one beside this checkout.
+
+The rest (pdb2pqr for protonation at a pH, AmberTools for MM-GBSA) is
+searched for in this interpreter's own environment, AMBERHOME, PATH, then
+conventional subdirectories under any roots passed in.
 
 A missing tool is reported by name, with what it is needed for, rather than
 as a FileNotFoundError from a job that is already running.
@@ -26,11 +32,15 @@ NEEDED = {
     "ante-MMPBSA.py": "splitting the complex topology for MM-GBSA",
 }
 
-# Programs that ship inside ADFRsuite and are taken from there and nowhere
-# else: another copy on PATH may be another version (AmberTools has its own
-# reduce), and the point of using these is that they are the ones ADFR's own
-# preparation and ADapt use. Optional: the page says what is missing.
-ADFR_PROGRAMS = {
+#: The programs taken from the ADCP 1.1 suite's bin folder, never from PATH:
+#: a copy found there may be another version, from another installation.
+SUITE_BINS = ("adcp", "agfr", "prepare_receptor")
+
+# Two more from the suite, optional: the page says what is missing. reduce is
+# its bin/reduce (AmberTools has a reduce of its own, which is not this one),
+# the same program ADFR's own preparation and ADapt run; MSMS is its MSMS
+# library, run through msms_mslib.py (msms_command).
+SUITE_PROGRAMS = {
     "reduce": "protonating the receptor (the default) and, with it, each "
               "complex for MM-GBSA",
     "msms": "the molecular surfaces the viewers draw",
@@ -42,8 +52,7 @@ REQUIRED = ("adcp", "agfr", "prepare_receptor", "pdb2pqr")
 MMGBSA = ("tleap", "sander", "MMPBSA.py", "ante-MMPBSA.py")
 
 # subdirectories worth searching under any root passed in
-SUBDIRS = ("bin", "ADFRsuite/bin", "third_party/ADFRsuite/bin",
-           "third_party/bin", "adfrsuite/bin", "amber/bin", "amber22/bin")
+SUBDIRS = ("bin", "third_party/bin", "amber/bin", "amber22/bin")
 
 
 class Missing(Exception):
@@ -74,49 +83,27 @@ class Tools:
                     for n in gone)
                 + ".\nLooked on PATH and under: "
                 + (", ".join(self.roots) if self.roots else "(no extra roots given)")
-                + "\nSet ADFRSUITE_HOME and AMBERHOME, or pass --tools-root.")
+                + "\nSet ADCPSUITE_HOME and AMBERHOME, or pass --tools-root.")
         return [self._found[n] for n in names]
 
     def report(self):
         return [(n, self._found.get(n) or "") for n in sorted(NEEDED)]
 
-    def adfr_program(self, name):
-        """reduce or msms from the ADFRsuite whose prepare_receptor, agfr or
-        adcp this found, or from the ADCP 1.1 suite, or None. Never from
-        PATH: see ADFR_PROGRAMS."""
-        return adfr_program(name, self, self.roots)
+    def suite_program(self, name):
+        """reduce, or another program, from the ADCP 1.1 suite's bin folder,
+        or None. Never from PATH: see SUITE_PROGRAMS."""
+        return suite_program(name, self, self.roots)
 
     def missing_required(self):
-        """The required tools not found. ADCP and AGFR count as found where
-        the ADCP 1.1 suite is installed, which runs them with its own Python
-        (adcp11.command, agfr_command) rather than through bin/adcp and
-        bin/agfr; those names are kept for ADFRsuite 1.0's programs."""
-        gone = [n for n in REQUIRED if not self._found.get(n)]
-        if ("adcp" in gone or "agfr" in gone) and suite11(self.roots):
-            gone = [n for n in gone if n not in ("adcp", "agfr")]
-        return gone
+        """The required tools not found."""
+        return [n for n in REQUIRED if not self._found.get(n)]
 
     def can_rescore(self):
         """True when every tool MM-GBSA needs was found."""
         return all(self._found.get(n) for n in MMGBSA)
 
 
-def _from_env():
-    out = {}
-    for var, names in (("ADFRSUITE_HOME", ("adcp", "agfr", "prepare_receptor")),
-                       ("AMBERHOME", ("tleap", "sander", "MMPBSA.py",
-                                      "ante-MMPBSA.py"))):
-        root = os.environ.get(var)
-        if not root:
-            continue
-        for n in names:
-            p = os.path.join(root, "bin", n)
-            if os.path.isfile(p) and os.access(p, os.X_OK):
-                out[n] = p
-    return out
-
-
-def suite11(roots=()):
+def suite_home(roots=()):
     """The ADCP 1.1 suite's folder, when it is installed with its own AGFR,
     or None."""
     try:
@@ -127,28 +114,40 @@ def suite11(roots=()):
         return None
 
 
+def _executable(p):
+    return bool(p) and os.path.isfile(p) and os.access(p, os.X_OK)
+
+
 def discover(roots=(), env=True):
     """Tools(), with every executable this package knows how to use."""
-    found = _from_env() if env else {}
+    found = {}
+    home = suite_home(roots)
+    if home:
+        for n in SUITE_BINS:
+            p = os.path.join(home, "bin", n)
+            if _executable(p):
+                found[n] = p
+    if env and os.environ.get("AMBERHOME"):
+        for n in MMGBSA:
+            p = os.path.join(os.environ["AMBERHOME"], "bin", n)
+            if _executable(p):
+                found[n] = p
     # This interpreter's own environment is searched before PATH. pdb2pqr
     # is itself a Python program, and the only copy guaranteed to match
     # this environment's numpy is the one installed beside the
     # interpreter; a copy found on PATH may belong to another environment
     # and fail to import. It is also where a batch script that calls
     # <env>/bin/python without putting <env>/bin on PATH finds its tools.
+    rest = [n for n in NEEDED if n not in SUITE_BINS]
     _here = os.path.dirname(os.path.abspath(sys.executable))
-    for n in NEEDED:
-        if n in found:
-            continue
-        p = os.path.join(_here, n)
-        if os.path.isfile(p) and os.access(p, os.X_OK):
-            found[n] = p
-    for n in NEEDED:
-        if n in found:
-            continue
-        p = shutil.which(n)
-        if p:
-            found[n] = p
+    for n in rest:
+        if n not in found and _executable(os.path.join(_here, n)):
+            found[n] = os.path.join(_here, n)
+    for n in rest:
+        if n not in found:
+            p = shutil.which(n)
+            if p:
+                found[n] = p
     for root in roots:
         if not root:
             continue
@@ -156,79 +155,31 @@ def discover(roots=(), env=True):
             d = os.path.join(root, sub)
             if not os.path.isdir(d):
                 continue
-            for n in NEEDED:
-                if n in found:
-                    continue
-                p = os.path.join(d, n)
-                if os.path.isfile(p) and os.access(p, os.X_OK):
-                    found[n] = p
-    # Where ADFRsuite 1.0 is not installed, the receptor is written as PDBQT
-    # by the ADCP 1.1 suite's prepare_receptor, the same AutoDockTools script
-    # ported to Python 3. Its launcher runs whichever python is first on
-    # PATH, so receptor.prepare_pdbqt runs it with the suite's bin first.
-    if not found.get("prepare_receptor"):
-        home = suite11(roots)
-        if home:
-            p = os.path.join(home, "bin", "prepare_receptor")
-            if os.path.isfile(p) and os.access(p, os.X_OK):
-                found["prepare_receptor"] = p
+            for n in rest:
+                if n not in found and _executable(os.path.join(d, n)):
+                    found[n] = os.path.join(d, n)
     return Tools(found, roots)
 
 
-def adfr_program(name, tools=None, roots=()):
-    """A program that ships in ADFRsuite's bin folder (ADFR_PROGRAMS), found
-    beside the ADFRsuite programs this package already uses, or in the ADCP
-    1.1 suite's bin folder, which carries the same build. None when neither
-    has it."""
-    tools = tools or discover(roots=roots)
-    dirs = []
-    for n in ("prepare_receptor", "agfr", "adcp"):
-        p = tools.get(n)
-        if p:
-            d = os.path.dirname(os.path.realpath(p))
-            if d not in dirs:
-                dirs.append(d)
-    home = os.environ.get("ADFRSUITE_HOME")
-    if home:
-        dirs.append(os.path.join(home, "bin"))
-    try:
-        from . import adcp11
-        exe = adcp11.find(list(roots) or list(getattr(tools, "roots", [])))
-        if exe:
-            dirs.append(os.path.join(adcp11.home_of(exe), "bin"))
-    except Exception:                                          # noqa: BLE001
-        pass
-    for d in dirs:
-        p = os.path.join(d, name)
-        if os.path.isfile(p) and os.access(p, os.X_OK):
-            return p
-    return None
+def suite_program(name, tools=None, roots=()):
+    """A program in the ADCP 1.1 suite's bin folder (SUITE_PROGRAMS), or
+    None when the suite is not installed or has no such program."""
+    roots = list(roots) or list(getattr(tools, "roots", None) or [])
+    home = suite_home(roots)
+    p = os.path.join(home, "bin", name) if home else None
+    return p if _executable(p) else None
 
 
 def msms_command(tools=None, roots=()):
-    """How MSMS is run here: ADFRsuite's msms program, or, where only the
-    ADCP 1.1 suite is installed, its MSMS library (mslib) through
-    msms_mslib.py and the suite's own Python, which take the program's
-    arguments and write its files (surface.run_msms runs either). None when
-    neither is installed."""
-    import glob
-    from . import adcp11
-    tools = tools or discover(roots=roots)
-    prog = tools.adfr_program("msms")
-    if prog:
-        return prog
-    exe = adcp11.find(list(roots) or list(getattr(tools, "roots", [])))
-    if not exe:
-        return None
-    home = adcp11.home_of(exe)
-    py = os.path.join(home, "bin", "python")
-    lib = glob.glob(os.path.join(home, "lib", "python3*", "site-packages",
-                                 "mslib", "__init__.py"))
-    script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                          "msms_mslib.py")
-    if lib and os.path.isfile(py) and os.path.isfile(script):
-        return [py, script]
-    return None
+    """How MSMS is run here, as surface.find_msms finds it: $MSMS_EXE, an
+    msms program in a root's bin folder, or the ADCP 1.1 suite's MSMS
+    library (mslib) through msms_mslib.py and the suite's own Python, which
+    take the program's arguments and write its files (surface.run_msms runs
+    either). None when there is none of them."""
+    from . import surface
+    roots = list(roots) or list(getattr(tools, "roots", None) or [])
+    home = suite_home(roots)
+    return surface.find_msms(([home] if home else []) + roots)
 
 
 def amber_home(tools=None):

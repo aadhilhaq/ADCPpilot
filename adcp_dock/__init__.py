@@ -9,15 +9,15 @@ when local execution is selected.
 
 Main modules: pipeline (the stages), server and page (the web interface),
 cli (the command line), slurm (scheduling and local execution), cite
-(citations), adfr (ADFRsuite installation). The preparation, docking and
-rescoring engine is in _vendor.
+(citations), adcp11 and adcp11_install (the ADCP 1.1 suite, and installing
+it). The preparation, docking and rescoring engine is in _vendor.
 """
 
-__version__ = "0.1.19"
+__version__ = "0.1.20"
 
 # Authorship and attribution, defined once and read by the launcher, the
-# page, the CLI and the README. ADCP and ADFRsuite are products of the
-# Scripps Research Institute; this package is an interface to them.
+# page, the CLI and the README. ADCP and the suite it comes in are products
+# of the Scripps Research Institute; this package is an interface to them.
 APP = "GUI to ADCP Docking"
 ENGINE = "ADCP"
 ENGINE_OWNER = "Scripps Research Institute"

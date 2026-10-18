@@ -118,10 +118,12 @@ check(mmforms.letters("ETF&SDLW&KLL") == "ETFSDLWKLL"
       "the topology is built from the L letters, with the D positions noted")
 check(jobmod.default().get(mmforms.JOB_KEY) is True,
       "a new run rescores D residues and closed rings")
+# The shipped example as a job file from before the setting: without the key.
 old_example = json.load(open(os.path.join(ROOT, "adcp_dock", "example_run",
                                           "job.json")))
-check(mmforms.JOB_KEY not in old_example and not mmforms.enabled(old_example),
-      "the shipped example, made before, reads as a run that skips them")
+old_example.pop(mmforms.JOB_KEY, None)
+check(not mmforms.enabled(old_example),
+      "the shipped example, as made before, reads as a run that skips them")
 
 # --- what is not scored, and why --------------------------------------------
 new = jobmod.default(cyclic="backbone")

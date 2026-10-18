@@ -67,7 +67,7 @@ def fake_adapt(folder, speaks=True, embeddable=True):
 
 tmp = tempfile.mkdtemp(prefix="adapt_test_")
 os.environ["HOME"] = tmp                  # nothing may fall back to a real home
-for k in ("ADAPT_HOME", "ADFRSUITE_HOME", "ADCP_HOME", "ADCPSUITE_HOME"):
+for k in ("ADAPT_HOME", "ADCP_HOME", "ADCPSUITE_HOME"):
     os.environ.pop(k, None)
 
 # --- which folder counts as ADapt -----------------------------------------

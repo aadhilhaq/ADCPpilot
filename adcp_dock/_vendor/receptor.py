@@ -609,7 +609,7 @@ def count_hydrogens(pdb_path: str) -> int:
 
 def prepare_pdbqt(rec: Receptor, workdir: str, tools,
                   prepared_pdb: str | None = None, log=print) -> str:
-    """Write receptor.pdbqt using ADFRsuite prepare_receptor.
+    """Write receptor.pdbqt using the ADCP 1.1 suite's prepare_receptor.
 
     If `prepared_pdb` carries hydrogens (the output of PDB2PQR does)
     prepare_receptor is NOT asked to add them, because that structure already
@@ -647,7 +647,8 @@ def prepare_pdbqt(rec: Receptor, workdir: str, tools,
     prep = tools.prepare_receptor
     if prep is None:
         raise RuntimeError(
-            "prepare_receptor not found. Run ./install.sh to install ADFRsuite.")
+            "prepare_receptor not found. Run ./install.sh to install the "
+            "ADCP 1.1 suite.")
 
     p = _run_prepare_receptor(prep, src, out, add_h)
 

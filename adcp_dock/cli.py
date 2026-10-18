@@ -65,13 +65,15 @@ def _peptides(values, path, **kw):
 def _local(a):
     """`adcp-dock local`: set this machine up, then open the interface.
 
-    First use installs ADFRsuite (from Scripps, checksum-verified) and reports
-    anything else that is missing; afterwards it starts in seconds. The work
-    runs here rather than being submitted to SLURM.
+    First use installs the ADCP 1.1 suite with the Scripps Research
+    Institute's own recipe (adcp11_install, each Scripps package checked
+    against its pinned checksum) and reports anything else that is missing;
+    afterwards it starts in seconds. The work runs here rather than being
+    submitted to SLURM.
     """
     import threading
     import webbrowser
-    from . import adfr, slurm, server
+    from . import adcp11, adcp11_install, slurm, server
 
     # Not on a cluster login node. A machine with sbatch that is not
     # inside a job is almost always one. On a cluster, `adcp-dock serve`
@@ -83,6 +85,11 @@ def _local(a):
             "  On a cluster:  adcp-dock serve     (the work goes to SLURM)\n"
             "  Inside a job:  srun --pty -c 8 -t 4:00:00 adcp-dock local\n"
             "  Not a cluster: adcp-dock local --force")
+    # Said before anything is checked or installed: the suite runs nowhere
+    # else, so nothing else here could help.
+    why = adcp11_install.platform_problem()
+    if why and not adcp11.find():
+        raise SystemExit(why)
 
     missing = []
     for mod, pkg in (("pdb2pqr", "pdb2pqr"), ("openmm", "openmm"),
@@ -98,11 +105,18 @@ def _local(a):
             "git+https://github.com/aadhilhaq/ADCP_docking\"\n"
             % ", ".join(missing))
 
-    tools = os.path.abspath(os.path.expanduser(a.tools))
-    adfr.install(tools)                       # returns at once if installed
-    os.environ["ADFRSUITE_HOME"] = tools
-    os.environ["PATH"] = os.path.join(tools, "bin") + os.pathsep \
-        + os.environ.get("PATH", "")
+    suite = os.path.abspath(os.path.expanduser(a.tools))
+    # The folder asked for, else one installed where the interface looks
+    # (ADCPSUITE_HOME, the installation's tools folder): never a second one.
+    exe = adcp11.at(suite) or adcp11.find()
+    if not exe:
+        print("Installing the ADCP 1.1 suite into %s, once: the Scripps "
+              "Research Institute's recipe, a few minutes and about 3 GB."
+              % suite)
+        exe = adcp11_install.install(suite)
+    # The suite is named rather than put on PATH: its bin folder holds its
+    # own python, which would then be every program's python.
+    os.environ["ADCPSUITE_HOME"] = adcp11.home_of(exe)
     os.environ["ADCP_EXECUTOR"] = "local"
     # The browser is on this machine, so the page may open a run's folder in
     # the file manager.
@@ -178,9 +192,9 @@ def main(argv=None):
     n.add_argument("--site-pocket", choices=("best", "all"), default="best",
                    help="with --site-mode pocket: AutoSite's best scoring "
                         "pocket (the default), or all the pockets it finds")
-    n.add_argument("--agfr", choices=("auto", "1.1", "1.0"), default="auto",
-                   help="which AGFR builds the grid maps: auto uses the "
-                        "ADCP 1.1 suite's where it is installed")
+    n.add_argument("--agfr", choices=("1.1", "auto"), default="1.1",
+                   help="which AGFR builds the grid maps: the ADCP 1.1 "
+                        "suite's, the only one (auto means it too)")
     n.add_argument("--autosite", choices=("1.1", "1.0"), default="1.1",
                    help="which AutoSite places the translation points and "
                         "finds the pockets (1.1 by default)")
@@ -193,10 +207,10 @@ def main(argv=None):
                    help="a .trg target made elsewhere (for example in AGFRGUI): "
                         "its receptor, maps and box are used, and -r and -s "
                         "are not needed")
-    n.add_argument("--engine", choices=("auto", "1.0", "1.1"), default="auto",
-                   help="which ADCP: auto uses 1.1 where it is installed")
+    n.add_argument("--engine", choices=("1.1", "auto"), default="1.1",
+                   help="which ADCP: 1.1, the only one (auto means it too)")
     n.add_argument("--omm-minimize", type=int, default=0,
-                   help="ADCP 1.1: minimize this many top poses with OpenMM")
+                   help="minimize this many top poses with ADCP's own OpenMM")
     n.add_argument("--omm-env", choices=("implicit", "vacuum"),
                    default="implicit")
     n.add_argument("-p", "--peptide", action="append", default=[])
@@ -208,11 +222,11 @@ def main(argv=None):
     n.add_argument("--chain", action="append", default=[])
     n.add_argument("--protonation", choices=("reduce", "propka"),
                    default="reduce",
-                   help="Protonate with: reduce (the default), ADFRsuite's, "
-                        "as ADFR and ADapt protonate, which places histidine "
-                        "protons from the hydrogen bonds and takes no pH; or "
-                        "propka, PDB2PQR with PROPKA at the pH given with "
-                        "--ph")
+                   help="Protonate with: reduce (the default), the ADCP 1.1 "
+                        "suite's, as ADFR and ADapt protonate, which places "
+                        "histidine protons from the hydrogen bonds and takes "
+                        "no pH; or propka, PDB2PQR with PROPKA at the pH "
+                        "given with --ph")
     n.add_argument("--ph", type=float, default=7.4,
                    help="the pH for --protonation propka (7.4 by default); "
                         "reduce takes none")
@@ -247,8 +261,8 @@ def main(argv=None):
                         "that was not loaded: 'ignore' (report it), "
                         "'include', or a list like 'B,C'")
     n.add_argument("--poses", type=int, default=10,
-                   help="ranked poses written per peptide: up to 10 with "
-                        "ADCP 1.0 and up to 100 with ADCP 1.1 (adcp -m)")
+                   help="ranked poses written per peptide, up to 100 "
+                        "(adcp -m)")
     n.add_argument("--cyclic", choices=("none", "backbone", "disulfide"),
                    default="none",
                    help="dock every peptide linear (the default), cyclic "
@@ -364,8 +378,9 @@ def main(argv=None):
     lc = sub.add_parser(
         "local", help="set up and open the interface on this machine (a "
                       "laptop, a workstation or WSL), with no cluster")
-    lc.add_argument("--tools", default="~/.adcp-dock/ADFRsuite",
-                    help="where ADFRsuite is, or is installed on first use")
+    lc.add_argument("--tools", default="~/.adcp-dock/adcpsuite",
+                    help="where the ADCP 1.1 suite is, or is installed on "
+                         "first use")
     lc.add_argument("--runs", default="~/adcp_runs")
     lc.add_argument("--port", type=int, default=8765)
     lc.add_argument("--no-browser", action="store_true",
@@ -377,7 +392,7 @@ def main(argv=None):
                         help="install ADCP 1.1 (Scripps' conda recipe) so "
                              "runs can use it")
     ia.add_argument("--dest", default=None,
-                    help="where to create it (default: beside ADFRsuite, in "
+                    help="where to create it (default: ADCPSUITE_HOME, or "
                          "the installation's tools folder)")
 
     ex = sub.add_parser("example",
@@ -437,21 +452,25 @@ def main(argv=None):
         print()
         T = toolmod.discover(roots=a.tools_root)
         missing = 0
-        suite = toolmod.suite11(a.tools_root)
+        suite = toolmod.suite_home(a.tools_root)
+        if suite:
+            from . import adcp11
+            print("  %-16s %s, in %s" % ("ADCP 1.1 suite", "ADCP " + (
+                adcp11.version(adcp11.find(a.tools_root)) or "1.1"), suite))
+        else:
+            print("  %-16s NOT FOUND  (adcp, agfr, prepare_receptor and reduce "
+                  "come from it; ./install.sh installs it)" % "ADCP 1.1 suite")
         for name, path in T.report():
-            if not path and name in ("adcp", "agfr") and suite:
-                # ADCP 1.1 runs them with its own Python, not as programs.
-                print("  %-16s from the ADCP 1.1 suite in %s" % (name, suite))
-                continue
             print("  %-16s %s" % (name, path or "NOT FOUND  (%s)"
                                   % toolmod.NEEDED[name]))
             missing += 0 if path else 1
-        for name, why in sorted(toolmod.ADFR_PROGRAMS.items()):
-            path = T.adfr_program(name)
-            if name == "msms" and not path:
-                # The ADCP 1.1 suite has no msms program but MSMS's library.
+        for name, why in sorted(toolmod.SUITE_PROGRAMS.items()):
+            if name == "msms":
+                # The suite has no msms program but MSMS's library.
                 from . import surface as _surf
                 path = _surf.describe(toolmod.msms_command(T))
+            else:
+                path = T.suite_program(name)
             print("  %-16s %s" % (name, path or "not found, optional (%s)"
                                   % why))
         # The Python packages, in the Python running this. The optional ones
@@ -475,7 +494,7 @@ def main(argv=None):
             print("  %-16s %s" % (label, state))
         print("\nsbatch: %s" % ("found" if slurm.available() else "NOT FOUND"))
         if missing:
-            print("\n%d tool(s) missing. Set ADFRSUITE_HOME and AMBERHOME, or "
+            print("\n%d tool(s) missing. Set ADCPSUITE_HOME and AMBERHOME, or "
                   "pass --tools-root; or run ./install.sh again, which finds "
                   "them, and a cluster's AmberTools module once it is loaded."
                   % missing)
@@ -520,12 +539,11 @@ def main(argv=None):
                 return 1
             print("fetched %s -> %s" % (a.receptor.upper(), rec))
         roots = [os.path.abspath(r) for r in a.tools_root]
-        engine, exe = jobmod.resolve_engine({"adcp_engine": a.engine,
-                                             "tools_roots": roots})
+        engine, exe = jobmod.resolve_engine({"tools_roots": roots})
         kw = {}
-        if engine == "1.1":
+        if exe:
             from . import adcp11
-            kw = {"extended": True, "library": adcp11.library(exe)}
+            kw["library"] = adcp11.library(exe)
         j = jobmod.default(
             receptor=os.path.abspath(rec) if rec else "", hotspots=a.site or "",
             target_file=os.path.abspath(a.target_file) if a.target_file else "",

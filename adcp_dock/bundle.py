@@ -35,7 +35,7 @@ RESULTS = (
     # receptor beside them.
     "poseviewer/*.pdb", "poseviewer/*.sdf",
     "poseviewer/*.mae", "poseviewer/*.maegz",
-    "docking/*/out_ranked_*.pdb", "docking/*/out_*.pdb",
+    "docking/*/out_ranked_*.pdb", "docking/*/modes.json",
     "docking/*/adcp.log",
     "mmgbsa/*/*/FINAL_RESULTS*", "mmgbsa/*/*.csv",
     # The MM-GBSA output the energy terms are read from, and the per residue

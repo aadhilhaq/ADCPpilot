@@ -10,18 +10,40 @@ and PDBFixer, plus the Scripps packages (adcp, adfr and their libraries). It
 is created with micromamba, which is downloaded if it is not already here.
 The Scripps packages are fetched from ccsb.scripps.edu and each is checked
 against the SHA-256 below before it is installed.
+
+Standard library only: this runs before anything else is installed, on a
+fresh machine or a Colab notebook.
+
+DOWNLOAD VERIFICATION. ccsb.scripps.edu has served its certificate without
+the intermediate that chains it to a trusted root, so scripted downloads can
+fail certificate verification even though browsers, which fetch the missing
+intermediate themselves, succeed. The packages are therefore verified by
+content: a verified connection is tried first; if the chain fails, the file
+is fetched without it and must still match its pinned SHA-256 exactly, or it
+is deleted and the install stops.
+
+Scripps asks that its software be downloaded from its own site rather than
+redistributed, which is what this does.
+
+PLATFORMS. Linux on x86-64 only, WSL on Windows included. Scripps' page says
+"ADCP v1.1 is currently only available for Linux", and its packages, though
+named py3-none-any, carry x86-64 Linux binaries (CrankiteAD_Linux-x86_64_1.1,
+and extensions built as cpython-37m-x86_64-linux-gnu). On a Mac, Scripps
+suggests Ubuntu in a virtual machine.
 """
 import argparse
+import hashlib
 import os
 import shutil
+import ssl
 import subprocess
 import sys
-
-from .adfr import _fetch, _sha256
+import urllib.error
+import urllib.request
 
 BASE = "https://ccsb.scripps.edu/mamba/pip/py37"
 DOWNLOADS = "https://ccsb.scripps.edu/adcpv11/downloads/"
-#: On a computer without ADFRsuite set up yet, or without a checkout.
+#: On a computer without an installation's tools folder: a laptop, or Colab.
 DEFAULT = os.path.expanduser("~/.adcp-dock/adcpsuite")
 # What Scripps' script installs from conda-forge and from PyPI, with its pins.
 CONDA = ["python=3.7", "setuptools=59.8.0", "numpy=1.21.6", "openbabel=2.4.1",
@@ -60,6 +82,36 @@ WHEELS = {
 FIRST = ("prody", "autosite", "mslib")
 
 
+def _sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for block in iter(lambda: fh.read(1 << 20), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
+def _fetch(url, path, log):
+    """Verified TLS first; the unverified fallback exists only because the
+    caller checks the SHA-256 afterwards and discards anything that fails."""
+    def get(ctx):
+        req = urllib.request.Request(url, headers={"User-Agent": "adcp-dock"})
+        with urllib.request.urlopen(req, context=ctx, timeout=120) as r, \
+                open(path + ".part", "wb") as out:
+            shutil.copyfileobj(r, out, 1 << 20)
+        os.replace(path + ".part", path)
+    try:
+        get(ssl.create_default_context())
+        return "verified connection"
+    except (ssl.SSLError, urllib.error.URLError) as exc:
+        if "CERTIFICATE" not in str(exc).upper():
+            raise
+        log("  the server's certificate chain is incomplete (a known "
+            "misconfiguration at ccsb.scripps.edu); fetching without it and "
+            "checking the file's SHA-256 instead")
+        get(ssl._create_unverified_context())                  # noqa: SLF001
+        return "unverified connection, SHA-256 checked"
+
+
 def _run(cmd, log, **kw):
     log("  $ " + " ".join(cmd[:6]) + (" ..." if len(cmd) > 6 else ""))
     p = subprocess.run(cmd, capture_output=True, text=True, **kw)
@@ -85,14 +137,30 @@ def micromamba(where, log=print):
     return exe
 
 
+def platform_problem(system=None, machine=None):
+    """Why the ADCP 1.1 suite cannot be installed on this machine, or None."""
+    import platform
+    system = (system or platform.system()).lower()
+    machine = (machine or platform.machine()).lower()
+    if system == "linux" and machine in ("x86_64", "amd64"):
+        return None
+    where = {"darwin": "a Mac", "windows": "Windows itself"}.get(
+        system, "%s on %s" % (system, machine))
+    return ("The ADCP 1.1 suite is built by the Scripps Research Institute for "
+            "Linux on x86-64 only, and this is %s. Run it on a cluster, in the "
+            "Colab notebook, or in a Linux virtual machine (on a Mac, Scripps "
+            "suggests Ubuntu in UTM; on Windows, use WSL)." % where)
+
+
 def default_dest():
-    """Where ADCP 1.1 goes when no --dest is given: beside ADFRsuite, in the
-    installation's own tools folder, where the interface looks for it first.
-    Not the home directory, whose file allowance on a cluster an environment
-    of this size can use up."""
-    adfr = os.environ.get("ADFRSUITE_HOME")
-    if adfr:
-        return os.path.join(os.path.dirname(os.path.abspath(adfr)), "adcpsuite")
+    """Where ADCP 1.1 goes when no --dest is given: ADCPSUITE_HOME when that
+    names a folder, else the installation's own tools folder, where the
+    interface looks for it (adcp11.candidates). Not the home directory, whose
+    file allowance on a cluster an environment of this size can use up,
+    unless there is no installation folder at all."""
+    named = os.environ.get("ADCPSUITE_HOME")
+    if named:
+        return os.path.abspath(os.path.expanduser(named))
     home = os.environ.get("ADCP_HOME")
     if home:
         return os.path.join(home, "tools", "docking", "adcpsuite")
@@ -103,10 +171,12 @@ def install(dest=None, log=print):
     """Create the ADCP 1.1 environment at `dest`; returns its adcp executable."""
     from . import adcp11
     dest = os.path.abspath(os.path.expanduser(dest or default_dest()))
-    if adcp11.find([os.path.dirname(dest)]) or os.path.isfile(
-            os.path.join(dest, "bin", "adcp")):
+    why = platform_problem()
+    if why:
+        raise SystemExit(why)
+    if adcp11.at(dest) or os.path.isfile(os.path.join(dest, "bin", "adcp")):
         log("ADCP 1.1 is already installed at %s" % dest)
-        return os.path.join(dest, "bin", "adcp")
+        return adcp11.at(dest) or os.path.join(dest, "bin", "adcp")
     base = os.path.dirname(dest)
     mm = micromamba(os.path.join(base, "micromamba"), log)
     # Downloads and caches stay beside the installation, not in home. The
@@ -147,7 +217,7 @@ def install(dest=None, log=print):
     rest = [w for n, w in wheels.items() if n not in FIRST]
     _run([py, "-m", "pip", "install", "-q", "--no-cache-dir", "--no-dependencies",
           "--no-index", "--find-links=" + cache] + rest, log, env=env)
-    exe = adcp11.find([base]) or os.path.join(dest, "bin", "adcp")
+    exe = adcp11.at(dest) or os.path.join(dest, "bin", "adcp")
     log("installed ADCP %s at %s" % (adcp11.version(exe) or "1.1", dest))
     remove_cache(pkgs, dest, log)
     return exe
@@ -184,8 +254,8 @@ def main(argv=None):
     ap = argparse.ArgumentParser(prog="adcp-dock install-adcp11",
                                  description=__doc__.split("\n\n")[0])
     ap.add_argument("--dest", default=None,
-                    help="where to create it (default: beside ADFRsuite, "
-                         "or %s)" % DEFAULT)
+                    help="where to create it (default: ADCPSUITE_HOME, the "
+                         "installation's tools folder, or %s)" % DEFAULT)
     a = ap.parse_args(argv)
     install(a.dest)
     return 0

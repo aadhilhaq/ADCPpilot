@@ -7,8 +7,8 @@ without sbatch still refuses, a dead runner is reported as dead, and the
 peptide parser reads the forms the page says it reads.
 
 The second is a real run, driven through the server as the page drives it:
-create, poll, read the results. It needs ADFRsuite and a receptor, and
-skips (exit 77) where either is missing. Only a real run exercises the
+create, poll, read the results. It needs the ADCP 1.1 suite, and skips (exit
+77) where it is missing. Only a real run exercises the
 pipeline with the data types it actually passes between stages.
 """
 import json
@@ -107,16 +107,33 @@ r = peptide.parse_many("alpha SWQWWWQPQRDCR")[0]
 check(r[2] and ":" in r[2][-1].message,
       "a name before a space is not refused with the colon form to use")
 
+# --- the ADCP 1.1 suite installs on Linux x86-64 alone -------------------------
+# Scripps builds it for Linux only, and its packages carry Linux programs, so
+# `adcp-dock local` on a Mac says so before installing anything.
+from adcp_dock import adcp11_install as _ai                       # noqa: E402
+check(_ai.platform_problem("linux", "x86_64") is None,
+      "Linux on x86-64 is refused for the ADCP 1.1 suite")
+_mac = _ai.platform_problem("darwin", "arm64") or ""
+check("Linux on x86-64 only" in _mac and "a Mac" in _mac and "virtual machine" in _mac,
+      "a Mac is not told the suite runs on Linux only, and what to do: %r" % _mac)
+check(_ai.platform_problem("linux", "aarch64"),
+      "Linux on ARM is offered a suite built for x86-64")
+
 # --- a real run, through the server -----------------------------------------
 from adcp_dock import tools as toolmod                          # noqa: E402
 
 RECEPTOR = os.environ.get("ADCP_TEST_RECEPTOR",
                           os.path.join(ROOT, "examples", "receptor.pdb"))
+if not os.path.isfile(RECEPTOR):
+    # examples/receptor.pdb is the user's own and ignored by git; the
+    # package's example ships 1YCR, which is what this is written for.
+    RECEPTOR = os.path.join(ROOT, "adcp_dock", "example_run", "receptor",
+                            "1YCR.pdb")
 T = toolmod.discover()
 found = dict(T.report())
 skip = None
 if not all(found.get(b) for b in ("adcp", "agfr", "prepare_receptor")):
-    skip = "ADFRsuite is not on this machine"
+    skip = "the ADCP 1.1 suite is not on this machine"
 elif not os.path.isfile(RECEPTOR):
     skip = "no receptor at %s (set ADCP_TEST_RECEPTOR)" % RECEPTOR
 elif os.environ.get("ADCP_SKIP_REAL_RUN"):
@@ -198,48 +215,35 @@ if skip is None:
 
     # The receptor this is written for is 1YCR: MDM2 on chain A, a bound p53
     # peptide on chain B. Chain A only, and redock p53's core into the cleft
-    # it came from. The budget is tiny: this proves the path runs, not that
-    # the search is good. ADCP 1.0 first, named, since "auto" would pick 1.1
-    # wherever it is installed.
+    # it came from, beside a non-standard and D form of it, with the top
+    # pose minimized by ADCP's own OpenMM. The budget is tiny: this proves
+    # the path runs, not that the search is good.
+    check(tl.get("adcp11"), "the page is not told where ADCP 1.1 is: %r"
+          % tl.get("adcp11"))
+    ENGINES.append("ADCP 1.1")
     body = {"label": "localtest", "receptor": RECEPTOR, "chains": ["A"],
             "hotspots": "A:54, A:62, A:67, A:96, A:99",
-            "peptides": [{"name": "p53_core", "sequence": "FSDLWKLL"}],
-            "replicas": 4, "steps": 400000, "poses": 3, "adcp_engine": "1.0",
+            "peptides": [{"name": "p53_core", "sequence": "FSDLWKLL"},
+                         {"name": "nonstd", "sequence": "FSN<BHD>LW&KLL"}],
+            "replicas": 4, "steps": 200000, "poses": 3, "omm_minimize": 1,
             "cpus": min(4, slurm.usable_cores()), "mmgbsa": False}
     rundir, rows = run_local(body)
-    ENGINES.append("ADCP 1.0")
-    check(len(rows) == 1 and rows[0].get("name") == "p53_core",
-          "the result does not carry its peptide's name: %r"
-          % [(r.get("name"), r.get("peptide")) for r in rows])
-    check(rows and rows[0].get("adcp_best") is not None
-          and rows[0].get("engine") == "ADCP 1.0",
-          "the ADCP 1.0 result has no score or no engine: %r" % rows[:1])
-
-    # ADCP 1.1 where it is installed: a non-standard and a D residue, and the
-    # top pose minimized with OpenMM.
-    if tl.get("adcp11"):
-        ENGINES.append("ADCP 1.1")
-        body = dict(body, label="localtest11", adcp_engine="1.1",
-                    omm_minimize=1, steps=200000,
-                    peptides=[{"name": "p53_core", "sequence": "FSDLWKLL"},
-                              {"name": "nonstd", "sequence": "FSN<BHD>LW&KLL"}])
-        rundir, rows = run_local(body)
-        by = {r.get("name"): r for r in rows}
-        check(set(by) == {"p53_core", "nonstd"}
-              and all(str(r.get("engine", "")).startswith("ADCP 1.1")
-                      for r in rows),
-              "the ADCP 1.1 run did not dock both peptides with 1.1: %r"
-              % [(r.get("name"), r.get("engine")) for r in rows])
-        check(by.get("nonstd", {}).get("length") == 8,
-              "the non-standard peptide is not counted as 8 residues: %r"
-              % by.get("nonstd", {}).get("length"))
-        check(any(r.get("omm_n") for r in rows),
-              "no OpenMM minimization result was reported: %r" % rows)
-        poses = call("/api/poses", dir=rundir, peptide="FSN<BHD>LW&KLL")
-        check(len(poses.get("poses") or []) >= 1,
-              "the non-standard peptide's poses cannot be listed: %r" % poses)
-    else:
-        print("skip  ADCP 1.1 is not installed here; only ADCP 1.0 was run")
+    by = {r.get("name"): r for r in rows}
+    check(set(by) == {"p53_core", "nonstd"}
+          and all(str(r.get("engine", "")).startswith("ADCP 1.1")
+                  for r in rows),
+          "the run did not dock both peptides with ADCP 1.1: %r"
+          % [(r.get("name"), r.get("engine")) for r in rows])
+    check(by.get("p53_core", {}).get("adcp_best") is not None,
+          "the result has no score: %r" % by.get("p53_core"))
+    check(by.get("nonstd", {}).get("length") == 8,
+          "the non-standard peptide is not counted as 8 residues: %r"
+          % by.get("nonstd", {}).get("length"))
+    check(any(r.get("omm_n") for r in rows),
+          "no OpenMM minimization result was reported: %r" % rows)
+    poses = call("/api/poses", dir=rundir, peptide="FSN<BHD>LW&KLL")
+    check(len(poses.get("poses") or []) >= 1,
+          "the non-standard peptide's poses cannot be listed: %r" % poses)
     httpd.shutdown()
     os.environ.pop("ADCP_EXECUTOR", None)
 

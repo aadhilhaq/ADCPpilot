@@ -26,7 +26,6 @@ sys.path.insert(0, ROOT)
 
 from adcp_dock import (adcp11, cli, job as jobmod, peptide, pipeline,  # noqa: E402
                        sizing, slurm, structure, target, trajectories)
-from adcp_dock._vendor import adcp as adcp10                     # noqa: E402
 
 fails, ran = [], 0
 
@@ -57,10 +56,10 @@ if not os.path.isfile(REC):
     # The package's own example ships MDM2 (chain A) with p53's peptide (chain B), a site in A
     # and a ligand in B, which is what these checks ask of a receptor.
     REC = os.path.join(ROOT, "adcp_dock", "example_run", "receptor", "1YCR.pdb")
-# Where the ADCP 1.1 suite is, for the checks that need it: ADCP_TEST_TOOLS, or else the folder
-# holding ADFRsuite, which is where install-adcp11 puts it. Without either they are skipped.
+# Where the ADCP 1.1 suite is, for the checks that need it: ADCP_TEST_TOOLS, or else
+# ADCPSUITE_HOME. Without either they are skipped.
 ROOTS = [r for r in (os.environ.get("ADCP_TEST_TOOLS", ""),
-                     os.path.dirname(os.environ.get("ADFRSUITE_HOME", "").rstrip("/")))
+                     os.environ.get("ADCPSUITE_HOME", ""))
          if r and os.path.isdir(r)]
 
 
@@ -110,7 +109,6 @@ check(not {"-cys", "-cyc", "-k", "-p"} & set(args)
       "command, lower case and nothing added: %s" % args)
 
 
-# --- the ADCP 1.0 command, through the vendored dock() ----------------------
 def fake(path, body):
     with open(path, "w") as fh:
         fh.write("#!/bin/sh\n" + body)
@@ -120,50 +118,11 @@ def fake(path, body):
 
 bin_dir = os.path.join(TMP, "bin")
 os.makedirs(bin_dir)
-# Writes its arguments, one per line, and a ranked pose, as ADCP 1.0 would.
-fake_adcp = fake(os.path.join(bin_dir, "adcp"),
-                 'printf "%s\\n" "$@" > argv.txt\n'
-                 'printf "ATOM      1  N   GLU A   1       0.000   0.000   0.000  1.00  0.00           N\\nEND\\n" > out_ranked_1.pdb\n'
-                 'for i in 1 2 3; do echo traj > out_$i.pdb; echo log > out_$i.out; done\n'
-                 'echo all > out.pdb; echo 1 > constrains; echo r > ramaprob.data\n')
+fake(os.path.join(bin_dir, "adcp"), "exit 0\n")
 trg = os.path.join(TMP, "receptor.trg")
 open(trg, "w").write("not a real target")
-tools = types.SimpleNamespace(adcp=fake_adcp)
-seq_arg, start = adcp11.start_arguments("ETFSDLWKLLPEN", 25)
-adcp10.dock("ETFSDLWKLLPEN", trg, os.path.join(TMP, "dock10"), tools,
-            replicas=8, steps=1000, cpus=2, log=lambda *a: None,
-            seq_arg=seq_arg, extra_args=start + adcp11.cyclic_flags("backbone"))
-wd10 = os.path.join(TMP, "dock10", "ETFSDLWKLLPEN")
-argv = open(os.path.join(wd10, "argv.txt")).read().split()
-check(argv[argv.index("-s") + 1] == "ETFSDLWKLLPEN" and "-cyc" in argv
-      and argv[argv.index("-p") + 1] == "25",
-      "ADCP 1.0 was not given the sequence, -p 25 and -cyc: %s" % argv)
-adcp10.dock("RWGPGAWGS", trg, os.path.join(TMP, "dock10"), tools, replicas=8,
-            steps=1000, log=lambda *a: None)
-argv = open(os.path.join(TMP, "dock10", "RWGPGAWGS", "argv.txt")).read().split()
-check(argv[argv.index("-s") + 1] == "rwgpgawgs" and "-p" not in argv,
-      "ADCP 1.0 without the new options should get the old command: %s" % argv)
 
 # --- packing the trajectories, and a resume after it ------------------------
-# ADCP 1.0 leaves its replicas loose in the docking folder.
-arc = trajectories.finish(wd10, "ETFSDLWKLLPEN", "1.0", True,
-                          log=lambda *a: None)
-names = tarfile.open(arc).getnames() if arc else []
-check(arc and os.path.basename(arc) == "ETFSDLWKLLPEN_trajectories.tar.gz",
-      "no archive was written for ADCP 1.0's trajectories")
-check(sorted(names) == sorted("out/out_%d.%s" % (i, x) for i in (1, 2, 3)
-                              for x in ("pdb", "out")),
-      "the archive holds %s; it should hold each replica's trajectory and "
-      "log, and not out.pdb, which repeats them" % names)
-left = sorted(os.listdir(wd10))
-check(not [n for n in left if n.startswith("out_") and not
-           n.startswith("out_ranked")] and "out.pdb" not in left
-      and "ramaprob.data" not in left and "out_ranked_1.pdb" in left,
-      "after packing the docking folder holds %s" % left)
-check(trajectories.finish(wd10, "ETFSDLWKLLPEN", "1.0", True,
-                          log=lambda *a: None) == arc,
-      "packing again does not find the archive already made")
-
 # ADCP 1.1 keeps out/ with -k: run_<n> files, out.pdb and the unpacked target.
 wd11 = os.path.join(TMP, "dock11", "ETFSDLWKLLPEN")
 os.makedirs(os.path.join(wd11, "out", "receptor"))
@@ -177,8 +136,7 @@ open(os.path.join(wd11, "out_ranked_1.pdb"), "w").write("ATOM\nEND\n")
 open(os.path.join(wd11, ".adcp_finished"), "w").write("done\n")
 # A pack that was stopped part way left a partial archive behind.
 open(trajectories.archive_path(wd11, "ETFSDLWKLLPEN") + ".part", "w").write("x")
-arc = trajectories.finish(wd11, "ETFSDLWKLLPEN", "1.1", True,
-                          log=lambda *a: None)
+arc = trajectories.finish(wd11, "ETFSDLWKLLPEN", True, log=lambda *a: None)
 names = sorted(tarfile.open(arc).getnames()) if arc else []
 check(names == sorted("out/run_%d.%s" % (i, x) for i in (1, 2)
                       for x in ("pdb", "out", "err")),
@@ -200,17 +158,19 @@ finally:
     adcp11._run = _real_run
 check(not called, "a peptide already docked and packed was docked again")
 check(os.path.isfile(arc), "a resume removed the archive")
-# Off: ADCP 1.0's loose trajectories are removed; absent: left as they were.
+check(trajectories.finish(wd11, "ETFSDLWKLLPEN", True, log=lambda *a: None) == arc,
+      "packing again does not find the archive already made")
+# Off: a working folder left behind is removed; absent: left as it was.
 wd = os.path.join(TMP, "loose")
-os.makedirs(wd)
-for n in ("out_1.pdb", "out_1.out", "out.pdb", "out_ranked_1.pdb"):
+os.makedirs(os.path.join(wd, "out"))
+for n in (os.path.join("out", "run_1.pdb"), "out_ranked_1.pdb"):
     open(os.path.join(wd, n), "w").write("x")
-trajectories.finish(wd, "K", "1.0", None, log=lambda *a: None)
-check(len(os.listdir(wd)) == 4,
+trajectories.finish(wd, "K", None, log=lambda *a: None)
+check(sorted(os.listdir(wd)) == ["out", "out_ranked_1.pdb"],
       "a job file without the setting had its trajectories touched")
-trajectories.finish(wd, "K", "1.0", False, log=lambda *a: None)
+trajectories.finish(wd, "K", False, log=lambda *a: None)
 check(sorted(os.listdir(wd)) == ["out_ranked_1.pdb"],
-      "with the setting off the loose trajectories were not removed: %s"
+      "with the setting off the working folder was not removed: %s"
       % os.listdir(wd))
 
 # --- cyclic: refused before anything is submitted ---------------------------
@@ -288,29 +248,27 @@ check([p for p in jobmod.validate(dict(j, site_mode="residues",
       "a box from residues with no residues was accepted")
 
 # --- the AGFR command for each map setting ----------------------------------
-T = types.SimpleNamespace(agfr="/x/ADFRsuite/bin/agfr")
-legacy = target.maps_for({"tools_roots": []})
-check((legacy.agfr, legacy.autosite, legacy.gradient) == ("1.0", "1.0", True)
-      and legacy.flags() == [],
-      "a job file without the map settings no longer means AGFR 1.0 with its "
-      "own defaults: %s" % legacy.describe())
-cmd = target.command(legacy, T, "/r/receptor.pdbqt", "receptor",
+# Both settings are given explicitly, whatever the program's defaults.
+check(target.Maps(None, "1.1", False).flags() == ["-asv", "1.1"]
+      and target.Maps(None, "1.0", True).flags() == ["-asv", "1.0", "-g"],
+      "AGFR's flags are wrong for the gradient or AutoSite: %s, %s"
+      % (target.Maps(None, "1.1", False).flags(),
+         target.Maps(None, "1.0", True).flags()))
+check(target.AGFR_CHOICES == ("1.1", "auto") and "1.0" in target.AUTOSITE_CHOICES,
+      "the maps are not AGFR 1.1's alone, or AutoSite 1.0 went with the older "
+      "AGFR: %s %s" % (target.AGFR_CHOICES, target.AUTOSITE_CHOICES))
+T = types.SimpleNamespace()
+m = target.Maps(None, "1.1", False)
+m.runner = lambda tools=None: ["agfr"]
+cmd = target.command(m, T, "/r/receptor.pdbqt", "receptor",
                      (1.0, 2.0, 3.0), (30.0, 30.0, 30.0))
-check(cmd == ["/x/ADFRsuite/bin/agfr", "-r", "/r/receptor.pdbqt", "-o",
-              "receptor", "-b", "user", "1.000", "2.000", "3.000", "30.0",
-              "30.0", "30.0"],
-      "the old map command changed: %s" % cmd)
-m10 = target.Maps("1.0", None, "1.1", False)
-check(m10.flags() == ["-asv", "1.1", "-ng"],
-      "AGFR 1.0 with the gradient off and AutoSite 1.1 should add -asv 1.1 "
-      "-ng: %s" % m10.flags())
-check(target.Maps("1.1", None, "1.1", False).flags() == ["-asv", "1.1"]
-      and target.Maps("1.1", None, "1.0", True).flags() == ["-g"],
-      "AGFR 1.1's flags are wrong for the gradient or AutoSite")
-cmd = target.command(target.Maps("1.0", None, "1.1", False), T, "/r/r.pdbqt",
-                     "pocket", pocket="best", padding=8)
+check(cmd == ["agfr", "-r", "/r/receptor.pdbqt", "-o", "receptor", "-b",
+              "user", "1.000", "2.000", "3.000", "30.0", "30.0", "30.0",
+              "-asv", "1.1"],
+      "the map command changed: %s" % cmd)
+cmd = target.command(m, T, "/r/r.pdbqt", "pocket", pocket="best", padding=8)
 check(cmd[cmd.index("-b"):] == ["-b", "fill", "-p", "best", "-P", "8",
-                                "-asv", "1.1", "-ng"],
+                                "-asv", "1.1"],
       "the pocket command is %s" % cmd)
 # The pocket table agfr prints, read back.
 table = target.pocket_table(
@@ -330,18 +288,33 @@ if exe:
     m11 = target.maps_for(jobmod.default(tools_roots=ROOTS))
     check(m11.agfr == "1.1" and m11.autosite == "1.1" and not m11.gradient,
           "a new job does not build its maps with AGFR 1.1, AutoSite 1.1 "
-          "and no gradient where the ADCP 1.1 suite is installed: %s"
-          % m11.describe())
+          "and no gradient: %s" % m11.describe())
     cmd = target.command(m11, T, "/r/r.pdbqt", "receptor", (0, 0, 0),
                          (20, 20, 20))
     check(cmd[0].endswith("/bin/python") and cmd[1].endswith("runAGFR.py")
           and "-g" not in cmd and cmd[-2:] == ["-asv", "1.1"],
-          "AGFR 1.1 is not run as the suite's Python on runAGFR.py: %s" % cmd)
+          "AGFR is not run as the suite's Python on runAGFR.py: %s" % cmd)
+    # A job file from before the maps could be chosen, or one that named the
+    # older AGFR: built again with what comes closest to its own maps.
+    legacy = target.maps_for({"tools_roots": ROOTS})
+    check((legacy.autosite, legacy.gradient) == ("1.0", True)
+          and legacy.flags() == ["-asv", "1.0", "-g"],
+          "a job file without the map settings is not built with AutoSite 1.0 "
+          "and the gradient on: %s" % legacy.describe())
+    named = target.maps_for({"tools_roots": ROOTS, "adcp_engine": "1.0",
+                             "agfr": "1.0", "autosite": "1.1",
+                             "receptor_gradient": False})
+    check(named.flags() == ["-asv", "1.1"] and named.agfr == "1.1",
+          "a job file that named the older AGFR and recorded its settings is "
+          "not built with them by AGFR 1.1: %s" % named.describe())
+else:
+    print("  . the ADCP 1.1 suite is not here (ADCP_TEST_TOOLS); its AGFR's "
+          "commands were not checked")
 
 # --- the job record, the command line and the batch scripts -----------------
 d = jobmod.default()
 for k, v in (("site_mode", "residues"), ("site_ligand", ""),
-             ("site_pocket", "best"), ("agfr", "auto"), ("autosite", "1.1"),
+             ("site_pocket", "best"), ("agfr", "1.1"), ("autosite", "1.1"),
              ("receptor_gradient", False), ("cyclic", "none"),
              ("helical", 25), ("keep_trajectories", False), ("poses", 10)):
     check(d.get(k) == v, "a new job's %s is %r, not %r" % (k, d.get(k), v))
@@ -351,26 +324,37 @@ o = pipeline.docking_options(old)
 check(o == {"helical": 0, "cyclic": "none", "keep": None},
       "a job file from before the options does not dock as it did: %s" % o)
 rd = os.path.join(TMP, "cli_opts")
+for opt in ("--engine", "--agfr"):
+    rc, out = run_cli("new", os.path.join(TMP, "cli_old"), "-r", REC,
+                      "-s", "A:54", opt, "1.0", "-p", "p53: ETFSDLWKLLPEN")
+    check(rc == 2 and "invalid choice" in out
+          and not os.path.isdir(os.path.join(TMP, "cli_old")),
+          "%s 1.0 was accepted (rc %r)" % (opt, rc))
 rc, out = run_cli("new", rd, "-r", REC, "--site-mode", "ligand",
-                  "--site-ligand", "B", "--agfr", "1.0", "--autosite", "1.0",
+                  "--site-ligand", "B", "--agfr", "auto", "--autosite", "1.0",
                   "--receptor-gradient", "--cyclic", "backbone",
                   "--helical", "40", "--keep-trajectories", "--poses", "50",
-                  "--engine", "1.0", "-p", "p53: ETFSDLWKLLPEN")
+                  "--engine", "auto", "-p", "p53: ETFSDLWKLLPEN")
 jf = os.path.join(rd, "job.json")
 j = json.load(open(jf)) if os.path.isfile(jf) else {}
-for k, v in (("site_mode", "ligand"), ("site_ligand", "B"), ("agfr", "1.0"),
+for k, v in (("site_mode", "ligand"), ("site_ligand", "B"), ("agfr", "auto"),
              ("autosite", "1.0"), ("receptor_gradient", True),
              ("cyclic", "backbone"), ("helical", 40),
              ("keep_trajectories", True), ("poses", 50)):
     check(j.get(k) == v, "--%s did not reach job.json: %r"
           % (k.replace("_", "-"), j.get(k)))
-check(any("at most 10" in p for p in jobmod.validate(j)) if j else False,
-      "50 poses with ADCP 1.0 were accepted")
+check(not any("poses" in p for p in jobmod.validate(j)) if j else False,
+      "50 poses were refused")
+check(any("at most 100" in p for p in jobmod.validate(dict(j, poses=101))),
+      "101 poses were accepted")
+check(any("adcp_engine must be" in p
+          for p in jobmod.validate(dict(j, adcp_engine="1.0"))),
+      "a new job naming another ADCP was accepted")
 j2 = jobmod.load(jf) if j else {}
 check(j2 == j, "job.json did not read back as it was written")
 notes = "\n".join(pipeline.batch_notes(j, "prepare")
                   + pipeline.batch_notes(j, "dock")) if j else ""
-for want in ("around the ligand B", "AGFR 1.0", "AutoSite 1.0",
+for want in ("around the ligand B", "AGFR 1.1", "AutoSite 1.0", "ADCP 1.1",
              "receptor gradient on", "40% of replicas start as a helix",
              "adcp -p 40", "backbone cyclic", "50 pose(s)",
              "trajectories kept"):

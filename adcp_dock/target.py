@@ -18,22 +18,14 @@ Three failure modes produce no error of their own:
 In each case ADCP still runs and still returns numbers, so the archive's
 contents are checked before anything docks.
 
-Two agfr programs can build it. ADFRsuite 1.0 carries one, and the ADCP 1.1
-suite carries a newer one, found from the same installation as ADCP 1.1
-(adcp11.find_agfr). Over the MDM2 example's receptor and box, with the same
-settings, they wrote the same box, the same receptor and the same
-translation points. Their maps differ slightly, because each calls its own
-AutoGrid (4.2.7 of 2019, "modified version dual HB", in ADFRsuite 1.0, and
-4.2.7 of 2020 in the 1.1 suite): where a peptide atom can sit, by at most
-0.15 kcal/mol in the atom type maps and by up to 1.2 in the hydrogen bond
-donor maps (HD and HS), with correlations of 0.998 and above. The 1.1 suite
-also writes a constriction map, which ADCP does not read.
+The ADCP 1.1 suite's agfr builds it, found from the same installation as
+ADCP 1.1 (adcp11.find_agfr). It calls the suite's AutoGrid (4.2.7 of 2020),
+and writes a constriction map as well, which ADCP does not read.
 
-What differs by default is two settings, so both are spelled out on every
-command here rather than left to the program: the receptor gradient, which
-ADFRsuite 1.0's agfr adds unless told -ng and the 1.1 one adds only when
-told -g, and the AutoSite that places the translation points, 1.0 in both
-unless told -asv 1.1.
+Two settings change what it builds, so both are spelled out on every command
+here rather than left to the program's defaults: the AutoSite that places
+the translation points (-asv 1.0, the program's default, or -asv 1.1), and
+the receptor gradient, added only when asked (-g).
 """
 import os
 import re
@@ -43,9 +35,9 @@ import zipfile
 
 MIN_MAPS = 20
 
-#: Which agfr builds the maps: the ADCP 1.1 suite's where it is installed
-#: ("auto"), or one named.
-AGFR_CHOICES = ("auto", "1.1", "1.0")
+#: Which agfr builds the maps: the ADCP 1.1 suite's. "auto", which new runs
+#: said before, means it too.
+AGFR_CHOICES = ("1.1", "auto")
 #: Which AutoSite places the translation points and finds the pockets.
 AUTOSITE_CHOICES = ("1.1", "1.0")
 #: Where the box comes from.
@@ -111,84 +103,58 @@ def box_of(trg):
 
 
 class Maps:
-    """How a run's maps are built: which agfr, which AutoSite, whether the
-    receptor gradient is added.
+    """How a run's maps are built: by the ADCP 1.1 suite's AGFR, with which
+    AutoSite, and whether the receptor gradient is added.
 
-    `agfr` is "1.1" or "1.0", resolved; `exe` is ADCP 1.1's executable, from
-    which AGFR 1.1 is found, and None for 1.0.
+    `exe` is ADCP 1.1's executable, from which its AGFR is found.
     """
 
-    def __init__(self, agfr="1.0", exe=None, autosite="1.0", gradient=True):
-        self.agfr = agfr
+    agfr = "1.1"
+
+    def __init__(self, exe=None, autosite="1.1", gradient=False):
         self.exe = exe
-        self.autosite = autosite
+        self.autosite = str(autosite)
         self.gradient = bool(gradient)
 
-    def runner(self, tools):
-        """The program to start: ADFRsuite's agfr, or the 1.1 suite's own
-        Python on its runAGFR.py."""
-        if self.agfr == "1.1":
-            from . import adcp11
-            return adcp11.agfr_command(self.exe)
-        return [tools.agfr]
+    def runner(self, tools=None):
+        """The program to start: the suite's own Python on its runAGFR.py."""
+        from . import adcp11
+        return adcp11.agfr_command(self.exe)
 
     def env(self):
-        if self.agfr == "1.1":
-            from . import adcp11
-            return adcp11.agfr_env(self.exe)
-        return None
+        from . import adcp11
+        return adcp11.agfr_env(self.exe)
 
     def flags(self):
-        """The options that differ between the two agfr programs' defaults,
-        given explicitly. An AGFR 1.0 run that kept 1.0's own defaults
-        (AutoSite 1.0, gradient on) adds nothing, so its command is the one
-        every run before these settings used."""
-        out = []
-        if self.autosite == "1.1":
-            out += ["-asv", "1.1"]
-        if self.agfr == "1.1":
-            if self.gradient:
-                out += ["-g"]
-        elif not self.gradient:
-            out += ["-ng"]
-        return out
+        """Both settings, given explicitly whatever the program's defaults."""
+        return ["-asv", self.autosite] + (["-g"] if self.gradient else [])
 
     def describe(self):
-        return ("AGFR %s, AutoSite %s, receptor gradient %s"
-                % (self.agfr, self.autosite, "on" if self.gradient else "off"))
+        return ("AGFR 1.1, AutoSite %s, receptor gradient %s"
+                % (self.autosite, "on" if self.gradient else "off"))
 
     def record(self):
         return {"agfr": self.agfr, "autosite": self.autosite,
                 "receptor_gradient": self.gradient}
 
 
-def resolve_agfr(j):
-    """("1.1" | "1.0" | "missing", ADCP 1.1 executable or None) for a job.
+def maps_for(j):
+    """The Maps a job asks for.
 
-    A job file written before the setting existed was built with ADFRsuite
-    1.0's agfr, so it reads as "1.0" and a rebuilt target matches the one it
-    replaces.
+    A job file from before the maps could be chosen has no agfr setting:
+    its maps were built by an older AGFR with that program's own defaults,
+    AutoSite 1.0 and the receptor gradient on, so they are built again with
+    the same two, which comes closest to the maps it was docked into. A job
+    file that records its settings is built with what it records.
     """
-    want = str(j.get("agfr") or "1.0")
-    if want == "1.0":
-        return "1.0", None
     from . import adcp11
     exe, script = adcp11.find_agfr(j.get("tools_roots") or [])
-    if exe and script:
-        return "1.1", exe
-    return ("missing" if want == "1.1" else "1.0"), None
-
-
-def maps_for(j):
-    """The Maps a job asks for, with what an older job file means: AGFR 1.0,
-    AutoSite 1.0 and the gradient on, which is what ADFRsuite 1.0's agfr did
-    by default for every run made before these settings existed."""
-    agfr, exe = resolve_agfr(j)
-    if agfr == "missing":
-        raise TargetError("AGFR 1.1 was asked for but the ADCP 1.1 suite is "
-                          "not installed here")
-    return Maps(agfr=agfr, exe=exe,
-                autosite=str(j.get("autosite") or "1.0"),
+    if not (exe and script):
+        raise TargetError("AGFR comes with the ADCP 1.1 suite, which is not "
+                          "installed here")
+    if "agfr" not in j:
+        return Maps(exe=exe, autosite="1.0", gradient=True)
+    return Maps(exe=exe, autosite=str(j.get("autosite") or "1.0"),
                 gradient=bool(j.get("receptor_gradient", True)))
 
 
@@ -230,11 +196,8 @@ def build(receptor_pdbqt, centre, size, outdir, tools, name="receptor",
     truncated target permanent. Validating on the way out covers both: a
     good target short-circuits, a bad one is deleted and rebuilt once.
 
-    With no `maps`, ADFRsuite 1.0's agfr with its own defaults: what every
-    run did before the maps could be chosen.
+    `maps` is a Maps, maps_for(job).
     """
-    if maps is None:
-        maps = Maps()
     trg = os.path.join(outdir, "%s.trg" % name)
     why = check(trg, receptor_pdbqt) if os.path.isfile(trg) else "missing"
     attempts = 0
@@ -246,9 +209,7 @@ def build(receptor_pdbqt, centre, size, outdir, tools, name="receptor",
             except OSError:
                 pass
         attempts += 1
-        # For a job file from before the maps could be chosen this is the
-        # vendored builder's own command, word for word (adcp.build_target),
-        # run the same way but with agfr's output kept beside the target.
+        # agfr's output is kept beside the target.
         got, seconds = _run_agfr(
             command(maps, tools, receptor_pdbqt, name, centre, size),
             outdir, name, maps.env())
@@ -318,8 +279,7 @@ def find_pocket(receptor_pdbqt, outdir, tools, maps, pocket="best",
     sub = os.path.join(outdir, "pocket")
     name = "pocket"
     # The gradient changes nothing AutoSite or the box sees, and costs time.
-    quick = Maps(agfr=maps.agfr, exe=maps.exe, autosite=maps.autosite,
-                 gradient=False)
+    quick = Maps(exe=maps.exe, autosite=maps.autosite, gradient=False)
     cmd = command(quick, tools, receptor_pdbqt, name, pocket=pocket,
                   padding=padding)
     trg = os.path.join(sub, "%s.trg" % name)

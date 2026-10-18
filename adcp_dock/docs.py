@@ -40,7 +40,7 @@ NAV = [
     ("case-histidines", "Histidines at the site", "Cases"),
     ("case-modified", "Modified and D amino acids", "Cases"),
 
-    ("tools", "Optional tools", "Reference"),
+    ("tools", "Tools", "Reference"),
     ("troubleshooting", "When something goes wrong", "Reference"),
     ("citing", "How to cite", "Reference"),
 ]
@@ -63,7 +63,6 @@ HELP_LINKS = {
     "site_mode": "site.html#where-the-box-goes",
     "site_ligand": "site.html#ligand",
     "site_pocket": "site.html#pocket",
-    "agfr": "site.html#maps",
     "autosite": "site.html#autosite",
     "receptor_gradient": "site.html#gradient",
     "cyclic": "peptides.html#cyclic",
@@ -100,7 +99,7 @@ COPYRIGHT = ("Copyright (c) 2026, Aadhil Haq and Sandun Fernando, "
 #: the full list, scoped to one run, is behind How to cite.
 CREDITS = [
     'docking by <a href="https://ccsb.scripps.edu/adcp/" target="_blank"'
-    ' rel="noopener">ADCP</a> and ADFRsuite (Scripps Research)',
+    ' rel="noopener">ADCP</a>, AGFR and AutoSite (Scripps Research)',
     "receptor hydrogens by reduce (Word et al., J Mol Biol 1999), or "
     "PDB2PQR with PROPKA when chosen",
     "MM-GBSA by AmberTools",

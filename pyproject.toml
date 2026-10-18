@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "adcp-dock"
-version = "0.1.19"
+version = "0.1.20"
 description = "Browser and command-line workflow for ADCP peptide docking"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -30,9 +30,9 @@ launcher = ["paramiko>=3.0"]
 # preparation log says which steps were skipped.
 prep = ["pdbfixer", "openmm", "biopython"]
 # Everything needed to run on one machine with `adcp-dock local`, including
-# pdb2pqr for protonation. ADFRsuite is not on PyPI; `adcp-dock local`
-# downloads it from Scripps on first use. AmberTools is not on PyPI either,
-# so MM-GBSA needs conda; docking works without it.
+# pdb2pqr for protonation. The ADCP 1.1 suite is not on PyPI; `adcp-dock
+# local` installs it with Scripps' own recipe on first use. AmberTools is not
+# on PyPI either, so MM-GBSA needs conda; docking works without it.
 local = ["pdb2pqr", "pdbfixer", "openmm", "biopython"]
 
 [project.urls]

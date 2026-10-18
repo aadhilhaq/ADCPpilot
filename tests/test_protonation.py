@@ -6,8 +6,8 @@ By Aadhil Haq
 What is checked: a new job asks for reduce and an old one, with no
 protonation key, still means PDB2PQR with PROPKA, through job.json, the
 command line, the preparation's reuse key, the citations and the batch
-notes; the walltime prices both; reduce, ADFRsuite's, is run with ADFR's
-flags and charges a chain that starts at residue 25 as a terminus there, so
+notes; the walltime prices both; reduce, the ADCP 1.1 suite's, is run with
+ADFR's flags and charges a chain that starts at residue 25 as a terminus there, so
 the minimisation accepts it; a residue after a chain break is given the
 amide hydrogen its cap calls for; and the complex MM-GBSA builds takes the
 receptor's histidines from where reduce put the protons (HID, HIE, HIP),
@@ -46,10 +46,10 @@ def check(cond, why):
 TMP = tempfile.mkdtemp(prefix="adcp_protonation_")
 os.environ["HOME"] = TMP
 REC = os.path.join(ROOT, "adcp_dock", "example_run", "receptor", "1YCR.pdb")
-# Where the tools are, for the checks that run them: ADCP_TEST_TOOLS, or else the folder
-# holding ADFRsuite. Without either those checks are skipped.
+# Where the tools are, for the checks that run them: ADCP_TEST_TOOLS, or else
+# ADCPSUITE_HOME. Without either those checks are skipped.
 ROOTS = [r for r in (os.environ.get("ADCP_TEST_TOOLS", ""),
-                     os.path.dirname(os.environ.get("ADFRSUITE_HOME", "").rstrip("/")))
+                     os.environ.get("ADCPSUITE_HOME", ""))
          if r and os.path.isdir(r)]
 
 # --- the default, and what an old job file means ------------------------------
@@ -63,9 +63,11 @@ check(jobmod.protonation_of({"protonation": "reduce"}) == "reduce"
 check(jobmod.protonation_of({"protonation": "propka",
                              "adapt": {"folder": "/x"}}) == "reduce",
       "a receptor from ADapt was protonated by reduce there, whatever the box said")
+# The shipped example as a job file from before the choice: without the key.
 old_example = json.load(open(os.path.join(ROOT, "adcp_dock", "example_run", "job.json")))
-check("protonation" not in old_example and jobmod.protonation_of(old_example) == "propka",
-      "the shipped example, made before the choice, reads as PDB2PQR with PROPKA")
+old_example.pop("protonation", None)
+check(jobmod.protonation_of(old_example) == "propka",
+      "the shipped example, as made before the choice, reads as PDB2PQR with PROPKA")
 bad = jobmod.default(receptor=REC, hotspots="A:96", protonation="guess",
                      peptides=[{"name": "p", "sequence": "ETFSDLWKLLPEN"}])
 check(any("Protonation must be reduce or propka" in p for p in jobmod.validate(bad)),
@@ -419,8 +421,8 @@ import shutil as _sh                                            # noqa: E402
 
 _sh.rmtree(_cap_tmp, ignore_errors=True)
 
-# --- reduce itself, where ADFRsuite has it --------------------------------------------
-exe = toolmod.discover(roots=ROOTS).adfr_program("reduce")
+# --- reduce itself, the ADCP 1.1 suite's ------------------------------------------------
+exe = toolmod.discover(roots=ROOTS).suite_program("reduce")
 if not exe:
     print("skip  reduce is not installed here; the rest was checked (%d checks)" % ran)
     if fails:
@@ -430,9 +432,8 @@ if not exe:
     sys.exit(77)
 
 check(os.path.basename(os.path.dirname(exe)) == "bin"
-      and os.path.isfile(os.path.join(os.path.dirname(exe), "prepare_receptor"))
-      or "adcpsuite" in exe,
-      "reduce is ADFRsuite's own, beside prepare_receptor (%s)" % exe)
+      and os.path.isfile(os.path.join(os.path.dirname(exe), "prepare_receptor")),
+      "reduce is the suite's own, beside prepare_receptor (%s)" % exe)
 check(prepare.reduce_version(exe).startswith("reduce."),
       "its version is read (%r)" % prepare.reduce_version(exe))
 

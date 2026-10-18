@@ -220,7 +220,7 @@ else:
 
 # --- AutoSite itself, where the ADCP 1.1 suite is installed -----------------------------
 roots = [r for r in (os.environ.get("ADCP_TEST_TOOLS", ""),
-                     os.path.dirname(os.environ.get("ADFRSUITE_HOME", "").rstrip("/")))
+                     os.environ.get("ADCPSUITE_HOME", ""))
          if r and os.path.isdir(r)]
 exe = adcp11.find(roots)
 if exe and pockets.autosite_script(exe) and os.path.isfile(EX):

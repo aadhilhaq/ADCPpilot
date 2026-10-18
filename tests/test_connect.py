@@ -266,7 +266,7 @@ check(tunnel.AUTH_PATIENCE >= 120,
 INSTALL = "/home/someone/ADCP_docking"
 out = []
 s = session.start(t, INSTALL, runs="~/adcp_runs",
-                  tools_roots=("/opt/adfr", "/opt/amber"),
+                  tools_roots=("/opt/adcpsuite", "/opt/amber"),
                   on_output=out.append, forward=tunnel.forward,
                   free_port=tunnel.free_port)
 check(srv.commands, "no command was run on the far end")
@@ -277,7 +277,7 @@ check("--host 127.0.0.1" in cmd,
       "the server would be started on a public interface; anyone on the "
       "login node could reach the session")
 check(cmd.count("--tools-root") == 2,
-      "the ADFRsuite and Amber roots did not reach the far end, so the run "
+      "the ADCP 1.1 suite and Amber roots did not reach the far end, so the run "
       "would be told those tools are missing")
 check(INSTALL in cmd and "PYTHONPATH=" in cmd,
       "the command does not put the checkout on PYTHONPATH")

@@ -15,9 +15,9 @@ install.sh and update.sh fetch it from
 
     https://github.com/michelsanner/adapt
 
-into a folder named adapt beside ADFRsuite, anonymously, once that repository
-is public (scripts/adapt_fetch.sh). It is also found at ADAPT_HOME, or beside
-this checkout.
+into a folder named adapt beside the ADCP 1.1 suite, anonymously, once that
+repository is public (scripts/adapt_fetch.sh). It is also found at
+ADAPT_HOME, in the installation's tools folder, or beside this checkout.
 
 It is embedded the way its README's "Embedding ADapt" section describes: it
 is started with --base-path /adapt, so this interface's server forwards
@@ -65,21 +65,39 @@ _OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
 def candidates(roots=()):
-    """Where an ADapt checkout is looked for, in order."""
+    """Where an ADapt checkout is looked for, in order: ADAPT_HOME; each root
+    given; beside the ADCP 1.1 suite, where install.sh puts it; the
+    installation's tools folder (ADCP_HOME), and the one beside this
+    checkout; this checkout's own parent; and the folder `adcp-dock local`
+    uses."""
     out = []
     env = os.environ.get("ADAPT_HOME")
     if env:
         out.append(env)
-    adfr = os.environ.get("ADFRSUITE_HOME")
+    from . import adcp11
+    suite = adcp11.find(roots)
+    named = os.environ.get("ADCPSUITE_HOME")
     inst = os.environ.get("ADCP_HOME")
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    for root in (list(roots)
-                 + ([os.path.dirname(os.path.abspath(adfr))] if adfr else [])
-                 + ([os.path.join(inst, "tools", "docking")] if inst else [])
-                 + [os.path.dirname(here)]):
+    bases = list(roots)
+    if suite:
+        bases.append(os.path.dirname(adcp11.home_of(suite)))
+    if named:
+        bases.append(os.path.dirname(os.path.abspath(named.rstrip("/"))))
+    for h in ([inst] if inst else []) + [here]:
+        bases += [os.path.join(h, "tools", "docking"),
+                  os.path.join(os.path.dirname(os.path.abspath(h)), "tools",
+                               "docking")]
+    bases.append(os.path.dirname(here))
+    for root in bases:
         out += [os.path.join(root, "adapt"), os.path.join(root, "ADapt")]
     out.append(os.path.expanduser("~/.adcp-dock/adapt"))
-    return out
+    seen, uniq = set(), []
+    for d in out:
+        if d not in seen:
+            seen.add(d)
+            uniq.append(d)
+    return uniq
 
 
 def is_adapt(folder):

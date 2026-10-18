@@ -346,6 +346,9 @@ textarea{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;min-height:76
 .dpart>.grouphead+.checks{margin-top:0}
 .dpart>.checks+.row{margin-top:10px}
 #enginenote{grid-row:2;grid-column:1}
+.dengine .fixedval{background:var(--card);border:1px solid var(--line);
+  border-radius:9px;padding:0 11px;display:flex;align-items:center;
+  color:var(--fg)}
 #mmcap{grid-row:2;grid-column:2/span 2}
 #autofill{width:100%}
 /* Rescoring off: its settings stay where they are, greyed and disabled, as
@@ -1236,9 +1239,10 @@ __STALE__
      rel=noopener title="How to use this page, with worked examples">Docs</a>
   <div class=brandblock>
     <h1>GUI to ADCP Docking</h1>
-    <!-- What belongs to whom, in the header: ADCP and ADFRsuite are the
-         Scripps Research Institute's, and this is a GUI and workflow that
-         drives them. A screenshot carries the header with it. -->
+    <!-- What belongs to whom, in the header: ADCP and the suite it comes
+         in are the Scripps Research Institute's, and this is a GUI and
+         workflow that drives them. A screenshot carries the header with
+         it. -->
     <div class=sub>A graphical interface to
       <a href="https://ccsb.scripps.edu/adcp/" target="_blank"
          rel="noopener">ADCP</a>, a product of the
@@ -1520,17 +1524,11 @@ __STALE__
     <div class=why id=pocketnote style="margin-top:6px"></div>
     <div id=pocketlist></div>
   </div>
-  <!-- How the grid maps over the box are built: three settings of one
-       program, agfr, in one panel like the receptor's preparation. -->
+  <!-- How the grid maps over the box are built: two settings of the ADCP
+       1.1 suite's agfr, in one panel like the receptor's preparation. -->
   <div class=prepgroup id=mapsgroup>
     <div class=grouphead>Grid maps <span>what the box is filled with</span></div>
     <div class="checks prepsteps">
-      <label class=chk for=agfr><span>Built by</span>
-        <select id=agfr>
-          <option value=auto selected>AGFR, newest installed</option>
-          <option value="1.1">AGFR 1.1, from the ADCP 1.1 suite</option>
-          <option value="1.0">AGFR 1.0, from ADFRsuite</option>
-        </select></label>
       <label class=chk for=autosite><span>AutoSite</span>
         <select id=autosite>
           <option value="1.1" selected>1.1</option>
@@ -1675,18 +1673,14 @@ __STALE__
         <span>Keep every replica's trajectory</span></label>
     </div>
   </div>
-  <!-- Which ADCP. 1.1 adds non-standard and D amino acids (N<BHD>, &D in a
-       sequence) and an OpenMM minimization of the top poses. The version
-       found is the engine menu's caption, under it in its column. -->
+  <!-- The engine, ADCP 1.1, with its version as found here, and the OpenMM
+       minimization of the top poses it offers. What the installation has is
+       the engine's caption, under it in its column. -->
   <div class="dpart cols3 dengine">
     <div class=grouphead>Engine</div>
     <div class=row>
-      <div><label for=adcp_engine>Docking engine</label>
-        <select id=adcp_engine>
-          <option value=auto>ADCP, newest installed</option>
-          <option value="1.1">ADCP 1.1</option>
-          <option value="1.0">ADCP 1.0</option>
-        </select></div>
+      <div><label>Docking engine</label>
+        <div class=fixedval id=enginename>ADCP 1.1</div></div>
       <div class="why dcap" id=enginenote></div>
       <div><label for=omm_minimize>Poses to minimize with OpenMM</label>
         <input type=number id=omm_minimize value="0" min="0" max="10"></div>

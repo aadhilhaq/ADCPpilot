@@ -271,7 +271,7 @@ for call, src, why in [
          "atoms, protonation, restrained minimisation"),
         ("receptor.prepare_pdbqt(", prep_src, "the receptor as PDBQT"),
         ("target.build(", prep_src, "the grid maps, built and then checked"),
-        ("adcp.dock(", dock_src, "the docking search"),
+        ("adcp11.dock(", dock_src, "the docking search"),
         ("adcp.read_pose(", dock_src, "the all-atom ranked pose"),
         ("poseviewer.transplant(", dock_src,
          "the pose laid on a clean topology by key"),
@@ -289,7 +289,7 @@ check(prep_src.index("receptor.load_for_box(") < prep_src.index("prep.run(")
       "stage_prepare runs the preparation steps out of order; the box has to "
       "be sized from the structure as read, the PDBQT has to come from the "
       "prepared structure, and the maps from the PDBQT")
-check(dock_src.index("adcp.dock(") < dock_src.index("poseviewer.transplant(")
+check(dock_src.index("adcp11.dock(") < dock_src.index("poseviewer.transplant(")
       < dock_src.index("mmgbsa.run("),
       "stage_dock rescores before it docks, or builds the complex from "
       "something other than the pose")
@@ -451,15 +451,20 @@ check('name="adcp_prep"' not in _src and 'name="adcp_dock"' not in _src,
 # two-hour floor, not a padded stage.
 from adcp_dock import sizing as _sz                               # noqa: E402
 
-for _atoms, _box, _meas, _what in (
-        (1793, (20, 20, 20), 3.4, "1,793 atoms, 20 A box"),
-        (2837, (30, 30, 30), 4.6, "2,837 atoms, 30 A box (7A3R chain A)"),
-        (5884, (20, 20, 20), 5.43, "5,884 atoms, 20 A box")):
-    _e = _sz.prep_minutes(atoms=_atoms, box=_box)
+# Measured with the ADCP 1.1 suite, the whole prepare stage, protonated by
+# reduce, maps with AutoSite 1.1 and no gradient. The four-minute floor and
+# reduce's minute are sized for a slow node, and they are most of a small
+# receptor's estimate, so the bound is wider there.
+for _atoms, _kinds, _box, _meas, _most, _what in (
+        (705, 0, (30, 30, 30), 1.25, 6.0, "MDM2, 705 atoms, 30 A box"),
+        (5912, 1, (26.6, 25.5, 29.1), 4.3, 3.5,
+         "the 7A3R dimer, 5,912 atoms, one hetero group")):
+    _e = _sz.prep_minutes(atoms=_atoms, hetatm_kinds=_kinds, box=_box,
+                          gradient=False, autosite="1.1", protonation="reduce")
     check(_e >= _meas,
           "the prep estimate for %s is %.1f min, UNDER the %.1f min it took: "
           "the job would be killed at the wall" % (_what, _e, _meas))
-    check(_e <= _meas * 3.0,
+    check(_e <= _meas * _most,
           "the prep estimate for %s is %.1f min against %.1f measured (%.1fx). "
           "Over-booking is free, but an estimate this far out stops being "
           "read" % (_what, _e, _meas, _e / _meas))
@@ -485,19 +490,27 @@ check(_sz.FLOOR_MINUTES >= 120,
 # halve the wall time, because those replicas already ran side by side. It
 # told a user two minutes for a job that ran twenty.
 #
-# Every figure below is from an adcp.log on this machine: ADCP prints its
-# own timing, so they are its numbers, not a wrapper's.
-for _reps, _steps, _cores, _len, _lo, _hi, _what in (
-        (4, 100_000, 16, 6, 8.0, 8.1, "4 x 100k on 16 cores"),
-        (24, 800_000, 24, 8, 25.0, 42.5, "24 x 800k on 24 cores"),
-        (40, 2_000_000, 32, 12, 145.0, 151.0, "40 x 2M on 32 cores"),
-        (50, 2_500_000, 16, 6, 348.0, 348.0, "50 x 2.5M on 16 cores")):
+# Every figure below is ADCP 1.1.21 docking into MDM2 on a compute node,
+# timed around adcp11.dock: the whole docking, from starting ADCP to the
+# poses split into their files (sizing.py has the table).
+TIMED = (
+    (8, 250_000, 8, 6, 41.1, "8 x 250k on 8 cores, 6-mer"),
+    (8, 1_000_000, 8, 6, 72.6, "8 x 1M on 8 cores, 6-mer"),
+    (8, 2_500_000, 8, 6, 132.1, "8 x 2.5M on 8 cores, 6-mer"),
+    (8, 250_000, 8, 9, 79.2, "8 x 250k on 8 cores, 9-mer"),
+    (8, 1_000_000, 8, 9, 96.1, "8 x 1M on 8 cores, 9-mer"),
+    (8, 2_500_000, 8, 9, 200.6, "8 x 2.5M on 8 cores, 9-mer"),
+    (16, 1_000_000, 8, 9, 202.0, "16 x 1M on 8 cores, 9-mer, two waves"),
+    (8, 250_000, 8, 13, 65.8, "8 x 250k on 8 cores, 13-mer"),
+    (8, 1_000_000, 8, 13, 163.5, "8 x 1M on 8 cores, 13-mer"),
+    (8, 2_500_000, 8, 13, 307.7, "8 x 2.5M on 8 cores, 13-mer"))
+for _reps, _steps, _cores, _len, _meas, _what in TIMED:
     _m = _sz.dock_minutes(_len, _reps, _steps, _cores) * 60.0
-    check(_m >= _lo,
-          "%s is estimated at %.0f s, UNDER the %.0f s it took" % (_what, _m, _lo))
-    check(_m <= _hi * 3.0,
+    check(_m >= _meas,
+          "%s is estimated at %.0f s, UNDER the %.0f s it took" % (_what, _m, _meas))
+    check(_m <= _meas * 3.0,
           "%s is estimated at %.0f s against %.0f measured (%.1fx)"
-          % (_what, _m, _hi, _m / _hi))
+          % (_what, _m, _meas, _m / _meas))
 
 # below the core count, replicas are free: that is the intent
 check(_sz.dock_minutes(6, 4, 1_000_000, 16)
@@ -544,16 +557,14 @@ check(_a < _b < _c,
       "a longer peptide is not estimated to take longer: 6->%.1f 10->%.1f "
       "20->%.1f min" % (_a, _b, _c))
 
-# and it still never under-estimates anything measured
-for _reps, _steps, _cores, _len, _meas, _what in (
-        (4, 100_000, 16, 6, 8.06, "4 x 100k, 16 cores, 6-mer"),
-        (24, 800_000, 24, 8, 42.4, "24 x 800k, 24 cores, 8-mer"),
-        (40, 2_000_000, 32, 12, 150.6, "40 x 2M, 32 cores, 12-mer"),
-        (50, 2_500_000, 16, 6, 348.0, "50 x 2.5M, 16 cores, 6-mer")):
-    _m = _sz.dock_minutes(_len, _reps, _steps, _cores) * 60.0
-    check(_m >= _meas,
-          "%s is estimated at %.0f s, UNDER the %.0f s it took"
-          % (_what, _m, _meas))
+# and a longer peptide, at the same settings, is never estimated under what
+# it took: the per-residue factor carries the measurements above.
+_by_len = {}
+for _reps, _steps, _cores, _len, _meas, _what in TIMED:
+    if (_reps, _steps) == (8, 2_500_000):
+        _by_len[_len] = _meas
+check(sorted(_by_len) == [6, 9, 13] and _by_len[6] < _by_len[9] < _by_len[13],
+      "the measurements no longer cover three lengths: %s" % _by_len)
 
 
 # --- ADCP 1.1: sequence syntax, output layout, OpenMM table, target files ---
@@ -563,14 +574,14 @@ import zipfile as _zf                                           # noqa: E402
 from adcp_dock import adcp11, agfr_target, job as _job, peptide as _pep  # noqa: E402
 from adcp_dock import report as _rep                            # noqa: E402
 
-_s, _p = _pep.check("n<BHD>pis&dvd", extended=True, library={"BHD"})
+_s, _p = _pep.check("n<BHD>pis&dvd", library={"BHD"})
 check(not _p and len(_pep.residues(_s)) == 7,
       "an ADCP 1.1 sequence with a non-standard and a D residue was refused "
       "or miscounted: %r %r" % (_s, [x.message for x in _p]))
 _s, _p = _pep.check("n<BHD>pis&dvd")
-check(_p and _p[0].kind == "needs_adcp11",
-      "ADCP 1.1 syntax was accepted for an ADCP 1.0 run")
-_s, _p = _pep.check("n<ZZZ>pisdv", extended=True, library={"BHD"})
+check(not _p, "ADCP 1.1's syntax needs naming before it is accepted: %r"
+      % [x.message for x in _p])
+_s, _p = _pep.check("n<ZZZ>pisdv", library={"BHD"})
 check(any(x.kind == "unknown_nst" for x in _p),
       "a side chain missing from ADCP's library was accepted")
 check(_job.key("NPISDVD") == "NPISDVD" and _job.key("N<BHD>PIS&DVD") == "N_BHD_PIS_DVD",
@@ -622,10 +633,11 @@ _j = _job.default(target_file=_trg, peptides=[{"name": "p", "sequence": "NPISDVD
 check(not [x for x in _job.validate(_j) if "receptor" in x.lower() or "site" in x.lower()],
       "a run from a target file still asks for a receptor or a site: %r"
       % _job.validate(_j))
-_j = _job.default(adcp_engine="1.0", receptor=_prep, hotspots="A:1",
-                  peptides=[{"name": "p", "sequence": "N<BHD>PIS&DVD"}])
-check(any("ADCP 1.1" in x for x in _job.validate(_j)),
-      "an ADCP 1.0 run accepted a non-standard residue")
+if adcp11.find():
+    _j = _job.default(receptor=_prep, hotspots="A:1",
+                      peptides=[{"name": "p", "sequence": "N<ZZZ>PIS&DVD"}])
+    check(any("ZZZ" in x for x in _job.validate(_j)),
+          "a run accepted a side chain the installed ADCP 1.1 does not have")
 
 # --- the Modifications dialog's list, and OpenMM parameter sets ------------
 _mods = json.load(open(os.path.join(os.path.dirname(HERE), "adcp_dock", "static",

@@ -12,19 +12,14 @@ import time
 
 VERSION = 1
 NAME = "job.json"
-# ADCP 1.0 builds side chains, and so writes an all-atom ranked pose, for its
-# ten best clusters only (clusterADCP.py), so a run on it cannot keep more.
-MAX_POSES = 10
 # ADCP 1.1 writes every pose it reports with its side chains, up to -m, and
 # its own default for -m is 100.
-MAX_POSES_11 = 100
+MAX_POSES = 100
 #: The share of replicas that start as a helix in a new run, in per cent.
 HELICAL_DEFAULT = 25
-
-
-def max_poses(engine):
-    """The most ranked poses the engine writes per peptide."""
-    return MAX_POSES_11 if engine == "1.1" else MAX_POSES
+#: What a job file's adcp_engine may say. Every run docks with ADCP 1.1:
+#: "auto", which new runs said before, means it too.
+ENGINES = ("1.1", "auto")
 
 
 def _max_length():
@@ -58,9 +53,9 @@ def default(**kw):
         # keeps its side chains as the structure has them.
         "rebuild_sidechains": True,
         "fill_loops": False,     # rebuilding whole missing loops is a guess
-        # How the receptor is protonated: "reduce", ADFRsuite's, as ADFR's
-        # own preparation and ADapt do it, or "propka", PDB2PQR with PROPKA
-        # at the pH above, which the pH applies to. A job file without the
+        # How the receptor is protonated: "reduce", the ADCP 1.1 suite's, as
+        # ADFR's own preparation and ADapt do it, or "propka", PDB2PQR with
+        # PROPKA at the pH above, which the pH applies to. A job file without the
         # setting was protonated with PDB2PQR and PROPKA, and still is.
         "protonation": "reduce",
         # A receptor prepared in ADapt: its session folder and the receptor
@@ -99,12 +94,13 @@ def default(**kw):
         "box_min": 20.0,
         "box_max": 30.0,
         "spacing": 0.375,
-        # The grid maps. Which agfr builds them: "auto" is the ADCP 1.1
-        # suite's where it is installed and ADFRsuite 1.0's otherwise. A job
-        # file without the setting was built with ADFRsuite 1.0's, with its
-        # defaults: AutoSite 1.0 and the receptor gradient on. New runs say
-        # all three, so a rebuilt target always matches the one it replaces.
-        "agfr": "auto",
+        # The grid maps, built by the ADCP 1.1 suite's AGFR ("auto", which
+        # new runs said before, means it too). A job file without the setting
+        # was built by an older AGFR with its defaults, AutoSite 1.0 and the
+        # receptor gradient on, and its maps are built again with those
+        # (target.maps_for). New runs say all three, so a rebuilt target
+        # always matches the one it replaces.
+        "agfr": "1.1",
         "autosite": "1.1",
         "receptor_gradient": False,
         # A box built around an interface groove reaches into the
@@ -140,11 +136,10 @@ def default(**kw):
         # (ADCP's -k). Off, they are not kept. A job file without it leaves
         # whatever ADCP left, as runs made before it did.
         "keep_trajectories": False,
-        # Which ADCP: "auto" uses 1.1 where it is installed and 1.0
-        # (ADFRsuite) otherwise; "1.0" or "1.1" asks for one.
-        "adcp_engine": "auto",
-        # ADCP 1.1 only: minimize this many top poses with OpenMM after
-        # docking, in "implicit" solvent or "vacuum". 0 does not minimize.
+        # Which ADCP: 1.1, the only one (ENGINES).
+        "adcp_engine": "1.1",
+        # Minimize this many top poses with ADCP's own OpenMM after docking,
+        # in "implicit" solvent or "vacuum". 0 does not minimize.
         "omm_minimize": 0,
         "omm_env": "implicit",
         # A target file (.trg) made elsewhere, for example in AGFRGUI. When
@@ -226,15 +221,16 @@ def load(rundir):
 
 
 def resolve_engine(j):
-    """("1.0" | "1.1" | "missing", ADCP 1.1 executable or None) for a job."""
+    """("1.1", the ADCP 1.1 executable) for a job, or ("missing", None)
+    where the ADCP 1.1 suite is not installed.
+
+    Every job docks with ADCP 1.1. A job file from before it was the only
+    engine may name another in adcp_engine; what such a run still has to
+    dock, on a resume, is docked with 1.1 as well.
+    """
     from . import adcp11
-    want = str(j.get("adcp_engine") or "auto")
-    if want == "1.0":
-        return "1.0", None
     exe = adcp11.find(j.get("tools_roots") or [])
-    if exe:
-        return "1.1", exe
-    return ("missing" if want == "1.1" else "1.0"), None
+    return ("1.1", exe) if exe else ("missing", None)
 
 
 def key(sequence):
@@ -357,15 +353,11 @@ def map_problems(j):
     """[str] why the grid maps cannot be built as the job asks."""
     from . import target
     out = []
-    agfr = str(j.get("agfr") or "1.0")
+    agfr = str(j.get("agfr") or "1.1")
     if agfr not in target.AGFR_CHOICES:
-        out.append("The maps must be built by AGFR %s, not %r."
-                   % (" or ".join(c for c in target.AGFR_CHOICES
-                                  if c != "auto"), agfr))
-    elif target.resolve_agfr(j)[0] == "missing":
-        out.append("AGFR 1.1 was asked for, and it comes with the ADCP 1.1 "
-                   "suite, which is not installed here. Install it (see "
-                   "INSTALL.md) or build the maps with AGFR 1.0.")
+        out.append("The maps are built by AGFR 1.1, from the ADCP 1.1 suite: "
+                   "agfr must be %s, not %r."
+                   % (" or ".join(target.AGFR_CHOICES), agfr))
     autosite = str(j.get("autosite") or "1.0")
     if autosite not in target.AUTOSITE_CHOICES:
         out.append("AutoSite must be %s, not %r."
@@ -488,22 +480,22 @@ def validate(j):
                        "PROPKA at the pH given), not %r." % prot)
         out.extend(site_problems(j))
         out.extend(map_problems(j))
+    if str(j.get("adcp_engine") or "1.1") not in ENGINES:
+        out.append("The docking engine is ADCP 1.1: adcp_engine must be %s, "
+                   "not %r." % (" or ".join(ENGINES), j.get("adcp_engine")))
     engine, exe = resolve_engine(j)
     if engine == "missing":
-        out.append("ADCP 1.1 was asked for but is not installed here. Install "
-                   "it (see INSTALL.md) or choose ADCP 1.0.")
+        out.append("ADCP 1.1 is not installed here. ./install.sh installs "
+                   "it; INSTALL.md says how.")
     out.extend(peptide_option_problems(j))
     lib = None
-    if engine == "1.1" and exe:
+    if exe:
         from . import adcp11 as _a
         lib = _a.library(exe)
-    if int(j.get("omm_minimize") or 0) and engine != "1.1":
-        out.append("OpenMM minimization of poses needs ADCP 1.1.")
     if not j.get("peptides"):
         out.append("No peptides to dock.")
     for i, p in enumerate(j.get("peptides") or [], 1):
-        seq, probs = pep.check(p.get("sequence", ""), extended=engine == "1.1",
-                               library=lib,
+        seq, probs = pep.check(p.get("sequence", ""), library=lib,
                                max_length=j.get("max_length", pep.MAX_LENGTH))
         for pr in probs:
             out.append("Peptide %d (%s): %s"
@@ -552,13 +544,11 @@ def validate(j):
                     % (names[key], i, label))
             else:
                 names[key] = i
-    most = max_poses(engine)
     if int(j.get("poses", 0)) < 1:
         out.append("Ask for at least one pose per peptide.")
-    elif int(j.get("poses", 0)) > most:
-        out.append("%s writes at most %d ranked poses per peptide; ask for %d "
-                   "or fewer." % ("ADCP " + engine if engine in ("1.0", "1.1")
-                                  else "ADCP", most, most))
+    elif int(j.get("poses", 0)) > MAX_POSES:
+        out.append("ADCP writes at most %d ranked poses per peptide; ask for "
+                   "%d or fewer." % (MAX_POSES, MAX_POSES))
     if j.get("mmgbsa_model", "obc2") not in ("obc2", "gbn2"):
         out.append("The MM-GBSA model must be obc2 (GB-OBC(II)) or gbn2 "
                    "(GBn2), not %r." % j.get("mmgbsa_model"))

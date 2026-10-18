@@ -8,8 +8,7 @@ own ("cyclic" on the peptide). What is checked here, without docking: the
 ring column of a peptide file and a pasted list, with every name people
 write for a ring and a plain refusal of anything else; validation peptide by
 peptide, each with its own ring, naming the peptide; the ADCP command each
-peptide's task builds, for ADCP 1.1 and 1.0, read back from the command the
-task ran; MM-GBSA following the peptide's own ring; the ring in the result
+peptide's task builds, read back from the command the task ran; MM-GBSA following the peptide's own ring; the ring in the result
 files, the report, the page's results and the estimate; the command line's
 file column; and that a job file from before any of this docks and reports
 exactly as it did.
@@ -147,7 +146,6 @@ check(tied and any(p.kind == "ambiguous_columns" for p in tied[0]["problems"]),
 
 # --- the job: each peptide's ring -------------------------------------------
 j = jobmod.default(receptor=REC, hotspots="A:54", cyclic="none",
-                   adcp_engine="1.0",
                    peptides=[{"name": "p53", "sequence": P53,
                               "cyclic": "backbone"},
                              {"name": "PMI", "sequence": PMI},
@@ -188,7 +186,6 @@ check(len(probs) == 1 and probs[0].startswith("Peptide 4 (12/1)")
       "by name: %s" % probs)
 # The run's disulfide does not reach a row that is its own linear chain...
 own = jobmod.default(receptor=REC, hotspots="A:54", cyclic="disulfide",
-                     adcp_engine="1.0",
                      peptides=[{"name": "p53", "sequence": P53, "cyclic": "none"},
                                {"name": "ss_PMI", "sequence": SS}])
 check(not [p for p in jobmod.validate(own) if "cysteine" in p],
@@ -237,8 +234,7 @@ def make_run(name, j):
     return rd
 
 
-_check, _engine, _tools = (pipeline.target.check, jobmod.resolve_engine,
-                           pipeline.tools_for)
+_check, _engine = pipeline.target.check, jobmod.resolve_engine
 pipeline.target.check = lambda trg: None
 try:
     jobmod.resolve_engine = lambda jj: ("1.1", EXE11)
@@ -285,28 +281,6 @@ try:
           "the dock script's notes do not say which peptide has which ring:\n%s"
           % notes)
 
-    # ADCP 1.0, through the vendored dock().
-    jobmod.resolve_engine = lambda jj: ("1.0", None)
-    fake10 = os.path.join(TMP, "adcp10")
-    open(fake10, "w").write('#!/bin/sh\nprintf "%s\\n" "$@" > argv.txt\n')
-    os.chmod(fake10, os.stat(fake10).st_mode | stat.S_IEXEC)
-    pipeline.tools_for = lambda jj: types.SimpleNamespace(adcp=fake10)
-    rd10 = make_run("dock10", dict(j, replicas=8, steps=1000, poses=5, cpus=2,
-                                   helical=0))
-    said10 = {}
-    for i in range(3):
-        lines = []
-        pipeline.stage_dock(rd10, i, log=lines.append)
-        said10[i] = [l for l in lines if l.strip().startswith("adcp:")]
-    a10 = [open(os.path.join(rd10, "docking", s, "argv.txt")).read().split()
-           for s in (P53, PMI, SS)]
-    check("-cyc" in a10[0] and "-cys" in a10[2]
-          and not {"-cyc", "-cys"} & set(a10[1]),
-          "ADCP 1.0 was not given each peptide's own ring: %s" % a10)
-    check("-cyc" in said10[0][0] and "-cys" in said10[2][0]
-          and not ({"-cyc", "-cys"} & set(said10[1][0].split())),
-          "ADCP 1.0's tasks do not log the command they ran: %s" % said10)
-
     # A task given a ring no one can close stops, and says so.
     rdx = make_run("dockx", dict(j, peptides=[{"name": "x", "sequence": P53,
                                                "cyclic": "lariat"}]))
@@ -320,7 +294,6 @@ try:
         "a task with a ring that is no ring docked anyway (%r)" % stopped)
 finally:
     pipeline.target.check, jobmod.resolve_engine = _check, _engine
-    pipeline.tools_for = _tools
 
 # --- the report: each peptide's ring ----------------------------------------
 pipeline.stage_report(rd, jobmod.load(rd), log=lambda *a: None)
@@ -506,7 +479,7 @@ _submit = pipeline.submit
 pipeline.submit = lambda rundir, j, **kw: seen.append(j) or {"dock": "1"}
 try:
     made = app.create({"label": "rings", "receptor": REC, "hotspots": "A:54",
-                       "adcp_engine": "1.0", "cyclic": "none",
+                       "cyclic": "none",
                        "peptides": [{"name": "p53", "sequence": P53,
                                      "cyclic": "backbone"},
                                     {"name": "PMI", "sequence": PMI,
@@ -525,7 +498,7 @@ check(not made.get("error") and saved == [
       "a run made from the page does not keep each row's ring, or keeps an "
       "empty one: %s %s" % (made.get("error"), saved))
 made = app.create({"label": "rings_bad", "receptor": REC, "hotspots": "A:54",
-                   "adcp_engine": "1.0", "cyclic": "none",
+                   "cyclic": "none",
                    "peptides": [{"name": "12/1", "sequence": ONE_C,
                                  "cyclic": "disulfide"}]})
 check(made.get("error") and any("12/1" in p and "two cysteines" in p
@@ -538,7 +511,7 @@ open(pf, "w").write("name,sequence,ring\np53,%s,head to tail\nPMI,%s,\n"
                     "ss_PMI,%s,disulfide\n" % (P53, PMI, SS))
 rd = os.path.join(TMP, "cli_rings")
 rc, said = run_cli("new", rd, "-r", REC, "--chain", "A", "-s", "A:54",
-                   "--engine", "1.0", "-f", pf)
+                   "-f", pf)
 jf = os.path.join(rd, "job.json")
 jc = json.load(open(jf)) if os.path.isfile(jf) else {}
 check(jobmod.rings(jc) == ["backbone", "none", "disulfide"]
@@ -548,7 +521,7 @@ check(jobmod.rings(jc) == ["backbone", "none", "disulfide"]
       "default (rc %r): %s" % (rc, jc.get("peptides")))
 rd = os.path.join(TMP, "cli_rings_ss")
 rc, said = run_cli("new", rd, "-r", REC, "--chain", "A", "-s", "A:54",
-                   "--engine", "1.0", "-f", pf, "--cyclic", "disulfide")
+                   "-f", pf, "--cyclic", "disulfide")
 said = (rc if isinstance(rc, str) else "") + said
 check(rc not in (0, None) and "PMI" in said and "two cysteines" in said
       and "p53" not in said.split("cannot be docked", 1)[-1]
@@ -559,7 +532,7 @@ bf = os.path.join(TMP, "bad.csv")
 open(bf, "w").write("p53,%s,lariat\n" % P53)
 rd = os.path.join(TMP, "cli_rings_bad")
 rc, said = run_cli("new", rd, "-r", REC, "--chain", "A", "-s", "A:54",
-                   "--engine", "1.0", "-f", bf)
+                   "-f", bf)
 said = (rc if isinstance(rc, str) else "") + said
 check(rc not in (0, None) and "'lariat'" in said
       and not os.path.isfile(os.path.join(rd, "job.json")),
@@ -568,10 +541,12 @@ check(rc not in (0, None) and "'lariat'" in said
 
 # --- a job file from before peptides had rings of their own ----------------
 ex = os.path.join(ROOT, "adcp_dock", "example_run")
+# The shipped example as a job file from before rings: without the run's
+# ring, and with no peptide carrying one.
 old_job = json.load(open(os.path.join(ex, "job.json")))
-check("cyclic" not in old_job
-      and not any("cyclic" in p for p in old_job["peptides"]),
-      "the shipped example is meant to be a job file from before rings")
+old_job.pop("cyclic", None)
+check(not any("cyclic" in p for p in old_job["peptides"]),
+      "the shipped example's peptides carry rings of their own")
 check(jobmod.rings(old_job) == ["none"] * len(old_job["peptides"])
       and pipeline.describe_rings(old_job) == "linear"
       and pipeline.docking_options(old_job)["cyclic"] == "none",

@@ -4,26 +4,20 @@ one archive inside the run and removed, and Undo puts them back.
 By Aadhil Haq
 
 The scratch file systems count files as well as bytes (Grace: 250 000 per
-user). A run docked with ADCP 1.0 before keep_trajectories existed leaves
-every replica's trajectory and log loose, about 400 files per peptide, and
-MM-GBSA leaves some 23 working files in every pose folder: a seven peptide
-screen docked with ADCP 1.0 holds 3 879 files and folders, and a tidy packs
-3 185 of them. Each was read once, by the next program, and never again.
+user). MM-GBSA leaves some 23 working files in every pose folder, and a run
+made before keep_trajectories existed may still hold ADCP's working folder,
+hundreds of files per peptide. Each was read once, by the next program, and
+never again.
 
 What is packed, and only for a peptide with a result file (results/<key>.json):
 
   docking/<key>/
-    out_<n>.pdb, out_<n>.out, out.pdb   ADCP 1.0's replica trajectories and
-                                        logs, and all of them again in one
-                                        file (trajectories._LOOSE10; a new run
-                                        packs or removes these itself)
-    constrains, ramaprob.data, tmp.pdb  ADCP 1.0's scratch
-                                        (trajectories._SCRATCH10)
     out/                                ADCP 1.1's working folder, where one
-                                        was left
+                                        was left (a new run packs or removes
+                                        it itself, trajectories.finish)
     *.trg                               the copy of target/receptor.trg that
-                                        ADCP docked from (adcp.dock and
-                                        adcp11.dock copy it in to run)
+                                        ADCP docked from (adcp11.dock copies
+                                        it in to run)
   mmgbsa/<name>/pose<n>/, <p> the folder's own name (mmforms.name)
     <p>.leap, <p>_rec.pdb, <p>_lig.pdb, <p>_rec_forleap.pdb,
     <p>_pep_forleap.pdb, <p>_mirror_pep.pdb, <p>_mirror.leap,
@@ -82,7 +76,7 @@ What stays, with what reads it:
                                 pipeline.cluster_counts), the downloads
   docking/<key>/.adcp_finished, .trajectories_packed, <key>_trajectories.tar.gz
                                 what says the docking and its packing are done
-                                (adcp.dock, adcp11.dock, trajectories.finish)
+                                (adcp11.dock, trajectories.finish)
   mmgbsa/RADII, mmgbsa/<name>.dg, mmgbsa/<name>.<engine>.dg
                                 the radii the run keeps (mmgbsa.radii_for) and
                                 each engine's energies, which a rescoring
@@ -209,10 +203,6 @@ def _file(path):
 
 def docking_kind(name):
     """Why a file directly in a peptide's docking folder is packed, or None."""
-    if trajectories._LOOSE10.match(name):
-        return "ADCP 1.0's replica trajectories and logs"
-    if name in trajectories._SCRATCH10:
-        return "ADCP 1.0's scratch"
     if name.endswith(".trg"):
         return "the copy of the grid target ADCP docked from"
     return None

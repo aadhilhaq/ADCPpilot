@@ -292,9 +292,9 @@ def built(tag, rec, m, protonation=None, ph=7.4):
 
 real_reduce = None
 for root in (os.environ.get("ADCP_TEST_TOOLS", ""),
-             os.environ.get("ADFRSUITE_HOME", "")):
+             os.environ.get("ADCPSUITE_HOME", "")):
     for cand in (os.path.join(root, "bin", "reduce"),
-                 os.path.join(root, "ADFRsuite", "bin", "reduce")):
+                 os.path.join(root, "adcpsuite", "bin", "reduce")):
         if root and os.path.isfile(cand):
             real_reduce = real_reduce or cand
 red_real = dict(red, reduce=real_reduce or fake_reduce)

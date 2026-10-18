@@ -2,9 +2,10 @@
 
 By Aadhil Haq
 
-Calibrated against measured runs: an 11-residue peptide at 100 replicas by
-5 million steps took about eight minutes on 48 cores, and a 15-residue one
-at the same settings about twelve.
+Calibrated against ADCP 1.1.21 on a compute node: peptides of 6, 9 and 13
+residues, one wave of 8 replicas on 8 cores at 250,000, 1,000,000 and
+2,500,000 steps, and two waves of a 9-mer (the numbers are below, and in
+tests/test_engine.py, which checks the estimate against each).
 
 Everything rounds up. A job killed at the wall clock limit has produced
 nothing and must start again, which costs more than the idle cores an
@@ -12,13 +13,24 @@ over-booking wastes.
 """
 import math
 
-# Core-minutes per (replica x million steps) of ADCP search, at ten residues.
+# Wall seconds for one wave of replicas, at REFERENCE_LENGTH residues: a
+# fixed part (starting ADCP's Python, unpacking the maps, clustering, building
+# the poses' side chains) and a part per million steps. Measured with ADCP
+# 1.1.21 on 8 cores, 8 replicas of a 6-mer (FSDLWK) into MDM2:
 #
-# Two measurements disagree by about a factor of two, so the larger is used.
-REPLICA_SETUP_SECONDS = 4.8
-REPLICA_SECONDS_PER_MSTEP = 34.0
+#     250,000 steps     41.1 s
+#     1,000,000 steps   72.6 s
+#     2,500,000 steps  132.1 s
+#
+# which is 31 s and 40.4 s per million steps.
+REPLICA_SETUP_SECONDS = 31.0
+REPLICA_SECONDS_PER_MSTEP = 41.0
 
-PER_RESIDUE = 0.06
+# How much longer each residue past REFERENCE_LENGTH makes it. Measured the
+# same way, at 2,500,000 steps: a 9-mer (RFMDYWEGL) 200.6 s, 1.5 times the
+# 6-mer, and a 13-mer (ETFSDLWKLLPEN) 307.7 s, 2.3 times; 0.17 and 0.19 per
+# residue, booked at 0.2.
+PER_RESIDUE = 0.2
 
 # The length at which the per-residue factor is 1.0.
 #
@@ -103,8 +115,11 @@ MM_WORKERS_DEFAULT = 8
 # receptor size rather than being flat, and is set for the smallest receptor.
 PREP_FLOOR_MINUTES = 4.0
 
-# Per thousand heavy atoms, on top of the floor. The measured slope is about
-# 0.5 min per 1,000 atoms; this is double that.
+# Per thousand heavy atoms, on top of the floor. Measured with the ADCP 1.1
+# suite (reduce, AutoSite 1.1, no gradient), the whole stage took 1.25 min
+# for MDM2 (1YCR chain A, 705 atoms, a 30 A box) and 4.3 min for the 7A3R
+# dimer (5,912 atoms, one hetero group): 0.59 min per 1,000 atoms between
+# them. This is about double that.
 PREP_PER_1K_ATOMS = 1.0
 
 # Per distinct non-water heteroatom residue type. Each must be typed by
@@ -115,29 +130,25 @@ PREP_PER_HETATM_KIND = 2.0
 # completing a side chain, so it is a multiplier rather than an addition.
 PREP_FILL_LOOPS = 1.5
 
-# agfr's grid, per 1,000 cubic Angstrom of box beyond a 20 A cube. Fitted to
-# runs whose maps were built by ADFRsuite 1.0's agfr with its receptor
-# gradient on, so it is split below into the grid itself and the gradient,
-# and the two add back up to this for those runs.
-PREP_PER_1K_BOX = 0.15
-
 # The maps, measured on the MDM2 example's receptor (868 atoms) and its 30 A
-# box, agfr alone, one at a time on a compute node:
+# box, the ADCP 1.1 suite's agfr alone, one at a time on a compute node, on
+# two days:
 #
-#     ADFRsuite 1.0, gradient on (its default)        151.8 s
-#     ADFRsuite 1.0, gradient off (-ng)                 13.9 s
-#     ADCP 1.1 suite, gradient off (its default)        13.6 s
-#     ADCP 1.1 suite, AutoSite 1.1 (-asv 1.1)            16.3 s
-#     ADCP 1.1 suite, gradient on (-g)                   36.9 s
-#     ADCP 1.1 suite, -b fill (the AutoSite pocket)       7.4 s
+#     AutoSite 1.0, no receptor gradient (the defaults)     13.6 s   15.5 s
+#     AutoSite 1.1 (-asv 1.1)                                16.3 s
+#     the receptor gradient on (-g)                          36.9 s   68.4 s
+#     -b fill (the AutoSite pocket)                           7.4 s
 #
-# Per 1,000 cubic Angstrom of box: the grid alone, about 0.009 min.
+# The first agfr on a node whose file cache is cold takes up to a minute
+# more, starting the suite's Python (71.5 s for AutoSite 1.1).
+#
+# agfr's grid, per 1,000 cubic Angstrom of box beyond a 20 A cube: about
+# 0.009 min measured, booked at five times that.
 GRID_PER_1K_BOX = 0.05
-# The receptor gradient: 0.085 min per 1,000 for ADFRsuite 1.0's agfr and
-# 0.014 for the 1.1 suite's. Over the whole box, not beyond 20 A: it is paid
-# on every grid point the receptor fills. For ADFRsuite 1.0 this and the
-# grid add up to PREP_PER_1K_BOX, the figure those runs were fitted with.
-GRADIENT_PER_1K_BOX = {"1.0": 0.10, "1.1": 0.03}
+# The receptor gradient: 0.014 to 0.033 min per 1,000 measured, over the
+# whole box, not beyond 20 A: it is paid on every grid point the receptor
+# fills.
+GRADIENT_PER_1K_BOX = 0.05
 # AutoSite 1.1 scans its cutoffs where 1.0 runs once: 2.7 s more on MDM2.
 AUTOSITE11_MINUTES = 0.25
 AUTOSITE11_PER_1K_BOX = 0.01
@@ -155,6 +166,8 @@ POCKET_PER_1K_ATOMS = 0.5
 #     PDB2PQR + PROPKA         1.2 s              4.1 s
 #     reduce -BUILD            0.2 s              0.6 s
 #
+# (reduce 3.23, byte for byte the program in the ADCP 1.1 suite's bin folder)
+#
 # Booked at several times that, and reduce with a minute more: its search of
 # a large network of Asn, Gln and His flips stops at 600 s a network.
 PROTONATE_PER_1K_ATOMS = {"propka": 0.1, "reduce": 0.05}
@@ -162,14 +175,14 @@ PROTONATE_MINUTES = {"propka": 0.0, "reduce": 1.0}
 
 
 def prep_minutes(atoms=0, hetatm_kinds=0, fill_loops=False, box=None,
-                 agfr="1.0", gradient=True, autosite="1.0", pocket=False,
+                 gradient=True, autosite="1.0", pocket=False,
                  protonation="propka", prepared=True):
     """What to book for preparation, given what is known about the receptor.
 
-    The defaults are the maps every run used before they could be chosen
-    (ADFRsuite 1.0's agfr, its gradient on, AutoSite 1.0), which is what the
-    measurements this was fitted to ran. A box from an AutoSite pocket is
-    not known until the stage runs, so `box` is then the largest it may be.
+    The defaults are what a job file written before these settings existed
+    means: AutoSite 1.0 with the receptor gradient on (target.maps_for), and
+    PDB2PQR with PROPKA. A box from an AutoSite pocket is not known until
+    the stage runs, so `box` is then the largest it may be.
 
     `protonation` is "reduce" or "propka". `prepared` off is a receptor
     prepared elsewhere (in ADapt): it is copied in, so only the maps cost
@@ -190,7 +203,7 @@ def prep_minutes(atoms=0, hetatm_kinds=0, fill_loops=False, box=None,
             vol = 0.0
     m += max(0.0, (vol - 8000.0) / 1000.0) * GRID_PER_1K_BOX
     if gradient:
-        m += (vol / 1000.0) * GRADIENT_PER_1K_BOX.get(str(agfr), 0.10)
+        m += (vol / 1000.0) * GRADIENT_PER_1K_BOX
     if str(autosite) == "1.1":
         m += AUTOSITE11_MINUTES + (vol / 1000.0) * AUTOSITE11_PER_1K_BOX
     if pocket:
@@ -332,8 +345,8 @@ def plan(peptides, replicas, steps, cores=None, mmgbsa=False, mm_poses=5,
     what is wanted is when there will be an answer, not how long one array
     task takes.
 
-    `options` holds the run's settings that change the cost: agfr,
-    autosite, receptor_gradient, site_mode, cyclic, helical, poses,
+    `options` holds the run's settings that change the cost: autosite,
+    receptor_gradient, site_mode, cyclic, helical, poses,
     keep_trajectories, box_max, protonation, from_adapt. Missing ones cost
     what they did before the settings existed. "rings", when given, is
     each peptide's own ring in the order of `peptides`; a peptide without
@@ -360,7 +373,6 @@ def plan(peptides, replicas, steps, cores=None, mmgbsa=False, mm_poses=5,
     else:
         prep_box = box
     prep = prep_minutes(atoms, hetatm_kinds, fill_loops, prep_box,
-                        agfr=o.get("agfr", "1.0"),
                         gradient=bool(o.get("receptor_gradient", True)),
                         autosite=o.get("autosite", "1.0"), pocket=pocket,
                         protonation=o.get("protonation", "propka"),

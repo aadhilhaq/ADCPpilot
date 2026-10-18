@@ -391,6 +391,14 @@ check("api('/api/runsroot', {path: want})" in appjs,
 # several at a time.
 from adcp_dock import sizing as _sz                             # noqa: E402
 
+#: The example run's three dockings with ADCP 1.1.21, from their own logs:
+#: (length, replicas, steps, cores, minutes, what).
+EXAMPLE_DOCKINGS = (
+    (13, 25, 2_000_000, 16, 7.8, "p53, a 13-mer at 25x2M on 16 cores"),
+    (11, 25, 2_000_000, 16, 7.1, "PMI, an 11-mer at 25x2M on 16 cores"),
+    (9, 25, 2_000_000, 16, 6.1, "12/1 core, a 9-mer at 25x2M on 16 cores"),
+)
+
 check(_sz.mmgbsa_minutes(5, 48) < _sz.mmgbsa_minutes(5, 1),
       "rescoring five poses is costed the same on 48 cores as on 1, so it "
       "is still being added up as if it ran in series")
@@ -400,18 +408,18 @@ check(abs(_sz.mmgbsa_minutes(5, 48)
       "%.1f min" % _sz.mmgbsa_minutes(5, 48))
 check(_sz.mmgbsa_minutes(12, 48) > _sz.mmgbsa_minutes(5, 48),
       "more poses than there are workers must cost more than one wave")
-# against the two real measurements, and conservative on both. The length
-# factor is anchored at 6 residues, so an 11-mer carries x1.30. 1.6x a
-# measurement is the conservative direction and matches the spread on every
-# other measured point (1.15x to 2.6x).
-_hope = _sz.dock_minutes(11, 100, 5e6, 48)
-check(8.0 <= _hope <= 13.5,
-      "an 11-mer at 100x5M on 48 cores estimates %.1f min; it measured "
-      "about 8, and the estimate must not be under it" % _hope)
-_mine = _sz.per_task(7, 24, 800000, 4, True, 3)
-check(_mine >= 4.6,
-      "a 7-mer at 24x800k on 4 cores with 3 rescored poses estimates %.1f "
-      "min; that run measured 4.6 and an estimate under a measurement "
+# against real runs with ADCP 1.1.21, and conservative on each: the example
+# run's dockings, 25 replicas x 2,000,000 steps on 16 cores, and a short p53
+# run's whole task, docking and MM-GBSA on three poses, on 8 cores.
+for _len, _reps, _steps, _cores, _took, _what in EXAMPLE_DOCKINGS:
+    _hope = _sz.dock_minutes(_len, _reps, _steps, _cores)
+    check(_took <= _hope <= _took * 2.0,
+          "%s estimates %.1f min; it measured %.1f, and the estimate must "
+          "not be under it" % (_what, _hope, _took))
+_mine = _sz.per_task(12, 25, 500000, 8, True, 3)
+check(_mine >= 7.3,
+      "a 12-mer at 25x500k on 8 cores with 3 rescored poses estimates %.1f "
+      "min; that run measured 7.3 and an estimate under a measurement "
       "books too little walltime" % _mine)
 
 # --- the picker is a dialog, not a list inserted into the page ---------------
@@ -2135,7 +2143,7 @@ except KeyError:
     check(True, "")
 
 # --- a machine without AmberTools, as in Colab -------------------------------
-# Docking needs ADFRsuite and pdb2pqr; MM-GBSA also needs AmberTools. Without
+# Docking needs the ADCP 1.1 suite and pdb2pqr; MM-GBSA also needs AmberTools. Without
 # AmberTools the page must still read as ready to dock, with MM-GBSA shown as
 # unavailable, and a run that asks for MM-GBSA must be refused before it is
 # submitted rather than failing at its rescoring stage.
@@ -2354,19 +2362,18 @@ _why = [x for x in _jobmod.validate(_jobmod.default(peptides=[
     if "limit" in x]
 check(not _why, "a 27 residue peptide the page accepts is refused when the "
       "run is created: %s" % _why)
-_why = [x for x in _jobmod.validate(_jobmod.default(poses=11,
-                                                    adcp_engine="1.0"))
+_why = [x for x in _jobmod.validate(_jobmod.default(poses=100))
         if "at most" in x]
-check(_why, "11 poses per peptide were accepted for ADCP 1.0, which writes "
-      "at most 10")
+check(not _why, "100 poses per peptide were refused: %s" % _why)
 _why = [x for x in _jobmod.validate(_jobmod.default(poses=101))
         if "at most" in x]
 check(_why, "101 poses per peptide were accepted; ADCP 1.1 writes at most 100")
-# The page's limit follows the engine: 10 for ADCP 1.0, 100 for 1.1.
+# The page's limit is ADCP's, and there is no other engine to lower it for.
 check('id=poses value="10" min="1" max="100"' in html
-      and "function posesLimit()" in appjs and "? 10 : 100" in appjs,
-      "the page offers more poses than ADCP can write, or does not lower "
-      "the limit to 10 for ADCP 1.0")
+      and "function posesLimit()" not in appjs
+      and "id=adcp_engine" not in html and "id=agfr" not in html,
+      "the page offers more poses than ADCP can write, or still offers a "
+      "choice of ADCP or AGFR")
 
 # --- the Modifications dialog draws each choice ------------------------------
 # The drawings come from the server. A D residue is the mirror image of the

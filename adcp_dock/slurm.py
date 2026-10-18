@@ -180,29 +180,27 @@ def tool_exports(roots=()):
     """Lines for a job script that name where the programs are, read now on the login node.
 
     A job usually inherits the environment it was submitted from, which is
-    where ADFRSUITE_HOME and AMBERHOME come from. Some clusters start every
+    where ADCPSUITE_HOME and AMBERHOME come from. Some clusters start every
     job with a clean environment instead, and there the job would not find
-    ADFRsuite at all; so the script says it outright, the same way on both.
+    the ADCP 1.1 suite at all; so the script says it outright, the same way
+    on both.
     """
     import shlex
     from . import tools as toolmod
     found = toolmod.discover(roots=roots)
     lines = []
-    for var in ("ADFRSUITE_HOME", "AMBERHOME", "ADCPSUITE_HOME", "ADAPT_HOME",
-                "ADCP_DOCK_TOOLS", "ADCP_ACKNOWLEDGEMENT"):
+    for var in ("AMBERHOME", "ADCPSUITE_HOME", "ADAPT_HOME",
+                "ADCP_ACKNOWLEDGEMENT"):
         value = os.environ.get(var)
         if value:
             lines.append("export %s=%s" % (var, shlex.quote(value)))
-    if not os.environ.get("ADFRSUITE_HOME") and found.get("adcp"):
-        lines.append("export ADFRSUITE_HOME=%s" % shlex.quote(
-            os.path.dirname(os.path.dirname(found.get("adcp")))))
     if not os.environ.get("AMBERHOME"):
         amber = toolmod.amber_home(found)
         if amber:
             lines.append("export AMBERHOME=%s" % shlex.quote(amber))
     # The ADCP 1.1 suite is named rather than put on PATH: its bin folder
     # holds its own python, which would then be every program's python.
-    suite = toolmod.suite11(roots)
+    suite = toolmod.suite_home(roots)
     if suite and not os.environ.get("ADCPSUITE_HOME"):
         lines.append("export ADCPSUITE_HOME=%s" % shlex.quote(suite))
     skip = os.path.join(suite, "bin") if suite else None

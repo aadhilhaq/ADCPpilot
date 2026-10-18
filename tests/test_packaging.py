@@ -70,13 +70,22 @@ for pkg in listed:
               "%s/%s is shipped with the code but no package-data pattern "
               "covers it, so `pip install` leaves it out" % (pkg, rel))
 
-# --- install.sh checks ADFRsuite against the same checksum as adfr.py ------
+# --- the Scripps packages are pinned, in one place ---------------------------
+# install.sh downloads nothing from Scripps itself: the ADCP 1.1 suite comes
+# through adcp11_install, which checks every Scripps package against its own
+# SHA-256 before it is installed.
 import re as _re                                                # noqa: E402
 _sh = open(os.path.join(ROOT, "install.sh")).read()
-_pin = _re.search(r"^\s*SHA=([0-9a-f]{64})\s*$", _sh, _re.M)
-_py = open(os.path.join(ROOT, "adcp_dock", "adfr.py")).read()
-check(_pin and _pin.group(1) in _py,
-      "install.sh does not check ADFRsuite against the checksum adfr.py pins")
+check("ccsb.scripps.edu" not in _sh and "adcp_dock.adcp11_install" in _sh,
+      "install.sh fetches from Scripps itself, or not through adcp11_install")
+sys.path.insert(0, ROOT)
+from adcp_dock import adcp11_install as _ai                     # noqa: E402
+check(len(_ai.WHEELS) >= 20
+      and all(_re.fullmatch(r"[0-9a-f]{64}", v) for v in _ai.WHEELS.values()),
+      "a Scripps package of the ADCP 1.1 suite is installed without a pinned "
+      "SHA-256")
+check(not os.path.exists(os.path.join(ROOT, "adcp_dock", "adfr.py")),
+      "the installer of the older suite is still in the package")
 
 # --- and a real wheel, where it can be built offline ------------------------
 built = None
@@ -94,7 +103,9 @@ except Exception:                                               # noqa: BLE001
 
 if built is not None:
     for must in ("adcp_dock/__init__.py", "adcp_dock/_vendor/adcp.py",
-                 "adcp_dock/_vendor/prepare.py", "adcp_dock/adfr.py",
+                 "adcp_dock/_vendor/prepare.py", "adcp_dock/adcp11_install.py",
+                 # run by the suite's own Python for the surfaces
+                 "adcp_dock/msms_mslib.py",
                  "adcp_dock/static/app.js", "adcp_dock/static/3Dmol-min.js",
                  "adcp_launcher/__init__.py",
                  # the documentation served at /docs/

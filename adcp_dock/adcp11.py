@@ -4,14 +4,16 @@ layout the rest of this package reads.
 By Aadhil Haq
 
 ADCP 1.1 is installed by the Scripps Research Institute's own recipe as a
-separate conda environment (called adcpsuite), with its own Python. It adds
-non-standard and D amino acids, all-atom poses in one multi-model file, and
-an optional OpenMM minimization and re-ranking of the top poses.
+separate conda environment (called adcpsuite), with its own Python. It docks
+standard, non-standard and D amino acids, writes every pose with all its
+atoms in one multi-model file, and can minimize and re-rank the top poses
+with OpenMM.
 
 Everything downstream (the results table, the viewer, MM-GBSA, resume) reads
-out_ranked_<n>.pdb and the mode table in adcp.log, as ADCP 1.0 writes them.
-So after a 1.1 docking the multi-model file is split into those files and
-the summary is copied to adcp.log; ADCP's own files are kept beside them.
+out_ranked_<n>.pdb and the mode table in modes.json. So after a docking the
+multi-model file is split into those files, the mode table is written as
+modes.json and ADCP's summary is copied to adcp.log; ADCP's own files are
+kept beside them.
 """
 from __future__ import annotations
 
@@ -29,35 +31,58 @@ BIN = os.path.join("bin", "adcp")
 # The OpenMM table ADCP 1.1 prints after -nmin: model, OpenMM rank, ADCP rank,
 # E(complex) - E(receptor), E(complex) - E(receptor) - E(peptide), affinity.
 # ADCP 1.1's mode table: mode, affinity, ref. fnc, cluster size, rmsd stdv,
-# energy stdv, best run. ADCP 1.0 has other columns, so 1.0's reader does not
-# read it.
+# energy stdv, best run.
 _MODE11 = re.compile(r"^\s*(\d+)\s+(-?\d+\.\d+)\s+(-?[\d.]+|NA)\s+(\d+)\s+")
 _OMM = re.compile(r"^OMM Ranking:\s+(\d+)\s+(\d+)\s+(\d+)\s+(-?[\d.]+)\s+"
                   r"(-?[\d.]+)\s+(-?[\d.]+)")
 
 
+#: The folder this package is in: a checkout, or site-packages.
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
 def candidates(roots=()):
-    """Where an ADCP 1.1 environment is looked for, in order."""
+    """Where an ADCP 1.1 environment is looked for, in order: ADCPSUITE_HOME;
+    each root given, as the suite itself, a folder holding it as adcpsuite,
+    or a tools folder holding it as tools/docking/adcpsuite; the same inside
+    the installation (ADCP_HOME) and beside it, which is where install.sh
+    puts it; then the folder `adcp-dock local` installs it in, and Colab's."""
     out = []
     env = os.environ.get("ADCPSUITE_HOME")
     if env:
         out.append(env)
-    adfr = os.environ.get("ADFRSUITE_HOME")
     inst = os.environ.get("ADCP_HOME")
-    for root in (list(roots) + ([os.path.dirname(adfr)] if adfr else [])
-                 + ([os.path.join(inst, "tools", "docking")] if inst else [])):
-        out += [os.path.join(root, "adcpsuite"), root]
+    homes = ([inst] if inst else []) + [_HERE]
+    bases = (list(roots) + homes
+             + [os.path.dirname(os.path.abspath(h)) for h in homes])
+    for root in bases:
+        if root:
+            out += [root, os.path.join(root, "adcpsuite"),
+                    os.path.join(root, "tools", "docking", "adcpsuite")]
     out += [os.path.expanduser("~/.adcp-dock/adcpsuite"), "/content/adcpsuite"]
-    return out
+    seen, uniq = set(), []
+    for d in out:
+        if d not in seen:
+            seen.add(d)
+            uniq.append(d)
+    return uniq
+
+
+def at(home):
+    """The ADCP 1.1 executable of the suite in exactly this folder, or None."""
+    if not home:
+        return None
+    exe = os.path.join(home, BIN)
+    site = glob.glob(os.path.join(home, "lib", "python3*", "site-packages",
+                                  "ADCP", "runADCP.py"))
+    return exe if os.path.isfile(exe) and site else None
 
 
 def find(roots=()):
     """The ADCP 1.1 executable, or None."""
     for home in candidates(roots):
-        exe = os.path.join(home, BIN)
-        site = glob.glob(os.path.join(home, "lib", "python3*", "site-packages",
-                                      "ADCP", "runADCP.py"))
-        if os.path.isfile(exe) and site:
+        exe = at(home)
+        if exe:
             return exe
     return None
 
@@ -186,7 +211,7 @@ def adcp_sequence(seq, case="lower"):
 def start_arguments(seq, helical):
     """(sequence as ADCP is given it, [flags]) for a share of helical starts.
 
-    runADCP.py, in both 1.0 and 1.1, reads -p as a percentage: it clamps it
+    runADCP.py reads -p as a percentage: it clamps it
     to 0 to 100, works out numHelix = replicas * p / 100, and only when
     0 < p < 100 rewrites the sequence for every replica it starts, upper
     case for replica numbers up to numHelix and lower case for the rest
@@ -225,8 +250,7 @@ def helical_replicas(replicas, helical):
     return int(int(replicas) * h / 100.0)
 
 
-#: ADCP's flags for a cyclic peptide, the same in 1.0 and 1.1. runADCP.py
-#: adds a head to tail restraint for -cyc (external2=4) and a disulfide
+#: ADCP's flags for a cyclic peptide. runADCP.py adds a head to tail restraint for -cyc (external2=4) and a disulfide
 #: potential between cysteines for -cys (SSbond=50,2.2,50,0.35).
 CYCLIC_FLAGS = {"none": [], "backbone": ["-cyc"], "disulfide": ["-cys"]}
 
@@ -237,11 +261,11 @@ def cyclic_flags(mode):
 
 # ---- AGFR from the same environment ------------------------------------
 #
-# The ADCP 1.1 suite carries its own AGFR, newer than ADFRsuite 1.0's: it
-# takes a PDB as well as a PDBQT, offers AutoSite 1.1 (-asv 1.1), and adds
-# the receptor gradient to the maps only when asked (-g), where ADFRsuite
-# 1.0's agfr adds it unless told not to (-ng). It is found from the same
-# installation as adcp, so wherever ADCP 1.1 is, its AGFR is too.
+# The ADCP 1.1 suite carries its own AGFR: it takes a PDB as well as a
+# PDBQT, offers AutoSite 1.1 (-asv 1.1) beside AutoSite 1.0 (-asv 1.0, its
+# default), and adds the receptor gradient to the maps only when asked (-g).
+# It is found from the same installation as adcp, so wherever ADCP 1.1 is,
+# its AGFR is too.
 
 def agfr_script(exe):
     """runAGFR.py inside the environment `exe` belongs to, or None."""
@@ -334,7 +358,8 @@ def dock_arguments(sequence, trg_name, replicas, steps, poses, cpus=0,
 def dock(sequence, trg, workdir, exe, key=None, replicas=100, steps=5_000_000,
          poses=10, cpus=0, minimize=0, omm_env="implicit", log=print,
          helical=0, cyclic="none", keep=False):
-    """Run ADCP 1.1 for one peptide. Returns (modes, workdir) like adcp.dock."""
+    """Run ADCP 1.1 for one peptide. Returns (modes, the peptide's docking
+    folder)."""
     wd = os.path.join(workdir, key or sequence)
     os.makedirs(wd, exist_ok=True)
     local_trg = os.path.join(wd, os.path.basename(trg))
@@ -401,10 +426,11 @@ def dock(sequence, trg, workdir, exe, key=None, replicas=100, steps=5_000_000,
 
 
 def read_modes(wd):
-    """[{rank, affinity, cluster}] from a docking folder, 1.0 or 1.1.
+    """[{rank, affinity, cluster}] from a peptide's docking folder.
 
-    A 1.1 folder carries modes.json, written when its poses are split; any
-    other folder is read by ADCP 1.0's own reader.
+    modes.json, written when its poses are split; where that is missing,
+    ADCP's own summary, out_summary.dlg, or its copy in adcp.log. A folder
+    with neither gives [].
     """
     js = os.path.join(wd, "modes.json")
     if os.path.isfile(js):
@@ -412,8 +438,13 @@ def read_modes(wd):
             return json.load(open(js))
         except ValueError:
             pass
-    from ._vendor import adcp as adcp10
-    return adcp10.read_modes(wd)
+    for name in ("out_summary.dlg", "adcp.log"):
+        summary = os.path.join(wd, name)
+        if os.path.isfile(summary):
+            got = _modes11(summary)
+            if got:
+                return got
+    return []
 
 
 def _modes11(summary):
@@ -444,8 +475,9 @@ def _run(cmd, wd, exe, append=False):
 
 
 def split_poses(wd, job="out"):
-    """out_out.pdb (one MODEL per pose) -> out_ranked_<n>.pdb, and the summary
-    -> adcp.log, which is where the 1.0 layout keeps the mode table."""
+    """out_out.pdb (one MODEL per pose) -> out_ranked_<n>.pdb, the summary's
+    mode table -> modes.json, and the summary itself -> adcp.log, the log
+    the downloads and a problem report carry."""
     multi = os.path.join(wd, "%s_out.pdb" % job)
     summary = os.path.join(wd, "%s_summary.dlg" % job)
     if os.path.isfile(summary):

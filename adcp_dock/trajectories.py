@@ -4,19 +4,15 @@ By Aadhil Haq
 
 ADCP 1.1 searches in a working folder inside the peptide's docking folder
 (out/, from -w . -o out) and deletes it when the docking ends, unless it is
-given -k. ADCP 1.0 has no such switch and leaves every replica's trajectory
-and log loose in the docking folder (out_<n>.pdb and out_<n>.out, with out.pdb
-holding them all again).
-
-Either way that is hundreds of files per peptide, and on a cluster with a
-quota on files rather than bytes a screen of fifty peptides can fill it. So
+given -k. Kept, that is hundreds of files per peptide, and on a cluster with
+a quota on files rather than bytes a screen of fifty peptides can fill it. So
 what a run keeps is decided by one setting, keep_trajectories:
 
   on   each replica's trajectory and logs are packed into
        <key>_trajectories.tar.gz in the peptide's docking folder, and the
-       loose files are removed (see members() for the two copies left out);
-  off  ADCP 1.1 removes its own working folder; ADCP 1.0's loose trajectories
-       are removed here;
+       working folder is removed (see members() for the two copies left out);
+  off  ADCP removes its own working folder, and one left behind is removed
+       here;
   absent (a job file written before the setting existed): nothing is touched,
        which is what those runs did.
 
@@ -26,18 +22,11 @@ point is finished by the next attempt without losing anything and without
 packing a half-removed folder.
 """
 import os
-import re
 import shutil
 import tarfile
 
 #: ADCP 1.1's working folder, inside the peptide's docking folder.
 WORKING = "out"
-#: ADCP 1.0's loose trajectory files.
-_LOOSE10 = re.compile(r"^out(_\d+)?\.(pdb|out)$")
-#: What else ADCP 1.0 leaves beside them, and nothing reads again: the
-#: restraint file it writes, its copy of the Ramachandran table (a megabyte
-#: per peptide) and the last pose its clustering built side chains on.
-_SCRATCH10 = ("constrains", "ramaprob.data", "tmp.pdb")
 #: Written once the archive is complete; the loose files may then go.
 PACKED = ".trajectories_packed"
 
@@ -50,43 +39,33 @@ def archive_path(wd, key):
     return os.path.join(wd, archive_name(key))
 
 
-def loose(wd, engine):
-    """The trajectory files and folders a docking left in `wd`, relative to
-    it. The ranked poses, ADCP's log and anything this package wrote are
-    never among them."""
+def loose(wd):
+    """The working folder a docking left in `wd`, relative to it, or []. The
+    ranked poses, ADCP's log and anything this package wrote are never in
+    it."""
     if not os.path.isdir(wd):
         return []
-    if engine == "1.1":
-        return [WORKING] if os.path.isdir(os.path.join(wd, WORKING)) else []
-    return sorted(n for n in os.listdir(wd)
-                  if (_LOOSE10.match(n) or n in _SCRATCH10)
-                  and not n.startswith("out_ranked")
-                  and os.path.isfile(os.path.join(wd, n)))
+    return [WORKING] if os.path.isdir(os.path.join(wd, WORKING)) else []
 
 
-def members(wd, engine):
+def members(wd):
     """[(path on disk, name in the archive)] for what an archive keeps: each
-    replica's trajectory and its logs, under out/ whichever ADCP wrote them.
+    replica's trajectory and its logs, under out/.
 
     Two things in the working folder are left out because they are copies:
-    out.pdb, every replica's trajectory again in one file, and, for ADCP 1.1,
-    the target it unpacked there (about 100 MB of maps for a 30 A box, the
-    same maps as the run's own .trg). runADCP.py makes both again when it is
-    asked to recluster (-r): it unpacks the target before it looks at -r,
-    and concatenates the replicas after.
+    out.pdb, every replica's trajectory again in one file, and the target ADCP
+    unpacked there (about 100 MB of maps for a 30 A box, the same maps as the
+    run's own .trg). runADCP.py makes both again when it is asked to
+    recluster (-r): it unpacks the target before it looks at -r, and
+    concatenates the replicas after.
     """
     out = []
-    if engine == "1.1":
-        top = os.path.join(wd, WORKING)
-        if os.path.isdir(top):
-            for n in sorted(os.listdir(top)):
-                p = os.path.join(top, n)
-                if os.path.isfile(p) and n != "out.pdb":
-                    out.append((p, os.path.join(WORKING, n)))
-        return out
-    for n in loose(wd, engine):
-        if _LOOSE10.match(n) and n != "out.pdb":
-            out.append((os.path.join(wd, n), os.path.join(WORKING, n)))
+    top = os.path.join(wd, WORKING)
+    if os.path.isdir(top):
+        for n in sorted(os.listdir(top)):
+            p = os.path.join(top, n)
+            if os.path.isfile(p) and n != "out.pdb":
+                out.append((p, os.path.join(WORKING, n)))
     return out
 
 
@@ -102,7 +81,7 @@ def _remove(wd, names):
                 pass
 
 
-def finish(wd, key, engine, keep, log=print):
+def finish(wd, key, keep, log=print):
     """Pack, remove or leave a finished peptide's trajectories.
 
     Returns the archive's path when one was written or is already there,
@@ -111,7 +90,7 @@ def finish(wd, key, engine, keep, log=print):
     """
     if keep is None:
         return None
-    names = loose(wd, engine)
+    names = loose(wd)
     arc = archive_path(wd, key)
     marker = os.path.join(wd, PACKED)
     if not keep:
@@ -127,7 +106,7 @@ def finish(wd, key, engine, keep, log=print):
         return arc
     if not names:
         return arc if os.path.isfile(arc) else None
-    keep_these = members(wd, engine)
+    keep_these = members(wd)
     part = arc + ".part"
     with tarfile.open(part, "w:gz") as tf:
         for path, arcname in keep_these:

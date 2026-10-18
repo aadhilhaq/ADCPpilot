@@ -1612,8 +1612,8 @@ def reduce_version(exe):
 
 
 def reduce_het_dict(exe):
-    """The het dictionary that ships beside reduce in ADFRsuite, which is
-    what ADFR's own protonation passes with -DB, or None."""
+    """The het dictionary that ships beside reduce in the ADCP 1.1 suite,
+    which is what ADFR's own protonation passes with -DB, or None."""
     if not exe:
         return None
     for cand in (exe + "_wwPDB_het_dict.txt",
@@ -1796,7 +1796,7 @@ def protonate_reduce(path, out_path, steps, exe=None, log=print):
     """
     if not exe or not os.path.isfile(exe):
         steps.append(Step("reduce", False,
-                          "reduce was not found beside ADFRsuite's programs"))
+                          "reduce was not found in the ADCP 1.1 suite"))
         return None
     het = reduce_het_dict(exe)
     path = _trim_hydrogens(path, out_path, steps, exe, log)
@@ -1952,7 +1952,7 @@ def run(pdb_in, workdir, ph=7.4, forcefield="AMBER", log=print, chain="",
     would put hydrogens on atoms that are about to move; minimising before
     protonating would minimise a structure with no hydrogens on it.
 
-    `protonation` is "reduce" (reduce_exe, ADFRsuite's) or "propka"
+    `protonation` is "reduce" (reduce_exe, the ADCP 1.1 suite's) or "propka"
     (PDB2PQR with PROPKA at `ph`, what every run made before the choice
     existed used). Where reduce cannot run, PDB2PQR with PROPKA protonates
     instead and the log says so.
