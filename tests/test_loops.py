@@ -137,6 +137,53 @@ text = str(steps3[-1])
 check(mini is not None and "atom(s) of rebuilt loops left free" in text,
       "the minimisation does not hold the rebuilt loop: %s" % text)
 
+# the same seed builds the same loop, atom for atom
+def built_coords(path):
+    return [line[30:54] for line in open(path) if line.startswith("ATOM") and 191 <= int(line[22:26]) <= 194]
+
+
+again = []
+prepare.fix_structure(FIXTURE, os.path.join(work, "again.pdb"), [], fill_loops=True, built=again)
+check(built_coords(os.path.join(work, "again.pdb")) == built_coords(fixed),
+      "the same seed builds the same loop, every coordinate")
+
+# the message that stops a preparation names the tool's own setting
+real_jg = prepare.junction_geometry
+prepare.junction_geometry = lambda path, b: ["A190-191: C-N 1.80 A, CA-C-N 60, C-N-CA 60"]
+prepare.LOOPS_SETTING, saved = "a tool's own name for it", prepare.LOOPS_SETTING
+try:
+    prepare.relax_built(fixed, os.path.join(work, "never.pdb"), [], built)
+    check(False, "a loop that will not fit stops the preparation")
+except prepare.PrepError as e:
+    check("Untick 'a tool's own name for it'" in str(e),
+          "the stop message names the tool's own setting: %s" % str(e)[-90:])
+prepare.junction_geometry, prepare.LOOPS_SETTING = real_jg, saved
+
+# run() builds the loops again from the next seed when they cannot be made to fit
+real_relax, seeds_tried = prepare.relax_built, []
+
+
+def failing_twice(path, out_path, steps, b, log=print):
+    seeds_tried.append(len(seeds_tried) + 1)
+    if len(seeds_tried) < 3:
+        raise prepare.PrepError("did not fit")
+    return path
+
+
+prepare.relax_built = failing_twice
+rdir = os.path.join(work, "run")
+os.makedirs(rdir)
+try:
+    prepare.run(FIXTURE, rdir, fill_loops=True, protonation="reduce", reduce_exe=None,
+                minimise_structure=False, log=lambda *a: None)
+except prepare.PrepError:
+    pass                     # no reduce here, so no hydrogens: what matters is the log
+prepare.relax_built = real_relax
+log_text = open(os.path.join(rdir, "preparation.log")).read()
+check(seeds_tried == [1, 2, 3], "relaxation was tried on each seed's loops in turn: %s" % seeds_tried)
+check("building them again from seed 2" in log_text and "building them again from seed 3" in log_text,
+      "the log says the loops were built again, and from which seed")
+
 if fails:
     print("FAIL test_loops: %d of %d\n  " % (len(fails), ran) + "\n  ".join(fails))
     sys.exit(1)

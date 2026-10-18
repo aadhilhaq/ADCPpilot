@@ -352,6 +352,14 @@ AMINO_ACIDS = frozenset({
 #: The longest gap rebuilt as a loop, as HOPE-MD's preparation has it
 #: (model_loops_max). A longer one is a domain's worth of guessing.
 MAX_LOOP = 12
+#: PDBFixer's seeds for building loops, tried in turn. A seed makes the loop it
+#: builds the same every time (left unseeded, 7A3R's loops came out differently
+#: run to run and needed one to four relaxation attempts); a further seed is
+#: tried only when no relaxation can make the first seed's loops fit.
+LOOP_SEEDS = (1, 2, 3)
+#: What the tool calling this names the setting that rebuilds loops, for the
+#: message that says how to dock without them. Each tool sets its own.
+LOOPS_SETTING = "Rebuild missing loops"
 
 
 def _bonded_across(fixer, before, after, cutoff=2.0):
@@ -372,7 +380,7 @@ def _bonded_across(fixer, before, after, cutoff=2.0):
 
 def fix_structure(path, out_path, steps, fill_loops=False, cap_termini=True,
                   log=print, rebuild_sidechains=True, model_missing=True,
-                  built=None, max_loop=MAX_LOOP, rebuild_termini=False):
+                  built=None, max_loop=MAX_LOOP, rebuild_termini=False, seed=LOOP_SEEDS[0]):
     """Missing side-chain atoms rebuilt, and optionally missing residues.
 
     PDBFixer's findMissingResidues does NOT find only gaps between residues
@@ -459,7 +467,10 @@ def fix_structure(path, out_path, steps, fill_loops=False, cap_termini=True,
                     fixer.missingAtoms[res] = keep
                 else:
                     del fixer.missingAtoms[res]
-        fixer.addMissingAtoms()
+        try:
+            fixer.addMissingAtoms(seed=seed)     # the same loop every time
+        except TypeError:                        # a PDBFixer too old to take one
+            fixer.addMissingAtoms()
         made = [(r.chain.id, str(r.id).strip(), (r.insertionCode or "").strip())
                 for r in fixer.topology.residues()
                 if (r.chain.id, str(r.id).strip(), (r.insertionCode or "").strip()) not in present]
@@ -616,7 +627,7 @@ def relax_built(path, out_path, steps, built, log=print):
         e0 = ctx.getState(getEnergy=True).getPotentialEnergy()
     except Exception as e:  # noqa: BLE001 - any failure here leaves invented atoms unrelaxed
         raise PrepError(f"the {len(made)} rebuilt residue(s) could not be relaxed ({str(e)[:200]}). "
-                        f"Untick 'fill missing loops' to dock the structure as measured.") from e
+                        f"Untick '{LOOPS_SETTING}' to dock the structure as measured.") from e
 
     def write(pos):
         new = {}
@@ -654,7 +665,7 @@ def relax_built(path, out_path, steps, built, log=print):
             pos = ctx.getState(getPositions=True).getPositions(asNumpy=True).value_in_unit(unit.angstrom)
         except Exception as e:  # noqa: BLE001
             raise PrepError(f"the {len(made)} rebuilt residue(s) could not be relaxed "
-                            f"({str(e)[:200]}). Untick 'fill missing loops' to dock the structure "
+                            f"({str(e)[:200]}). Untick '{LOOPS_SETTING}' to dock the structure "
                             f"as measured.") from e
         stem_rmsd = math.sqrt(sum(math.dist(tuple(pos[i]), tuple(p)) ** 2 for i, p in start.items())
                               / max(1, len(start))) if start else 0.0
@@ -667,7 +678,7 @@ def relax_built(path, out_path, steps, built, log=print):
         fewest = min(tried, key=lambda t: t[0])
         raise PrepError(f"{fewest[0]} junction(s) between rebuilt and measured residues are still "
                         f"out of shape after {len(tried)} relaxation attempts "
-                        f"({'; '.join(fewest[1][:4])}). Untick 'fill missing loops' to dock the "
+                        f"({'; '.join(fewest[1][:4])}). Untick '{LOOPS_SETTING}' to dock the "
                         f"structure as measured.")
     steps.append(Step("rebuilt loops relaxed", True,
                       f"{len(made)} residue(s) free; {len(stems)} stem residue(s) either side on a "
@@ -2033,17 +2044,29 @@ def run(pdb_in, workdir, ph=7.4, forcefield="AMBER", log=print, chain="",
     # what cannot work without them (see above).
     modelled = (not rebuild_sidechains
                 and (protonation != "reduce" or minimise_structure))
-    built = []
-    fixed = fix_structure(current, os.path.join(workdir, "rebuilt.pdb"), steps,
-                          fill_loops=fill_loops, cap_termini=cap_termini,
-                          log=log, rebuild_sidechains=rebuild_sidechains,
-                          model_missing=rebuild_sidechains or modelled, built=built)
-    current = fixed or current
-    if built:
+    # Loops from PDBFixer's first seed; only when no relaxation can make them
+    # fit are they built again from the next, and the log says so.
+    source = current
+    for k, seed in enumerate(LOOP_SEEDS):
+        built = []
+        fixed = fix_structure(source, os.path.join(workdir, "rebuilt.pdb"), steps,
+                              fill_loops=fill_loops, cap_termini=cap_termini,
+                              log=log, rebuild_sidechains=rebuild_sidechains,
+                              model_missing=rebuild_sidechains or modelled, built=built,
+                              seed=seed)
+        current = fixed or source
+        if not built:
+            break
         try:
             current = relax_built(current, os.path.join(workdir, "relaxed.pdb"), steps,
                                   built, log=log)
+            break
         except PrepError as e:
+            if k + 1 < len(LOOP_SEEDS):
+                steps.append(Step("rebuilt loops relaxed", False,
+                                  f"the loops PDBFixer built from seed {seed} could not be made "
+                                  f"to fit; building them again from seed {LOOP_SEEDS[k + 1]}"))
+                continue
             steps.append(Step("rebuilt loops relaxed", False, str(e)))
             _write_prep_log(workdir, pdb_in, out, protonation, ph, forcefield, steps,
                             n_before, None)
