@@ -5858,10 +5858,15 @@ async function drawMolstar(pdb){
   MVBUSY = true;
   try {
     if(!MV){
+      /* The page reaches no server but its own: the Mol* extensions that
+         fetch from one at start (volseg's entry list among them) are off. */
       MV = await molstar.Viewer.create($('viewM'), {
         layoutIsExpanded:false, layoutShowControls:false,
         layoutShowSequence:true, layoutShowLog:false,
-        viewportShowExpand:true, collapseLeftPanel:true});
+        viewportShowExpand:true, collapseLeftPanel:true,
+        disabledExtensions: ['volseg', 'pdbe-structure-quality-report', 'assembly-symmetry',
+                             'rcsb-validation-report', 'anvil-membrane-orientation',
+                             'zenodo-import', 'ma-quality-assessment', 'dnatco-ntcs']});
       applyViewBg();
     }
     await MV.plugin.clear();
