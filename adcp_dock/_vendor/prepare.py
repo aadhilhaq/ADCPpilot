@@ -1225,14 +1225,23 @@ def _unit(v):
 
 
 def _dihedral(a, b, c, d):
-    """The a-b-c-d torsion in degrees."""
+    """The a-b-c-d torsion in degrees, in the sense _place builds one.
+
+    IUPAC's: 0 with a and d on the same side of b-c (cis), 180 on opposite
+    sides (trans), positive when a must turn clockwise, looking from b to c,
+    to eclipse d. It measured 180 less than that, and cap_breaks places an
+    NME's nitrogen from this torsion with _place, so the nitrogen went to the
+    mirror of where it belongs: on 7A3R as close as 0.65 A to the carbonyl
+    oxygen it should be trans to, with O-C-N as small as 29 degrees where
+    about 123 is right.
+    """
     import math
     import numpy as np
-    b0, b1, b2 = a - b, c - b, d - c
-    n1, n2 = np.cross(b0, b1), np.cross(b1, b2)
-    m = np.cross(n1, _unit(b1))
-    return math.degrees(math.atan2(float(np.dot(m, n2)),
-                                   float(np.dot(n1, n2))))
+    b1, b2, b3 = b - a, c - b, d - c
+    n1, n2 = np.cross(b1, b2), np.cross(b2, b3)
+    return math.degrees(math.atan2(
+        float(np.linalg.norm(b2)) * float(np.dot(b1, n2)),
+        float(np.dot(n1, n2))))
 
 
 def _place(a, b, c, bond, angle, dihedral):
