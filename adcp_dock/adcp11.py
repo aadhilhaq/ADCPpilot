@@ -310,11 +310,47 @@ def agfr_version(exe):
     return ""
 
 
+def private_home(suite):
+    """The home folder the suite's own Python is given, which is never $HOME.
+
+    The suite's modules keep files under the home folder and look nowhere
+    else: MolKit2 and AGFR make ~/.adfrsuite (with ProDy's settings in it),
+    and pybel makes ~/.data/pybel and ~/.config. A cluster's home folder holds
+    few files, so the suite's programs alone are given a folder of each
+    person's own instead: $HOPE_CACHE/adcpsuite-home when that is set, else
+    <lab folder>/.cache/<user>/adcpsuite-home, the lab folder being the one
+    holding tools/docking/adcpsuite (or the folder the suite is in, when it is
+    installed anywhere else). A folder in the system's temporary space is
+    used when that one cannot be written. Nothing else is given this HOME:
+    ssh, git and the scheduler keep the person's own.
+    """
+    import getpass
+    import tempfile
+    user = getpass.getuser()
+    base = (os.environ.get("HOPE_CACHE") or "").strip()
+    if not base:
+        top = os.path.dirname(os.path.abspath(suite))
+        if os.path.basename(top) == "docking" and \
+                os.path.basename(os.path.dirname(top)) == "tools":
+            top = os.path.dirname(os.path.dirname(top))
+        base = os.path.join(top, ".cache", user)
+    for where in (os.path.join(base, "adcpsuite-home"),
+                  os.path.join(tempfile.gettempdir(), "adcpsuite-home-" + user)):
+        try:
+            os.makedirs(where, exist_ok=True)
+        except OSError:
+            continue
+        if os.access(where, os.W_OK):
+            return where
+    return os.environ.get("HOME", "")
+
+
 def _env(exe):
     # The environment's own bin first: its launcher runs whichever python
     # comes first on PATH, and only this one has ADCP's modules.
     home = home_of(exe)
     env = dict(os.environ)
+    env["HOME"] = private_home(home)
     env["PATH"] = os.path.join(home, "bin") + os.pathsep + env.get("PATH", "")
     # What the bin/adcp launcher sets.
     env["ADS_ROOT"] = home

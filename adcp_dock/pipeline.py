@@ -1848,7 +1848,8 @@ def _scripts(rundir, j, python=None):
     logdir = os.path.join(rundir, "logs")
     os.makedirs(logdir, exist_ok=True)
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    env = [slurm.tool_exports(j.get("tools_roots") or [])]
+    env = [slurm.tool_exports(j.get("tools_roots") or []),
+           slurm.cache_exports(rundir)]
     if slurm.stage_pythonpath():
         env.append("export PYTHONPATH=%s:${PYTHONPATH}" % slurm.stage_pythonpath())
     return dict(partition=j.get("partition", "cpu"), workdir=rundir,

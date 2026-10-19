@@ -545,10 +545,16 @@ class Runner:
             os.makedirs(outdir, exist_ok=True)
             want = wanted_port() if port is None else port
             log_path = os.path.join(outdir, "adapt_server.log")
+            from . import adcp11
             env = dict(os.environ, ADCPSUITE=env_root, ADAPT_OUTDIR=outdir,
                        # Its address is read from its output, which Python
                        # holds back when it is not writing to a terminal.
-                       PYTHONUNBUFFERED="1")
+                       PYTHONUNBUFFERED="1",
+                       # It runs on the suite's Python, whose modules write
+                       # ~/.adfrsuite as they load. ADapt uses HOME for
+                       # nothing else but showing paths, so it is given the
+                       # suite's own (adcp11.private_home).
+                       HOME=adcp11.private_home(env_root))
             proc = subprocess.Popen(
                 ["sh", os.path.join(home, "bin", "adapt"), "serve",
                  "--host", "127.0.0.1", "--port", str(want), "--outdir", outdir]

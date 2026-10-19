@@ -197,8 +197,12 @@ def install(dest=None, log=print):
     for var in ("PYTHONPATH", "PYTHONHOME"):
         env.pop(var, None)
     log("creating the ADCP 1.1 environment at %s (Python 3.7, conda-forge)" % dest)
+    # HOME beside it too, for this command only: micromamba records every
+    # environment it makes in ~/.conda/environments.txt.
+    solver_home = os.path.join(base, "cache", "home")
+    os.makedirs(solver_home, exist_ok=True)
     _run([mm, "create", "-y", "-q", "-p", dest, "-c", "conda-forge", "--no-rc"]
-         + CONDA, log, env=env)
+         + CONDA, log, env=dict(env, HOME=solver_home))
     py = os.path.join(dest, "bin", "python")
     _run([py, "-m", "pip", "install", "-q", "--no-cache-dir"] + PYPI, log, env=env)
     cache = os.path.join(base, "adcpsuite_pkgs")

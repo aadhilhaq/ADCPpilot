@@ -215,6 +215,27 @@ def tool_exports(roots=()):
     return "\n".join(lines)
 
 
+def cache_env(rundir):
+    """{variable: folder} keeping a job's caches in its run folder, never in $HOME.
+
+    matplotlib's font list, the XDG cache of anything that keeps one and the
+    CUDA driver's compiled kernels all go under the home folder by default,
+    and a cluster's home folder holds few files. The ADCP 1.1 suite's Python
+    is given a home of its own as well (adcp11.private_home).
+    """
+    cache = os.path.join(os.path.abspath(rundir), ".cache")
+    return {"XDG_CACHE_HOME": cache,
+            "MPLCONFIGDIR": os.path.join(cache, "matplotlib"),
+            "CUDA_CACHE_PATH": os.path.join(cache, "nv")}
+
+
+def cache_exports(rundir):
+    """cache_env() as lines for a job script."""
+    import shlex
+    return "\n".join("export %s=%s" % (k, shlex.quote(v))
+                     for k, v in cache_env(rundir).items())
+
+
 def why_pending(job_id, rundir=None):
     """What the scheduler says is holding a job up, in one word."""
     if is_local(job_id):
@@ -502,6 +523,7 @@ def submit_local(rundir, jobfile, stages, cpus=1, python=None, env=None):
     _write_local(rundir, st)
 
     base = dict(os.environ)
+    base.update(cache_env(rundir))      # as a job script has them
     base.update(env or {})
     pp = stage_pythonpath()
     if pp:
