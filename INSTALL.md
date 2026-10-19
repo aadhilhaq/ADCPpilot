@@ -419,8 +419,8 @@ export AMBERHOME=$CONDA_PREFIX          # only if you installed ambertools
 ## 2. On your own computer
 
 For a workstation or a laptop with no cluster: **Linux** or **Windows
-through WSL**, on x86-64. The work runs on that machine, one step after
-another.
+through WSL**, on x86-64, or **macOS**, which docks with ADCP 1.0 (below).
+The work runs on that machine, one step after another.
 
 ```bash
 python3 -m venv ~/.adcp-dock/venv
@@ -435,7 +435,7 @@ place, so after these three lines you can start it from the launcher too.
 The first `adcp-dock local` installs the ADCP 1.1 suite with Scripps' own
 recipe ([section 4](#4-adcp-11): a few minutes and about 3 GB) into
 `~/.adcp-dock/adcpsuite`, unless one is already installed where the interface
-looks, then opens the page in your browser. Subsequent launches reuse the
+looks (on a Mac, ADFRsuite 1.0, as below), then opens the page in your browser. Subsequent launches reuse the
 installation. Runs are written to `~/adcp_runs`.
 
 * **Linux**: x86-64, which is what the ADCP 1.1 suite is built for.
@@ -444,13 +444,20 @@ installation. Runs are written to `~/adcp_runs`.
   above inside it. WSL shares `localhost` with Windows, so open the address
   it prints in your usual Windows browser.
 * **macOS**: the Scripps Research Institute builds the ADCP 1.1 suite for
-  Linux only ("ADCP v1.1 is currently only available for Linux"), and its
-  packages carry Linux programs, so it does not run on macOS itself. On a
-  Mac, use the Colab notebook ([section 3](#3-in-google-colab)), a cluster
-  through the [desktop launcher](#5-the-desktop-launcher), or a Linux
-  virtual machine, which is what Scripps suggests for Apple silicon (Ubuntu
-  in UTM), with the three lines above run inside it. `adcp-dock local` on
-  macOS says so and stops.
+  Linux only ("ADCP v1.1 is currently only available for Linux"). On a Mac,
+  `adcp-dock local` therefore installs ADFRsuite 1.0 for macOS instead, into
+  `~/.adcp-dock/ADFRsuite`, checked against a pinned SHA-256, and docks with
+  its ADCP 1.0; its agfr (AutoSite 1.0), `prepare_receptor` and `reduce`
+  prepare the receptor and build the maps. ADFRsuite is built for Intel, so
+  on Apple silicon run `softwareupdate --install-rosetta` once first. Such a
+  run says "ADCP 1.0 (macOS)" in its job file, in every result, on its page
+  and in its report, and **its scores are not comparable with runs docked
+  with ADCP 1.1**. ADCP 1.0 has no non-standard or D amino acids and no
+  OpenMM minimisation, and writes at most 10 poses per peptide. Its `msms`
+  is a 32-bit program, which macOS 10.15 and later do not run, so the
+  viewers draw their own surfaces. For ADCP 1.1, use a cluster through the
+  [desktop launcher](#5-the-desktop-launcher), the Colab notebook
+  ([section 3](#3-in-google-colab)), or a Linux virtual machine.
 
 **Review the search settings.** Local mode displays the available cores and starts with reduced search settings. These settings are useful for checking the workflow, but do not establish convergence or suitability for a research result. Set the sampling budget for your system and available resources.
 
@@ -571,7 +578,7 @@ ADapt runs beside the interface on the same machine, started with `--base-path /
 
 The receptor is protonated by default with reduce, the program ADFR's own preparation and ADapt use, taken from the ADCP 1.1 suite's `bin` folder (`reduce` 3.23) and never from `PATH`, where AmberTools may have another. Checked against the protein structures in the PDB solved by neutron diffraction, where the hydrogens are placed from the data, reduce matched the deposited histidines more often than pdb2pqr (55% against 31% of 1,457 histidines) and turned fewer rings, and fewer Asn and Gln amides, the wrong way. What reduce does not do is pH: it never protonates an Asp or Glu and rarely puts hydrogens on both nitrogens of a histidine, whatever the pH. PDB2PQR with PROPKA at a chosen pH stays as the other choice (`--protonation propka --ph 5.5`), and a job file from before the choice keeps it, so old runs reproduce.
 
-The site view and the pose viewer draw molecular surfaces computed by MSMS, which the interface's server calls on request: MSMS's own library, mslib, in the ADCP 1.1 suite, run with the suite's Python by `adcp_dock/msms_mslib.py`. It draws the surface the msms program draws, the same points and triangles listed in another order. An msms program can be named with `MSMS_EXE` instead. MSMS is used where Scripps installed it and is not part of this package (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)). Without it the viewers draw their own surfaces. `adcp-dock check` lists which is used.
+The site view and the pose viewer draw molecular surfaces computed by MSMS, which the interface's server calls on request: MSMS's own library, mslib, in the ADCP 1.1 suite, run with the suite's Python by `adcp_dock/msms_mslib.py`. It draws the surface the msms program draws, the same points and triangles listed in another order. An msms program can be named with `MSMS_EXE` instead. MSMS is used where Scripps installed it and is not part of this package (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)). Without it the viewers draw their own surfaces. `adcp-dock check` lists which is used. On a Mac docking with ADCP 1.0, reduce and msms are ADFRsuite 1.0's ([section 2](#2-on-your-own-computer)).
 
 ---
 
@@ -603,7 +610,7 @@ Signing removes those prompts.
 
 | field | what to put |
 |---|---|
-| **Cluster** | a cluster it knows by name (**Grace** or **ACES** at Texas A&M, **Garibaldi** at Scripps Research), which fills in everything but your username; **Slurm cluster** for any other; **This computer** to run on the machine the launcher is on |
+| **Cluster** | a cluster it knows by name (**Grace** or **ACES** at Texas A&M, **Garibaldi** at Scripps Research), which fills in everything but your username; **Slurm cluster** for any other; **This computer** to run on the machine the launcher is on (on a Mac, with ADCP 1.0: [section 2](#2-on-your-own-computer)) |
 | **Address** | your cluster's login address, the one you use with `ssh`; filled in for a named cluster, and remembered |
 | **Username** | your cluster username |
 | **Tool directory** | the folder you cloned into on the cluster, for example `/scratch/you/ADCP_docking`; `pwd` inside it prints it |

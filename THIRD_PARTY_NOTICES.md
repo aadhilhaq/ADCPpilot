@@ -23,6 +23,22 @@ under their own terms.
 | The ADCP 1.1 suite's environment: Python 3.7, OpenMM, Open Babel, PDBFixer, ParmEd and NumPy from conda-forge; Pillow, PySide2, pybel, Biopython and pypdb from PyPI | Their developers | Each under its own licence | Installed with the suite, as Scripps' own script installs them |
 | AmberTools: tleap, sander, MMPBSA.py | Amber developers | Several licences (GPL-3.0-or-later, LGPL-3.0-or-later, BSD, MIT, by component) | conda, only when MM-GBSA is wanted |
 
+### On a Mac only: ADFRsuite 1.0
+
+The Scripps Research Institute builds no ADCP 1.1 for macOS, so on macOS, and
+nowhere else, `adcp-dock local` installs ADFRsuite 1.0 and docks with it
+(`adcp_dock/mac10.py`). It downloads `ADFRsuite_x86_64Darwin_1.0.tar.gz` from
+ccsb.scripps.edu, checks it against a pinned SHA-256 and runs Scripps' own
+`install.sh`. Nothing of it is in this repository.
+
+| Program | Owner | Licence | How it is used |
+|---|---|---|---|
+| ADCP 1.0 (adcp), agfr with AutoGrid4 and AutoSite 1.0, and prepare_receptor | Scripps Research Institute | ADFRsuite's `LICENSE.txt`: "Unless otherwise specified, this software is distributed under the LGPL 2 open source license"; `runADCP.py` states the GNU LGPL, version 2.1 or later | Run as installed: they dock, build the maps and write the receptor as PDBQT |
+| MolKit, mglutil, Support, DejaVu2, PyBabel and Volume, in its `CCSBpckgs` | Scripps Research Institute (Dr Sanner) | The MGLTOOLS Software License Agreement, in each of these packages' `LICENSE`, quoted in the table above: non-commercial use only | On the run path: `prepare_receptor` imports MolKit and loads mglutil, Support and PyBabel; agfr loads Support, Volume and mglutil. AutoDockTools' own `LICENSE` is the MSMS and MSLIB agreement |
+| The MSMS program and library (`bin/msms`, mslibACA, mslibCOM), and the UT packages | Scripps Research Institute; University of Texas at Austin | Free for academic use only, as ADFRsuite's `LICENSE.txt` marks them; commercial use needs a licence from their owners. Published work that shows an MSMS surface cites Sanner, Olson and Spehner, Biopolymers 38:305-320, 1996 | The installer passes `-l`, which leaves Scripps' academic-or-commercial question about the library unanswered, so neither library is put in place and nothing this package runs imports it or the UT packages. The server would run the msms program, as installed, for the viewers' surfaces, but the macOS build is 32-bit, which macOS 10.15 and later do not run, so the viewers draw their own |
+| reduce (`bin/reduce` and its `reduce_wwPDB_het_dict.txt`) | J. Michael Word and the Richardson laboratory, Duke University | Distributed with ADFRsuite under its terms; reduce asks that work using it cite Word et al., J Mol Biol 285:1735-1747, 1999 | Run as installed: the default receptor protonation on a Mac |
+| ADFRsuite's Python 2.7, Open Babel, NumPy, ProDy and its other bundled libraries | Their developers | Each under its own licence | Installed with ADFRsuite; its programs run on them |
+
 ## Python libraries imported by the package (not included in this repository)
 
 | Library | Licence | Needed for |

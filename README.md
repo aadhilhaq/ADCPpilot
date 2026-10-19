@@ -26,7 +26,7 @@ Developed by Aadhil Haq, HOPE Lab, under the supervision of Dr. Sandun Fernando.
 | Where the calculations run | How to install |
 |---|---|
 | A Slurm cluster | [INSTALL.md, section 1](INSTALL.md#1-on-a-slurm-cluster) |
-| Your own computer (Linux, or Windows through WSL; on a Mac, a Linux virtual machine) | [INSTALL.md, section 2](INSTALL.md#2-on-your-own-computer) |
+| Your own computer (Linux, or Windows through WSL; a Mac docks with ADCP 1.0, whose scores are not comparable with ADCP 1.1's) | [INSTALL.md, section 2](INSTALL.md#2-on-your-own-computer) |
 | Google Colab | The **Open in Colab** badge at the top of this page; nothing is installed on your computer, and [INSTALL.md, section 3](INSTALL.md#3-in-google-colab) says what the notebook does |
 
 On a Slurm cluster, connect with `ssh` to a login node (where you arrive; calculations never run there) and type, one line at a time, using a folder with room for about 140,000 files rather than your home folder:

@@ -53,8 +53,10 @@ interface runs the work itself, one stage after another:</p>
 <pre>adcp-dock local</pre>
 <p>The first run installs the ADCP 1.1 suite with Scripps' own recipe, checking
 each Scripps package against a pinned checksum, and opens the page in your
-browser. Scripps builds the suite for Linux only, so on a Mac it runs in a Linux
-virtual machine. Runs are written to
+browser. Scripps builds the suite for Linux only, so on a Mac the first run
+installs ADFRsuite 1.0 instead and docks with ADCP 1.0, whose scores are not
+comparable with ADCP 1.1's (<a href="tools.html#on-a-mac">On a Mac</a>). Runs are
+written to
 <code>~/adcp_runs</code>. The header says how many cores it found, and the
 search settings start smaller than the cluster defaults, because settings
 sized for a 48 core node take hours on four.</p>

@@ -7,6 +7,9 @@ want help.</p>
 <tr><th>What you see</th><th>What it means</th></tr>
 <tr><td><code>N tool(s) missing</code></td><td>the ADCP 1.1 suite or AmberTools is not reachable. Set <code>ADCPSUITE_HOME</code> and <code>AMBERHOME</code>, or pass <code>--tools-root</code>, then <code>adcp-dock check</code>; or run <code>./install.sh</code> again, which finds them.</td></tr>
 <tr><td><b>ADCP 1.1 is not installed here, so nothing can dock</b></td><td>the interface found no ADCP 1.1 suite. <code>./install.sh</code> installs it, or uses one already on the machine; <code>adcp-dock check</code> says where it looked.</td></tr>
+<tr><td><b>ADCP 1.0 (macOS)</b> as the docking engine</td><td>this is a Mac, which docks with ADCP 1.0 because Scripps builds no ADCP 1.1 for macOS. Its scores are not comparable with ADCP 1.1 runs: compare a Mac run only with other Mac runs, or dock on a cluster or in Colab. See <a href="tools.html#on-a-mac">On a Mac</a>.</td></tr>
+<tr><td><code>need ADCP 1.1, which the Scripps Research Institute does not build for macOS</code></td><td>a peptide with non-standard or D amino acids, on a Mac. Dock it on a cluster or in Colab.</td></tr>
+<tr><td><code>this run was made on a Mac, to dock with ADCP 1.0</code></td><td>a run started on a Mac was resumed elsewhere. Finish it on that Mac, or dock its peptides in a new run.</td></tr>
 <tr><td>a fetch from the RCSB fails</td><td>the machine running the server has no route to the internet, which is normal on a compute node. Upload the file, or browse to a copy on the cluster.</td></tr>
 <tr><td><code>no residues chosen</code></td><td>the site box is empty, or nothing you typed parsed as a residue.</td></tr>
 <tr><td><code>NOT in the structure</code></td><td>a residue you named is not there: usually the wrong chain letter, or a numbering that differs from the file's.</td></tr>

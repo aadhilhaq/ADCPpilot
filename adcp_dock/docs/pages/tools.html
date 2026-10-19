@@ -51,11 +51,32 @@ installation or beside it; at <code>~/.adcp-dock/adcpsuite</code>; or at
 <code>/content/adcpsuite</code> in Colab. <b>Docking engine</b> in the Docking card
 shows its version. What it lets you dock is in
 <a href="case-modified.html">Modified and D amino acids</a>.</p>
-<p>Scripps builds the suite for Linux only, so on a Mac it runs in a Linux virtual
-machine, on a cluster, or in Colab. <code>prepare_receptor</code>, and the MolKit
+<p>Scripps builds the suite for Linux only; a Mac docks with ADCP 1.0 instead
+(below). <code>prepare_receptor</code>, and the MolKit
 and PyBabel it loads, carry a licence for non-commercial use only; the
 repository's third party notices say which parts of the suite carry which
 licence.</p>
+
+<h2 id="on-a-mac">On a Mac: ADCP 1.0</h2>
+<p>Scripps builds no ADCP 1.1 for macOS, so on a Mac <code>adcp-dock local</code>,
+which the launcher's <b>This computer</b> starts, installs ADFRsuite 1.0 for macOS
+into <code>~/.adcp-dock/ADFRsuite</code>, checked against a pinned SHA-256, and
+docks with its ADCP 1.0. Its agfr builds the maps with AutoSite 1.0, and its
+<code>prepare_receptor</code> and <code>reduce</code> prepare the receptor. It is
+built for Intel; on Apple silicon, run <code>softwareupdate --install-rosetta</code>
+once first.</p>
+<p>A run docked there says <b>ADCP 1.0 (macOS)</b> in its job file and in every
+result, and its page and report say that its scores are not comparable with runs
+docked with ADCP 1.1. Non-standard and D amino acids and the OpenMM minimisation
+need ADCP 1.1, ADCP 1.0 writes at most 10 poses per peptide, and AutoSite's
+pockets cannot be found before submitting. ADFRsuite 1.0's <code>msms</code> is a
+32-bit program, which macOS 10.15 and later do not run, so the viewers draw their
+own surfaces. A run made on a Mac is finished on that Mac. For ADCP 1.1, use a
+cluster, the Colab notebook or a Linux virtual machine.</p>
+<p>ADFRsuite 1.0 is mostly LGPL 2, but its MSMS and UT packages are free for academic
+use only, and its MolKit, mglutil, Support, DejaVu2, PyBabel and Volume carry the
+MGLTOOLS licence, for non-commercial use only; <code>prepare_receptor</code> and
+agfr load them. The repository's third party notices set this out.</p>
 
 <h2 id="adapt">ADapt</h2>
 <figure>
