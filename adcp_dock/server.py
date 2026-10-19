@@ -2172,6 +2172,61 @@ class App:
                              job=tidymod.job_state(rundir)),
                 "log_tail": _tail(os.path.join(rundir, "logs"))}
 
+    # ---- the report --------------------------------------------------------
+    # What it says is runreport's; how it looks is reportkit's, the module the
+    # lab's tools share (static/reportkit.js and reportkit.css).
+    def report_doc(self, rundir, raw=None):
+        """The report of a run, as the report page reads it (GET /api/report)."""
+        bad = self.check_run(rundir)
+        if bad:
+            return {"error": bad}
+        from . import runreport
+        try:
+            return runreport.Report(self, rundir, raw or {}).build()
+        except Exception as exc:                                # noqa: BLE001
+            return {"error": "the report could not be written: %s" % exc}
+
+    def report_add(self, body):
+        """A view from the viewer, added to the run's report and kept in its
+        report folder."""
+        rundir = (body or {}).get("rundir")
+        bad = self.check_run(rundir)
+        if bad:
+            return {"error": bad}
+        from . import runreport
+        with self.lock:
+            try:
+                return runreport.add_item(rundir, body)
+            except OSError as exc:
+                return {"error": "the view could not be kept: %s" % exc}
+
+    def report_edit(self, body):
+        """A view's own words changed, the view moved, or taken out; the
+        views as the report now shows them."""
+        rundir = (body or {}).get("rundir")
+        bad = self.check_run(rundir)
+        if bad:
+            return {"error": bad}
+        from . import runreport
+        with self.lock:
+            try:
+                got = runreport.edit_item(rundir, body)
+            except OSError as exc:
+                return {"error": "the change could not be kept: %s" % exc}
+        if got.get("error"):
+            return got
+        try:
+            return {"views": runreport.Report(self, rundir, body.get("opt") or {}).views()}
+        except Exception as exc:                                # noqa: BLE001
+            return {"error": "the views could not be read back: %s" % exc}
+
+    def report_image(self, rundir, n):
+        """A view's picture, as bytes, or None."""
+        if self.check_run(rundir):
+            return None
+        from . import runreport
+        return runreport.item_image(rundir, n)
+
     def tidy_run(self, rundir, undo=False):
         """Tidy a finished run, or undo it, in a short job of its own."""
         bad = self.check_run(rundir)
@@ -2368,8 +2423,25 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send("open the URL this tool printed; it "
                                   "carries the token", 403, "text/plain")
             return self._send(page.render(app.token), ctype="text/html")
+        if u.path == "/report":
+            # The report of a run, a page to read and save as a PDF. The
+            # token travels with it, as for the main page.
+            if not self._auth(q):
+                return self._send("open the report from the run's page; it "
+                                  "carries the token", 403, "text/plain")
+            return self._send(page.report_page(app.token, (q.get("rundir") or [""])[0],
+                                               (q.get("print") or [""])[0] == "1"),
+                              ctype="text/html")
         if not self._auth(q):
             return self._send({"error": "bad or missing token"}, 403)
+        if u.path == "/api/report":
+            raw = {k[4:]: v[0] for k, v in q.items() if k.startswith("opt.") and v}
+            return self._send(app.report_doc((q.get("rundir") or [""])[0], raw))
+        if u.path == "/api/report/image":
+            data = app.report_image((q.get("rundir") or [""])[0], (q.get("id") or [""])[0])
+            if data is None:
+                return self._send({"error": "no such view"}, 404)
+            return self._send(data, ctype="image/png")
         if u.path == "/cite":
             # The citation as a file, in three formats: .txt to
             # read, .bib for LaTeX, .ris for EndNote, Zotero and
@@ -2586,7 +2658,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self._auth(q):
             return self._send({"error": "bad or missing token"}, 403)
         app = self.server.app
-        body = self._body(MAX_UPLOAD if u.path == "/api/upload"
+        body = self._body(MAX_UPLOAD if u.path in ("/api/upload", "/api/report/add")
                           else MAX_BODY)
         if u.path == "/api/adapt/warm":
             return self._send(app.adapt_warm())
@@ -2614,7 +2686,13 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/api/runsroot":
             return self._send(app.set_runs(body.get("path")))
         if u.path == "/api/report":
+            # A problem report, mailed with the logs: not the run's report,
+            # which is GET /api/report.
             return self._send(app.report_problem(body))
+        if u.path == "/api/report/add":
+            return self._send(app.report_add(body))
+        if u.path == "/api/report/edit":
+            return self._send(app.report_edit(body))
         if u.path == "/api/resume":
             return self._send(app.resume_run(body.get("rundir")))
         if u.path == "/api/panel":

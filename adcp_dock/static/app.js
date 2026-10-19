@@ -4940,6 +4940,23 @@ function tidyLine(dir, d){
     + (said || esc(note)) + '</span></div>';
 }
 
+/* The run written up: its report, a page of its own to read and save as a PDF
+   (/report, laid out by reportkit.js). Offered once a peptide has a result;
+   with print=1 the print window opens once everything is drawn. */
+function reportHref(dir, print){
+  return '/report?t=' + encodeURIComponent(T) + '&rundir=' + encodeURIComponent(dir)
+    + (print ? '&print=1' : '');
+}
+function reportLine(dir, rows){
+  if(!rows.length) return '';
+  return '<div class=reportline style="margin-top:11px"><button class=secondary id=rreport type=button '
+    + 'title="The run written up: the ranking, each peptide\u2019s poses, contacts and residues, the methods with '
+    + 'their references and the settings, in a new tab ready to save as a PDF">Report (PDF)</button> '
+    + '<span class=why>the whole run written up, ready to save as a PDF; add views to it from the viewer\u2019s '
+    + '<b>add to report</b></span> <a class=why href="/docs/results.html#report" target=_blank rel=noopener '
+    + 'title="How the report is made">?</a></div>';
+}
+
 async function openRun(dir){
   clearInterval(WATCH);
   RUN = dir;
@@ -5010,8 +5027,11 @@ async function openRun(dir){
           + 'only these go back to the queue</span>'
           + '<div class=why id=resumemsg style="margin-top:7px"></div></div>'
         : '')
+      + reportLine(dir, rows)
       + tidyLine(dir, d)
       + (d.log_tail ? '<pre>' + esc(d.log_tail) + '</pre>' : '');
+    const rp = $('rreport');
+    if(rp) rp.onclick = () => window.open(reportHref(dir, true), '_blank', 'noopener');
     const tb = $('rtidy');
     if(tb) tb.onclick = async () => {
       const undo = tb.dataset.undo === '1';
@@ -5882,6 +5902,46 @@ document.addEventListener('change', e => {
   try { localStorage.setItem('adcp.viewer', ENGINE); } catch(err){}
   showEngine();
   if(WHICH) loadPose(+($('rposepick').value || 1));
+});
+
+/* Add to report: the view as it is, in 3Dmol or Mol*, kept in the run's
+   report folder and shown in its report with the pose's interaction diagram. */
+async function viewImage(){
+  let uri = '';
+  if(engineIs('molstar') && MV) uri = await MV.plugin.helpers.viewportScreenshot.getImageDataUri();
+  else if(VR) uri = VR.pngURI();
+  if(!uri) return '';
+  const img = new Image();
+  await new Promise((ok, bad) => { img.onload = ok; img.onerror = bad; img.src = uri; });
+  const c = document.createElement('canvas');
+  c.width = img.naturalWidth; c.height = img.naturalHeight;
+  const g = c.getContext('2d');
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, c.width, c.height);
+  g.drawImage(img, 0, 0);
+  return c.toDataURL('image/png');
+}
+document.addEventListener('click', async e => {
+  const b = e.target.closest ? e.target.closest('#raddrep') : null;
+  if(!b) return;
+  if(!WHICH){
+    $('viewmsg').textContent = 'Show a pose first: press View on a peptide\u2019s row.';
+    return;
+  }
+  b.disabled = true;
+  let image = '';
+  try { image = await viewImage(); } catch(err){ image = ''; }
+  if(!image){
+    b.disabled = false;
+    $('viewmsg').innerHTML = '<span class=bad>The view could not be captured; is WebGL on?</span>';
+    return;
+  }
+  const r = await ask('/api/report/add', {rundir: WHICH.dir, peptide: WHICH.pep, rank: RANKNOW,
+                                          image: image, viewer: ENGINE});
+  b.disabled = false;
+  if(r.error){ $('viewmsg').innerHTML = '<span class=bad>' + esc(r.error) + '</span>'; return; }
+  $('viewmsg').innerHTML = '<span class=good>Added to the report</span>: ' + r.count + ' view'
+    + (r.count === 1 ? '' : 's') + ' so far. <a id=raddopen href="' + esc(reportHref(WHICH.dir))
+    + '" target=_blank rel=noopener>Open the report</a>';
 });
 
 /* the toolbar */

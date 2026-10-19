@@ -1876,6 +1876,7 @@ the queue for twice that and half an hour more, and at least two hours">Estimate
     <button class=pill id=rreset>reset</button>
     <button class=pill id=rspin>spin</button>
     <button class=pill id=rshot>save image</button>
+    <button class=pill id=raddrep title="Add this view, as it is, to the run's report, with the pose's interaction diagram; write its caption in the report">add to report</button>
     </span>
     <span class=vsep></span>
     <span class=vgrp>
@@ -2222,3 +2223,34 @@ def render(token):
                 .replace("__STALE__", stale_banner())
                 .replace("__FAVICON__", favicon_href())
                 .replace("__FAVICON_PNG__", favicon_png_href()))
+
+
+#: The report of a run: a page to read and save as a PDF. reportkit, the
+#: module the lab's tools share, lays it out from GET /api/report; the page is
+#: light whatever the interface's theme, as paper is.
+REPORT = r"""<!doctype html><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Report</title>
+<link rel="icon" type="image/svg+xml" href="__FAVICON__">
+<link rel="stylesheet" href="/static/reportkit.css?v=__VERSION__">
+<div id=rk-bar></div>
+<main id=rk-doc><p class=rk-why>Reading the run&hellip;</p></main>
+<script src="/static/3Dmol-min.js"></script>
+<script src="/static/reportkit.js?v=__VERSION__"></script>
+<script>
+ReportKit.start({api: '/api/report', token: __TOKEN__, params: {rundir: __RUNDIR__},
+                 store: 'adcp.report', edit: '/api/report/edit', name: 'Report', autoprint: __PRINT__});
+</script>
+"""
+
+
+def report_page(token, rundir, autoprint=False):
+    """The report page for one run, carrying the token and the run."""
+    import json
+    from . import __version__
+    js = lambda v: json.dumps(str(v or "")).replace("<", "\\u003c")   # noqa: E731
+    return (REPORT.replace("__TOKEN__", js(token))
+                  .replace("__RUNDIR__", js(rundir))
+                  .replace("__PRINT__", "true" if autoprint else "false")
+                  .replace("__VERSION__", __version__)
+                  .replace("__FAVICON__", favicon_href()))

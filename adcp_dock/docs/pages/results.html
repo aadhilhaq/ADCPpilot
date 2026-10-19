@@ -121,6 +121,36 @@ plain text. Labels can be dragged clear, and the leader lines are drawn into the
 image <b>save image</b> writes. Two viewers are bundled, and a figure from either
 needs its own citation.</p>
 
+<h2 id="report">The report</h2>
+<p><b>Report (PDF)</b>, under a run's table, opens the run written up in a new
+tab, ready to save as a PDF. It reads like the results section of a paper: a
+summary of which peptide ranks first and whether the run separates it from the
+next ones; the receptor's preparation and the site and box; the peptides ranked,
+with a chart and the interface panel; then each peptide on a page of its own, with
+its poses and their scores, pictures of the top poses seen side on, the
+interaction diagram of the pose the panel describes and its residues one by one,
+its ring and its sequence flags. The views added from the viewer follow, then a
+methods section written from what the run did, with its references, and an
+appendix with the preparation log, AGFR's log and every setting.</p>
+<p>Every caption states the result from the run's own numbers, then only what is
+needed to read it: <i>"HOPE4_3 ranks first by MM-GBSA, &minus;69.0 &plusmn; 14.4
+kcal/mol, 5.9 ahead of HOPE9_1"</i>, not a title. A run docked with ADCP 1.0,
+before this tool moved to ADCP 1.1 or on a Mac, says so above everything else,
+since its scores are on another scale.</p>
+<p>The bar along the top chooses how many peptides get a page, how many poses are
+drawn, which poses get a diagram and whether van der Waals contacts are drawn in
+it, and which sections are included. <b>Save as PDF</b> opens the browser's print
+window, where Save as PDF is the printer; text and diagrams stay vector, and tables
+and figures are kept whole on a page. <b>Copy the methods and references</b> puts
+them on the clipboard to paste into a paper. To read the page on screen, <b>+</b>
+and <b>&minus;</b> zoom it from 50% to 200%, <b>fit width</b> makes it as wide as
+the window and the percentage itself goes back to 100%; the zoom is kept in this
+browser and never reaches the PDF.</p>
+<p id="add-to-report"><b>add to report</b>, on the viewer's bar, adds the view
+exactly as it is, in 3Dmol or Mol*, with that pose's interaction diagram. Write
+your own words under it in the report itself. Views are kept with the run, in its
+<code>report/</code> folder, and can be moved or taken out from the report.</p>
+
 <h2 id="the-files">The files the run writes</h2>
 <table>
 <tr><th>File</th><th>What it holds</th></tr>
@@ -130,6 +160,7 @@ needs its own citation.</p>
 <tr><td><code>metrics/</code></td><td>one file per peptide with every pose measured, and the residue map</td></tr>
 <tr><td><code>docking/</code></td><td>the ranked poses, as ADCP wrote them</td></tr>
 <tr><td><code>HOW_TO_CITE.txt</code> and two reference files</td><td>what to cite, scoped to this run</td></tr>
+<tr><td><code>report/</code></td><td>the views added to the <a href="#report">report</a> from the viewer, with your words for them</td></tr>
 <tr><td><code>archive/</code></td><td>once the run is <a href="runs.html#tidy">tidied</a>, the files its results no longer read, in one archive</td></tr>
 </table>
 <p><code>results.json</code> carries the constants on purpose: a probe radius, a
