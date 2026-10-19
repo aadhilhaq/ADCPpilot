@@ -1272,6 +1272,14 @@ def _methyl(root, one, two, bond=1.090, angle=109.5):
                                                              300.0)]
 
 
+def _room(x, atoms, more=()):
+    """How far x is from the nearest of `atoms` (an n x 3 array) and `more`."""
+    import numpy as np
+    near = [float(np.linalg.norm(atoms - x, axis=1).min())] if len(atoms) else []
+    near += [float(np.linalg.norm(p - x)) for p in more]
+    return min(near) if near else float("inf")
+
+
 def cap_breaks(path, out_path, gaps, steps, log=print, amide_h=False):
     """ACE and NME on the ends a chain break creates. Returns out_path or None.
 
@@ -1329,10 +1337,43 @@ def cap_breaks(path, out_path, gaps, steps, log=print, amide_h=False):
                 % (serial, nm, resname, chain, resnum,
                    xyz[0], xyz[1], xyz[2], element))
 
+    # Every heavy atom that stays, and whose it is, for the room an ACE is
+    # turned to find below. The terminal oxygen of each residue before a
+    # break goes (see below), and stands where the NME's nitrogen does.
+    ends = {a for a, _b, _d in gaps}
+    owner, others = [], []
+    for l in rows:
+        if l[:6].strip() not in ("ATOM", "HETATM") or _is_hydrogen(
+                l[12:16], l[76:78]):
+            continue
+        try:
+            xyz = [float(l[30:38]), float(l[38:46]), float(l[46:54])]
+            key = (l[21], int(l[22:26]), l[26])
+        except ValueError:
+            continue
+        if key in ends and l[12:16].strip() in ("OXT", "OT1", "OT2"):
+            continue
+        owner.append((key, l[12:16].strip()))
+        others.append(xyz)
+    others = np.array(others, dtype=float).reshape(-1, 3)
+    placed = []       # the heavy atoms of the caps, as they are built
+
     add = {}          # (chain, resnum, icode) -> [lines to put after it]
     pre = {}          # (chain, resnum, icode) -> [lines to put before it]
     add_h = {}        # (chain, resnum, icode) -> [its amide hydrogen]
     n_cap = 0
+    # The NMEs first: each stands where the residue's own carbonyl puts it,
+    # so it has no freedom, and every ACE is then turned clear of all of them.
+    nme_at = {}
+    for a, b, _d in gaps:
+        A = at.get(a, {})
+        if {"N", "CA", "C", "O"} <= set(A):
+            # The N is trans to the carbonyl O about CA-C, in its plane.
+            psi = _dihedral(A["N"], A["CA"], A["C"], A["O"])
+            npos = _place(A["N"], A["CA"], A["C"], 1.329, 116.2, psi + 180.0)
+            mpos = _place(A["O"], A["C"], npos, 1.449, 121.5, 0.0)
+            nme_at[a] = (npos, mpos)
+            placed += [npos, mpos]
     # WHOLE RESIDUES, NAMED AS THE FORCE FIELDS NAME THEM. The caps used to
     # be two or three heavy atoms with no hydrogens, and the methyl carbon of
     # the NME was called C, which is not an atom NME has. OpenMM could not
@@ -1344,11 +1385,9 @@ def cap_breaks(path, out_path, gaps, steps, log=print, amide_h=False):
     for a, b, _d in gaps:
         A, B = at.get(a, {}), at.get(b, {})
         # NME on the fragment that ENDS at `a`: the amide, then its methyl.
-        if {"N", "CA", "C", "O"} <= set(A):
-            psi = _dihedral(A["N"], A["CA"], A["C"], A["O"])
-            npos = _place(A["N"], A["CA"], A["C"], 1.329, 116.2, psi + 180.0)
+        if a in nme_at:
+            npos, mpos = nme_at[a]
             hpos = _place(A["O"], A["C"], npos, 1.010, 119.0, 180.0)
-            mpos = _place(A["O"], A["C"], npos, 1.449, 121.5, 0.0)
             num = free_number(a[0], a[1] + 1)
             rows_out = [rec(0, "N", "NME", a[0], num, npos, "N"),
                         rec(0, "H", "NME", a[0], num, hpos, "H"),
@@ -1359,9 +1398,31 @@ def cap_breaks(path, out_path, gaps, steps, log=print, amide_h=False):
             n_cap += 1
         # ACE on the fragment that BEGINS at `b`: carbonyl C, its O, methyl.
         if {"N", "CA", "C"} <= set(B):
-            cpos = _place(B["C"], B["CA"], B["N"], 1.335, 121.7, 180.0)
-            opos = _place(B["CA"], B["N"], cpos, 1.229, 122.7, 0.0)
-            mpos = _place(B["CA"], B["N"], cpos, 1.508, 116.6, 180.0)
+            # Where the carbonyl stands about b's N-CA bond, b's phi, was
+            # never measured: the residue the cap stands for is missing. It
+            # is built extended, as it always was, unless that brings one of
+            # its heavy atoms within 2.8 A of another (b's N and CA aside,
+            # which it is bonded to or one bond beyond), and then at the
+            # first turn that clears them all, or failing that the one that
+            # leaves the most room. Extended put the ACE's oxygen 2.1 A from
+            # the next residue's own side chain twice on 7A3R, and 1.2 A from
+            # the methyl of the NME across a two-residue gap.
+            keep = np.array([not (k == b and n in ("N", "CA"))
+                             for k, n in owner], dtype=bool)
+            near = others[keep]
+            best = None
+            for phi in (180.0, -150.0, -120.0, -90.0, -60.0, -30.0, 0.0,
+                        30.0, 60.0, 90.0, 120.0, 150.0):
+                cpos = _place(B["C"], B["CA"], B["N"], 1.335, 121.7, phi)
+                opos = _place(B["CA"], B["N"], cpos, 1.229, 122.7, 0.0)
+                mpos = _place(B["CA"], B["N"], cpos, 1.508, 116.6, 180.0)
+                room = min(_room(x, near, placed) for x in (cpos, opos, mpos))
+                if best is None or room > best[0]:
+                    best = (room, cpos, opos, mpos)
+                if room >= 2.8:
+                    break
+            cpos, opos, mpos = best[1:]
+            placed += [cpos, opos, mpos]
             num = free_number(b[0], max(1, b[1] - 1))
             rows_out = [rec(0, "C", "ACE", b[0], num, cpos, "C"),
                         rec(0, "O", "ACE", b[0], num, opos, "O"),
@@ -1392,36 +1453,37 @@ def cap_breaks(path, out_path, gaps, steps, log=print, amide_h=False):
         # the same place. The amide hydrogen below replaces all three.
         for nm in ("H1", "H2", "H3"):
             drop.add((b, nm))
+        # And the one this pdb2pqr calls H, which is the first of the three
+        # (H, H2, H3), not an amide hydrogen: kept, it stood where the cap's
+        # carbonyl carbon goes, 0.41 A from it on 7A3R, or out of the amide
+        # plane on every other break.
+        if b in pre:
+            drop.add((b, "H"))
 
     # THE AMIDE HYDROGEN, placed from the cap's carbonyl carbon, which is
-    # the nitrogen's new neighbour. Written for every capped residue now,
-    # not only on the reduce path: the three terminal hydrogens pdb2pqr put
-    # there have just been dropped, so without this the nitrogen has none.
-    # A residue that already carries one keeps it.
+    # the nitrogen's new neighbour, in the plane of the amide and trans to
+    # the carbonyl oxygen. Written for every capped residue, whichever
+    # protonation ran: the terminal hydrogens it put there have just been
+    # dropped, so without this the nitrogen has none. A proline's nitrogen
+    # carries none.
     if True:
-        names = {}
-        for l in rows:
-            if l[:6].strip() in ("ATOM", "HETATM"):
-                try:
-                    _k = (l[21], int(l[22:26]), l[26])
-                except ValueError:
-                    continue
-                names.setdefault(_k, set()).add(l[12:16].strip())
         for a, b, _d in gaps:
             B = at.get(b, {})
-            if "H" in names.get(b, set()) or not {"N", "CA"} <= set(B):
+            if not {"N", "CA"} <= set(B):
                 continue
             ace = [c for c in pre.get(b, []) if c[12:16].strip() == "C"]
             if not ace:
+                continue
+            resname = next((l[17:20] for l in rows
+                            if l[:6].strip() in ("ATOM", "HETATM")
+                            and l[21] == b[0] and l[22:26].strip() == str(b[1])
+                            and l[26] == b[2]), "UNK")
+            if resname.strip() == "PRO":
                 continue
             cpos = np.array([float(ace[0][30:38]), float(ace[0][38:46]),
                              float(ace[0][46:54])])
             hpos = B["N"] - 1.01 * _unit(_unit(cpos - B["N"])
                                          + _unit(B["CA"] - B["N"]))
-            resname = next((l[17:20] for l in rows
-                            if l[:6].strip() in ("ATOM", "HETATM")
-                            and l[21] == b[0] and l[22:26].strip() == str(b[1])
-                            and l[26] == b[2]), "UNK")
             add_h.setdefault(b, []).append(
                 rec(0, "H", resname.strip(), b[0], b[1], hpos, "H"))
 
