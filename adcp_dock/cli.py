@@ -244,7 +244,16 @@ def main(argv=None):
                         "given with --ph")
     n.add_argument("--ph", type=float, default=7.4,
                    help="the pH for --protonation propka (7.4 by default); "
-                        "reduce takes none")
+                        "reduce takes none. With --receptor-prepared, the pH "
+                        "the receptor was prepared at: it is recorded, and "
+                        "MM-GBSA protonates the peptide at it")
+    n.add_argument("--receptor-prepared", action="store_true",
+                   help="the receptor (-r) is already prepared, as a HOPE "
+                        "Labs flow's Prepare card leaves it: its hydrogens, "
+                        "protonation states (HID, HIE, HIP, CYX, ASH, GLH, "
+                        "LYN), caps and numbering are docked as they are, and "
+                        "this package's preparation is not run. A receptor "
+                        "with no hydrogens is refused")
     n.add_argument("--adapt-session", default="",
                    help="Receptor from ADapt: a session folder ADapt wrote "
                         "(it holds session.json). Its receptor PDBQT is "
@@ -592,6 +601,7 @@ def main(argv=None):
             receptor_gradient=a.receptor_gradient, cyclic=a.cyclic,
             helical=a.helical, keep_trajectories=a.keep_trajectories,
             protonation=a.protonation,
+            receptor_prepared=bool(a.receptor_prepared),
             adapt=({"folder": adapt_rec["folder"], "save": adapt_rec["save"]}
                    if adapt_rec else {}),
             tools_roots=roots,

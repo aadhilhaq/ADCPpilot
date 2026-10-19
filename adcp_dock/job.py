@@ -72,6 +72,12 @@ def default(**kw):
         # the prepared receptor, and this package's preparation is not run.
         # Empty for a receptor prepared here.
         "adapt": {},
+        # A receptor that came prepared (in a HOPE Labs flow, by HOPE-MD's
+        # Prepare): its hydrogens, protonation states, caps and numbering are
+        # docked as they are, at the pH above, and this package's preparation
+        # is not run. It is still checked: a receptor with no hydrogens on it
+        # is refused (prepared.problems).
+        "receptor_prepared": False,
         # site
         # Where the box comes from. "residues" builds it around the residues
         # below, which is what every run made before the choice existed did,
@@ -357,6 +363,18 @@ def adapt_problems(j):
     return out
 
 
+def prepared_problems(j):
+    """[str] why the job's receptor cannot be docked as one that came
+    prepared (receptor_prepared); empty when it can, or when it is not one."""
+    if not j.get("receptor_prepared"):
+        return []
+    if (j.get("adapt") or {}).get("folder"):
+        return ["A receptor from ADapt was prepared there: it cannot also be "
+                "one that came prepared from elsewhere. Choose one."]
+    from . import prepared
+    return prepared.problems(j.get("receptor") or "", j.get("chains") or [])
+
+
 def take_adapt(j):
     """A receptor from ADapt, read back and recorded in the job: its save,
     the md5 of its two files so a later change is caught, and the
@@ -509,6 +527,7 @@ def validate(j):
         elif not os.path.isfile(j["receptor"]):
             out.append("The receptor file does not exist: %s" % j["receptor"])
         out.extend(adapt_problems(j))
+        out.extend(prepared_problems(j))
         prot = j.get("protonation")
         if prot is not None and str(prot).strip().lower() not in ("reduce",
                                                                   "propka"):

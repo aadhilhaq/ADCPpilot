@@ -31,6 +31,10 @@ below runs. See <a href="#target-file">a target file from AGFR</a>.</li>
 three and ADapt opens on it in the card. Change there what stays in the
 receptor, and that receptor is docked. See
 <a href="#adapt">a receptor prepared in ADapt</a>.</li>
+<li><b>A receptor that came prepared.</b> From the command line, a PDB that
+was prepared before it got here, as a HOPE Labs flow&rsquo;s Prepare card leaves
+one, is docked as it is. See <a href="#came-prepared">a receptor that came
+prepared</a>.</li>
 </ul>
 <p>A <code>.pdbqt</code> is not taken by any of the first three. It is a
 receptor already prepared for AutoDock, and this tool prepares its own from a
@@ -311,6 +315,35 @@ command line the same is <code>adcp-dock new RUN --adapt-session FOLDER
 card has no frame and nothing else changes. An ADapt older than the version this
 interface works with is not opened; one quiet line in the card says how to
 update it.</div>
+
+<h2 id="came-prepared">A receptor that came prepared</h2>
+<p>A HOPE Labs flow prepares every receptor once, before any docking, with
+HOPE-MD&rsquo;s Prepare at the flow&rsquo;s pH. Preparing it again here would
+undo that: the hydrogens would be taken off and placed again by another
+program, and the histidines, disulphides and neutral acids and bases decided a
+second time. So such a receptor is given with
+<code>adcp-dock new RUN -r prepared.pdb --receptor-prepared --ph 6.5 --chain A
+-s ...</code> (<code>"receptor_prepared": true</code> in
+<code>job.json</code>), and it is docked as it came.</p>
+<p>What still happens to it: the chains given with <code>--chain</code> are
+copied into the run&rsquo;s <code>receptor</code> folder line for line, so every
+name, number and coordinate is the preparation&rsquo;s; waters are left out, and
+other hetero groups too unless <code>--keep-hetatms</code> is given; and
+prepare_receptor writes the PDBQT from it without adding hydrogens. The Amber
+names that carry a state (HID, HIE, HIP, CYX, ASH, GLH, LYN) and ACE and NME
+caps are given the same AutoDock types as the standard residues would be.
+MM-GBSA keeps the receptor&rsquo;s states as they came and protonates only the
+peptide, with PDB2PQR and PROPKA at the pH given.</p>
+<p>What does not happen: no hydrogen is removed or added, nothing is renamed,
+rebuilt or minimised. The run records that the receptor came prepared, by what
+and at what pH where a record beside the file says so (the
+<code>prepared.json</code> a Prepare card leaves), in
+<code>receptor/preparation.log</code>, in <code>job.json</code> and in the
+results&rsquo; constants, and the results say so above the table.</p>
+<div class="note"><b>A receptor with no hydrogens is refused.</b> A receptor
+said to be prepared that carries none is not prepared: its protonation states
+are unknown. The run is refused when it is made, with the reason, rather than
+protonated here without anyone being told.</div>
 
 <h2 id="target-file">A target file from AGFR</h2>
 <p>A target file (<code>.trg</code>) made in AGFR or AGFRGUI holds a receptor

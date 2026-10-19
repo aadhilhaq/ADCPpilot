@@ -422,11 +422,19 @@ def used_by(job):
     else:
         from . import job as _jobmod
         prot = done.get("method") or _jobmod.protonation_of(job)
+    came = bool(job.get("receptor_prepared")) and not from_adapt
+    if came:
+        # A receptor that came prepared was protonated before this run, and
+        # MM-GBSA protonates only the peptide, with PDB2PQR and PROPKA.
+        prot = "propka"
     by = {"reduce"} if prot == "reduce" else {"pdb2pqr", "propka"}
     # A run given a target file skips this package's preparation, and so
-    # does a receptor from ADapt, which reduce protonated there.
+    # does a receptor from ADapt, which reduce protonated there, and one
+    # that came prepared.
     if from_adapt:
         keys |= by
+    elif came:
+        pass
     elif not str(job.get("target_file") or "").strip():
         # PDBFixer checks every receptor for missing atoms, and the
         # minimization is OpenMM with ff14SB and GBn2 (prepare.minimise).

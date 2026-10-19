@@ -4972,6 +4972,11 @@ async function openRun(dir){
       + '</div><div class=why>' + esc(dir) + ' · ' + esc(d.job.state)
       + ' · ' + d.done + ' of ' + d.total + ' peptide(s) finished'
       + (d.job.site && d.job.site.note ? '<br>site: ' + esc(d.job.site.note) : '')
+      /* A receptor that came prepared was docked as it was given, and says so. */
+      + (d.job.receptor_prepared ? '<br>receptor: came prepared ('
+          + esc((((d.job.receptor_info || {}).protonation || {}).by)
+                || 'before this run') + ', pH ' + esc(String(d.job.ph))
+          + '); not prepared again here' : '')
       + '</div>'
       /* What the preparation did not do, shown above the numbers it affects. A
          receptor docked without protonation still produces a results table,

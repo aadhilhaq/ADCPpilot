@@ -608,7 +608,8 @@ def count_hydrogens(pdb_path: str) -> int:
 
 
 def prepare_pdbqt(rec: Receptor, workdir: str, tools,
-                  prepared_pdb: str | None = None, log=print) -> str:
+                  prepared_pdb: str | None = None, log=print,
+                  fallback: bool = True) -> str:
     """Write receptor.pdbqt using the ADCP 1.1 suite's prepare_receptor.
 
     If `prepared_pdb` carries hydrogens (the output of PDB2PQR does)
@@ -624,8 +625,19 @@ def prepare_pdbqt(rec: Receptor, workdir: str, tools,
     with "It seems that hydrogen atoms are missing in the receptor": the
     symptom, reported by a different program, long after the cause, and with
     no mention of protonation at all.
+
+    `fallback` off is a receptor that came prepared (receptor_prepared): its
+    hydrogens are the preparation's, so a prepared file prepare_receptor
+    cannot read, or one with no hydrogens, stops the run. Falling back to the
+    chain with hydrogens placed here would dock a receptor nobody prepared.
     """
     os.makedirs(workdir, exist_ok=True)
+    if not fallback and (not prepared_pdb or not os.path.isfile(prepared_pdb)
+                         or count_hydrogens(prepared_pdb) == 0):
+        raise RuntimeError(
+            "the receptor came prepared, but %s has no hydrogens on it, so "
+            "there is nothing prepared to dock into" % (prepared_pdb or
+                                                         "no file"))
     if prepared_pdb and os.path.isfile(prepared_pdb):
         src = prepared_pdb
         add_h = count_hydrogens(src) == 0
@@ -660,6 +672,13 @@ def prepare_pdbqt(rec: Receptor, workdir: str, tools,
     # extract is not. Recovering here is what keeps a run going; stopping
     # would only trade AGFR's confusing failure for a clearer one.
     if not os.path.isfile(out) or count_hydrogens(out) == 0:
+        if not fallback:
+            raise RuntimeError(
+                "prepare_receptor could not write the prepared receptor "
+                f"{src} as a PDBQT with its hydrogens. It came prepared, so "
+                "it is not replaced by the chain with hydrogens placed here, "
+                "which would throw the preparation away.\n"
+                + (p.stdout or "") + (p.stderr or ""))
         if src != prepared_pdb:
             raise RuntimeError(
                 "prepare_receptor could not produce a receptor with hydrogens "

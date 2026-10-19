@@ -556,12 +556,26 @@ def _amber_protonation_names(pdb_in: str, pdb_out: str) -> dict:
     return dict(counts)
 
 
-def residue_states(pdb_path: str) -> dict:
+#: The Amber names that already say a residue's state. A receptor that came
+#: prepared carries them, and they are its states as given.
+NAMED_STATES = ("HID", "HIE", "HIP", "CYX", "CYM", "ASH", "GLH", "LYN")
+#: Amber's names for what each of those is, for a program that reads only the
+#: standard twenty.
+STANDARD_NAME = {"HID": "HIS", "HIE": "HIS", "HIP": "HIS", "CYX": "CYS",
+                 "CYM": "CYS", "ASH": "ASP", "GLH": "GLU", "LYN": "LYS"}
+CAP_NAMES = ("ACE", "NME", "NMA")
+
+
+def residue_states(pdb_path: str, keep_named: bool = False) -> dict:
     """{(chain, number): Amber name} for the residues of a protonated PDB
     whose hydrogens call for another name (HIS to HID, HIE or HIP, CYS to
     CYX, and so on: _amber_name). Keyed as the complex is written: a blank
     chain is "_", and the number without its insertion code. Empty for a
-    file with no hydrogens, which says nothing about any residue's state."""
+    file with no hydrogens, which says nothing about any residue's state.
+
+    `keep_named`: a residue already named for its state (NAMED_STATES) is
+    that state, as a receptor that came prepared was given it, and is listed
+    under its own name whatever its hydrogens."""
     from collections import defaultdict
     hyd, resn, n_h = defaultdict(set), {}, 0
     for l in open(pdb_path, errors="replace"):
@@ -576,14 +590,165 @@ def residue_states(pdb_path: str) -> dict:
         if _is_h(nm):
             hyd[key].add(nm.upper())
             n_h += 1
-    if not n_h:
+    if not n_h and not keep_named:
         return {}
     out = {}
     for key, res in resn.items():
+        if keep_named and res in NAMED_STATES:
+            out[key] = res
+            continue
+        if not n_h:
+            continue
         new = _amber_name(res, hyd.get(key, set()))
         if new and new != res:
             out[key] = new
     return out
+
+
+#: A cap's methyl carbon as ff14SB's own templates name it, whatever wrote the
+#: file before: aminont12.lib's ACE calls it CH3 and aminoct12.lib's NME calls
+#: it C (with H1 to H3). An NME methyl written CH3, as the older Amber
+#: libraries and this package's cap writer spell it, or CA, as HADDOCK does,
+#: stops tleap: "Atom .R<NME>.A<CH3> does not have a type". Maestro's NMA is
+#: NME. Only heavy atoms reach tleap, so the hydrogens' names do not matter.
+TLEAP_CAP_ATOMS = {("ACE", "CA"): "CH3", ("ACE", "C1"): "CH3",
+                   ("NME", "CH3"): "C", ("NME", "CA"): "C", ("NME", "C1"): "C"}
+
+
+def tleap_caps(path):
+    """The caps in a complex tleap is about to read, named as ff14SB names
+    them (TLEAP_CAP_ATOMS), in place. Returns how many atoms were renamed."""
+    out, n = [], 0
+    for l in open(path):
+        if l.startswith(("ATOM", "HETATM")) and l[17:20].strip() in CAP_NAMES:
+            res = "NME" if l[17:20].strip() == "NMA" else l[17:20].strip()
+            want = TLEAP_CAP_ATOMS.get((res, l[12:16].strip()))
+            if want or res != l[17:20].strip():
+                field = l[12:16] if not want else (
+                    want if len(want) == 4 else (" " + want).ljust(4))
+                l = "ATOM  " + l[6:12] + field + l[16:17] + res.rjust(3) + l[20:]
+                n += 1
+        out.append(l)
+    if n:
+        with open(path, "w") as fh:
+            fh.writelines(out)
+    return n
+
+
+def prep_complex_prepared(com_pdb: str, workdir: str, prefix: str,
+                          protonation: dict, ph: float = 7.4, log=print,
+                          lig_chain: str | None = None) -> str:
+    """The complex for tleap when the receptor came prepared.
+
+    The receptor keeps every state it came with (protonation["states"],
+    read by residue_states with keep_named): its coordinates are the
+    prepared ones and its names the ones it was given, so nothing about it
+    is decided again. The peptide is the one thing still to protonate, and
+    it is protonated at the run's pH by PDB2PQR with PROPKA over the whole
+    complex, so its residues are titrated with the receptor around them;
+    only the peptide's states are read back. PDB2PQR is shown the receptor
+    in standard names and without its caps, which it may not have templates
+    for, since nothing of the receptor is taken from its answer. Every
+    hydrogen is then dropped and tleap builds them to match the names.
+
+    Prime reads <prefix>_com_prepped.pdb, the complex with its hydrogens in
+    standard names. Here that is the prepared receptor's own atoms, its
+    hydrogens and caps as they came (protonation["source"]), with the
+    peptide as PDB2PQR protonated it, so Prime scores the same states.
+    """
+    clean = os.path.join(workdir, f"{prefix}_com_forleap.pdb")
+    if os.path.isfile(clean):
+        return clean
+    if lig_chain is None:
+        lig_chain = peptide_chain_in(com_pdb)
+    states = dict(protonation.get("states") or {})
+    lig_states = {}
+    pka_pdb = os.path.join(workdir, f"{prefix}_com_pka.pdb")
+    exe = prep.find_tool("pdb2pqr", "pdb2pqr30")
+    if exe:
+        feed = os.path.join(workdir, f"{prefix}_com_forpka.pdb")
+        with open(feed, "w") as fh:
+            for l in open(com_pdb):
+                if l.startswith(("ATOM", "HETATM")):
+                    if _is_h(l[12:16].strip()) or l[17:20].strip() in CAP_NAMES:
+                        continue
+                    std = STANDARD_NAME.get(l[17:20].strip())
+                    if std:
+                        l = l[:17] + std + l[20:]
+                fh.write(l)
+        if not os.path.isfile(pka_pdb):
+            try:
+                subprocess.run([exe, "--ff=AMBER", f"--with-ph={ph}",
+                                "--titration-state-method=propka",
+                                "--keep-chain", f"--pdb-output={pka_pdb}",
+                                feed, os.path.join(workdir, f"{prefix}_com_pka.pqr")],
+                               capture_output=True, text=True, timeout=900)
+            except (OSError, subprocess.SubprocessError):
+                pass
+        if os.path.isfile(pka_pdb):
+            lig_states = {k: v for k, v in residue_states(pka_pdb).items()
+                          if k[0] == lig_chain}
+        else:
+            log(f"    {prefix}: PDB2PQR could not protonate the complex; the "
+                f"peptide keeps tleap's standard states")
+    else:
+        log(f"    {prefix}: PDB2PQR was not found; the peptide keeps tleap's "
+            f"standard states")
+
+    def named(l, table):
+        try:
+            key = (l[21], int(l[22:26]))
+        except ValueError:
+            return l
+        new = table.get(key)
+        if new and new != l[17:20].strip():
+            return l[:17] + new.ljust(3) + l[20:]
+        return l
+
+    out = []
+    for l in open(com_pdb):
+        if not l.startswith(("ATOM", "HETATM")):
+            out.append(l)
+            continue
+        if _is_h(l[12:16].strip()):
+            continue
+        out.append(named(l, lig_states if l[21] == lig_chain else states))
+    with open(clean, "w") as fh:
+        fh.writelines(out)
+
+    # What Prime is given: the receptor's own hydrogens, the peptide's from
+    # PDB2PQR (or none, for Prime's own preparation to add, when it failed).
+    source = protonation.get("source")
+    if source and os.path.isfile(source):
+        rec_chains = {l[21] for l in out if l.startswith(("ATOM", "HETATM"))
+                      and l[21] != lig_chain}
+        rows = []
+        for l in open(source, errors="replace"):
+            if not l.startswith("ATOM"):
+                continue
+            c = l[21] if l[21] != " " else "_"
+            if c not in rec_chains:
+                continue
+            std = STANDARD_NAME.get(l[17:20].strip())
+            rows.append(l[:17] + (std or l[17:20]) + l[20:21] + c + l[22:])
+        rows.append("TER\n")
+        pep_src = pka_pdb if os.path.isfile(pka_pdb) else com_pdb
+        rows += [l for l in open(pep_src) if l.startswith(("ATOM", "HETATM"))
+                 and l[21] == lig_chain]
+        rows.append("TER\nEND\n")
+        with open(os.path.join(workdir, f"{prefix}_com_prepped.pdb"), "w") as fh:
+            fh.writelines(r if r.endswith("\n") else r + "\n" for r in rows)
+    per_res = {}
+    for l in out:
+        if l.startswith(("ATOM", "HETATM")) and l[17:20].strip() in NAMED_STATES:
+            per_res[(l[21], l[22:27])] = l[17:20].strip()
+    tally = {}
+    for v in per_res.values():
+        tally[v] = tally.get(v, 0) + 1
+    log(f"    {prefix}: the receptor as it came prepared, the peptide at pH "
+        f"{ph:g}" + (": " + ", ".join(f"{k} x{v}" for k, v in sorted(tally.items()))
+                     if tally else ""))
+    return clean
 
 
 def prep_complex_reduce(com_pdb: str, workdir: str, prefix: str,
@@ -716,7 +881,8 @@ def _prepared_for(com_pdb, workdir, prefix, how):
     if old == stamp and os.path.isfile(clean):
         return True, stamp
     for tail in ("_com_forleap.pdb", "_com_forleap.json", "_com_prepped.pdb",
-                 "_com.pqr", "_com_reduce.pdb"):
+                 "_com.pqr", "_com_reduce.pdb", "_com_pka.pdb", "_com_pka.pqr",
+                 "_com_forpka.pdb"):
         stale = os.path.join(workdir, prefix + tail)
         if os.path.isfile(stale):
             os.remove(stale)
@@ -746,10 +912,13 @@ def prep_complex(com_pdb: str, workdir: str, prefix: str, ph: float = 7.4,
     if lig_chain is None:
         lig_chain = peptide_chain_in(com_pdb)
     reduce_ = bool(protonation and protonation.get("method") == "reduce")
-    how = ({"method": "reduce",
+    came = bool(protonation and protonation.get("method") == "prepared")
+    how = ({"method": protonation.get("method"),
             "states": sorted("%s:%s=%s" % (k[0], k[1], v) for k, v in
                              (protonation.get("states") or {}).items())}
-           if reduce_ else {"method": "propka", "ph": float(ph)})
+           if (reduce_ or came) else {"method": "propka", "ph": float(ph)})
+    if came:
+        how["ph"] = float(ph)
     how["peptide_chain"] = lig_chain
     fresh, stamp = _prepared_for(com_pdb, workdir, prefix, how)
     clean = os.path.join(workdir, f"{prefix}_com_forleap.pdb")
@@ -758,10 +927,14 @@ def prep_complex(com_pdb: str, workdir: str, prefix: str, ph: float = 7.4,
     if reduce_:
         got = prep_complex_reduce(com_pdb, workdir, prefix, protonation, log,
                                   lig_chain=lig_chain)
+    elif came:
+        got = prep_complex_prepared(com_pdb, workdir, prefix, protonation,
+                                    ph, log, lig_chain=lig_chain)
     else:
         got = _prep_complex_propka(com_pdb, workdir, prefix, ph, log)
     separate_chains(got, lig_chain, log=lambda m: log(f"    {prefix}: "
                                                       + m.strip()))
+    tleap_caps(got)
     if os.path.abspath(got) == os.path.abspath(clean):
         with open(os.path.join(workdir, f"{prefix}_com_forleap.json"),
                   "w") as fh:

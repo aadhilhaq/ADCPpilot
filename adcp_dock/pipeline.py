@@ -349,6 +349,7 @@ def stage_prepare(rundir, j=None, log=print):
     protonation = jobmod.protonation_of(j)
     reduce_exe = T.suite_program("reduce")
     from_adapt = bool((j.get("adapt") or {}).get("folder"))
+    came = None
     if from_adapt:
         # ADapt chose what the receptor holds and AGFR's own code wrote it:
         # its PDBQT is docked as it is, and its _rec_H.pdb, the same
@@ -356,6 +357,11 @@ def stage_prepare(rundir, j=None, log=print):
         prepared, recq = _take_adapt(rundir, j, log)
         if mode == "ligand":
             _drop_ligand(j.get("site_ligand"), (recq, prepared), recdir, log)
+    elif j.get("receptor_prepared"):
+        # Prepared before it got here (a HOPE Labs flow's Prepare card):
+        # docked with the protonation it was given, at the pH it was given,
+        # and nothing of this package's preparation runs.
+        prepared, recq, came = _take_prepared(rundir, j, rec, T, log)
     else:
         # The full preparation: alternate locations, modified residues,
         # waters, cofactors, missing side chains, termini, disulphides,
@@ -484,7 +490,7 @@ def stage_prepare(rundir, j=None, log=print):
     if maps.exe:
         j["maps"]["agfr_version"] = adcp11.agfr_version(maps.exe)
     j["receptor_info"] = {"prepared_pdb": prepared, "pdbqt": recq,
-                          "protonation": _protonation_record(
+                          "protonation": came or _protonation_record(
                               j, recdir, reduce_exe, from_adapt)}
     j["target"] = trg
     j["state"] = "prepared"
@@ -563,6 +569,72 @@ def _take_adapt(rundir, j, log=print):
     return prepared, recq
 
 
+def _take_prepared(rundir, j, rec, T, log=print):
+    """(prepared PDB, PDBQT, the protonation record) of a receptor that came
+    prepared (receptor_prepared).
+
+    Its chains are copied into the run as they are (prepared.take): names,
+    numbering, hydrogens and caps all the preparation's. A receptor said to
+    be prepared that carries no hydrogens is refused here, with the reason,
+    rather than protonated quietly. The PDBQT is written from it without
+    asking prepare_receptor for hydrogens, and with no fallback to the chain
+    as read, which would dock a receptor nobody prepared.
+    """
+    from . import prepared as prepmod
+    recdir = os.path.join(rundir, "receptor")
+    os.makedirs(recdir, exist_ok=True)
+    out = os.path.join(recdir, "prepared.pdb")
+    ph = float(j.get("ph", 7.4))
+    head = ("Receptor preparation\n====================\n\n"
+            "in  : %s\nout : %s\npH  : %g (as given)\n\n" % (j["receptor"], out, ph))
+    try:
+        took = prepmod.take(j["receptor"], list(rec.chains), out,
+                            keep_hetatms=bool(j.get("keep_hetatms", False)))
+    except prepmod.NotPrepared as exc:
+        with open(os.path.join(recdir, "preparation.log"), "w") as fh:
+            fh.write(head + "  receptor came prepared: refused; %s\n" % exc)
+        raise SystemExit(str(exc))
+    info = prepmod.provenance(j["receptor"])
+    info.update(ph_given=ph, states=took["states"])
+    said = prepmod.describe(info)
+    log("  the receptor came prepared: %s" % said)
+    log("  this package's preparation is not run; %d hydrogens on %d atoms, "
+        "kept as they are" % (took["hydrogens"], took["atoms"]))
+    other = info.get("ph")
+    if other is not None and abs(float(other) - ph) > 1e-6:
+        log("  WARNING the record beside the receptor says it was prepared at "
+            "pH %g, and this run was given pH %g. The receptor keeps the "
+            "states it was prepared with; the peptide is protonated at pH %g"
+            % (float(other), ph, ph))
+    with open(os.path.join(recdir, "preparation.log"), "w") as fh:
+        fh.write(head)
+        fh.write("  receptor came prepared: done; %s. This package's "
+                 "preparation was not run: no hydrogen was removed or added, "
+                 "no residue renamed, nothing minimised\n" % said)
+        fh.write("  protonation: done; as the receptor was prepared, %d "
+                 "hydrogens kept\n" % took["hydrogens"])
+        if took["waters_dropped"] or took["groups_dropped"]:
+            fh.write("  left out: %d water(s)%s\n" % (
+                took["waters_dropped"],
+                (", " + ", ".join(took["groups_dropped"][:10]))
+                if took["groups_dropped"] else ""))
+        if info.get("record"):
+            fh.write("  record: %s\n" % info["record"])
+    recq = receptor.prepare_pdbqt(rec, recdir, T, prepared_pdb=out, log=log,
+                                  fallback=False)
+    record = {"method": "prepared",
+              "by": info.get("by") or "a preparation done before this run",
+              "ph": ph, "states": took["states"],
+              "hydrogens": took["hydrogens"]}
+    if other is not None:
+        record["prepared_at_ph"] = float(other)
+    if info.get("method"):
+        record["protonated_with"] = info["method"]
+    if info.get("record"):
+        record["record"] = info["record"]
+    return out, recq, record
+
+
 def _prepare_from_target(rundir, j, log=print):
     """A run that starts from a target file (AGFRGUI): nothing to prepare or
     build, only the file to take in."""
@@ -617,6 +689,21 @@ def _carry_protonation(rec, j, prepared, log=print):
     # What actually ran, where the prepare stage recorded it: reduce asked
     # for and replaced by PDB2PQR is recorded as PDB2PQR.
     info = (j.get("receptor_info") or {}).get("protonation") or {}
+    if info.get("method") == "prepared" or j.get("receptor_prepared"):
+        # A receptor that came prepared keeps every state it came with: the
+        # names it carries (HID, CYX, LYN ...) and, for a residue named
+        # plainly, what its hydrogens say. The peptide is protonated at the
+        # run's pH, with the receptor around it (mmgbsa.prep_complex).
+        states = mmgbsa.residue_states(prepared, keep_named=True)
+        rec.protonation = {"method": "prepared", "states": states,
+                           "ph": float(j.get("ph", 7.4)), "source": prepared}
+        changed = {}
+        for v in states.values():
+            changed[v] = changed.get(v, 0) + 1
+        log("  the receptor keeps the protonation it came prepared with%s"
+            % (": " + ", ".join("%s x%d" % kv for kv in sorted(changed.items()))
+               if changed else ""))
+        return rec
     if (info.get("method") or jobmod.protonation_of(j)) != "reduce":
         return rec
     states = mmgbsa.residue_states(prepared)
@@ -1672,7 +1759,8 @@ def prep_time(j):
                             gradient=maps.gradient, autosite=maps.autosite,
                             pocket=site_mode(j) == "pocket",
                             protonation=jobmod.protonation_of(j),
-                            prepared=not (j.get("adapt") or {}).get("folder"))
+                            prepared=not ((j.get("adapt") or {}).get("folder")
+                                          or j.get("receptor_prepared")))
     return sizing.hhmmss(sizing.book_prep(m))
 
 
@@ -1699,6 +1787,12 @@ def batch_notes(j, stage):
                        "prepared receptor. This package's preparation is not "
                        "run" % (a.get("save") or "newest", a["folder"],
                                 a.get("tab") or "tab not recorded"))
+        elif j.get("receptor_prepared"):
+            out.append("  receptor %s, chain(s) %s, which came prepared: "
+                       "its hydrogens and protonation states are docked as "
+                       "they are, at pH %g. This package's preparation is "
+                       "not run" % (j.get("receptor"), chains,
+                                    float(j.get("ph", 7.4))))
         else:
             out.append("  receptor %s, chain(s) %s" % (j.get("receptor"),
                                                       chains))
@@ -1736,7 +1830,11 @@ def batch_notes(j, stage):
                    % (int(j.get("mmgbsa_poses", 5)),
                       j.get("mmgbsa_engine") or "amber",
                       j.get("mmgbsa_model") or "obc2",
-                      "the receptor's protonation from reduce, and reduce "
+                      "the protonation the receptor came prepared with, and "
+                      "PDB2PQR with PROPKA protonates the peptide at pH %g"
+                      % float(j.get("ph", 7.4))
+                      if j.get("receptor_prepared")
+                      else "the receptor's protonation from reduce, and reduce "
                       "protonates the peptide"
                       if jobmod.protonation_of(j) == "reduce"
                       else "is protonated again by PDB2PQR with PROPKA at "

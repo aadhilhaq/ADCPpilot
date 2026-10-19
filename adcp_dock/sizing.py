@@ -185,8 +185,8 @@ def prep_minutes(atoms=0, hetatm_kinds=0, fill_loops=False, box=None,
     the stage runs, so `box` is then the largest it may be.
 
     `protonation` is "reduce" or "propka". `prepared` off is a receptor
-    prepared elsewhere (in ADapt): it is copied in, so only the maps cost
-    anything.
+    prepared elsewhere (in ADapt, or one that came prepared): it is copied
+    in, so only the maps cost anything.
     """
     m = PREP_FLOOR_MINUTES
     if prepared:
@@ -347,10 +347,10 @@ def plan(peptides, replicas, steps, cores=None, mmgbsa=False, mm_poses=5,
 
     `options` holds the run's settings that change the cost: autosite,
     receptor_gradient, site_mode, cyclic, helical, poses,
-    keep_trajectories, box_max, protonation, from_adapt. Missing ones cost
-    what they did before the settings existed. "rings", when given, is
-    each peptide's own ring in the order of `peptides`; a peptide without
-    one is priced with the run's "cyclic".
+    keep_trajectories, box_max, protonation, from_adapt, receptor_prepared.
+    Missing ones cost what they did before the settings existed. "rings",
+    when given, is each peptide's own ring in the order of `peptides`; a
+    peptide without one is priced with the run's "cyclic".
     """
     o = dict(options or {})
     lengths = [len(p) if isinstance(p, str) else int(p) for p in peptides]
@@ -376,7 +376,8 @@ def plan(peptides, replicas, steps, cores=None, mmgbsa=False, mm_poses=5,
                         gradient=bool(o.get("receptor_gradient", True)),
                         autosite=o.get("autosite", "1.0"), pocket=pocket,
                         protonation=o.get("protonation", "propka"),
-                        prepared=not o.get("from_adapt"))
+                        prepared=not (o.get("from_adapt")
+                                      or o.get("receptor_prepared")))
     # Each peptide is one array task, priced with its own length and ring.
     # Every task books the same walltime, so the booking is the costliest
     # task's: the longest peptide, unless a shorter one's ring makes it the

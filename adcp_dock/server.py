@@ -1341,7 +1341,8 @@ class App:
                 "keep_trajectories": bool(j.get("keep_trajectories")),
                 "box_max": float(j.get("box_max") or 30.0),
                 "protonation": jobmod.protonation_of(j),
-                "from_adapt": bool((j.get("adapt") or {}).get("folder"))}
+                "from_adapt": bool((j.get("adapt") or {}).get("folder")),
+                "receptor_prepared": bool(j.get("receptor_prepared"))}
 
     def sequence(self, path, chain):
         """The chain as residues, for the strip people click residues in."""
