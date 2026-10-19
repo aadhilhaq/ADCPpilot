@@ -742,6 +742,8 @@ document.querySelectorAll('#guide button[data-goto]').forEach(b => {
 
 /* Whether the ADCP 1.1 suite is installed: null until the server says. */
 let ADCP11 = null;
+/* Whether this is a Mac docking with ADCP 1.0 from ADFRsuite 1.0. */
+let MAC10 = false;
 api('/api/tools').then(d => {
   if(d.error) return;
   // A cluster's Slurm account and options, when its activate.sh or the
@@ -832,7 +834,25 @@ function gbEngines(rows){
      screen, the suite's folder on hover. */
   ADCP11 = !!d.adcp11;
   const en = $('enginenote');
-  if(d.adcp11){
+  const mac = d.mac10 && d.mac10.engaged;
+  if(mac){
+    /* A Mac docks with ADCP 1.0, from ADFRsuite 1.0: Scripps builds no ADCP
+       1.1 for macOS. Said where the engine is shown, with what that rules
+       out. */
+    ADCP11 = true;
+    MAC10 = true;
+    $('enginename').textContent = d.mac10.label;
+    en.innerHTML = '<span class=warn>' + esc(d.mac10.note) + '</span>';
+    en.title = 'Non-standard and D residues and OpenMM minimisation need '
+      + 'ADCP 1.1; ADCP 1.0 writes at most ' + d.mac10.max_poses + ' poses.';
+    $('omm_minimize').value = 0;
+    $('omm_minimize').disabled = true;
+    // ADFRsuite 1.0's agfr places its points with AutoSite 1.0.
+    $('autosite').value = '1.0';
+    $('autosite').disabled = true;
+    $('poses').max = d.mac10.max_poses;
+    if(+$('poses').value > d.mac10.max_poses) $('poses').value = d.mac10.max_poses;
+  } else if(d.adcp11){
     $('enginename').textContent = 'ADCP ' + (d.adcp11_version || '1.1');
     en.textContent = 'Installed.';
     en.title = 'The ADCP 1.1 suite' + (d.suite ? ' in ' + d.suite : '')
@@ -2934,7 +2954,8 @@ $('keep_hetatms').addEventListener('change', () => {
 function mapsNote(){
   const el = $('mapsnote');
   if(!el) return;
-  el.textContent = 'AGFR 1.1 builds the maps; AutoSite '
+  el.textContent = 'AGFR ' + (MAC10 ? '1.0' : '1.1')
+    + ' builds the maps; AutoSite '
     + $('autosite').value + ' places the points the search starts from'
     + ($('receptor_gradient').checked
        ? '; the receptor gradient is added, which takes longer.'
@@ -4958,6 +4979,10 @@ async function openRun(dir){
       + ((d.prep_warnings || []).length
         ? '<div class=bad style="margin:8px 0">' + d.prep_warnings.map(esc)
             .join('<br>') + '</div>' : '')
+      /* A run docked on a Mac with ADCP 1.0: said above its numbers, which
+         are not on the scale of ADCP 1.1's. */
+      + (d.engine_note ? '<div class=warn style="margin:8px 0">'
+          + esc(d.engine_note) + '</div>' : '')
       // One row per queued job, with a dot. Filled in by the monitor, so there
       // is one squeue call for the whole page rather than one per panel.
       + '<div class=jobs data-jobs="' + esc(dir) + '" style="margin:8px 0">'

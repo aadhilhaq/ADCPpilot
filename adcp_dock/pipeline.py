@@ -481,7 +481,8 @@ def stage_prepare(rundir, j=None, log=print):
     j["site"] = site
     j["maps"] = dict(maps.record(), command=target.command(
         maps, T, recq, "receptor", centre, size))
-    j["maps"]["agfr_version"] = adcp11.agfr_version(maps.exe)
+    if maps.exe:
+        j["maps"]["agfr_version"] = adcp11.agfr_version(maps.exe)
     j["receptor_info"] = {"prepared_pdb": prepared, "pdbqt": recq,
                           "protonation": _protonation_record(
                               j, recdir, reduce_exe, from_adapt)}
@@ -655,11 +656,16 @@ def stage_dock(rundir, index, j=None, log=print):
     wd = os.path.join(rundir, "docking")
     cpus = int(os.environ.get("SLURM_CPUS_PER_TASK", j.get("cpus", 0)) or 0)
     keep = int(j.get("poses", 10))
+    from . import mac10
     engine, exe = jobmod.resolve_engine(j)
     if engine == "missing":
         raise SystemExit("ADCP 1.1 is not installed here; ./install.sh "
                          "installs it")
-    label = "ADCP " + (adcp11.version(exe) or "1.1")
+    if engine == "mac-only":
+        raise SystemExit("this run was made on a Mac, to dock with ADCP 1.0; "
+                         "finish it there")
+    mac = engine == mac10.ENGINE
+    label = mac10.LABEL if mac else "ADCP " + (adcp11.version(exe) or "1.1")
     # This peptide's own ring, or the run's when it has none: the same
     # peptide the index names in peptide_list, so the same entry of the job.
     ring = jobmod.rings(j)[index]
@@ -671,18 +677,28 @@ def stage_dock(rundir, index, j=None, log=print):
         % (name, seq, label, int(j.get("replicas", 50)),
            int(j.get("steps", 2500000)), cpus or 1,
            describe_options(j, ring=ring)))
-    modes, pdir = adcp11.dock(seq, trg, wd, exe, key=jobmod.key(seq),
-                              replicas=int(j.get("replicas", 50)),
-                              steps=int(j.get("steps", 2_500_000)),
-                              poses=keep, cpus=cpus,
-                              minimize=int(j.get("omm_minimize") or 0),
-                              omm_env=j.get("omm_env") or "implicit",
-                              log=log, helical=opts["helical"],
-                              cyclic=opts["cyclic"],
-                              keep=bool(opts["keep"]))
+    if mac:
+        # ADFRsuite 1.0's adcp, with the folder put into the 1.1 layout
+        # straight after, so nothing below reads ADCP 1.0's own format.
+        modes, pdir = mac10.dock(seq, trg, wd, key=jobmod.key(seq),
+                                 replicas=int(j.get("replicas", 50)),
+                                 steps=int(j.get("steps", 2_500_000)),
+                                 cpus=cpus, log=log, helical=opts["helical"],
+                                 cyclic=opts["cyclic"],
+                                 keep=bool(opts["keep"]))
+    else:
+        modes, pdir = adcp11.dock(seq, trg, wd, exe, key=jobmod.key(seq),
+                                  replicas=int(j.get("replicas", 50)),
+                                  steps=int(j.get("steps", 2_500_000)),
+                                  poses=keep, cpus=cpus,
+                                  minimize=int(j.get("omm_minimize") or 0),
+                                  omm_env=j.get("omm_env") or "implicit",
+                                  log=log, helical=opts["helical"],
+                                  cyclic=opts["cyclic"],
+                                  keep=bool(opts["keep"]))
     # One archive per peptide, or nothing: hundreds of trajectory files per
     # peptide fill a cluster's file quota long before its byte quota.
-    if modes:
+    if modes and not mac:
         trajectories.finish(pdir, jobmod.key(seq), opts["keep"], log=log)
     out = {"name": name, "peptide": seq, "engine": label,
            # How it was docked, which the report and the rescoring read
@@ -1709,8 +1725,11 @@ def batch_notes(j, stage):
         except target.TargetError as exc:
             out.append("  maps: %s" % exc)
         return out
-    out.append("  docking ADCP 1.1, %d replicas x %d steps"
-               % (int(j.get("replicas", 50)), int(j.get("steps", 2_500_000))))
+    from . import mac10
+    out.append("  docking %s, %d replicas x %d steps"
+               % (mac10.LABEL if j.get("adcp_engine") == mac10.ENGINE
+                  else "ADCP 1.1", int(j.get("replicas", 50)),
+                  int(j.get("steps", 2_500_000))))
     out.append("  " + describe_options(j))
     if j.get("mmgbsa"):
         out.append("  then MM-GBSA on %d pose(s), %s, %s; the complex keeps %s"

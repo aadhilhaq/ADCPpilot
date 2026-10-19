@@ -30,6 +30,7 @@ from . import sizing
 from . import slurm, structure
 from . import tools as toolmod
 from . import adcp11 as adcp11_mod
+from . import mac10 as mac10_mod
 
 MAX_BODY = 4 << 20
 # Uploads have their own ceiling. Every other request is a small JSON object,
@@ -404,6 +405,13 @@ class App:
                 "suite": (adcp11_mod.home_of(self._adcp11()[0])
                           if self._adcp11()[0] else ""),
                 "agfr11": self._agfr11(),
+                # On a Mac, where Scripps builds no ADCP 1.1, ADFRsuite 1.0
+                # docks instead (mac10); the page says so where the engine
+                # is shown. Never engaged on any other system.
+                "mac10": ({"engaged": True, "label": mac10_mod.LABEL,
+                           "note": mac10_mod.NOTE,
+                           "max_poses": mac10_mod.MAX_POSES}
+                          if mac10_mod.engaged() else {"engaged": False}),
                 # ADapt, a separate tool for preparing the receptor, when it
                 # is installed where this can find it.
                 "adapt": self._adapt(),
@@ -864,7 +872,8 @@ class App:
         and the side chains this installation's library has."""
         mx = int(body.get("max_length") or peptide.MAX_LENGTH)
         exe = self._adcp11()[0]
-        return {"max_length": mx, "library": self._a11lib if exe else None}
+        return {"max_length": mx, "library": self._a11lib if exe else None,
+                "extended": not mac10_mod.engaged()}
 
     def roots(self):
         """Where the browser should offer to start.
@@ -1912,6 +1921,8 @@ class App:
                                   if k in jobmod.default()})
             j["label"] = label
             j["tools_roots"] = self.tools_roots
+            # On a Mac the run docks with ADCP 1.0, and says so.
+            jobmod.for_this_machine(j)
             # A row left "as the run" keeps no ring of its own, so the run's
             # choice applies to it; a row's own is written the one way.
             j["peptides"] = jobmod.tidy_peptides(j.get("peptides"))
@@ -2144,8 +2155,13 @@ class App:
         except Exception:                                       # noqa: BLE001
             todo = []
         from . import tidy as tidymod
+        # A run docked on a Mac with ADCP 1.0 says so above its table.
+        mac = (j.get("adcp_engine") == mac10_mod.ENGINE
+               or any(r.get("engine") == mac10_mod.LABEL
+                      for r in ((results or {}).get("rows") or [])))
         return {"rundir": rundir, "job": j, "jobs": jobs,
                 "prep_warnings": prep_warnings(rundir, j),
+                "engine_note": mac10_mod.NOTE if mac else "",
                 "outstanding": [{"index": i, "name": n, "sequence": s2}
                                 for i, n, s2 in todo],
                 "done": done, "total": len(j.get("peptides") or []),

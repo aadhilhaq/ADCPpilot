@@ -144,12 +144,18 @@ def platform_problem(system=None, machine=None):
     machine = (machine or platform.machine()).lower()
     if system == "linux" and machine in ("x86_64", "amd64"):
         return None
-    where = {"darwin": "a Mac", "windows": "Windows itself"}.get(
-        system, "%s on %s" % (system, machine))
+    if system == "darwin":
+        return ("The ADCP 1.1 suite is built by the Scripps Research Institute "
+                "for Linux on x86-64 only, and this is a Mac. Here `adcp-dock "
+                "local` docks with ADCP 1.0 from ADFRsuite 1.0 instead; for "
+                "ADCP 1.1, use a cluster, the Colab notebook or a Linux "
+                "virtual machine.")
+    where = {"windows": "Windows itself"}.get(system, "%s on %s" % (system,
+                                                                     machine))
     return ("The ADCP 1.1 suite is built by the Scripps Research Institute for "
             "Linux on x86-64 only, and this is %s. Run it on a cluster, in the "
-            "Colab notebook, or in a Linux virtual machine (on a Mac, Scripps "
-            "suggests Ubuntu in UTM; on Windows, use WSL)." % where)
+            "Colab notebook, or in a Linux virtual machine (on Windows, use "
+            "WSL)." % where)
 
 
 def default_dest():

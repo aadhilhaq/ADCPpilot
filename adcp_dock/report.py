@@ -456,6 +456,13 @@ def write(rows, outdir, top_n=TOP_N, constants=None, on_combined=False,
             for r in other:
                 fh.write("\t".join(_tsv(r.get(c)) for c in cols) + "\n")
     doc = {"ranked_by": key, "top_n": top_n, "rows": rows}
+    # A run docked on a Mac with ADCP 1.0 says so, in the table's file and
+    # in the printed one, since its scores are on another scale.
+    from . import mac10
+    note = (mac10.NOTE if any(r.get("engine") == mac10.LABEL for r in rows)
+            else "")
+    if note:
+        doc["engine_note"] = note
     if constants:
         # What every panel number was measured with, so a reader of the file
         # alone can tell a probe radius from a cutoff.
@@ -463,5 +470,7 @@ def write(rows, outdir, top_n=TOP_N, constants=None, on_combined=False,
     with open(os.path.join(outdir, "results.json"), "w") as fh:
         json.dump(doc, fh, indent=1)
     with open(os.path.join(outdir, "results.txt"), "w") as fh:
+        if note:
+            fh.write(note + "\n\n")
         fh.write(table(rows, top_n=top_n, on_combined=on_combined) + "\n")
     return tsv

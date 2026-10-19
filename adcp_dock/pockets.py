@@ -159,6 +159,13 @@ def find(path, cache, exe, chains=(), drop=(), keep_het=False, centre=None,
     """
     script = autosite_script(exe)
     if not script:
+        from . import mac10
+        if mac10.engaged():
+            raise PocketError("finding pockets first needs AutoSite 1.1, from "
+                              "the ADCP 1.1 suite, which Scripps does not "
+                              "build for macOS; on a Mac, AutoSite 1.0 places "
+                              "the points inside the box as the maps are "
+                              "built")
         raise PocketError("AutoSite 1.1 is not installed here; it comes with "
                           "the ADCP 1.1 suite")
     if not path or not os.path.isfile(path):

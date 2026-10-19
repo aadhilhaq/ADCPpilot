@@ -70,10 +70,14 @@ def _local(a):
     against its pinned checksum) and reports anything else that is missing;
     afterwards it starts in seconds. The work runs here rather than being
     submitted to SLURM.
+
+    On a Mac, where Scripps builds no ADCP 1.1, first use installs ADFRsuite
+    1.0 instead (mac10), and the runs made here dock with ADCP 1.0 and say
+    so.
     """
     import threading
     import webbrowser
-    from . import adcp11, adcp11_install, slurm, server
+    from . import adcp11, adcp11_install, mac10, slurm, server
 
     # Not on a cluster login node. A machine with sbatch that is not
     # inside a job is almost always one. On a cluster, `adcp-dock serve`
@@ -88,7 +92,7 @@ def _local(a):
     # Said before anything is checked or installed: the suite runs nowhere
     # else, so nothing else here could help.
     why = adcp11_install.platform_problem()
-    if why and not adcp11.find():
+    if why and not mac10.is_mac() and not adcp11.find():
         raise SystemExit(why)
 
     missing = []
@@ -105,18 +109,25 @@ def _local(a):
             "git+https://github.com/aadhilhaq/ADCP_docking\"\n"
             % ", ".join(missing))
 
-    suite = os.path.abspath(os.path.expanduser(a.tools))
-    # The folder asked for, else one installed where the interface looks
-    # (ADCPSUITE_HOME, the installation's tools folder): never a second one.
-    exe = adcp11.at(suite) or adcp11.find()
-    if not exe:
-        print("Installing the ADCP 1.1 suite into %s, once: the Scripps "
-              "Research Institute's recipe, a few minutes and about 3 GB."
-              % suite)
-        exe = adcp11_install.install(suite)
-    # The suite is named rather than put on PATH: its bin folder holds its
-    # own python, which would then be every program's python.
-    os.environ["ADCPSUITE_HOME"] = adcp11.home_of(exe)
+    if mac10.is_mac():
+        # ADFRsuite 1.0, the one docking suite Scripps builds for macOS.
+        dest = (mac10.DEFAULT if a.tools == LOCAL_TOOLS_DEFAULT
+                else os.path.abspath(os.path.expanduser(a.tools)))
+        os.environ[mac10.ENV] = mac10.install(dest)
+        print(mac10.NOTE)
+    else:
+        suite = os.path.abspath(os.path.expanduser(a.tools))
+        # The folder asked for, else one installed where the interface looks
+        # (ADCPSUITE_HOME, the installation's tools folder): never a second.
+        exe = adcp11.at(suite) or adcp11.find()
+        if not exe:
+            print("Installing the ADCP 1.1 suite into %s, once: the Scripps "
+                  "Research Institute's recipe, a few minutes and about 3 GB."
+                  % suite)
+            exe = adcp11_install.install(suite)
+        # The suite is named rather than put on PATH: its bin folder holds
+        # its own python, which would then be every program's python.
+        os.environ["ADCPSUITE_HOME"] = adcp11.home_of(exe)
     os.environ["ADCP_EXECUTOR"] = "local"
     # The browser is on this machine, so the page may open a run's folder in
     # the file manager.
@@ -143,6 +154,10 @@ def _local(a):
     except KeyboardInterrupt:
         print("\nstopped")
     return 0
+
+
+#: Where `adcp-dock local` installs the ADCP 1.1 suite unless told otherwise.
+LOCAL_TOOLS_DEFAULT = "~/.adcp-dock/adcpsuite"
 
 
 def default_runs():
@@ -378,9 +393,10 @@ def main(argv=None):
     lc = sub.add_parser(
         "local", help="set up and open the interface on this machine (a "
                       "laptop, a workstation or WSL), with no cluster")
-    lc.add_argument("--tools", default="~/.adcp-dock/adcpsuite",
+    lc.add_argument("--tools", default=LOCAL_TOOLS_DEFAULT,
                     help="where the ADCP 1.1 suite is, or is installed on "
-                         "first use")
+                         "first use (on a Mac, ADFRsuite 1.0, by default in "
+                         "~/.adcp-dock/ADFRsuite)")
     lc.add_argument("--runs", default="~/adcp_runs")
     lc.add_argument("--port", type=int, default=8765)
     lc.add_argument("--no-browser", action="store_true",
@@ -453,7 +469,17 @@ def main(argv=None):
         T = toolmod.discover(roots=a.tools_root)
         missing = 0
         suite = toolmod.suite_home(a.tools_root)
-        if suite:
+        from . import mac10
+        if mac10.engaged():
+            # A Mac docks with ADFRsuite 1.0: Scripps builds no ADCP 1.1 for
+            # macOS.
+            print("  %-16s %s, in %s\n  %s" % ("ADFRsuite 1.0", mac10.LABEL,
+                                              mac10.home(), mac10.NOTE))
+        elif mac10.is_mac():
+            print("  %-16s NOT FOUND  (on a Mac, adcp, agfr, prepare_receptor, "
+                  "reduce and msms come from it; adcp-dock local installs "
+                  "it)" % "ADFRsuite 1.0")
+        elif suite:
             from . import adcp11
             print("  %-16s %s, in %s" % ("ADCP 1.1 suite", "ADCP " + (
                 adcp11.version(adcp11.find(a.tools_root)) or "1.1"), suite))
@@ -572,6 +598,8 @@ def main(argv=None):
             peptides=_peptides(a.peptide, a.peptides_file, **kw))
         if adapt_rec:
             jobmod.take_adapt(j)
+        # On a Mac the run docks with ADCP 1.0, and says so.
+        jobmod.for_this_machine(j)
         # A ring the peptide cannot close is refused here, before any job
         # file is written, with the reason: ADCP itself would dock it as a
         # linear peptide and say nothing. Each peptide with its own ring,

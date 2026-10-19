@@ -173,17 +173,24 @@ def clean(text):
     return _WS.sub("", "".join(lines)).upper()
 
 
-def check(text, min_length=MIN_LENGTH, max_length=MAX_LENGTH, library=None):
+def check(text, min_length=MIN_LENGTH, max_length=MAX_LENGTH, library=None,
+          extended=True):
     """(cleaned, [Problem]). An empty problem list means ADCP will take it.
 
     ADCP 1.1's syntax for non-standard and D residues is accepted, and each
-    side-chain name is checked against `library` when one is given.
+    side-chain name is checked against `library` when one is given. Not on
+    a Mac (`extended` False), which docks with ADCP 1.0 (mac10).
     """
     seq = clean(text)
     out = []
     if not seq:
         return seq, [Problem("empty", "Enter a peptide sequence.")]
     if is_extended(seq):
+        if not extended:
+            return seq, [Problem(
+                "needs_adcp11", "Non-standard (<XXX>) and D (&) amino acids "
+                "need ADCP 1.1, which the Scripps Research Institute does not "
+                "build for macOS.")]
         return seq, _check_extended(seq, min_length, max_length, library)
 
     bad_letters, not_letters = [], []

@@ -13,8 +13,16 @@ import time
 VERSION = 1
 NAME = "job.json"
 # ADCP 1.1 writes every pose it reports with its side chains, up to -m, and
-# its own default for -m is 100.
+# its own default for -m is 100. ADCP 1.0, on a Mac, writes ten (mac10).
 MAX_POSES = 100
+
+
+def max_poses(engine):
+    """The most ranked poses the engine writes per peptide."""
+    from . import mac10
+    return mac10.MAX_POSES if engine == mac10.ENGINE else MAX_POSES
+
+
 #: The share of replicas that start as a helix in a new run, in per cent.
 HELICAL_DEFAULT = 25
 #: What a job file's adcp_engine may say. Every run docks with ADCP 1.1:
@@ -227,10 +235,36 @@ def resolve_engine(j):
     Every job docks with ADCP 1.1. A job file from before it was the only
     engine may name another in adcp_engine; what such a run still has to
     dock, on a resume, is docked with 1.1 as well.
+
+    The one exception is a Mac, where Scripps builds no ADCP 1.1: there a
+    run made on the Mac docks with ADFRsuite 1.0 (mac10.ENGINE, its folder),
+    and one made elsewhere cannot dock ("missing"). A run made on a Mac
+    cannot dock anywhere else ("mac-only"): its peptides would be docked by
+    two engines.
     """
-    from . import adcp11
+    from . import adcp11, mac10
+    want = str(j.get("adcp_engine") or "1.1")
+    if mac10.engaged():
+        return ((mac10.ENGINE, mac10.home()) if want == mac10.ENGINE
+                else ("missing", None))
+    if want == mac10.ENGINE:
+        return "mac-only", None
     exe = adcp11.find(j.get("tools_roots") or [])
     return ("1.1", exe) if exe else ("missing", None)
+
+
+def for_this_machine(j):
+    """A new job as this machine docks it: on a Mac, ADCP 1.0, named in
+    adcp_engine and engine, with its maps from ADFRsuite 1.0's agfr and
+    AutoSite 1.0; elsewhere left as it is (ADCP 1.1)."""
+    from . import mac10
+    if mac10.engaged():
+        j["adcp_engine"] = mac10.ENGINE
+        j["engine"] = mac10.LABEL
+        # Its maps: ADFRsuite 1.0's agfr, which has AutoSite 1.0 alone.
+        j["agfr"] = mac10.ENGINE
+        j["autosite"] = "1.0"
+    return j
 
 
 def key(sequence):
@@ -351,10 +385,12 @@ def take_adapt(j):
 
 def map_problems(j):
     """[str] why the grid maps cannot be built as the job asks."""
-    from . import target
+    from . import mac10, target
     out = []
     agfr = str(j.get("agfr") or "1.1")
-    if agfr not in target.AGFR_CHOICES:
+    if agfr == mac10.ENGINE and mac10.engaged():
+        pass                    # ADFRsuite 1.0's agfr, on a Mac (mac10)
+    elif agfr not in target.AGFR_CHOICES:
         out.append("The maps are built by AGFR 1.1, from the ADCP 1.1 suite: "
                    "agfr must be %s, not %r."
                    % (" or ".join(target.AGFR_CHOICES), agfr))
@@ -480,23 +516,36 @@ def validate(j):
                        "PROPKA at the pH given), not %r." % prot)
         out.extend(site_problems(j))
         out.extend(map_problems(j))
-    if str(j.get("adcp_engine") or "1.1") not in ENGINES:
+    from . import mac10
+    engine, exe = resolve_engine(j)
+    mac = engine == mac10.ENGINE
+    if mac10.engaged() and not mac:
+        out.append("This Mac docks with ADCP 1.0, because Scripps builds no "
+                   "ADCP 1.1 for macOS, and this run asks for ADCP 1.1. "
+                   "Dock it on Linux, a cluster or in Colab.")
+    elif engine == "mac-only":
+        out.append("This run was made on a Mac, to dock with ADCP 1.0; finish "
+                   "it there, or dock its peptides in a new run here.")
+    elif str(j.get("adcp_engine") or "1.1") not in ENGINES and not mac:
         out.append("The docking engine is ADCP 1.1: adcp_engine must be %s, "
                    "not %r." % (" or ".join(ENGINES), j.get("adcp_engine")))
-    engine, exe = resolve_engine(j)
-    if engine == "missing":
+    elif engine == "missing":
         out.append("ADCP 1.1 is not installed here. ./install.sh installs "
                    "it; INSTALL.md says how.")
     out.extend(peptide_option_problems(j))
     lib = None
-    if exe:
+    if exe and not mac:
         from . import adcp11 as _a
         lib = _a.library(exe)
+    if mac and int(j.get("omm_minimize") or 0):
+        out.append("Minimising poses with OpenMM needs ADCP 1.1, which "
+                   "Scripps does not build for macOS.")
     if not j.get("peptides"):
         out.append("No peptides to dock.")
     for i, p in enumerate(j.get("peptides") or [], 1):
         seq, probs = pep.check(p.get("sequence", ""), library=lib,
-                               max_length=j.get("max_length", pep.MAX_LENGTH))
+                               max_length=j.get("max_length", pep.MAX_LENGTH),
+                               extended=not mac)
         for pr in probs:
             out.append("Peptide %d (%s): %s"
                        % (i, p.get("name") or seq[:10] or "?", pr.message))
@@ -544,11 +593,12 @@ def validate(j):
                     % (names[key], i, label))
             else:
                 names[key] = i
+    most = max_poses(engine)
     if int(j.get("poses", 0)) < 1:
         out.append("Ask for at least one pose per peptide.")
-    elif int(j.get("poses", 0)) > MAX_POSES:
-        out.append("ADCP writes at most %d ranked poses per peptide; ask for "
-                   "%d or fewer." % (MAX_POSES, MAX_POSES))
+    elif int(j.get("poses", 0)) > most:
+        out.append("%s writes at most %d ranked poses per peptide; ask for "
+                   "%d or fewer." % (mac10.LABEL if mac else "ADCP", most, most))
     if j.get("mmgbsa_model", "obc2") not in ("obc2", "gbn2"):
         out.append("The MM-GBSA model must be obc2 (GB-OBC(II)) or gbn2 "
                    "(GBn2), not %r." % j.get("mmgbsa_model"))

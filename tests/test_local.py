@@ -109,13 +109,14 @@ check(r[2] and ":" in r[2][-1].message,
 
 # --- the ADCP 1.1 suite installs on Linux x86-64 alone -------------------------
 # Scripps builds it for Linux only, and its packages carry Linux programs, so
-# `adcp-dock local` on a Mac says so before installing anything.
+# a Mac is told so, and that `adcp-dock local` docks there with ADCP 1.0.
 from adcp_dock import adcp11_install as _ai                       # noqa: E402
 check(_ai.platform_problem("linux", "x86_64") is None,
       "Linux on x86-64 is refused for the ADCP 1.1 suite")
 _mac = _ai.platform_problem("darwin", "arm64") or ""
-check("Linux on x86-64 only" in _mac and "a Mac" in _mac and "virtual machine" in _mac,
-      "a Mac is not told the suite runs on Linux only, and what to do: %r" % _mac)
+check("Linux on x86-64 only" in _mac and "a Mac" in _mac and "ADCP 1.0" in _mac,
+      "a Mac is not told the suite runs on Linux only, and what it docks "
+      "with instead: %r" % _mac)
 check(_ai.platform_problem("linux", "aarch64"),
       "Linux on ARM is offered a suite built for x86-64")
 

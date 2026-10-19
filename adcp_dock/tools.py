@@ -13,6 +13,10 @@ The rest (pdb2pqr for protonation at a pH, AmberTools for MM-GBSA) is
 searched for in this interpreter's own environment, AMBERHOME, PATH, then
 conventional subdirectories under any roots passed in.
 
+On a Mac, where the Scripps Research Institute builds no ADCP 1.1, the
+docking programs, reduce and msms come from ADFRsuite 1.0 instead (mac10);
+that is asked of mac10.engaged(), which is False on every other system.
+
 A missing tool is reported by name, with what it is needed for, rather than
 as a FileNotFoundError from a job that is already running.
 """
@@ -120,8 +124,9 @@ def _executable(p):
 
 def discover(roots=(), env=True):
     """Tools(), with every executable this package knows how to use."""
+    from . import mac10
     found = {}
-    home = suite_home(roots)
+    home = mac10.home() or suite_home(roots)
     if home:
         for n in SUITE_BINS:
             p = os.path.join(home, "bin", n)
@@ -163,7 +168,11 @@ def discover(roots=(), env=True):
 
 def suite_program(name, tools=None, roots=()):
     """A program in the ADCP 1.1 suite's bin folder (SUITE_PROGRAMS), or
-    None when the suite is not installed or has no such program."""
+    None when the suite is not installed or has no such program. On a Mac,
+    ADFRsuite 1.0's (mac10)."""
+    from . import mac10
+    if mac10.engaged():
+        return mac10.program(name)
     roots = list(roots) or list(getattr(tools, "roots", None) or [])
     home = suite_home(roots)
     p = os.path.join(home, "bin", name) if home else None
@@ -176,7 +185,10 @@ def msms_command(tools=None, roots=()):
     library (mslib) through msms_mslib.py and the suite's own Python, which
     take the program's arguments and write its files (surface.run_msms runs
     either). None when there is none of them."""
-    from . import surface
+    from . import mac10, surface
+    if mac10.engaged():
+        # ADFRsuite 1.0's msms program, in its bin folder.
+        return surface.find_msms([mac10.home()])
     roots = list(roots) or list(getattr(tools, "roots", None) or [])
     home = suite_home(roots)
     return surface.find_msms(([home] if home else []) + roots)

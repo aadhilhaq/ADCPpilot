@@ -10,6 +10,7 @@ thing when a connection fails is what the far end said, not a spinner.
 """
 import json
 import os
+import platform
 import queue
 import threading
 import webbrowser
@@ -595,9 +596,16 @@ class App:
         from . import localrun
         try:
             self.say("Starting on this computer...")
-            self.say("The first start installs the ADCP 1.1 suite with the "
-                     "Scripps Research Institute's own recipe, which takes a "
-                     "few minutes and about 3 GB.")
+            if platform.system() == "Darwin":
+                self.say("The first start installs ADFRsuite 1.0 from the "
+                         "Scripps Research Institute, which takes a few "
+                         "minutes. On a Mac the docking is ADCP 1.0: Scripps "
+                         "builds no ADCP 1.1 for macOS, and its scores are not "
+                         "comparable with ADCP 1.1 runs.")
+            else:
+                self.say("The first start installs the ADCP 1.1 suite with "
+                         "the Scripps Research Institute's own recipe, which "
+                         "takes a few minutes and about 3 GB.")
             self.session = localrun.start(on_output=self.detail)
             self.say("Ready. Opening it in your browser.")
             self.say("  If it does not open, paste this in: %s"

@@ -147,7 +147,11 @@ def maps_for(j):
     the same two, which comes closest to the maps it was docked into. A job
     file that records its settings is built with what it records.
     """
-    from . import adcp11
+    from . import adcp11, mac10
+    if mac10.engaged():
+        # On a Mac, ADFRsuite 1.0's agfr with AutoSite 1.0, the gradient as
+        # the run asks (mac10.maps).
+        return mac10.maps(gradient=bool(j.get("receptor_gradient", True)))
     exe, script = adcp11.find_agfr(j.get("tools_roots") or [])
     if not (exe and script):
         raise TargetError("AGFR comes with the ADCP 1.1 suite, which is not "
@@ -279,7 +283,8 @@ def find_pocket(receptor_pdbqt, outdir, tools, maps, pocket="best",
     sub = os.path.join(outdir, "pocket")
     name = "pocket"
     # The gradient changes nothing AutoSite or the box sees, and costs time.
-    quick = Maps(exe=maps.exe, autosite=maps.autosite, gradient=False)
+    # Built the same way as the run's own maps (on a Mac, mac10's).
+    quick = type(maps)(exe=maps.exe, autosite=maps.autosite, gradient=False)
     cmd = command(quick, tools, receptor_pdbqt, name, pocket=pocket,
                   padding=padding)
     trg = os.path.join(sub, "%s.trg" % name)
