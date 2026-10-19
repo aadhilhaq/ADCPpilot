@@ -69,6 +69,12 @@ tmp = tempfile.mkdtemp(prefix="adapt_test_")
 os.environ["HOME"] = tmp                  # nothing may fall back to a real home
 for k in ("ADAPT_HOME", "ADCP_HOME", "ADCPSUITE_HOME"):
     os.environ.pop(k, None)
+# A checkout on the lab's cluster sits beside tools/docking, whose suite and
+# ADapt are found where a test says there are none; a copy in a folder with
+# nothing beside it is what "not installed" means here.
+from adcp_dock import adcp11  # noqa: E402
+
+adcp11._HERE = adapt._HERE = os.path.join(tmp, "alone", "ADCP_docking")
 
 # --- which folder counts as ADapt -----------------------------------------
 home = fake_adapt(os.path.join(tmp, "adapt"))

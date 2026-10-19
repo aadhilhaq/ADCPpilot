@@ -237,9 +237,15 @@ check(os.path.isdir(adapt_dir) and head(adapt_dir) == c1
       and ("fetched at %s" % c1) in adapt_line(out),
       "the fresh clone is not at the upstream commit, or not said: %s" % adapt_line(out))
 check(not leftovers(tools), "the clone left its temporary folder behind")
+# A checkout on the lab's cluster sits beside tools/docking, whose suite and
+# ADapt are found where a test says there are none; a copy in a folder with
+# nothing beside it is what "not installed" means here.
+alone = os.path.join(tempfile.mkdtemp(prefix="adapt_alone_"), "ADCP_docking")
+shutil.copytree(os.path.join(ROOT, "adcp_dock"), os.path.join(alone, "adcp_dock"),
+                ignore=shutil.ignore_patterns("__pycache__", "example_run"))
 found = subprocess.run(
     [sys.executable, "-c", "import sys; sys.path.insert(0, sys.argv[1]); "
-     "from adcp_dock import adapt; print(adapt.find() or '')", ROOT],
+     "from adcp_dock import adapt; print(adapt.find() or '')", alone],
     env=dict(base_env, ADCPSUITE_HOME=os.path.join(tools, "adcpsuite"), ADCP_HOME=dep),
     capture_output=True, text=True).stdout.strip()
 check(os.path.realpath(found) == os.path.realpath(adapt_dir),

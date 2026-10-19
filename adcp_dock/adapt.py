@@ -63,6 +63,9 @@ READS = (".pdb", ".ent", ".pdb.gz", ".ent.gz")
 #: No proxy for a connection to this same machine.
 _OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
+#: This checkout, whose tools folder and neighbours are searched; as in adcp11.
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 
 def candidates(roots=()):
     """Where an ADapt checkout is looked for, in order: ADAPT_HOME; each root
@@ -78,7 +81,7 @@ def candidates(roots=()):
     suite = adcp11.find(roots)
     named = os.environ.get("ADCPSUITE_HOME")
     inst = os.environ.get("ADCP_HOME")
-    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    here = _HERE
     bases = list(roots)
     if suite:
         bases.append(os.path.dirname(adcp11.home_of(suite)))

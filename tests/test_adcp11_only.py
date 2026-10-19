@@ -163,10 +163,17 @@ finally:
 empty = tempfile.mkdtemp(prefix="adcp11only_prefix_")
 os.rmdir(empty)
 env = {"PATH": "/usr/bin:/bin", "HOME": os.environ.get("HOME", "/tmp")}
+# A checkout on the lab's cluster sits beside tools/docking, whose suite and
+# ADapt are found where a test says there are none; a copy in a folder with
+# nothing beside it is what "not installed" means here.
+ALONE = os.path.join(tempfile.mkdtemp(prefix="adcp11only_alone_"), "ADCP_docking")
+shutil.copytree(ROOT, ALONE, ignore=shutil.ignore_patterns(
+    ".git", "tests", "build", "*.egg-info", "__pycache__", "notebooks", "tools",
+    "activate.sh", "example_run", "_runs", "_work"))
 
 
 def would(*opts, extra=None):
-    p = subprocess.run(["bash", os.path.join(ROOT, "install.sh"), "--check"]
+    p = subprocess.run(["bash", os.path.join(ALONE, "install.sh"), "--check"]
                        + list(opts), capture_output=True, text=True,
                        env=dict(env, **(extra or {})), timeout=600)
     return " ".join((p.stdout + p.stderr).split())
