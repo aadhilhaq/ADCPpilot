@@ -7,7 +7,7 @@ there, forwards a local port to it and opens a browser. Nothing about the
 tool has to be installed on the laptop except this launcher and paramiko.
 """
 
-__version__ = "0.1.20"
+__version__ = "0.1.21"
 # The same wording as the tool: ADCP and the suite it comes in belong to the
 # Scripps Research Institute, and this package launches a GUI that drives
 # them. The

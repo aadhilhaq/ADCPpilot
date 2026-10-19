@@ -13,7 +13,7 @@ cli (the command line), slurm (scheduling and local execution), cite
 it). The preparation, docking and rescoring engine is in _vendor.
 """
 
-__version__ = "0.1.20"
+__version__ = "0.1.21"
 
 # Authorship and attribution, defined once and read by the launcher, the
 # page, the CLI and the README. ADCP and the suite it comes in are products
