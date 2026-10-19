@@ -212,7 +212,32 @@ def default(**kw):
         "site": {},
     }
     j.update(kw)
+    # Which version of this tool wrote the job, and from which commit: the
+    # report's appendix names it. Set here whatever kw says, since a job made
+    # now is written by this tool.
+    j["written_by"] = written_by()
     return j
+
+
+_WRITTEN_BY = []
+
+
+def written_by():
+    """{"app", "version", "commit"} of the tool writing a job; the commit is
+    the checkout's, read once, or None outside a checkout."""
+    from . import APP, __version__
+    if not _WRITTEN_BY:
+        import subprocess
+        here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        commit = None
+        try:
+            r = subprocess.run(["git", "-C", here, "rev-parse", "--short", "HEAD"],
+                               capture_output=True, text=True, timeout=5)
+            commit = r.stdout.strip() or None if r.returncode == 0 else None
+        except (OSError, subprocess.SubprocessError):
+            commit = None
+        _WRITTEN_BY.append(commit)
+    return {"app": APP, "version": __version__, "commit": _WRITTEN_BY[0]}
 
 
 def path_of(rundir):
