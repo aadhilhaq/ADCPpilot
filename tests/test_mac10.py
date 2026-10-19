@@ -22,6 +22,9 @@ folder of stand-in programs that write what ADCP 1.0 writes. What is checked:
     refused on any other system; `adcp-dock local` choosing it on a Mac
     only, and `adcp-dock check` naming it there and only there.
 
+The real programs on a real Mac are tests/mac10_live.py's, which the manual
+mac10 workflow runs on GitHub's macOS runner.
+
     python3 tests/test_mac10.py
 """
 import contextlib

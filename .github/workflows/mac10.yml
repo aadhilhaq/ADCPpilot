@@ -1,0 +1,43 @@
+# ADCP 1.0 on a Mac: ADFRsuite 1.0 installed, and a tiny docking.
+#
+# By Aadhil Haq
+#
+# On macOS, where the Scripps Research Institute builds no ADCP 1.1,
+# `adcp-dock local` installs ADFRsuite 1.0 and docks with it (adcp_dock/mac10.py).
+# The test suite proves that route with stand-ins (tests/test_mac10.py); this
+# runs the real programs on GitHub's macOS runner: the download and its
+# checksum, Scripps' installer, agfr over the example receptor, a few replicas
+# of ADCP 1.0, and the folder in the ADCP 1.1 layout afterwards.
+#
+# MANUAL ONLY, from the Actions tab. It builds nothing and publishes nothing,
+# and no release waits for it.
+name: ADCP 1.0 on a Mac
+
+on:
+  workflow_dispatch:
+
+jobs:
+  mac10:
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Rosetta 2
+        # ADFRsuite 1.0 for macOS is built for Intel, and this runner has
+        # Apple silicon.
+        run: |
+          /usr/bin/pgrep -q oahd && echo "Rosetta 2 is running" || \
+            sudo softwareupdate --install-rosetta --agree-to-license
+
+      - name: install
+        # Only what the docking route imports; the rest of `adcp-dock[local]`
+        # is not needed for this.
+        run: pip install "numpy<2"
+
+      - name: install ADFRsuite 1.0, build maps, dock with ADCP 1.0
+        env: { PYTHONPATH: "${{ github.workspace }}" }
+        run: python tests/mac10_live.py "$RUNNER_TEMP/ADFRsuite"
