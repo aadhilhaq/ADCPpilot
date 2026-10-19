@@ -388,6 +388,32 @@ def panel_table(rows):
     return out
 
 
+#: What a run docked with ADCP 1.0, before this tool moved to ADCP 1.1, says
+#: above its table: its scores are on another scale. The date is the one its
+#: conversion recorded.
+CONVERTED_NOTE = ("Docked with ADCP 1.0, before this tool moved to ADCP 1.1. "
+                  "These scores are 1.0's, kept as they were when the run was "
+                  "converted%s; a run docked now uses ADCP 1.1, and its scores "
+                  "are not comparable with these.")
+
+
+def engine_note(rows, job=None):
+    """The line a run's table carries about the ADCP that docked it: a run
+    docked on a Mac with ADCP 1.0, a run docked with 1.0 before the move to
+    1.1 and converted since, or '' for an ADCP 1.1 run."""
+    from . import mac10
+    rows, job = rows or [], job or {}
+    if (job.get("adcp_engine") == mac10.ENGINE
+            or any(r.get("engine") == mac10.LABEL for r in rows)):
+        return mac10.NOTE
+    converted = job.get("converted") or {}
+    if (converted.get("from") == "ADCP 1.0"
+            or any(r.get("engine") == "ADCP 1.0" for r in rows)):
+        when = converted.get("date")
+        return CONVERTED_NOTE % (" on %s" % when if when else "")
+    return ""
+
+
 def write(rows, outdir, top_n=TOP_N, constants=None, on_combined=False,
           log=None):
     """results.tsv, results.json and a printable table. TSV because that is
@@ -456,11 +482,10 @@ def write(rows, outdir, top_n=TOP_N, constants=None, on_combined=False,
             for r in other:
                 fh.write("\t".join(_tsv(r.get(c)) for c in cols) + "\n")
     doc = {"ranked_by": key, "top_n": top_n, "rows": rows}
-    # A run docked on a Mac with ADCP 1.0 says so, in the table's file and
-    # in the printed one, since its scores are on another scale.
-    from . import mac10
-    note = (mac10.NOTE if any(r.get("engine") == mac10.LABEL for r in rows)
-            else "")
+    # A run docked with ADCP 1.0, on a Mac or before the move to 1.1, says
+    # so, in the table's file and in the printed one, since its scores are on
+    # another scale.
+    note = engine_note(rows)
     if note:
         doc["engine_note"] = note
     if constants:

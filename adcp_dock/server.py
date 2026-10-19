@@ -2155,13 +2155,12 @@ class App:
         except Exception:                                       # noqa: BLE001
             todo = []
         from . import tidy as tidymod
-        # A run docked on a Mac with ADCP 1.0 says so above its table.
-        mac = (j.get("adcp_engine") == mac10_mod.ENGINE
-               or any(r.get("engine") == mac10_mod.LABEL
-                      for r in ((results or {}).get("rows") or [])))
+        # A run docked with ADCP 1.0, on a Mac or before the move to 1.1,
+        # says so above its table.
         return {"rundir": rundir, "job": j, "jobs": jobs,
                 "prep_warnings": prep_warnings(rundir, j),
-                "engine_note": mac10_mod.NOTE if mac else "",
+                "engine_note": report.engine_note(
+                    (results or {}).get("rows"), j),
                 "outstanding": [{"index": i, "name": n, "sequence": s2}
                                 for i, n, s2 in todo],
                 "done": done, "total": len(j.get("peptides") or []),

@@ -341,6 +341,21 @@ appjs = open(os.path.join(ROOT, "adcp_dock", "static", "app.js")).read()
 check("d.engine_note" in appjs and "d.mac10.note" in appjs,
       "the page does not show the note")
 
+# --- a run docked with ADCP 1.0 before the move to 1.1, and converted since --------
+from adcp_dock import report as reportmod  # noqa: E402
+
+converted = {"converted": {"date": "2026-10-18", "from": "ADCP 1.0"}}
+said = reportmod.engine_note([{"engine": "ADCP 1.0"}], converted)
+check(said.startswith("Docked with ADCP 1.0, before this tool moved to ADCP 1.1")
+      and "converted on 2026-10-18" in said and "not comparable" in said,
+      "a converted 1.0 run's page does not say its scores are 1.0's: %r" % said)
+check(reportmod.engine_note([{"engine": "ADCP 1.0"}]).startswith("Docked with ADCP 1.0"),
+      "the rows alone do not say a run was docked with ADCP 1.0")
+check(reportmod.engine_note([{"engine": "ADCP 1.1.21"}], {}) == "",
+      "an ADCP 1.1 run is given a note")
+check(reportmod.engine_note([], {"adcp_engine": mac10.ENGINE}) == mac10.NOTE,
+      "a Mac run's job alone does not give the Mac note")
+
 # --- the install: the macOS tarball, checked ---------------------------------------
 # A stand-in tarball whose install.sh makes the three programs in -d.
 src = os.path.join(TMP, "src", "ADFRsuite_x86_64Darwin_1.0")
