@@ -467,10 +467,15 @@ def fix_structure(path, out_path, steps, fill_loops=False, cap_termini=True,
                     fixer.missingAtoms[res] = keep
                 else:
                     del fixer.missingAtoms[res]
-        try:
-            fixer.addMissingAtoms(seed=seed)     # the same loop every time
-        except TypeError:                        # a PDBFixer too old to take one
-            fixer.addMissingAtoms()
+        # PDBFixer's own minimisation on one thread of the CPU platform, so the
+        # same loop comes out on every node (a GPU node's platform, or another
+        # number of threads, sums the forces in another order)
+        with _one_cpu_thread() as cpu:
+            fixer.platform = cpu
+            try:
+                fixer.addMissingAtoms(seed=seed)     # the same loop every time
+            except TypeError:                        # a PDBFixer too old to take one
+                fixer.addMissingAtoms()
         made = [(r.chain.id, str(r.id).strip(), (r.insertionCode or "").strip())
                 for r in fixer.topology.residues()
                 if (r.chain.id, str(r.id).strip(), (r.insertionCode or "").strip()) not in present]
@@ -514,12 +519,47 @@ def fix_structure(path, out_path, steps, fill_loops=False, cap_termini=True,
 #: (on a spring) so the loop can close: the loop's stems.
 FLANK = 2
 #: The relaxation attempts, in order: the stems' spring (kcal/mol/A^2) and the
-#: warm spell (ps). The first that leaves every junction in shape is kept.
+#: warm spell (ps). The first that leaves every peptide bond in shape is kept.
 RELAX_SCHEDULE = ((10.0, 2.0), (5.0, 5.0), (2.0, 10.0), (1.0, 10.0), (0.5, 20.0))
 
-#: Where a peptide junction must sit after relaxation: the C-N bond (A) and the
-#: two backbone angles across it (degrees). Ideal is 1.33 A, 116 and 122.
-JUNCTION = {"bond": (1.20, 1.45), "ca_c_n": (105.0, 130.0), "c_n_ca": (110.0, 135.0)}
+#: What every peptide bond in or beside a rebuilt loop must measure after
+#: relaxation, as ADapt's rebuilding checks its loops: the C-N bond (A), the
+#: two backbone angles across it (degrees; ideal 1.33 A, 116 and 122), CA to
+#: CA (A; 3.80 across a trans bond in crystal structures, a little more once
+#: minimised in ff14SB) and the twist, omega (CA-C-N-CA), within `trans`
+#: degrees of 180. A cis bond, within `trans` of 0, passes only before a
+#: proline, with CA to CA in `ca_ca_cis`. Every rebuilt residue with a CB is
+#: of the L hand: its improper N-C-CA-CB within `hand` degrees of HAND, and a
+#: Thr or Ile has its CB of the natural hand as well. And no heavy atom of a
+#: rebuilt residue is nearer than `contact` A to an amino acid's heavy atom
+#: more than three bonds away (a hydrogen bond is 2.6 A and up).
+JUNCTION = {"bond": (1.30, 1.37), "ca_c_n": (105.0, 130.0), "c_n_ca": (110.0, 135.0),
+            "ca_ca": (3.70, 3.95), "ca_ca_cis": (2.70, 3.05), "trans": 30.0, "hand": 25.0,
+            "contact": 2.5}
+#: The improper N-C-CA-CB of an L residue, in degrees (114 to 129 in measured
+#: structures), and its N-C-CA-HA (-119, within 1.4 on the 361 residues of a
+#: prepared 7A3R chain A). Held on HA as well as CB, a CA stays tetrahedral:
+#: held on CB alone, one in a loop often went nearly flat (improper 160 to
+#: 165 degrees, N-CA-C over 120) and stayed so through every attempt.
+HAND = 122.0
+HAND_HA = -119.0
+#: The chiral CB of Thr and Ile: (X - CB) x (Y - CB) . (CA - CB) is positive in
+#: the natural form and negative in the allo form.
+CHIRAL_CB = {"THR": ("OG1", "CG2"), "ILE": ("CG1", "CG2")}
+#: The restraints that hold a rebuilt loop's chemistry while it relaxes and in
+#: the minimisation that ends the preparation. Both are flat-bottomed, so a
+#: loop inside their wells feels neither: each peptide bond in or beside it
+#: trans (omega within TRANS_SLACK degrees of 180), and each rebuilt residue
+#: and stem with a CB of the L hand (its impropers within HAND_SLACK degrees
+#: of HAND and HAND_HA), at RESTRAINT_K kJ/mol/rad^2 outside the well.
+TRANS_SLACK = 15.0
+HAND_SLACK = 20.0
+RESTRAINT_K = 400.0
+#: How far from a moving atom (rebuilt, or a stem) the relaxation keeps the
+#: structure, in nm: the 1.2 nm cutoff and 0.8 nm of room for the loop to move
+#: in. Beyond it an atom cannot reach a moving one, and leaving it out of the
+#: simulation changes no force on one.
+NEIGHBOURHOOD_NM = 2.0
 
 
 def _angle(a, b, c):
@@ -529,21 +569,39 @@ def _angle(a, b, c):
     return math.degrees(math.acos(max(-1.0, min(1.0, sum(x * y for x, y in zip(v1, v2)) / n))))
 
 
+def _torsion(a, b, c, d):
+    """The a-b-c-d torsion in degrees, from plain coordinates (_dihedral's
+    sense: 180 is trans)."""
+    import numpy as np
+    return _dihedral(*(np.asarray(p, dtype=float) for p in (a, b, c, d)))
+
+
 def junction_geometry(path, built):
-    """Every peptide bond that touches a built residue, checked against
-    JUNCTION. Returns the ones out of range, as text. Bond lengths alone are
-    not enough: PDBFixer closed 7A3R's loops at 1.31-1.36 A with the CA-C-N
-    angle at 42 degrees, the N folded back onto the CA."""
-    at, order = {}, []
+    """Every peptide bond in or beside a rebuilt loop, and every rebuilt
+    residue, checked against JUNCTION. Returns what is out of range, as text,
+    one line per bond, residue or contact.
+
+    Bond lengths alone are not enough: PDBFixer closed 7A3R's loops at
+    1.31-1.36 A with the CA-C-N angle at 42 degrees, the N folded back onto
+    the CA. Lengths and angles together are not enough either: they passed
+    7A3R's loops with bonds cis (274-275 at -2 degrees) and twisted (194-195 at
+    -95), and a cis bond that is not before a proline stays cis through any
+    simulation that follows. So each bond's twist and CA to CA are checked, and
+    each rebuilt residue's hand, and how near its atoms come to the rest."""
+    import numpy as np
+    at, order, names, heavy = {}, [], {}, []
     for line in open(path, errors="replace"):
         if line.startswith(("ATOM", "HETATM")):
             k = (line[21], line[22:26].strip(), line[26].strip())
             if not order or order[-1] != k:
                 order.append(k)
-            at[k + (line[12:16].strip(),)] = (float(line[30:38]), float(line[38:46]),
-                                              float(line[46:54]))
+            xyz = (float(line[30:38]), float(line[38:46]), float(line[46:54]))
+            at[k + (line[12:16].strip(),)] = xyz
+            names[k] = line[17:20].strip()
+            if names[k] in AMINO_ACIDS and not _is_hydrogen(line[12:16], line[76:78]):
+                heavy.append((k, line[12:16].strip(), xyz))
     made = set(built)
-    bad = []
+    bad, links = [], []
     for a, b in zip(order, order[1:]):
         if a[0] != b[0] or not (a in made or b in made):
             continue
@@ -554,12 +612,366 @@ def junction_geometry(path, built):
         d = math.dist(c1, n2)
         if d > 2.5:
             continue                         # a chain break left open, not a junction
+        links.append((a, b))
         t1, t2 = _angle(ca1, c1, n2), _angle(c1, n2, ca2)
+        w, dca = _torsion(ca1, c1, n2, ca2), math.dist(ca1, ca2)
+        cis = abs(w) <= JUNCTION["trans"] and names[b] == "PRO"
+        lo, hi = JUNCTION["ca_ca_cis" if cis else "ca_ca"]
         if not (JUNCTION["bond"][0] <= d <= JUNCTION["bond"][1]
                 and JUNCTION["ca_c_n"][0] <= t1 <= JUNCTION["ca_c_n"][1]
-                and JUNCTION["c_n_ca"][0] <= t2 <= JUNCTION["c_n_ca"][1]):
-            bad.append(f"{a[0]}{a[1]}-{b[1]}: C-N {d:.2f} A, CA-C-N {t1:.0f}, C-N-CA {t2:.0f}")
+                and JUNCTION["c_n_ca"][0] <= t2 <= JUNCTION["c_n_ca"][1]
+                and (cis or abs(w) >= 180.0 - JUNCTION["trans"])
+                and lo <= dca <= hi):
+            bad.append(f"{a[0]}{a[1]}-{b[1]}: C-N {d:.2f} A, CA-C-N {t1:.0f}, C-N-CA {t2:.0f}, "
+                       f"omega {w:.0f}, CA-CA {dca:.2f} A")
+    # The rebuilt residues, and their stems (which move with them): the hand of
+    # every one, and how far a rebuilt one's CA is from the ideal
+    moved = set()
+    for i, k in enumerate(order):
+        if k in made:
+            moved.update(r for r in order[max(0, i - FLANK):i + FLANK + 1] if r[0] == k[0])
+    for k in order:
+        if k not in moved:
+            continue
+        n, c, ca, cb = (at.get(k + (x,)) for x in ("N", "C", "CA", "CB"))
+        if None not in (n, c, ca, cb):
+            imp = _torsion(n, c, ca, cb)
+            if imp <= 0:
+                bad.append(f"{k[0]}{k[1]} {names[k]}: of the D hand (improper N-C-CA-CB {imp:.0f})")
+            elif k in made and abs(imp - HAND) > JUNCTION["hand"]:
+                bad.append(f"{k[0]}{k[1]} {names[k]}: CA distorted (improper N-C-CA-CB {imp:.0f}, "
+                           f"{HAND - JUNCTION['hand']:.0f} to {HAND + JUNCTION['hand']:.0f} allowed)")
+        sub = CHIRAL_CB.get(names[k])
+        if sub and None not in (ca, at.get(k + ("CB",)), at.get(k + (sub[0],)), at.get(k + (sub[1],))):
+            o = np.asarray(at[k + ("CB",)])
+            x, y = (np.asarray(at[k + (s,)]) - o for s in sub)
+            if float(np.dot(np.cross(x, y), np.asarray(ca) - o)) <= 0:
+                bad.append(f"{k[0]}{k[1]} {names[k]}: its CB of the allo hand")
+    near = _closest_contact(heavy, made, links)
+    if near and near[0] < JUNCTION["contact"]:
+        bad.append(f"{near[1]}: {near[0]:.2f} A apart, nearer than {JUNCTION['contact']:g} A")
     return bad
+
+
+def _closest_contact(heavy, made, links):
+    """(distance, 'A193 CG .. A160 O') of the closest approach of a rebuilt
+    residue's heavy atom to an amino acid's heavy atom more than three bonds
+    away, or None. heavy: [(residue, name, xyz)]; links: the peptide bonds
+    between residues, as (residue, next residue). Bonds are read from the
+    distances: within a residue under 1.9 A, C to N along `links`, and SG to SG
+    under 2.3 A (a disulphide)."""
+    import numpy as np
+    new = [i for i, h in enumerate(heavy) if h[0] in made]
+    if not new or len(heavy) < 2:
+        return None
+    xyz = np.array([h[2] for h in heavy], dtype=float)
+    close = []
+    for i in new:
+        d = np.sqrt(((xyz - xyz[i]) ** 2).sum(1))
+        d[i] = np.inf
+        for j in np.nonzero(d < 4.0)[0]:
+            close.append((float(d[j]), i, int(j)))
+    if not close:
+        return None
+    # the bonds among the atoms that came close, and their neighbours
+    where = sorted({j for _d, i, j in close} | {i for _d, i, j in close})
+    pocket = np.array([xyz[j] for j in where])
+    region = [j for j in range(len(heavy))
+              if float(np.min(((pocket - xyz[j]) ** 2).sum(1))) < 36.0]
+    by_res, named, bonded = {}, {}, {j: set() for j in region}
+    for j in region:
+        by_res.setdefault(heavy[j][0], []).append(j)
+        named[heavy[j][0], heavy[j][1]] = j
+
+    def bond(p, q):
+        bonded[p].add(q)
+        bonded[q].add(p)
+    for js in by_res.values():
+        for p in js:
+            for q in js:
+                if p < q and math.dist(heavy[p][2], heavy[q][2]) < 1.9:
+                    bond(p, q)
+    for a, b in links:
+        if (a, "C") in named and (b, "N") in named:
+            bond(named[a, "C"], named[b, "N"])
+    sg = [j for j in region if heavy[j][1] == "SG"]
+    for p in sg:
+        for q in sg:
+            if p < q and math.dist(heavy[p][2], heavy[q][2]) < 2.3:
+                bond(p, q)
+    best = None
+    for dist, i, j in sorted(close):
+        if i not in bonded or j not in bonded:
+            continue
+        seen, edge = {i}, {i}
+        for _ in range(3):
+            edge = {y for x in edge for y in bonded.get(x, ())} - seen
+            seen |= edge
+        if j in seen:
+            continue
+        a, b = heavy[i], heavy[j]
+        best = (dist, f"{a[0][0]}{a[0][1]}{a[0][2]} {a[1]} .. {b[0][0]}{b[0][1]}{b[0][2]} {b[1]}")
+        break
+    return best
+
+
+class _one_cpu_thread:
+    """OpenMM's CPU platform, its contexts made with one thread while this
+    lasts (the default it had is put back after). Summed over several threads,
+    in whatever order they finish, the same relaxation came out differently on
+    two runs, and so did the hydrogens Modeller places; on one thread both are
+    the same every time."""
+
+    def __enter__(self):
+        import openmm
+        self.cpu = openmm.Platform.getPlatformByName("CPU")
+        self.was = self.cpu.getPropertyDefaultValue("Threads")
+        self.cpu.setPropertyDefaultValue("Threads", "1")
+        return self.cpu
+
+    def __exit__(self, *exc):
+        self.cpu.setPropertyDefaultValue("Threads", self.was)
+        return False
+
+
+class _seeded_random:
+    """Python's random module seeded for what runs inside, and its state put
+    back after. Modeller.addHydrogens lays each new hydrogen at a random place
+    and then minimises it, so unseeded the same structure came out of the
+    relaxation two ways on two runs."""
+
+    def __init__(self, seed):
+        self.seed = seed
+
+    def __enter__(self):
+        import random
+        self.state = random.getstate()
+        random.seed(self.seed)
+
+    def __exit__(self, *exc):
+        import random
+        random.setstate(self.state)
+        return False
+
+
+def _neighbourhood(system, xyz_nm, moving, radius_nm):
+    """(a copy of `system` holding only the atoms within radius_nm of a moving
+    one, the indices it kept, in order), or None when the system has a force
+    this does not copy. Bonded terms, restraints and nonbonded exceptions are
+    kept where all their atoms are; the masses and the nonbonded method are
+    the system's own. With the radius past the cutoff, every force on a moving
+    atom is what it was in the whole system (measured on 7A3R's loops: the
+    same to 1 part in 10^5), and an attempt on one loop of a large protein
+    simulates a fraction of it."""
+    import numpy as np
+    import openmm
+    xyz = np.asarray(xyz_nm, dtype=float)
+    near = np.zeros(len(xyz), dtype=bool)
+    mv = np.asarray(sorted(moving), dtype=int)
+    for chunk in np.array_split(mv, max(1, len(mv) // 256)):
+        if len(chunk):
+            near |= (((xyz[:, None, :] - xyz[None, chunk, :]) ** 2).sum(-1)
+                     < radius_nm ** 2).any(axis=1)
+    keep = [int(i) for i in np.nonzero(near)[0]]
+    new = {old: i for i, old in enumerate(keep)}
+    sub = openmm.System()
+    for old in keep:
+        sub.addParticle(system.getParticleMass(old))
+    for f in system.getForces():
+        if isinstance(f, openmm.HarmonicBondForce):
+            g = openmm.HarmonicBondForce()
+            for t in range(f.getNumBonds()):
+                a, b, r0, k = f.getBondParameters(t)
+                if a in new and b in new:
+                    g.addBond(new[a], new[b], r0, k)
+        elif isinstance(f, openmm.HarmonicAngleForce):
+            g = openmm.HarmonicAngleForce()
+            for t in range(f.getNumAngles()):
+                a, b, c, th, k = f.getAngleParameters(t)
+                if a in new and b in new and c in new:
+                    g.addAngle(new[a], new[b], new[c], th, k)
+        elif isinstance(f, openmm.PeriodicTorsionForce):
+            g = openmm.PeriodicTorsionForce()
+            for t in range(f.getNumTorsions()):
+                a, b, c, d, per, ph, k = f.getTorsionParameters(t)
+                if a in new and b in new and c in new and d in new:
+                    g.addTorsion(new[a], new[b], new[c], new[d], per, ph, k)
+        elif isinstance(f, openmm.CustomTorsionForce):
+            g = openmm.CustomTorsionForce(f.getEnergyFunction())
+            for t in range(f.getNumGlobalParameters()):
+                g.addGlobalParameter(f.getGlobalParameterName(t),
+                                     f.getGlobalParameterDefaultValue(t))
+            for t in range(f.getNumPerTorsionParameters()):
+                g.addPerTorsionParameter(f.getPerTorsionParameterName(t))
+            for t in range(f.getNumTorsions()):
+                a, b, c, d, params = f.getTorsionParameters(t)
+                if a in new and b in new and c in new and d in new:
+                    g.addTorsion(new[a], new[b], new[c], new[d], params)
+        elif isinstance(f, openmm.NonbondedForce):
+            g = openmm.NonbondedForce()
+            g.setNonbondedMethod(f.getNonbondedMethod())
+            g.setCutoffDistance(f.getCutoffDistance())
+            g.setReactionFieldDielectric(f.getReactionFieldDielectric())
+            g.setUseSwitchingFunction(f.getUseSwitchingFunction())
+            g.setSwitchingDistance(f.getSwitchingDistance())
+            g.setUseDispersionCorrection(f.getUseDispersionCorrection())
+            for old in keep:
+                g.addParticle(*f.getParticleParameters(old))
+            for t in range(f.getNumExceptions()):
+                a, b, q, sig, eps = f.getExceptionParameters(t)
+                if a in new and b in new:
+                    g.addException(new[a], new[b], q, sig, eps)
+        elif isinstance(f, openmm.CustomExternalForce):
+            g = openmm.CustomExternalForce(f.getEnergyFunction())
+            for t in range(f.getNumGlobalParameters()):
+                g.addGlobalParameter(f.getGlobalParameterName(t),
+                                     f.getGlobalParameterDefaultValue(t))
+            for t in range(f.getNumPerParticleParameters()):
+                g.addPerParticleParameter(f.getPerParticleParameterName(t))
+            for t in range(f.getNumParticles()):
+                a, params = f.getParticleParameters(t)
+                if a in new:
+                    g.addParticle(new[a], params)
+        elif isinstance(f, openmm.CMMotionRemover):
+            g = openmm.CMMotionRemover(f.getFrequency())
+        else:
+            return None
+        sub.addForce(g)
+    return sub, keep
+
+
+def _l_hand(topology, xyz, made):
+    """xyz (nm, an n x 3 array) with every rebuilt residue's side chain set on
+    the L hand before the relaxation, as ADapt sets its loops before refining
+    them; returns how many residues were set right. PDBFixer's soft dynamics
+    leave some CA of the D hand (seven of the sixteen it builds in 7A3R chain
+    A), and a hydrogen placed on such a CA takes the place CB belongs in. So a
+    residue whose improper N-C-CA-CB is out of JUNCTION's range has its side
+    chain turned rigidly about CA until CB lies where an L residue's would,
+    from N, CA and C (the constants place CB with ideal angles; not for Pro,
+    whose ring a turn would open at N), and a Thr or Ile whose CB has the allo
+    hand has two of its substituents swapped (CD1 going with CG1)."""
+    import numpy as np
+
+    def key(r):
+        return (r.chain.id, str(r.id).strip(), (r.insertionCode or "").strip())
+    righted = 0
+    for r in topology.residues():
+        if key(r) not in made:
+            continue
+        at = {a.name: a.index for a in r.atoms()
+              if a.element is not None and a.element.symbol != "H"}
+        if not all(x in at for x in ("N", "CA", "C", "CB")):
+            continue
+        n, ca, c, cb = (xyz[at[x]].copy() for x in ("N", "CA", "C", "CB"))
+        imp = _dihedral(n, c, ca, cb)
+        turned = False
+        if r.name != "PRO" and (imp <= 0 or abs(imp - HAND) > JUNCTION["hand"]):
+            b, d = (ca - n) * 10.0, (c - ca) * 10.0       # in A: the constants hold there, not in nm
+            want = -0.58273431 * np.cross(b, d) + 0.56802827 * b - 0.54067466 * d
+            have = cb - ca
+            axis = np.cross(have, want)
+            sin, cos = float(np.linalg.norm(axis)), float(np.dot(have, want))
+            if sin < 1e-9 * float(np.linalg.norm(have) * np.linalg.norm(want)):
+                axis = np.cross(have, b)         # CB straight opposite: any axis across it
+                sin = 0.0
+            axis = axis / float(np.linalg.norm(axis))
+            angle = math.atan2(sin, cos)
+            if abs(angle) > 1e-6:
+                kx = np.array([[0, -axis[2], axis[1]], [axis[2], 0, -axis[0]],
+                               [-axis[1], axis[0], 0]])
+                turn = np.eye(3) + math.sin(angle) * kx + (1 - math.cos(angle)) * kx.dot(kx)
+                side = [i for name, i in at.items() if name not in BACKBONE_ATOMS]
+                xyz[side] = (xyz[side] - ca).dot(turn.T) + ca
+                turned = True
+        sub = CHIRAL_CB.get(r.name)
+        if sub and all(s in at for s in sub):
+            o = xyz[at["CB"]]
+            x, y = (xyz[at[s]] - o for s in sub)
+            if float(np.dot(np.cross(x, y), xyz[at["CA"]] - o)) <= 0:
+                px, py = xyz[at[sub[0]]].copy(), xyz[at[sub[1]]].copy()
+                xyz[at[sub[0]]], xyz[at[sub[1]]] = py, px
+                if "CD1" in at:
+                    xyz[at["CD1"]] = xyz[at["CD1"]] + py - px
+                turned = True
+        righted += turned
+    return righted
+
+
+def _ha_opposite(topology, xyz, made):
+    """xyz (nm) with the HA of every rebuilt residue with a CB put opposite its
+    CA's three other substituents, 0.109 nm from CA, where the L hand has it.
+    Modeller lays a new hydrogen at random and minimises it, and on a CA that
+    PDBFixer left nearly flat it can settle on CB's side. With HA held as well
+    (HAND_HA), 7A3R chain A's loops passed on the second attempt with HA placed
+    here first, and on the third without. Returns how many were placed."""
+    import numpy as np
+
+    def key(r):
+        return (r.chain.id, str(r.id).strip(), (r.insertionCode or "").strip())
+    placed = 0
+    for r in topology.residues():
+        if key(r) not in made:
+            continue
+        at = {a.name: a.index for a in r.atoms()}
+        if not all(x in at for x in ("N", "CA", "C", "CB", "HA")):
+            continue
+        ca = xyz[at["CA"]].copy()
+        u = sum((xyz[at[x]] - ca) / np.linalg.norm(xyz[at[x]] - ca) for x in ("N", "C", "CB"))
+        if np.linalg.norm(u) > 1e-6:
+            xyz[at["HA"]] = ca - 0.109 * u / np.linalg.norm(u)
+            placed += 1
+    return placed
+
+
+def _hold_chemistry(system, topology, made, stems=()):
+    """The restraints that keep a rebuilt loop's chemistry while it relaxes,
+    added to `system`: every peptide bond in or beside it trans, and every
+    rebuilt residue with a CB, and every stem, of the L hand, its CB and its
+    HA each held to their side (TRANS_SLACK, HAND_SLACK, HAND, HAND_HA).
+    PDBFixer's soft force field leaves loops with bonds anywhere
+    from cis to trans, and Amber's force field keeps whatever it is given: its
+    barrier holds a cis bond cis. Unheld, a stem on its spring was turned to
+    the D hand (7A3R's A:275). Returns (bonds, residues) held."""
+    import openmm
+
+    def key(r):
+        return (r.chain.id, str(r.id).strip(), (r.insertionCode or "").strip())
+
+    trans = openmm.CustomTorsionForce(
+        "0.5*k_trans*max(0, d-w_trans)^2; d=min(dt, 6.283185307179586-dt); "
+        "dt=abs(theta-3.141592653589793)")
+    trans.addGlobalParameter("k_trans", RESTRAINT_K)
+    trans.addGlobalParameter("w_trans", math.radians(TRANS_SLACK))
+    hand = openmm.CustomTorsionForce(
+        "0.5*k_hand*max(0, abs(d)-w_hand)^2; d=atan2(sin(theta-t0), cos(theta-t0))")
+    hand.addGlobalParameter("k_hand", RESTRAINT_K)
+    hand.addGlobalParameter("w_hand", math.radians(HAND_SLACK))
+    hand.addPerTorsionParameter("t0")
+    bonded = {frozenset((a.index, b.index)) for a, b in topology.bonds()}
+    res = list(topology.residues())
+
+    def atom(r, name):
+        return next((a.index for a in r.atoms() if a.name == name), None)
+    for a, b in zip(res, res[1:]):
+        if a.chain.index != b.chain.index or not (key(a) in made or key(b) in made):
+            continue
+        idx = (atom(a, "CA"), atom(a, "C"), atom(b, "N"), atom(b, "CA"))
+        if None not in idx and frozenset((idx[1], idx[2])) in bonded:
+            trans.addTorsion(*idx, [])
+    held = 0
+    for r in res:
+        if key(r) in made or key(r) in stems:
+            idx = (atom(r, "N"), atom(r, "C"), atom(r, "CA"), atom(r, "CB"))
+            if None not in idx:
+                hand.addTorsion(*idx, [math.radians(HAND)])
+                held += 1
+                ha = atom(r, "HA")
+                if ha is not None:
+                    hand.addTorsion(idx[0], idx[1], idx[2], ha, [math.radians(HAND_HA)])
+    system.addForce(trans)
+    system.addForce(hand)
+    return trans.getNumTorsions(), held
 
 
 def relax_built(path, out_path, steps, built, log=print):
@@ -570,8 +982,19 @@ def relax_built(path, out_path, steps, built, log=print):
     from OpenMM's templates so the force field covers them. Done before
     protonation because reduce cannot place an amide hydrogen on a junction
     PDBFixer closed badly, and the minimisation that would have repaired it
-    then fails for the want of that hydrogen. Afterwards every junction is
-    checked, and a loop that still does not fit stops the preparation."""
+    then fails for the want of that hydrogen. While it relaxes, every peptide
+    bond in or beside the loop is held trans and every rebuilt residue of the
+    L hand (_hold_chemistry); afterwards every one of those bonds and residues
+    is checked (junction_geometry), and a loop that still does not fit stops
+    the preparation.
+
+    The same input relaxes the same way every time: the hydrogens are placed
+    from a seed, each attempt's integrator is seeded before its context is
+    made (OpenMM reads the seed then and never again), and each attempt runs
+    on one thread, with only the atoms the moving ones can feel
+    (_neighbourhood). On several threads the CPU platform sums its forces in a
+    different order each run, and the dynamics carried the difference into
+    which loop came out."""
     if not built:
         return path
     import openmm
@@ -588,7 +1011,16 @@ def relax_built(path, out_path, steps, built, log=print):
         other = [r for r in m.topology.residues() if r.name not in AMINO_ACIDS]
         if other:
             m.delete(other)              # relaxation only; the file keeps them
-        m.addHydrogens(ff, pH=7.0)
+        import numpy as np
+        xyz = np.array(m.positions.value_in_unit(unit.nanometer))
+        righted = _l_hand(m.topology, xyz, made)
+        m.positions = [openmm.Vec3(*p) for p in xyz] * unit.nanometer
+        # Modeller lays each new hydrogen at random before minimising it
+        with _seeded_random(LOOP_SEEDS[0]), _one_cpu_thread() as cpu:
+            m.addHydrogens(ff, pH=7.0, platform=cpu)
+        xyz = np.array(m.positions.value_in_unit(unit.nanometer))
+        _ha_opposite(m.topology, xyz, made)
+        m.positions = [openmm.Vec3(*p) for p in xyz] * unit.nanometer
         system = ff.createSystem(m.topology, nonbondedMethod=app.CutoffNonPeriodic,
                                  nonbondedCutoff=1.2 * unit.nanometer, constraints=None)
         # A loop held rigidly at both ends often cannot close: 7A3R's stayed
@@ -618,13 +1050,22 @@ def relax_built(path, out_path, steps, built, log=print):
             elif k not in stems:
                 system.setParticleMass(a.index, 0.0)
         system.addForce(spring)
+        held = _hold_chemistry(system, m.topology, made, stems)
         start = {a.index: m.positions[a.index].value_in_unit(unit.angstrom)
                  for a in m.topology.atoms() if key(a.residue) in stems}
-        integ = openmm.LangevinMiddleIntegrator(300 * unit.kelvin, 5.0 / unit.picosecond,
-                                                0.0005 * unit.picoseconds)
-        ctx = openmm.Context(system, integ, openmm.Platform.getPlatformByName("CPU"))
-        ctx.setPositions(m.positions)
-        e0 = ctx.getState(getEnergy=True).getPotentialEnergy()
+        moving = [a.index for a in m.topology.atoms()
+                  if key(a.residue) in made or key(a.residue) in stems]
+        whole = m.positions.value_in_unit(unit.nanometer)
+        cut = _neighbourhood(system, whole, moving, NEIGHBOURHOOD_NM)
+        sub, keep = cut if cut else (system, list(range(system.getNumParticles())))
+        pos0 = [tuple(whole[i]) for i in keep]
+        xml = openmm.XmlSerializer.serialize(sub)
+        ctx = openmm.Context(sub, openmm.VerletIntegrator(0.001),
+                             openmm.Platform.getPlatformByName("CPU"), {"Threads": "1"})
+        ctx.setPositions([openmm.Vec3(*p) for p in pos0] * unit.nanometer)
+        e0 = ctx.getState(getEnergy=True).getPotentialEnergy().value_in_unit(
+            unit.kilocalories_per_mole)
+        del ctx
     except Exception as e:  # noqa: BLE001 - any failure here leaves invented atoms unrelaxed
         raise PrepError(f"the {len(made)} rebuilt residue(s) could not be relaxed ({str(e)[:200]}). "
                         f"Untick '{LOOPS_SETTING}' to dock the structure as measured.") from e
@@ -650,46 +1091,180 @@ def relax_built(path, out_path, steps, built, log=print):
 
     # Each attempt starts again from PDBFixer's loop: minimise, a warm spell to
     # leave its closure, minimise again. Later attempts loosen the stems and
-    # stay warm longer. The first whose every junction passes is kept.
+    # stay warm longer. They are independent, so they run side by side, one
+    # process and one thread each, and the first in RELAX_SCHEDULE's order
+    # whose every bond and residue passes is kept: the answer a run of them one
+    # after another would give, in the time of the slowest one it needs.
     tried = []
-    for n, (k_spring, warm_ps) in enumerate(RELAX_SCHEDULE, 1):
-        try:
-            ctx.setPositions(m.positions)
-            ctx.setParameter("k", k_spring * 418.4)
-            integ.setRandomNumberSeed(n)
-            openmm.LocalEnergyMinimizer.minimize(ctx, 1.0, 5000)
-            ctx.setVelocitiesToTemperature(300 * unit.kelvin, n)
-            integ.step(int(round(warm_ps / 0.0005)))
-            openmm.LocalEnergyMinimizer.minimize(ctx, 0.5, 10000)
-            e1 = ctx.getState(getEnergy=True).getPotentialEnergy()
-            pos = ctx.getState(getPositions=True).getPositions(asNumpy=True).value_in_unit(unit.angstrom)
-        except Exception as e:  # noqa: BLE001
-            raise PrepError(f"the {len(made)} rebuilt residue(s) could not be relaxed "
-                            f"({str(e)[:200]}). Untick '{LOOPS_SETTING}' to dock the structure "
-                            f"as measured.") from e
-        stem_rmsd = math.sqrt(sum(math.dist(tuple(pos[i]), tuple(p)) ** 2 for i, p in start.items())
-                              / max(1, len(start))) if start else 0.0
-        moved = write(pos)
-        bad = junction_geometry(out_path, built)
-        tried.append((len(bad), bad, k_spring))
-        if not bad:
-            break
-    else:
-        fewest = min(tried, key=lambda t: t[0])
-        raise PrepError(f"{fewest[0]} junction(s) between rebuilt and measured residues are still "
-                        f"out of shape after {len(tried)} relaxation attempts "
-                        f"({'; '.join(fewest[1][:4])}). Untick '{LOOPS_SETTING}' to dock the "
-                        f"structure as measured.")
+    whole_a = [tuple(p) for p in m.positions.value_in_unit(unit.angstrom)]
+    jobs = [(xml, pos0, n, k_spring, warm_ps)
+            for n, (k_spring, warm_ps) in enumerate(RELAX_SCHEDULE, 1)]
+    folder = os.path.join(os.path.dirname(os.path.abspath(out_path)), "relax_attempts")
+    with _attempts(folder, len(jobs)) as run:
+        failed = []
+        for n, k_spring, e1, got in run(jobs):
+            if isinstance(got, str):
+                # an attempt that blew up (one on 7A3R chain A ended "Particle
+                # coordinate is NaN") is one that did not pass: the next goes on
+                failed.append(f"attempt {n}: {got[:200]}")
+                continue
+            pos = list(whole_a)
+            for j, i in enumerate(keep):
+                pos[i] = tuple(got[j])
+            stem_rmsd = math.sqrt(sum(math.dist(tuple(pos[i]), tuple(p)) ** 2
+                                      for i, p in start.items())
+                                  / max(1, len(start))) if start else 0.0
+            moved = write(pos)
+            bad = junction_geometry(out_path, built)
+            tried.append((len(bad), bad, k_spring))
+            if not bad:
+                break
+        else:
+            if not tried:
+                raise PrepError(f"the {len(made)} rebuilt residue(s) could not be relaxed "
+                                f"({failed[0]}). Untick '{LOOPS_SETTING}' to dock the structure "
+                                f"as measured.")
+            fewest = min(tried, key=lambda t: t[0])
+            raise PrepError(f"{fewest[0]} fault(s) in the peptide bonds and residues of the rebuilt "
+                            f"loops remain after {len(RELAX_SCHEDULE)} relaxation attempts "
+                            f"({'; '.join(fewest[1][:4])}). Untick '{LOOPS_SETTING}' to dock the "
+                            f"structure as measured.")
     steps.append(Step("rebuilt loops relaxed", True,
                       f"{len(made)} residue(s) free; {len(stems)} stem residue(s) either side on a "
                       f"{k_spring:g} kcal/mol/A^2 spring (attempt {n} of {len(RELAX_SCHEDULE)}), "
                       f"moved {stem_rmsd:.2f} A RMSD; every other measured atom held; "
-                      f"{moved} heavy atoms moved; energy "
-                      f"{e0.value_in_unit(unit.kilocalories_per_mole):,.0f} -> "
-                      f"{e1.value_in_unit(unit.kilocalories_per_mole):,.0f} kcal/mol; every "
-                      f"junction within C-N {JUNCTION['bond'][0]}-{JUNCTION['bond'][1]} A and "
-                      f"backbone angles in range"))
+                      f"{righted} rebuilt residue(s) set on the L hand first; {held[0]} peptide "
+                      f"bond(s) held trans and {held[1]} residue(s) of the L hand while it "
+                      f"relaxed; {moved} heavy atoms moved; energy of the {len(keep)} atoms "
+                      f"simulated {e0:,.0f} -> {e1:,.0f} kcal/mol; every peptide bond in or "
+                      f"beside the loops trans, C-N {JUNCTION['bond'][0]}-{JUNCTION['bond'][1]} A, "
+                      f"CA-CA {JUNCTION['ca_ca'][0]}-{JUNCTION['ca_ca'][1]} A and backbone "
+                      f"angles in range, every rebuilt residue of the L hand, none nearer than "
+                      f"{JUNCTION['contact']:g} A to another atom"))
     return out_path
+
+
+def _relax_attempt(job):
+    """One attempt of RELAX_SCHEDULE: (attempt, spring, energy in kcal/mol,
+    the positions in A of the system's atoms, or the error as text). Minimise,
+    a warm spell to leave PDBFixer's closure, minimise again, on one thread.
+    The integrator is seeded before its context is made, which is when OpenMM
+    reads the seed."""
+    xml, pos0, n, k_spring, warm_ps = job
+    try:
+        import openmm
+        from openmm import unit
+        system = openmm.XmlSerializer.deserialize(xml)
+        integ = openmm.LangevinMiddleIntegrator(300 * unit.kelvin, 5.0 / unit.picosecond,
+                                                0.0005 * unit.picoseconds)
+        integ.setRandomNumberSeed(n)
+        ctx = openmm.Context(system, integ, openmm.Platform.getPlatformByName("CPU"),
+                             {"Threads": "1"})
+        ctx.setPositions([openmm.Vec3(*p) for p in pos0] * unit.nanometer)
+        ctx.setParameter("k", k_spring * 418.4)
+        openmm.LocalEnergyMinimizer.minimize(ctx, 1.0, 5000)
+        ctx.setVelocitiesToTemperature(300 * unit.kelvin, n)
+        integ.step(int(round(warm_ps / 0.0005)))
+        openmm.LocalEnergyMinimizer.minimize(ctx, 0.5, 10000)
+        state = ctx.getState(getEnergy=True, getPositions=True)
+        return (n, k_spring, state.getPotentialEnergy().value_in_unit(unit.kilocalories_per_mole),
+                [tuple(p) for p in state.getPositions(asNumpy=True).value_in_unit(unit.angstrom)])
+    except Exception as e:  # noqa: BLE001 - said by the caller, which stops the preparation
+        return (n, k_spring, 0.0, f"{type(e).__name__}: {e}")
+
+
+def _relax_main(argv):
+    """One attempt run as a process of its own (_attempts): argv is the folder
+    holding system.xml and start.json, the attempt's number, its spring and its
+    warm spell; the result goes to attempt_<n>.json in that folder."""
+    folder, n, k_spring, warm_ps = argv[0], int(argv[1]), float(argv[2]), float(argv[3])
+    with open(os.path.join(folder, "system.xml")) as fh:
+        xml = fh.read()
+    with open(os.path.join(folder, "start.json")) as fh:
+        pos0 = json.load(fh)
+    n, k_spring, e1, got = _relax_attempt((xml, pos0, n, k_spring, warm_ps))
+    with open(os.path.join(folder, f"attempt_{n}.json"), "w") as fh:
+        json.dump({"e1": e1, "pos": got}, fh)
+
+
+#: How a process of its own runs one attempt: this file, loaded by its path,
+#: since each tool carries it in a package of its own name.
+_ATTEMPT = ("import importlib.util, sys; "
+            "s = importlib.util.spec_from_file_location('_relax_attempt', sys.argv[1]); "
+            "m = importlib.util.module_from_spec(s); s.loader.exec_module(m); "
+            "m._relax_main(sys.argv[2:])")
+
+
+class _attempts:
+    """Runs _relax_attempt over the jobs, as many at once as this process has
+    CPUs, each in a process of its own on one thread, and yields the results in
+    the jobs' order; leaving the block stops whatever is still running. The
+    processes are started afresh, not forked: OpenMM's threads in this one
+    would be copied half-held, and a script that called the preparation
+    without a main guard would be run again by multiprocessing's spawn. With
+    one CPU, or where a process cannot start, the attempts run here in turn,
+    which gives the same results."""
+
+    def __init__(self, folder, n):
+        self.folder, self.n, self.procs = folder, n, {}
+        try:
+            self.cpus = len(os.sched_getaffinity(0))
+        except (AttributeError, OSError):
+            self.cpus = os.cpu_count() or 1
+
+    def __enter__(self):
+        return self.run
+
+    def _start(self, job):
+        import sys
+        xml, pos0, n, k_spring, warm_ps = job
+        env = dict(os.environ, OPENMM_CPU_THREADS="1")
+        self.procs[n] = subprocess.Popen(
+            [sys.executable, "-c", _ATTEMPT, os.path.abspath(__file__), self.folder, str(n),
+             repr(k_spring), repr(warm_ps)],
+            env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+
+    def run(self, jobs):
+        if self.cpus <= 1 or self.n <= 1:
+            for job in jobs:
+                yield _relax_attempt(job)
+            return
+        try:
+            os.makedirs(self.folder, exist_ok=True)
+            with open(os.path.join(self.folder, "system.xml"), "w") as fh:
+                fh.write(jobs[0][0])
+            with open(os.path.join(self.folder, "start.json"), "w") as fh:
+                json.dump(jobs[0][1], fh)
+            width = min(self.cpus, len(jobs))
+            for job in jobs[:width]:
+                self._start(job)
+        except OSError:
+            for job in jobs:
+                yield _relax_attempt(job)
+            return
+        for k, job in enumerate(jobs):
+            n, k_spring = job[2], job[3]
+            ahead = k + width - 1
+            if ahead < len(jobs) and jobs[ahead][2] not in self.procs:
+                self._start(jobs[ahead])
+            proc = self.procs[n]
+            _, err = proc.communicate()
+            got = os.path.join(self.folder, f"attempt_{n}.json")
+            if proc.returncode != 0 or not os.path.isfile(got):
+                yield (n, k_spring, 0.0,
+                       f"attempt {n} ended without a result: {(err or '').strip()[-300:]}")
+                continue
+            with open(got) as fh:
+                res = json.load(fh)
+            yield (n, k_spring, res["e1"], res["pos"])
+
+    def __exit__(self, *exc):
+        for proc in self.procs.values():
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait()
+        shutil.rmtree(self.folder, ignore_errors=True)
+        return False
 
 
 def strip_modelled_side_chains(measured, path, out_path, steps):
@@ -885,7 +1460,10 @@ def minimise(path, out_path, steps, restraint=10.0, max_iterations=500,
         topology, positions = pdb.topology, pdb.positions
         if any(r.name in CAP_RESIDUES for r in topology.residues()):
             _m = app.Modeller(topology, positions)
-            _m.addHydrogens(ff)
+            # seeded and on one thread: Modeller lays each new hydrogen at
+            # random before minimising it
+            with _seeded_random(LOOP_SEEDS[0]), _one_cpu_thread() as cpu:
+                _m.addHydrogens(ff, platform=cpu)
             topology, positions = _m.topology, _m.positions
         # The caps are placed on the right bonds at the right lengths and
         # nothing more, so they are the one thing this does NOT hold still:
@@ -932,11 +1510,21 @@ def minimise(path, out_path, steps, restraint=10.0, max_iterations=500,
             force.addParticle(atom.index, positions[atom.index])
             heavy += 1
         system.addForce(force)
+        # Free is not unheld: the rebuilt loops keep the chemistry their
+        # relaxation gave them, by the restraints it used (flat-bottomed, so a
+        # loop inside their wells feels none of them). Released here, a
+        # strained loop twisted a peptide bond 40 degrees from trans (7A3R's
+        # 274-275).
+        if guessed:
+            _hold_chemistry(system, topology, guessed)
 
         integrator = openmm.LangevinIntegrator(
             300 * unit.kelvin, 1 / unit.picosecond, 0.002 * unit.picoseconds)
+        # One thread, so the same structure minimises to the same coordinates
+        # every time: on several, the CPU platform sums its forces in whatever
+        # order the threads finish.
         sim = app.Simulation(topology, system, integrator,
-                             openmm.Platform.getPlatformByName("CPU"))
+                             openmm.Platform.getPlatformByName("CPU"), {"Threads": "1"})
         sim.context.setPositions(positions)
         before = sim.context.getState(getEnergy=True).getPotentialEnergy()
         sim.minimizeEnergy(maxIterations=max_iterations)
@@ -2181,6 +2769,24 @@ def run(pdb_in, workdir, ph=7.4, forcefield="AMBER", log=print, chain="",
         current = mini or current
     else:
         steps.append(Step("minimisation", False, "not asked for"))
+
+    # The rebuilt loops as they leave: the relaxation's checks again, on the
+    # structure that is written, so nothing after it (protonation, the
+    # minimisation) has twisted a bond or turned a residue unseen.
+    if built:
+        bad = junction_geometry(current, built)
+        if bad:
+            why = (f"{len(bad)} fault(s) in the peptide bonds and residues of the rebuilt loops "
+                   f"after protonation and minimisation ({'; '.join(bad[:4])}). Untick "
+                   f"'{LOOPS_SETTING}' to dock the structure as measured.")
+            steps.append(Step("rebuilt loops checked", False, why))
+            _write_prep_log(workdir, pdb_in, out, protonation, ph, forcefield, steps,
+                            n_before, None)
+            raise PrepError(why)
+        steps.append(Step("rebuilt loops checked", True,
+                          f"as written: every peptide bond in or beside the {len(built)} rebuilt "
+                          f"residue(s) trans, every one of them of the L hand, none nearer than "
+                          f"{JUNCTION['contact']:g} A to another atom"))
 
     # Last, so protonation and minimisation ran on whole residues, which
     # neither can do without: what was modelled for them comes out here.

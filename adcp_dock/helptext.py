@@ -358,9 +358,11 @@ HELP = {
         "chain setting is.\n\n"
         "Only gaps inside a chain, of up to 12 residues, are built. Residues "
         "missing from either end of a chain are disordered tails and are "
-        "never built. Each loop is then relaxed against the measured chain "
-        "and checked where it joins it; if one cannot be made to fit, the "
-        "preparation stops and says which, rather than docking against it."),
+        "never built. Each loop is then relaxed against the measured chain, "
+        "its peptide bonds held trans and its residues of the L hand, and "
+        "checked: every bond in and beside it trans, every residue L, nothing "
+        "clashing. If one cannot be made to fit, the preparation stops and "
+        "says which, rather than docking against it."),
     "mmgbsa": (
         "Rescore with MM-GBSA",
         "A physics-based rescoring of the docked poses: the complex is "
