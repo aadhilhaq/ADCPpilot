@@ -107,6 +107,8 @@ if built is not None:
                  # run by the suite's own Python for the surfaces
                  "adcp_dock/msms_mslib.py",
                  "adcp_dock/static/app.js", "adcp_dock/static/3Dmol-min.js",
+                 # the lab's shared report module, which the report page loads
+                 "adcp_dock/static/reportkit.js", "adcp_dock/static/reportkit.css",
                  "adcp_launcher/__init__.py",
                  # the documentation served at /docs/
                  "adcp_dock/docs.py", "adcp_dock/docskit.py",
