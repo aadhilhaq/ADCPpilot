@@ -50,6 +50,11 @@ table.rk-table thead th{border-bottom:1.5px solid var(--rk-ink);font-weight:600;
 table.rk-table thead th[title]{cursor:help}
 table.rk-table tfoot td{border-top:1.5px solid var(--rk-ink);font-weight:600}
 table.rk-table .rk-num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+/* A number's own cell never breaks; its heading must, or "rDock interaction (kJ/mol)" holds the
+   column at its full width and a table of ten such columns runs off the page, caption with it.
+   A long name or sequence with nothing to break on may break anywhere, for the same reason. */
+table.rk-table thead th.rk-num{white-space:normal}
+table.rk-table td:not(.rk-num){overflow-wrap:anywhere}
 table.rk-table tr.rk-dim td{color:var(--rk-dim)}
 table.rk-table tr.rk-mark td{font-weight:600}
 table.rk-facts tbody th{width:30%;color:var(--rk-dim);font-weight:500}
