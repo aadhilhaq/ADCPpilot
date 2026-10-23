@@ -564,6 +564,59 @@ else:
     print("note  no Node here (ADCP_NODE or node on the PATH), so the button's "
           "states were not run")
 
+# ---- the run's own tidy, queued with it ------------------------------------
+from adcp_dock import job as jobmod  # noqa: E402
+
+armrun = tempfile.mkdtemp(prefix="adcp_arm_")
+jobmod.save(armrun, jobmod.default())
+asked, cancelled = [], []
+saved = (slurm.submit, slurm.cancel, slurm.state, slurm.local_mode, slurm.available,
+         tidy.live_jobs)
+slurm.submit = lambda script, depends_on=None, kind="afterok": asked.append(
+    (depends_on, kind)) or "777"
+slurm.cancel = lambda jid: cancelled.append(jid)
+slurm.state = lambda jid, rundir=None: {"PENDING": 1}
+slurm.local_mode = lambda: False
+slurm.available = lambda: True
+tidy.live_jobs = lambda d: ["400"]
+got = tidy.arm(armrun, also=["500", "501"])
+check(got.get("armed") and asked[-1] == ("500:501:400", "afterany"),
+      "a run queues its own tidy behind every job it has, however they end: %s %s"
+      % (got, asked))
+rec = json.load(open(os.path.join(armrun, tidy.JOBFILE)))
+check(rec.get("auto") and rec.get("after") == "500:501:400",
+      "and records it as its own: %s" % rec)
+waiting = tidy.job_state(armrun)
+check(tidy.waiting_auto(waiting) and server.App._tidying(armrun) is None,
+      "while it waits, a rescoring or a panel may still be queued: %s" % waiting)
+tidy.arm(armrun, also=["600"])
+check(cancelled == ["777"] and asked[-1] == ("600:400", "afterany"),
+      "a tidy still waiting is replaced by one behind the new job too: %s" % cancelled)
+tidy.live_jobs = lambda d: []
+n = len(asked)
+got = tidy.submit(armrun)
+check("nothing to tidy" in got.get("error", "") and cancelled == ["777"] and len(asked) == n,
+      "Tidy pressed with nothing to pack leaves the waiting one alone: %s" % got)
+j = jobmod.load(armrun)
+j["keep_files"] = True
+jobmod.save(armrun, j)
+got = tidy.arm(armrun, also=["700"])
+check(not got.get("armed") and len(asked) == n, "with every file kept, none is queued: %s" % got)
+j["keep_files"] = False
+jobmod.save(armrun, j)
+slurm.local_mode = lambda: True
+got = tidy.arm(armrun, also=["local:dock"])
+check(not got.get("armed") and len(asked) == n,
+      "nor on a computer with no scheduler, where Tidy is pressed by hand: %s" % got)
+(slurm.submit, slurm.cancel, slurm.state, slurm.local_mode, slurm.available,
+ tidy.live_jobs) = saved
+src = open(os.path.join(ROOT, "adcp_dock", "server.py")).read()
+check(src.count("self._arm(") == 3 and '"keep_files"' in open(
+    os.path.join(ROOT, "adcp_dock", "job.py")).read(),
+      "a new run, a rescoring and a panel all queue the run's tidy, and the form's "
+      "Keep every file reaches the job")
+shutil.rmtree(armrun, ignore_errors=True)
+
 shutil.rmtree(work, ignore_errors=True)
 if fails:
     print("test_tidy FAILED (%d of %d)" % (len(fails), ran))

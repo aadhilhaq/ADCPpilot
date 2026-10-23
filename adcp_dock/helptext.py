@@ -239,6 +239,14 @@ HELP = {
         "Packing adds a few seconds per peptide, and the archive is tens of "
         "megabytes, so leave this off unless you will look at the "
         "trajectories."),
+    "keep_files": (
+        "Keep every file",
+        "A run tidies itself once its last job has ended: what its results no "
+        "longer read, MM-GBSA's working files above all, about 23 for every "
+        "pose scored, is packed into one archive in the run's archive folder. "
+        "The table, the pose viewer, the report, rescoring, re-ranking and "
+        "reuse settings are unchanged, and Undo tidy puts every file back.\n\n"
+        "Tick this to keep every file as the programs wrote it."),
     "replicas": (
         "Independent searches",
         "ADCP runs this many searches from different random starts and keeps "

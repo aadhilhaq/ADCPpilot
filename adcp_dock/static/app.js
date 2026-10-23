@@ -3757,6 +3757,7 @@ $('autofill').onclick = async () => {
     cyclic: $('cyclic').value, helical: +$('helical').value,
     poses: +$('poses').value,
     keep_trajectories: $('keep_trajectories').checked,
+    keep_files: $('keep_files').checked,
     // A target file's prepare job is booked differently: nothing is built.
     target_file: $('targetfile').value.trim()});
   btn.disabled = false;
@@ -3996,6 +3997,7 @@ $('submit').onclick = async () => {
     receptor_gradient: $('receptor_gradient').checked,
     cyclic: $('cyclic').value, helical: +$('helical').value,
     keep_trajectories: $('keep_trajectories').checked,
+    keep_files: $('keep_files').checked,
     poses:+$('poses').value, replicas:+$('replicas').value, steps:+$('steps').value,
     mmgbsa: $('mmgbsa').checked, mmgbsa_poses:+$('mmposes').value,
     mmgbsa_model: $('mmmodel').value,
@@ -4327,14 +4329,14 @@ const REUSE_TICKS = {minimise:'minimise', keep_hetatms:'keep_hetatms',
                      rebuild_sidechains:'rebuild_sidechains',
                      fill_loops:'fill_loops', mmgbsa:'mmgbsa',
                      receptor_gradient:'receptor_gradient',
-                     keep_trajectories:'keep_trajectories'};
+                     keep_trajectories:'keep_trajectories', keep_files:'keep_files'};
 /* What a tick means when the run's job file does not mention it: a run made
    before the setting existed did what it describes, which is not always what
    the default does now. Without this the tick would keep whatever this
    session last left it at. Runs made before the maps could be chosen had the
    receptor gradient on, and their maps are built again with it. */
 const REUSE_TICK_DEFAULTS = {rebuild_sidechains: true, receptor_gradient: true,
-                             keep_trajectories: false};
+                             keep_trajectories: false, keep_files: false};
 /* The same for the other settings: those runs built the box around residues
    with AutoSite 1.0, docked linear peptides, and started every replica as a
    coil. */

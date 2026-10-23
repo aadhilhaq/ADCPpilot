@@ -150,6 +150,10 @@ def default(**kw):
         # (ADCP's -k). Off, they are not kept. A job file without it leaves
         # whatever ADCP left, as runs made before it did.
         "keep_trajectories": False,
+        # Keep every file the run writes. Off, the run queues its own tidy when
+        # it is submitted, which packs what the results no longer read once its
+        # last job has ended (tidy.arm); Undo puts it back.
+        "keep_files": False,
         # Which ADCP: 1.1, the only one (ENGINES).
         "adcp_engine": "1.1",
         # Minimize this many top poses with ADCP's own OpenMM after docking,

@@ -544,33 +544,43 @@ def _here(rundir, undo_, rec):
                      name="adcp-tidy-%s" % os.path.basename(rundir)).start()
 
 
-def submit(rundir, undo_=False):
+def submit(rundir, undo_=False, after=None, auto=False):
     """The tidy, or its undo, as a short job: packing thousands of files is
     work for a compute node, not the one serving the page. Recorded in
     tidy_job.json, apart from job.json, so the live job check never waits on
-    the tidy itself."""
+    the tidy itself.
+
+    `auto` is the run's own tidy, queued when the run is: `after` holds it
+    until every one of those jobs has ended, however it ended, and what there
+    is to pack is worked out when it starts, not now, when nothing has run."""
     from . import job as jobmod, pipeline, slurm
     rundir = os.path.abspath(rundir)
     if not is_run(rundir):
         return {"error": "%s is not a run folder (no job.json)" % rundir}
-    live = live_jobs(rundir)
-    if live:
-        return {"error": "jobs still queued or running (%s); %s once the run "
-                         "is done" % (", ".join(live),
-                                      "undo the tidy" if undo_ else "tidy")}
-    mine = job_state(rundir)
-    if mine.get("live"):
-        return {"error": "a tidy of this run is already queued or running "
-                         "(job %s)" % mine["job_id"]}
+    if not auto:
+        live = live_jobs(rundir)
+        if live:
+            return {"error": "jobs still queued or running (%s); %s once the run "
+                             "is done" % (", ".join(live),
+                                          "undo the tidy" if undo_ else "tidy")}
+        mine = job_state(rundir)
+        if mine.get("live") and not waiting_auto(mine):
+            return {"error": "a tidy of this run is already queued or running "
+                             "(job %s)" % mine["job_id"]}
     if undo_:
         if not _archives(os.path.join(rundir, ARCHIVE_DIR)):
             return {"error": "this run has not been tidied, so there is "
                              "nothing to put back"}
-    elif not plan(rundir)[0]:
+    elif not auto and not plan(rundir)[0]:
         return {"error": "nothing to tidy: every file here is one the "
                          "results read"}
+    if not auto and mine.get("live"):
+        # pressed by hand while the run's own tidy waits: this one does it now
+        slurm.cancel(mine["job_id"])
     stage = "untidy" if undo_ else "tidy"
     rec = {"undo": bool(undo_), "at": time.strftime("%Y-%m-%d %H:%M:%S")}
+    if auto:
+        rec.update(auto=True, after=after or "")
     if slurm.local_mode():
         _here(rundir, undo_, rec)
         return {"job": rec["job_id"], "undo": bool(undo_), "local": True}
@@ -588,9 +598,44 @@ def submit(rundir, undo_=False):
         notes=["ADCP docking: %s" % ("put the tidied files back" if undo_ else
                                      "pack the files the results no longer "
                                      "read")], **common)
-    rec["job_id"] = slurm.submit(script)
+    rec["job_id"] = slurm.submit(script, depends_on=after, kind="afterany")
     _write(os.path.join(rundir, JOBFILE), rec)
-    return {"job": rec["job_id"], "undo": bool(undo_)}
+    return {"job": rec["job_id"], "undo": bool(undo_), "auto": bool(auto),
+            "after": after or ""}
+
+
+def waiting_auto(state):
+    """Whether a tidy job is the run's own, queued with it and still waiting:
+    one that has not started holds nothing, and is queued again behind
+    whatever is added to the run (arm)."""
+    return bool(state.get("auto")) and "PENDING" in str(state.get("state") or "") \
+        and "RUNNING" not in str(state.get("state") or "")
+
+
+def arm(rundir, also=()):
+    """Queue the run's own tidy behind every job it has queued, the ones just
+    submitted (`also`) among them, as Tidy would be pressed by hand once they
+    had all ended. An automatic tidy still waiting is cancelled first: the run
+    has more jobs than it was waiting for. Keep every file (keep_files) leaves
+    the run alone, and so does the local executor, whose stages run one after
+    another on this machine, where Tidy is pressed by hand."""
+    from . import job as jobmod, slurm
+    rundir = os.path.abspath(rundir)
+    j = jobmod.load(rundir)
+    if j.get("keep_files"):
+        return {"armed": False, "why": "every file of this run is kept, as the form asked"}
+    if slurm.local_mode():
+        return {"armed": False, "why": "runs here are tidied by hand, with Tidy"}
+    old = job_state(rundir)
+    if old.get("live") and waiting_auto(old):
+        slurm.cancel(old["job_id"])
+    waits = []
+    for jid in [str(x) for x in also if x] + live_jobs(rundir):
+        if jid not in waits:
+            waits.append(jid)
+    got = submit(rundir, after=":".join(waits) or None, auto=True)
+    got["armed"] = "error" not in got
+    return got
 
 
 def main(argv=None):

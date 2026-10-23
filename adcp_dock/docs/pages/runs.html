@@ -125,7 +125,7 @@ job and are cancelled when it fails. Read
 <code>logs/</code> and the preparation log, fix what it names, and submit a new
 run.</div>
 
-<h2 id="tidy">Tidying a finished run</h2>
+<h2 id="tidy">Tidying a run</h2>
 <p>The scratch file system counts files as well as space: on Grace each person
 may keep 250&nbsp;000. A run holds far more files than its results need: MM-GBSA
 leaves some 23 working files for every pose it scores, and a run that kept
@@ -149,6 +149,13 @@ job; a file a later rescoring has written again is newer than the copy in the
 archive, and is kept. The <b>all</b> download carries the archive as it is. The
 example run as it was docked, three peptides with MM-GBSA on five poses each,
 held 518 files and folders; tidying packs 153 of them and leaves 365.</p>
+<p>A run does this by itself. When it is submitted it queues its own tidy,
+which waits until every job of the run has ended, the report among them, and
+is queued again behind a rescoring or an interface panel added later. While it
+waits it holds nothing: a rescoring can be queued, and pressing <b>Tidy</b>
+does it at once instead. <b>Keep every file, rather than tidying the run when
+it finishes</b>, on the form, leaves the run alone. Runs on a computer without
+a scheduler are tidied by hand.</p>
 <p>From the command line, on a compute node,
 <code>python -m adcp_dock.tidy RUNDIR --dry-run</code> lists what would be
 packed without touching anything, <code>python -m adcp_dock.tidy RUNDIR</code>

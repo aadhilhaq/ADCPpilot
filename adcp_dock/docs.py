@@ -68,6 +68,7 @@ HELP_LINKS = {
     "cyclic": "peptides.html#cyclic",
     "helical": "peptides.html#helical",
     "keep_trajectories": "docking.html#trajectories",
+    "keep_files": "runs.html#tidy",
     "pad": "site.html#box-size",
     "bmin": "site.html#box-size",
     "bmax": "site.html#box-size",

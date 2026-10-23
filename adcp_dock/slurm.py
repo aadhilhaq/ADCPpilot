@@ -365,6 +365,16 @@ def submit(script, depends_on=None, kind="afterok"):
                        % (p.stdout.strip(), p.stderr.strip()))
 
 
+def cancel(job_id):
+    """scancel, for every task of the job. Returns what scancel said."""
+    try:
+        p = subprocess.run(["scancel", str(job_id)], capture_output=True,
+                           text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return str(exc)
+    return (p.stdout + p.stderr).strip()
+
+
 def state(job_id, rundir=None):
     """{state: count} over the tasks of a job, from squeue then sacct.
 

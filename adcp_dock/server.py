@@ -1558,7 +1558,8 @@ class App:
         if busy:
             return {"error": busy}
         try:
-            return {"jobs": pipeline.submit_panel(rundir, log=lambda *a: None)}
+            jobs = pipeline.submit_panel(rundir, log=lambda *a: None)
+            return {"jobs": jobs, "tidy": self._arm(rundir, jobs)}
         except SystemExit as exc:
             return {"error": str(exc)}
         except Exception as exc:                                # noqa: BLE001
@@ -1641,8 +1642,8 @@ class App:
         if busy:
             return {"error": busy}
         try:
-            return {"jobs": pipeline.submit_rescore(rundir, engine,
-                                                    log=lambda *a: None)}
+            jobs = pipeline.submit_rescore(rundir, engine, log=lambda *a: None)
+            return {"jobs": jobs, "tidy": self._arm(rundir, jobs)}
         except SystemExit as exc:
             return {"error": str(exc)}
         except Exception as exc:                                # noqa: BLE001
@@ -1968,7 +1969,20 @@ class App:
                 return {"error": str(exc), "rundir": rundir}
             except Exception as exc:                        # noqa: BLE001
                 return {"error": "could not submit: %s" % exc, "rundir": rundir}
-            return {"rundir": rundir, "jobs": ids}
+            return {"rundir": rundir, "jobs": ids, "tidy": self._arm(rundir, ids)}
+
+    @staticmethod
+    def _arm(rundir, jobs):
+        """Queue the run's own tidy behind the jobs just queued and any it had. A
+        run that cannot be armed still runs; it says why, and Tidy does the same
+        by hand."""
+        from . import tidy as tidymod
+        ids = [str(v) for v in (jobs or {}).values()
+               if isinstance(v, (str, int)) and str(v).isdigit()]
+        try:
+            return tidymod.arm(rundir, also=ids)
+        except Exception as exc:                                # noqa: BLE001
+            return {"armed": False, "why": str(exc)}
 
     def list_runs(self):
         out = []
@@ -2245,7 +2259,7 @@ class App:
         moves them while it runs."""
         from . import tidy as tidymod
         job = tidymod.job_state(rundir)
-        if job.get("live"):
+        if job.get("live") and not tidymod.waiting_auto(job):
             return ("this run is being %s (job %s); try again once that has "
                     "finished" % ("put back" if job.get("undo") else "tidied",
                                   job.get("job_id")))

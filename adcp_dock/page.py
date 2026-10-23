@@ -1671,6 +1671,8 @@ __STALE__
     <div class=checks>
       <label class=chk><input type=checkbox id=keep_trajectories>
         <span>Keep every replica's trajectory</span></label>
+      <label class=chk><input type=checkbox id=keep_files>
+        <span>Keep every file, rather than tidying the run when it finishes</span></label>
     </div>
   </div>
   <!-- The engine, ADCP 1.1, with its version as found here, and the OpenMM
