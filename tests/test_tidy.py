@@ -615,6 +615,9 @@ check(src.count("self._arm(") == 3 and '"keep_files"' in open(
     os.path.join(ROOT, "adcp_dock", "job.py")).read(),
       "a new run, a rescoring and a panel all queue the run's tidy, and the form's "
       "Keep every file reaches the job")
+check('"--keep-files"' in open(os.path.join(ROOT, "adcp_dock", "cli.py")).read()
+      and jobmod.default(keep_files=True)["keep_files"] is True,
+      "the command line takes --keep-files, as a flow's card sends it, and the job keeps it")
 shutil.rmtree(armrun, ignore_errors=True)
 
 shutil.rmtree(work, ignore_errors=True)

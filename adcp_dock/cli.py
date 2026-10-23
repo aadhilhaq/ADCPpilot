@@ -302,6 +302,9 @@ def main(argv=None):
     n.add_argument("--keep-trajectories", action="store_true",
                    help="keep every replica's trajectory, packed into one "
                         "archive per peptide (adcp -k)")
+    n.add_argument("--keep-files", action="store_true",
+                   help="keep every file the run writes, rather than tidying "
+                        "it once its last job has ended")
     n.add_argument("--replicas", type=int, default=50)
     n.add_argument("--steps", type=int, default=2_500_000)
     n.add_argument("--mmgbsa", action="store_true")
@@ -600,6 +603,7 @@ def main(argv=None):
             site_pocket=a.site_pocket, agfr=a.agfr, autosite=a.autosite,
             receptor_gradient=a.receptor_gradient, cyclic=a.cyclic,
             helical=a.helical, keep_trajectories=a.keep_trajectories,
+            keep_files=bool(a.keep_files),
             protonation=a.protonation,
             receptor_prepared=bool(a.receptor_prepared),
             adapt=({"folder": adapt_rec["folder"], "save": adapt_rec["save"]}
