@@ -164,7 +164,7 @@ def maps_for(j):
 
 def command(maps, tools, receptor_pdbqt, name, centre=None, size=None,
             pocket=None, padding=None):
-    """The agfr command line for a box given by its centre and edges
+    """The agfr command line for a box given by its center and edges
     (-b user), or for a box around AutoSite's pocket (-b fill -p pocket)."""
     cmd = maps.runner(tools) + ["-r", os.path.abspath(receptor_pdbqt),
                                 "-o", name]
@@ -304,7 +304,7 @@ def find_pocket(receptor_pdbqt, outdir, tools, maps, pocket="best",
         text = ""
     pts = translation_points(trg)
     table = pocket_table(text)
-    log("  AutoSite %s found %d pocket(s); the box is around %s: centre "
+    log("  AutoSite %s found %d pocket(s); the box is around %s: center "
         "%.2f %.2f %.2f, %.1f x %.1f x %.1f A"
         % (maps.autosite, len(table),
            "the best scoring one" if pocket == "best" else "all of them",

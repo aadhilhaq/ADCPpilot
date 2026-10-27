@@ -8,7 +8,7 @@ protonation key, still means PDB2PQR with PROPKA, through job.json, the
 command line, the preparation's reuse key, the citations and the batch
 notes; the walltime prices both; reduce, the ADCP 1.1 suite's, is run with
 ADFR's flags and charges a chain that starts at residue 25 as a terminus there, so
-the minimisation accepts it; a residue after a chain break is given the
+the minimization accepts it; a residue after a chain break is given the
 amide hydrogen its cap calls for; and the complex MM-GBSA builds takes the
 receptor's histidines from where reduce put the protons (HID, HIE, HIP),
 keeps an amide reduce turned over as it is in the coordinates, and has
@@ -73,7 +73,7 @@ bad = jobmod.default(receptor=REC, hotspots="A:96", protonation="guess",
 check(any("Protonation must be reduce or propka" in p for p in jobmod.validate(bad)),
       "an unknown protonation is refused before anything is submitted")
 
-# --- the reuse key: an old preparation is still recognised --------------------
+# --- the reuse key: an old preparation is still recognized --------------------
 k_old = prepare._prep_key(REC, 7.4, "AMBER", "A", 0.0, False, False, False, True,
                           True, 10.0)
 k_prop = prepare._prep_key(REC, 7.4, "AMBER", "A", 0.0, False, False, False, True,
@@ -83,7 +83,7 @@ k_red = prepare._prep_key(REC, 7.4, "AMBER", "A", 0.0, False, False, False, True
 k_red55 = prepare._prep_key(REC, 5.5, "AMBER", "A", 0.0, False, False, False, True,
                             True, 10.0, protonation="reduce")
 check(k_old == k_prop and "protonation" not in k_prop,
-      "a preparation made before the choice is recognised as PROPKA's, and reused")
+      "a preparation made before the choice is recognized as PROPKA's, and reused")
 check(k_red != k_prop and k_red.get("protonation") == "reduce",
       "a reduce preparation is not mistaken for a PROPKA one")
 check(k_red == k_red55, "reduce takes no pH, so the pH does not force a new one")
@@ -206,7 +206,7 @@ for num, hs in ((73, ("HD1",)), (96, ("HE2",)), (120, ("HD1", "HE2"))):
     for h in hs:
         n += 1
         prepared_lines.append(atom(n, h, "HIS", "A", num, num + 2.0, 0.5, 0, "H"))
-# A cysteine in a disulphide has no thiol hydrogen; a free one has.
+# A cysteine in a disulfide has no thiol hydrogen; a free one has.
 for num, hs in ((30, ()), (31, ("HG",))):
     for nm, el in (("CB", "C"), ("SG", "S")):
         n += 1
@@ -338,7 +338,7 @@ check(not _found,
 # of them reduced to the N-CA axis: the carbonyl oxygen and the methyl came
 # out 0.279 A apart, in every ACE ever written here. The caps also carried
 # no hydrogens and the NME's methyl was called C, so OpenMM could not match
-# either template and the minimisation stopped on the first one:
+# either template and the minimization stopped on the first one:
 #     No template found for residue 0 (ACE). The set of atoms is similar to
 #     NGLY, but is missing 1 H atom and 1 N atom.
 _rows, _serial = [], 0
@@ -398,10 +398,10 @@ check(not [n for n in _after if n.endswith((":H1", ":H2", ":H3"))],
 check("ALA9:H" in _after,
       "the residue under the ACE has no amide hydrogen at all: %s" % _after)
 
-# --- and the names survive the minimisation -------------------------------
+# --- and the names survive the minimization -------------------------------
 # OpenMM writes an NME's methyl as C with H1, H2, H3 on it. tleap answers an
 # unknown atom name by dropping the atom and building its own, so the
-# hydrogens that were just minimised would be thrown away and guessed again.
+# hydrogens that were just minimized would be thrown away and guessed again.
 _omm = os.path.join(_cap_tmp, "omm.pdb")
 open(_omm, "w").writelines([
     _line(1, "N", "NME", "A", 9, " ", (0.0, 0.0, 0.0), "N"),
@@ -463,7 +463,7 @@ if out:
     check(os.path.isfile(os.path.join(wd2, "protonated.reduce.txt")),
           "reduce's command and what it said are kept beside it")
 
-    # The whole preparation with reduce, minimisation included, where OpenMM
+    # The whole preparation with reduce, minimization included, where OpenMM
     # and PDBFixer are installed.
     try:
         import openmm  # noqa: F401
@@ -480,10 +480,10 @@ if out:
         check(got and "protonation: done; reduce." in text,
               "the preparation protonates with reduce when asked")
         check("minimisation: done" in text,
-              "and the minimisation accepts reduce's hydrogens (%s)"
+              "and the minimization accepts reduce's hydrogens (%s)"
               % [l for l in text.splitlines() if "minimisation" in l])
         check(prepare.his_states(got) == {("A", "73"): "HIE", ("A", "96"): "HIE"},
-              "the histidines survive the minimisation as reduce placed them")
+              "the histidines survive the minimization as reduce placed them")
         bare = os.path.join(TMP, "bare")
         got2 = prepare.run(REC, bare, chain="A", protonation="reduce", reduce_exe=exe,
                            minimise_structure=False, rebuild_sidechains=False,
@@ -491,7 +491,7 @@ if out:
         text2 = open(os.path.join(bare, "preparation.log")).read()
         check("left 0 missing side-chain atom(s) out" in text2
               and "side chains:" not in text2,
-              "with reduce and no minimisation nothing is modelled, so nothing is "
+              "with reduce and no minimization nothing is modeled, so nothing is "
               "stripped (%s)" % [l for l in text2.splitlines() if "missing" in l])
         broken = prepare.run(REC, os.path.join(TMP, "noreduce"), chain="A",
                              protonation="reduce", reduce_exe=os.path.join(TMP, "none"),

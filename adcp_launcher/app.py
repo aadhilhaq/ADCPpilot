@@ -52,7 +52,7 @@ def banner_layout(width, height, line_heights, line_widths, panel=80,
     wrong. What it guarantees:
 
     - every text line starts at the same x, so the left edges align;
-    - the text block is centred vertically as a BLOCK, on the same centre
+    - the text block is centered vertically as a BLOCK, on the same center
       line as the mark's panel, rather than each line being placed by eye;
     - the peptide motif starts after the widest line plus a clear margin,
       and is left out entirely when there is not room for it; a backbone
@@ -634,7 +634,7 @@ class App:
             port = clusters.parse_port(self.port.get())
             if port:
                 self.detail("asking the cluster for port %d" % port)
-            # A facility's acknowledgement is not set here: the server
+            # A facility's acknowledgment is not set here: the server
             # reads ADCP_ACKNOWLEDGEMENT from activate.sh on the cluster,
             # which the command sources first. A named cluster's table only
             # suggests where runs go and the Slurm account its jobs need,

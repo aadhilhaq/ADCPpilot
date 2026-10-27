@@ -8,7 +8,7 @@ changed by editing code.
 
 The mark shows a peptide entering a pocket: a teal C-shaped receptor
 groove with four residues on a diagonal running into its mouth. It must be
-recognisable at 16 pixels in a taskbar.
+recognizable at 16 pixels in a taskbar.
 
     python3 brand/make_brand.py
 """

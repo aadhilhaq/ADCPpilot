@@ -163,7 +163,7 @@ check([round(v, 6) for v in s1] == [round(float(v), 6) for v in s2]
       "the page draws a %s box and the run docks into %s"
       % (list(s1), [float(v) for v in s2]))
 check(all(abs(a - float(b)) < 1e-6 for a, b in zip(c1, c2)),
-      "the drawn and the docked box have different centres")
+      "the drawn and the docked box have different centers")
 
 # --- the report leads with the mean of the top few ------------------------
 row = report.summarise("AAAA", [{"score": -20.0}, {"score": -10.0},
@@ -267,8 +267,8 @@ for call, src, why in [
         ("receptor.load_for_box(", prep_src,
          "the chains, the validated hotspots and the box"),
         ("prep.run(", prep_src,
-         "the full Amber preparation: altloc, hetatms, disulphides, missing "
-         "atoms, protonation, restrained minimisation"),
+         "the full Amber preparation: altloc, hetatms, disulfides, missing "
+         "atoms, protonation, restrained minimization"),
         ("receptor.prepare_pdbqt(", prep_src, "the receptor as PDBQT"),
         ("target.build(", prep_src, "the grid maps, built and then checked"),
         ("adcp11.dock(", dock_src, "the docking search"),
@@ -294,10 +294,10 @@ check(dock_src.index("adcp11.dock(") < dock_src.index("poseviewer.transplant(")
       "stage_dock rescores before it docks, or builds the complex from "
       "something other than the pose")
 check("minimise_structure=bool(j.get(\"minimise\"" in prep_src,
-      "stage_prepare does not pass the minimisation through; protonation "
+      "stage_prepare does not pass the minimization through; protonation "
       "places a full set of hydrogens and nothing would relax them")
 check(jobmod.default()["minimise"] is True,
-      "a run created with no flags does not minimise")
+      "a run created with no flags does not minimize")
 check("verify.mmgbsa_split(" in dock_src,
       "an MM-GBSA value is kept without reading back whether the complex "
       "was split at the interface")
@@ -797,7 +797,7 @@ _r = _rep.summarise("LLKWHY", [{"score": -14.0}], mm=[-25.0], name="P1",
                     engine="ADCP 1.1.21", mmgbsa_engine="amber",
                     mm_by_engine={"amber": [-25.0], "openmm": [-26.3]})
 # The docking engine and the MM-GBSA engine are different questions. Reading
-# one for the other labelled every energy in the .mae files "ADCP 1.1.21".
+# one for the other labeled every energy in the .mae files "ADCP 1.1.21".
 check(_r["engine"] == "ADCP 1.1.21" and _r["mmgbsa_engine"] == "amber",
       "a row keeps the docking engine and the MM-GBSA engine apart")
 check(_r.get("mmgbsa_openmm_best") == -26.3 and _r.get("mmgbsa_amber_best") == -25.0,

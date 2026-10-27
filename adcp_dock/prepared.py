@@ -4,7 +4,7 @@ By Aadhil Haq
 
 A receptor prepared elsewhere - in a HOPE Labs flow, by HOPE-MD's Prepare at the flow's pH - is
 docked with the protonation it was given. Preparing it again here would throw that away: the
-preparation strips every hydrogen and protonates again, so the histidines, the disulphides and the
+preparation strips every hydrogen and protonates again, so the histidines, the disulfides and the
 neutral acids and bases it decided would be decided a second time, by another program, at
 whatever pH this run happened to have.
 
@@ -21,7 +21,7 @@ break was capped. prepare_receptor types every one of those as it types the stan
 import json
 import os
 
-#: The residue names that carry a protonation state or a disulphide, as the Amber force fields
+#: The residue names that carry a protonation state or a disulfide, as the Amber force fields
 #: and PDB2PQR name them. Counted for the record; nothing here renames them.
 STATE_NAMES = ("HID", "HIE", "HIP", "CYX", "CYM", "ASH", "GLH", "LYN")
 #: The caps a preparation puts on the ends a chain break leaves. NMA is Maestro's name for NME.

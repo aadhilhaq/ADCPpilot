@@ -145,7 +145,7 @@ class Receptor:
         Accepts bare numbers, which match those residues on any loaded chain, or
         (chain, resnum) pairs, which match exactly one residue. Chain-aware code
         should pass pairs: on a two-chain receptor a bare 56 matches residue 56 of
-        both chains, and a docking box centred on both sits between them, in the
+        both chains, and a docking box centered on both sits between them, in the
         solvent.
         """
         s = set(resnums)
@@ -191,7 +191,7 @@ def hetatms(path: str, chain: str) -> dict:
 
 
 def chain_breaks(atoms):
-    """Consecutive residue numbers with a gap. Unmodelled loops leave artificial
+    """Consecutive residue numbers with a gap. Unmodeled loops leave artificial
     cavities that docking will happily fill."""
     rn = sorted({a.resnum for a in atoms})
     return [(rn[i], rn[i + 1]) for i in range(len(rn) - 1) if rn[i + 1] - rn[i] > 1]
@@ -267,7 +267,7 @@ def _read_pdb(path: str, chain) -> list[Atom]:
     also takes one model, so both formats give the same structure.
     """
     # A blank chain column is a chain. Many files have one, for example
-    # anything written by a modelling tool, and pick.chains() reports it
+    # anything written by a modeling tool, and pick.chains() reports it
     # as "_" so that it can appear in a menu; "_" must therefore match a
     # blank column.
     #
@@ -296,7 +296,7 @@ def _read_pdb(path: str, chain) -> list[Atom]:
             continue
         # Column 27 is the insertion code, so 15A and 15B, or 100C to
         # 100J, share a residue number. Selecting that number as a
-        # hotspot selects all of them at once, and the box centres on
+        # hotspot selects all of them at once, and the box centers on
         # their combined centroid. The number is kept as it is so
         # nothing downstream changes, and the codes are collected so
         # the ambiguity can be reported.
@@ -346,7 +346,7 @@ def _read_cif(path: str, chain) -> list[Atom]:
 def load(cfg) -> Receptor:
     ext = os.path.splitext(cfg.receptor)[1].lower()
     # Maestro files come straight out of Schrodinger; RDKit reads them,
-    # so no Schrodinger installation or licence is needed here.
+    # so no Schrodinger installation or license is needed here.
     if ext in (".mae", ".maegz"):
         from .read_maestro import read_maestro
         atoms = read_maestro(cfg.receptor, cfg.chain, Atom, is_hydrogen)
@@ -405,7 +405,7 @@ def load(cfg) -> Receptor:
     return rec
 
 def box(rec: Receptor, cfg) -> tuple[np.ndarray, np.ndarray]:
-    """Return (center, size) in Angstrom, centred on the hotspot centroid."""
+    """Return (center, size) in Angstrom, centered on the hotspot centroid."""
     h = np.array([a.xyz for a in rec.atoms_of(rec.hotspot_keys or rec.hotspots)])
     center = h.mean(axis=0)
     extent = h.max(axis=0) - h.min(axis=0)
@@ -422,7 +422,7 @@ def chains_in_box(path: str, center, size, exclude=(), margin: float = 0.0,
     chain that forms part of the site.
 
     A box built around the hotspots of a multi-chain structure often reaches
-    into a neighbouring chain, because an interface groove has two sides.
+    into a neighboring chain, because an interface groove has two sides.
     Docking into that groove with only one side loaded places the peptide
     against a hole: it scores well because half the wall is missing, and the
     rescoring measures the same missing wall.
@@ -688,7 +688,7 @@ def prepare_pdbqt(rec: Receptor, workdir: str, tools,
         log("          Falling back to the chain as it was read, with "
             "hydrogens added geometrically.")
         log("          The preparation (rebuilt side chains, capped termini, "
-            "minimisation) is not")
+            "minimization) is not")
         log("          in this receptor. Treat the scores as provisional and "
             "fix the preparation.")
         src = _write_chain_pdb(rec, workdir)
@@ -733,9 +733,9 @@ def rebind_prepared(rec: Receptor, cfg, prepared_pdb: str | None,
       * heavy atoms: preparation rebuilds side chains that the deposited
         structure truncates, and contacts counted against the truncated side
         chains undercount those residues;
-      * coordinates: the restrained minimisation moves every atom slightly.
+      * coordinates: the restrained minimization moves every atom slightly.
 
-    The box is not recomputed: the caller already has the centre and size the
+    The box is not recomputed: the caller already has the center and size the
     grid was built with, and those must not move. Only the atoms change.
 
     Returns `rec` unchanged, with a reason logged, when the prepared file

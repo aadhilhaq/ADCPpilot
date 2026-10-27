@@ -63,18 +63,18 @@ is sequence liability only, and not independent of the columns above, since the 
 sequence decides both.</p>
 <p><b>how it was measured</b> is off by default and worth turning on before you
 quote anything: how many poses were measured, over which atoms, on which
-coordinates, and how their minimisation ended.</p>
+coordinates, and how their minimization ended.</p>
 
 <h2 id="the-limits">The limits on these columns</h2>
 <ul>
-<li><b>Site coverage is quantised by the size of the site.</b> On four residues it
+<li><b>Site coverage is quantized by the size of the site.</b> On four residues it
 can only be 0, 1, 2, 3 or 4, and residues the box could not reach still count in the
 denominator.</li>
 <li><b>Contacts are geometric.</b> A hydrogen bond here is a nitrogen or oxygen
 pair within 3.5 &Aring;, with no angle tested; a stack is ring atoms within
 5.0 &Aring;, so an edge to face pair and a parallel stack are not told apart.</li>
 <li><b>The per residue breakdown does not sum to the reported energy.</b> It
-agrees to within a few per cent and is always slightly more negative, because a
+agrees to within a few percent and is always slightly more negative, because a
 decomposition uses a per atom surface term where the total uses LCPO. The energy
 terms themselves agree to within 0.05 kcal/mol. The <b>site dG</b> column, in the
 page and in <code>results.txt</code>, is the site residues' share of that
@@ -82,9 +82,9 @@ breakdown, so it carries the same small gap. The value for every residue is in t
 run's <code>metrics/</code> folder.</li>
 <li><b>Buried area over two different sets of atoms is not comparable.</b> A
 rescored complex has hydrogens and a raw docked pose does not, and the same pose
-measured both ways differs by about 8 per cent. The column says which was
+measured both ways differs by about 8 percent. The column says which was
 used.</li>
-<li><b>Clashes should be zero on a minimised complex.</b> The receptor is
+<li><b>Clashes should be zero on a minimized complex.</b> The receptor is
 restrained, so an overlap cannot relax out. Any clash is a reason to look at the
 pose.</li>
 <li><b>The engines are on different scales.</b> Read each one down its own column,
@@ -94,7 +94,7 @@ never across a row.</li>
 <h2 id="the-poses">The poses</h2>
 <figure>
 <img src="img/pose-viewer.png" alt="The pose viewer with the receptor, the peptide and its contacts drawn">
-<figcaption><b>One pose, drawn.</b> The bar chooses the colouring, the
+<figcaption><b>One pose, drawn.</b> The bar chooses the coloring, the
 representation, surfaces, whether contacts and their distances are drawn, and which
 pose. Under it, the contacts by type and the interaction diagram.</figcaption>
 </figure>

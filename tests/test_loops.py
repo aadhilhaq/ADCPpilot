@@ -13,7 +13,7 @@ missing as deposited, and SEQRES running on to 210):
 - the built loop is relaxed before protonation, every junction with the
   measured chain ends up with a sane C-N bond and backbone angles, and the
   relaxation says how far the stems moved;
-- the minimisation leaves built residues free rather than holding them where
+- the minimization leaves built residues free rather than holding them where
   PDBFixer guessed them;
 - a structure's own hydrogens are taken off before protonation (an HXT stopped
   PDB2PQR outright), but a kept ligand's are left;
@@ -121,7 +121,7 @@ check(built2 == [], "nothing is built when loops are not filled: %s" % built2)
 check("LEFT 4 missing residue(s)" in str(steps2[-1]),
       "the log says the internal gap was left alone: %s" % steps2[-1])
 
-# the minimisation leaves built residues free. In a preparation it runs after
+# the minimization leaves built residues free. In a preparation it runs after
 # protonation, so the fragment is given hydrogens first, by OpenMM's templates.
 from openmm import app  # noqa: E402
 
@@ -135,7 +135,7 @@ steps3 = []
 mini = prepare.minimise(protonated, os.path.join(work, "mini.pdb"), steps3, free=built)
 text = str(steps3[-1])
 check(mini is not None and "atom(s) of rebuilt loops left free" in text,
-      "the minimisation does not hold the rebuilt loop: %s" % text)
+      "the minimization does not hold the rebuilt loop: %s" % text)
 
 # the same seed builds the same loop, atom for atom
 def built_coords(path):

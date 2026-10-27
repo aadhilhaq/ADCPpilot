@@ -120,7 +120,7 @@ check("which side of the interface each residue is on is kept",
 check("the docstring says it does not sum to the reported total",
       "DOES NOT SUM" in M.decomposition.__doc__)
 
-print("the minimisation before the energy")
+print("the minimization before the energy")
 MIN = """   NSTEP       ENERGY          RMS            GMAX         NAME    NUMBER
       1      -1.0000E+03     9.9999E+00     1.0000E+02     C           1
 
@@ -138,7 +138,7 @@ check("the final gradient is read", mi["min_rms_grad"] == 0.1618,
       "%s" % mi["min_rms_grad"])
 check("stopping at the cycle limit is recorded",
       mi["min_stopped_at_maxcyc"] is True)
-check("a missing output is not a converged minimisation",
+check("a missing output is not a converged minimization",
       M.minimisation(os.path.join(d, "nope.out")) == {})
 
 # ------------------------------------------------------------------- geometry
@@ -147,7 +147,7 @@ one = M.sasa(np.array([[0.0, 0.0, 0.0]]), np.array([1.70]))
 exact = 4.0 * math.pi * (1.70 + M.PROBE) ** 2
 check("one atom gives the analytic sphere",
       abs(one[0] - exact) / exact < 0.005, "%.3f against %.3f" % (one[0], exact))
-# Two spheres touching centre to centre: each loses a spherical cap, and the
+# Two spheres touching center to center: each loses a spherical cap, and the
 # cap area is exactly 2*pi*R*h with h = R - d/2.
 R = 1.70 + M.PROBE
 dist = 3.0
@@ -163,7 +163,7 @@ check("an empty structure returns nothing rather than raising",
 print("elements, which decide every radius")
 check("CA in an amino acid is a carbon", M._element("CA", "", "ALA") == "C")
 check("CA in a calcium residue is calcium", M._element("CA", "", "CA") == "CA")
-check("SD in methionine is sulphur", M._element("SD", "", "MET") == "S")
+check("SD in methionine is sulfur", M._element("SD", "", "MET") == "S")
 check("1HB is a hydrogen", M._element("1HB", "", "ALA") == "H")
 check("the PDB's own element column wins",
       M._element("CA", "C", "ALA") == "C")
@@ -272,7 +272,7 @@ check("the buried fraction is a fraction",
       0.0 < b["f_pep_buried"] < 1.0, "%s" % b["f_pep_buried"])
 check("two carbons bury an apolar surface", b["f_hydrophobic"] == 1.0)
 # Which atoms the area was rolled over travels with it: the same pose measured
-# with and without hydrogens differs by about 8 per cent, so the two must not
+# with and without hydrogens differs by about 8 percent, so the two must not
 # be compared as if they were the same quantity.
 check("a heavy atom structure says so", b["bsa_basis"] == "heavy atoms only")
 # The same with an oxygen: now none of it is apolar.
@@ -325,7 +325,7 @@ icp = _pdb_ic([
 ic = M.read_pdb(icp)
 check("both residues survive as atoms", len(ic) == 3)
 check("and as two separate residues", len(ic.residues()) == 3)
-check("the inserted residue is numbered apart from its neighbour",
+check("the inserted residue is numbered apart from its neighbor",
       ic.num(0) == 54 and ic.num(1) == "54A", "%s and %s"
       % (ic.num(0), ic.num(1)))
 tm_ic = M.tleap_map(icp)
@@ -334,14 +334,14 @@ check("the tleap map keeps the insertion code",
 check("so the two do not collide into one key",
       len({(v[0], v[1], v[3]) for v in tm_ic.values()}) == 3)
 
-print("a minimised file that is not the complex tleap read")
+print("a minimized file that is not the complex tleap read")
 # The labels come from position, so a single extra residue shifts every label
 # after it and every number downstream, all of it plausible.
 good = _pdb([("A", 25, "GLU", "CB", "C", 0, 0, 0),
              ("A", 26, "THR", "CB", "C", 4, 0, 0)])
 tm_good = {1: ("A", 25, "GLU", ""), 2: ("A", 26, "THR", "")}
 st_good = M.read_minimised(good, tm_good)
-check("a file that fits its map is relabelled",
+check("a file that fits its map is relabeled",
       st_good.chain[0] == "A" and st_good.resnum[1] == 26)
 try:
     M.read_minimised(good, {1: ("A", 25, "GLU", "")})
@@ -387,7 +387,7 @@ sm = M.site_metrics([("A", 1), ("A", 2), ("A", 3), ("A", 4)],
                     {("A", 1): {"total": -2.2, "resname": "LEU"},
                      ("A", 3): {"total": -1.1, "resname": "PHE"}})
 check("coverage counts the residues touched", sm["site_touched"] == 2)
-check("and is quantised by the size of the site",
+check("and is quantized by the size of the site",
       sm["site_coverage"] == 0.5)
 check("the site energy is the sum over those residues",
       abs(sm["site_dg"] - -3.3) < 0.001)
@@ -451,7 +451,7 @@ check("the documentation says the breakdown does not sum exactly",
 # Notes for a methods section do not belong in a results table.
 check("the printed table does not lecture about engines",
       "OpenMM" not in txt and "tleap" not in txt)
-check("nor about minimisation cycle limits", "cycle limit" not in txt)
+check("nor about minimization cycle limits", "cycle limit" not in txt)
 
 print("one engine per number, and it is named")
 # This used to forbid the energy path from importing OpenMM at all, on the
@@ -522,7 +522,7 @@ check("mbondi3 radii mean GBn2", _mm.model_of("mbondi3") == ("gbn2", 8))
 check("every other set means OBC(II)",
       _mm.model_of("mbondi2") == ("obc2", 5)
       and _mm.model_of("mbondi") == ("obc2", 5))
-check("the minimisation and the energy both take the run's igb",
+check("the minimization and the energy both take the run's igb",
       "igb={igb}" in _mm.MIN_IN and "igb={igb}" in _mm.MMPBSA_IN)
 _new = tempfile.mkdtemp()
 check("a new run asked for GBn2 starts with mbondi3",
@@ -542,15 +542,15 @@ check("and refuse a model that is not offered",
       any("obc2" in x for x in _job.validate(dict(_job.default(),
                                                    mmgbsa_model="gbn9"))))
 from adcp_dock import cite as _cite                             # noqa: E402
-# Receptor minimisation off, so GBn2 can only be cited because the MM-GBSA
-# used it: the receptor's own minimisation is GBn2 too and would hide a miss.
+# Receptor minimization off, so GBn2 can only be cited because the MM-GBSA
+# used it: the receptor's own minimization is GBn2 too and would hide a miss.
 _k = _cite.used_by(dict(_job.default(), mmgbsa=True, mmgbsa_model="gbn2",
                         minimise=False, peptides=[{"sequence": "LLKWHY"}]))
 check("a GBn2 run cites GBn2's paper, not OBC(II)'s",
       "gbn2" in _k and "gbmodel" not in _k)
 _k = _cite.used_by(dict(_job.default(), mmgbsa=True, minimise=False,
                         peptides=[{"sequence": "LLKWHY"}]))
-check("an OBC(II) run with no receptor minimisation cites no GBn2 at all",
+check("an OBC(II) run with no receptor minimization cites no GBn2 at all",
       "gbn2" not in _k)
 _k = _cite.used_by(dict(_job.default(), mmgbsa=True, minimise=False,
                         peptides=[{"sequence": "LLKWHY"}]))
@@ -564,12 +564,12 @@ check("the constants say the energies are AmberTools",
       and "MMPBSA.py" in _c["mmgbsa"])
 check("and that no reported energy came from OpenMM",
       "No OpenMM" in _c["mmgbsa"])
-check("a run that minimised its receptor says OpenMM did that",
+check("a run that minimized its receptor says OpenMM did that",
       any("receptor" in u for u in _c["openmm_used_for"]))
-check("a run that did not minimise claims no OpenMM at all",
+check("a run that did not minimize claims no OpenMM at all",
       _pl._openmm_used_for({"minimise": False})
       == ["nothing in this run: no number here came from OpenMM"])
-check("a run with ADCP 1.1 pose minimisation names that too",
+check("a run with ADCP 1.1 pose minimization names that too",
       any("ADCP 1.1" in u for u in
           _pl._openmm_used_for({"omm_minimize": 3})))
 
@@ -668,7 +668,7 @@ _spec = _js[_js.index("function colgroups("):_js.index("function colsOn(")]
 import re as _re                                              # noqa: E402
 _fields = set(_re.findall(r"\br\.([A-Za-z_][A-Za-z0-9_]*)", _spec))
 # The row a run with everything on produces: a panel, MM-GBSA, clusters and
-# ADCP 1.1's OpenMM minimisation.
+# ADCP 1.1's OpenMM minimization.
 #
 # Built the way report.write builds a run's rows, summarise and then
 # combined_scores, because some columns are filled by the second step. Four
@@ -733,7 +733,7 @@ if FORLEAP and os.path.isfile(FORLEAP):
     # The claim the docs and the report make about the decomposition, checked
     # against the decomposition rather than repeated. Where a run has one on
     # disk: the pairwise terms must agree closely, the surface term must not,
-    # and the total must come out a few per cent more negative.
+    # and the total must come out a few percent more negative.
     dfile = os.path.join(POSE, SEQ + "_decomp.dat")
     if os.path.isfile(dfile):
         dg = M.decomposition(dfile, tm)

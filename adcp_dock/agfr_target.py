@@ -34,7 +34,7 @@ def is_target(path):
 
 
 def preview(src):
-    """(receptor as PDB text, centre, size) from a target file, for the page.
+    """(receptor as PDB text, center, size) from a target file, for the page.
 
     Nothing is copied or unpacked to disk. The file is held to the same check
     import_target applies, so a target the page shows is one the run will
@@ -52,7 +52,7 @@ def preview(src):
 
 
 def read_box(trg):
-    """(centre, size) in Angstrom from the grid parameter file in the target."""
+    """(center, size) in Angstrom from the grid parameter file in the target."""
     z = zipfile.ZipFile(trg)
     gpf = next((n for n in z.namelist() if n.endswith(".gpf")), None)
     if not gpf:
@@ -95,7 +95,7 @@ def pdbqt_to_pdb(text):
 def import_target(src, rundir, log=print):
     """Copy a target file into the run and unpack what the run needs from it.
 
-    Returns (trg, prepared_pdb, pdbqt, centre, size). The file keeps its own
+    Returns (trg, prepared_pdb, pdbqt, center, size). The file keeps its own
     name: ADCP looks for maps under the folder named after the file.
     """
     why = target.check(src)
@@ -124,6 +124,6 @@ def import_target(src, rundir, log=print):
                  "made outside this workflow (for example in AGFRGUI). This "
                  "package's receptor preparation was not run.\n"
                  % (src, os.path.basename(src)))
-    log("  target file %s: box centre %.2f %.2f %.2f, size %.1f %.1f %.1f A"
+    log("  target file %s: box center %.2f %.2f %.2f, size %.1f %.1f %.1f A"
         % ((os.path.basename(src),) + tuple(centre) + tuple(size)))
     return trg, prepared, pdbqt, centre, size

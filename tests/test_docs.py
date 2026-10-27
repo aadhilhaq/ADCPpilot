@@ -45,7 +45,7 @@ check(not bad, "the documentation does not audit clean:\n      "
 
 # --- the copyright is LICENSE's, word for word ------------------------------
 # The bar along the bottom of the interface and of every page states it, so it
-# is held against the licence rather than typed twice and left to drift.
+# is held against the license rather than typed twice and left to drift.
 line3 = open(os.path.join(ROOT, "LICENSE")).read().splitlines()[2].strip()
 check(docs.SITE.copyright == line3,
       "the docs' copyright is %r and line 3 of LICENSE is %r"
@@ -151,7 +151,7 @@ code, body, h = get("/docs/style.css")
 check(code == 200 and h.get("Content-Type", "").startswith("text/css"),
       "/docs/style.css is not served as CSS (%s %s)" % (code, h.get("Content-Type")))
 check(b"--accent:#1a56db" in body,
-      "the stylesheet does not carry the interface's own colours")
+      "the stylesheet does not carry the interface's own colors")
 one_img = sorted(used)[0]
 code, body, h = get("/docs/" + one_img)
 check(code == 200 and h.get("Content-Type") == "image/png",

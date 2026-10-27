@@ -256,7 +256,7 @@ for _want in ("ADCP peptide docking", "HOPE Lab", "Aadhil Haq",
               "aadhil.haq@tamu.edu"):
     check(_want in html, "the header does not carry %r" % _want)
 check("text-align:center" in html and "brandblock" in html,
-      "the title block is not centred")
+      "the title block is not centered")
 check("id=feedback" in html, "there is no way to send feedback")
 check("mailto:" in appjs,
       "the feedback button posts somewhere instead of opening mail. There "
@@ -309,7 +309,7 @@ check(_sl.partition_line("") == "",
       "a partition is still chosen when no one named one, which overrides "
       "the scheduler's own routing: %r" % _sl.partition_line(""))
 check(_sl.partition_line("bigmem") == "#SBATCH --partition=bigmem\n",
-      "an explicitly named partition is not honoured")
+      "an explicitly named partition is not honored")
 _rows, _default = _sl.partitions()
 if _rows:
     check(all("name" in r and "limit" in r for r in _rows),
@@ -584,7 +584,7 @@ if os.path.isfile(RECEPTOR):
 #     895 heavy atoms   112-174 s per pose
 #   2,921 heavy atoms       847 s per pose   (5 poses, all 14.1 min)
 #
-# 3.3x the receptor cost 5.7x the time, which is what a generalised Born
+# 3.3x the receptor cost 5.7x the time, which is what a generalized Born
 # calculation over every pair does. The flat constant costed that second run
 # at 2.5 minutes and it took 14.3, so the whole task was booked at 9 minutes
 # and ran for 20.
@@ -841,8 +841,8 @@ check(set(peptide.NOT_RESIDUES) == set("BJOUXZ"),
 
 # --- the sequence strip shows the holes in the structure ------------------
 #
-# The strip holds the residues the file contains, and each row is labelled
-# with the number of its first residue. Where a loop was never modelled, the
+# The strip holds the residues the file contains, and each row is labeled
+# with the number of its first residue. Where a loop was never modeled, the
 # numbers jump; those gaps are the chain breaks the preparation splits at, so
 # a user picking a site next to one should be able to see it.
 _js = open(os.path.join(ROOT, "adcp_dock", "static", "app.js")).read()
@@ -851,7 +851,7 @@ check("r.resnum > prev.resnum + 1" in _js,
       "drawn as continuous sequence")
 check("class=gap" in _js,
       "nothing marks a gap in the strip")
-check("never modelled" in _js,
+check("never modeled" in _js,
       "the gap marker does not say what it means")
 check("class=r data-k" in _js and _js.index("class=gap") < _js.index(
           "const sep = (k && k % 10 === 0)"),
@@ -1039,7 +1039,7 @@ check(_h2 and "box-shadow:inset" in _h2,
 from adcp_dock import page as _pg                                  # noqa: E402
 for _tok in ("--ribbon", "--ribbonfg"):
     check(_bare.count(_tok + ":") == 3 and _pg.DARK_VARS.count(_tok + ":") == 1,
-          "%s is defined %d times in the page and %d in DARK_VARS; every colour "
+          "%s is defined %d times in the page and %d in DARK_VARS; every color "
           "needs a light AND a dark value" % (_tok, _bare.count(_tok + ":"),
                                              _pg.DARK_VARS.count(_tok + ":")))
 
@@ -1048,7 +1048,7 @@ for _tok in ("--ribbon", "--ribbonfg"):
 #
 # .card is text-align:center and a label sits in a .row>div that inherits
 # it.  A block label ignores that for its own position; an INLINE-level box
-# does not.  So making the label inline-flex to hold its marker centred
+# does not.  So making the label inline-flex to hold its marker centered
 # every label that has one, which is almost all of them, over a control
 # that was still left-aligned, and left the two without a marker at the
 # edge.  Block-level flex holds the marker and keeps the left edge.
@@ -1059,7 +1059,7 @@ if _lab:
     check(_re2.search(r'display:\s*flex', _lab)
           and not _re2.search(r'display:\s*inline-flex', _lab),
           "a label holding a marker is an inline-level box, so "
-          ".card{text-align:center} centres it over its own left-aligned "
+          ".card{text-align:center} centers it over its own left-aligned "
           "control: %r" % _lab)
 # the checkboxes are the exception and have to win on specificity:
 # .checks .chk:has(> button.q) is (0,3,1) against label:has(...) at (0,1,2)
@@ -1215,24 +1215,24 @@ check("id=diagwrap" in _card,
 check(_card.index("id=diagwrap") > _card.index("id=contactbox"),
       "the diagram is drawn above the contacts rather than below the viewer")
 
-# centred, except the sequence
+# centered, except the sequence
 check("th.c,td.c{text-align:center}" in _html,
-      "there is no centred cell class")
+      "there is no centered cell class")
 check("td.seq{" in _html and "text-align:left" in
       _html[_html.index("td.seq{"):_html.index("td.seq{") + 200],
       "the sequence column is not left aligned; it is read letter by letter, "
       "not as a quantity")
 # The results table is built from one column spec (colgroups), so the checks
 # are against the spec rather than against inline markup: a column that is
-# centred there is centred in the heading and in the cell by construction,
+# centered there is centered in the heading and in the cell by construction,
 # which is the reason the table was rewritten that way.
 _spec = _js2[_js2.index("function colgroups("):_js2.index("function colsOn(")]
 _res = _js2[_js2.index("rows.map(r => '<tr class=pick"):
             _js2.index("'</tr>').join('')")]
 check("class=num" not in _res and "'num'" not in _spec,
-      "a results cell is still right-aligned under a centred heading")
+      "a results cell is still right-aligned under a centered heading")
 check(_spec.count("cls: 'c'") >= 6,
-      "the results cells are not centred: %d centred columns in the spec"
+      "the results cells are not centered: %d centered columns in the spec"
       % _spec.count("cls: 'c'"))
 # Its own class, not the sequence editor's .seq: that one draws a bordered,
 # padded box, which is what put a frame round the peptide heading.
@@ -1289,7 +1289,7 @@ check("'<div class=rtable><table class=rt><thead>'" in _tbl
 # a bordered box round the peptide heading, and .grp, display:inline-block,
 # stopped the group headings being table cells at all, so their column spans
 # were ignored and they piled up in a staircase. Only "c", the page's shared
-# centring class, is meant to be shared.
+# centering class, is meant to be shared.
 _cls = set()
 for _m in re.finditer(r"cls: '([a-z0-9 -]+)'", _spec):
     _cls |= set(_m.group(1).split())
@@ -1360,7 +1360,7 @@ check(".vgrp{" in _html, "there is no non-wrapping group class")
 check(_bar.count("class=vgrp") >= 6,
       "only %d toolbar groups; each label and its controls need one"
       % _bar.count("class=vgrp"))
-for _lb in ("colour", "draw", "surface", "contacts", "figure", "view"):
+for _lb in ("color", "draw", "surface", "contacts", "figure", "view"):
     _i = _bar.index(">" + _lb + "<")
     _g = _bar.rfind("class=vgrp", 0, _i)
     _end = _bar.index("</span>", _bar.index("<span class=vgrp", _g))
@@ -1528,7 +1528,7 @@ _row = _card[_card.index("<div class=row>"):
              _card.index("</div>", _card.index("<select id=steps>"))]
 check("id=stepsguide" not in _row,
       "the guideline line is inside the field row again, which makes that "
-      "column taller than its neighbours and staggers every label")
+      "column taller than its neighbors and staggers every label")
 check(_card.index("id=stepsguide") > _card.index("<select id=steps>"),
       "the guideline is not below the row")
 for _f in ("poses", "replicas", "steps"):
@@ -1548,7 +1548,7 @@ check("&nbsp;" not in _checks,
       "a checkbox is still shoved into place by an empty label, which moves "
       "the moment anything near it changes height")
 # Keep heteroatoms, rebuild side chains, rebuild loops, protonate with, its
-# pH, and the minimisation.
+# pH, and the minimization.
 check(_checks.count("class=chk") == 6,
       "not every preparation setting is in the group")
 check("<div class=checks>" in _card
@@ -1649,7 +1649,7 @@ check(appjs.count('drawBox()') >= 3 or appjs.count('drawBox') >= 4,
 check('removeShape' in appjs,
       "old boxes are never removed, so changing the padding stacks boxes")
 check('SITE.centre' in appjs and 'SITE.size' in appjs,
-      "the drawn box is not built from the same centre and size the run "
+      "the drawn box is not built from the same center and size the run "
       "uses, so it could show something the docking will not do")
 # The label is inline on the caption line. label:has(> button.q) is (0,1,2)
 # and sets block-level flex; the "?" this field now has would otherwise take
@@ -1661,7 +1661,7 @@ check('.pickhead label,.pickhead label:has(> button.q)' in _bare,
 # --- a hint is a subtitle, and fits on one line ----------------------------
 #
 # A narrow maximum width wraps a one-sentence caption into several short
-# centred lines, which reads as prose rather than a caption.
+# centered lines, which reads as prose rather than a caption.
 check('max-width:68ch' not in _bare,
       "the hints are capped at 68ch and wrap to three lines in a 1100px card")
 for _h in _re2.findall(r'<p class=hint>(.*?)</p>', _html, _re2.S):
@@ -1679,7 +1679,7 @@ for _h in _re2.findall(r'<p class=hint>(.*?)</p>', _html, _re2.S):
 from adcp_dock import structure as _st                           # noqa: E402
 _srv = open(os.path.join(ROOT, "adcp_dock", "server.py")).read()
 check(_st.is_structure("x.cif") and _st.is_structure("X.MMCIF.GZ"),
-      "mmCIF is not recognised, so a perfectly good receptor is refused "
+      "mmCIF is not recognized, so a perfectly good receptor is refused "
       "for its file name")
 check(not _st.is_structure("ligand.sdf") and not _st.is_structure("x.mol2"),
       "a small-molecule file is being offered as a receptor")
@@ -1826,7 +1826,7 @@ check("name" in _rep.write.__doc__ or "name" in str(
           _re2.search(r'cols = \[(.*?)\]',
                       open(os.path.join(ROOT, "adcp_dock", "report.py")).read(),
                       _re2.S).group(1)),
-      "the TSV has no name column, so the file people analyse cannot say "
+      "the TSV has no name column, so the file people analyze cannot say "
       "which design a row is")
 _tbl = _rep.table([_r, _rep.summarise("LLKWHY", [{"score": -19.0}], None)])
 check("name" in _tbl and "HOPE9" in _tbl,
@@ -1837,7 +1837,7 @@ check("name" in _html and "cls: 'rnm pin'" in appjs,
 # td.nm, not .nm: .nm is already the peptide entry row's 140px name box.
 check("td.nm{" in _bare and "text-align:left" in
       _bare[_bare.index("td.nm{"):_bare.index("td.nm{") + 60],
-      "the name column is centred; a name is read left to right, like the "
+      "the name column is centered; a name is read left to right, like the "
       "sequence beside it")
 check(_bare.count(".nm{") == 2,
       "there are now %d .nm rules; the table cell and the entry row's name "
@@ -1846,7 +1846,7 @@ check(_bare.count(".nm{") == 2,
 # --- a contact says how close, not only that it touches -------------------
 #
 # The difference between a hydrogen bond at 2.8 A and two atoms in the same
-# neighbourhood at 4.4 A is the distance, so the default view labels each
+# neighborhood at 4.4 A is the distance, so the default view labels each
 # contact with it.
 check("id=rdist" in _html, "there is no control for contact distances")
 check("RDIST" in appjs, "nothing tracks whether distances are drawn")
@@ -2055,7 +2055,7 @@ for fmt, fname in sorted(cite.FILENAMES.items()):
     check("Scripps" in body or "Sanner" in body or "TY  -" in body,
           "the %s citation does not reach the engine's own reference" % fmt)
 
-# The facility acknowledgement: a generic reminder by default, the text in
+# The facility acknowledgment: a generic reminder by default, the text in
 # ADCP_ACKNOWLEDGEMENT when a site sets it, and the run's recorded text for a
 # run. It never names one institution to every user.
 from adcp_dock import GENERIC_ACK, acknowledgement                # noqa: E402
@@ -2069,17 +2069,17 @@ try:
           and "High Performance Research Computing" not in body,
           "the default citation text does not carry the generic reminder, "
           "or names one institution to every user")
-    os.environ["ADCP_ACKNOWLEDGEMENT"] = "Thanks to the Example HPC Centre."
-    check(acknowledgement() == "Thanks to the Example HPC Centre.",
+    os.environ["ADCP_ACKNOWLEDGEMENT"] = "Thanks to the Example HPC Center."
+    check(acknowledgement() == "Thanks to the Example HPC Center.",
           "ADCP_ACKNOWLEDGEMENT is not used")
-    check(_J.default()["acknowledgement"] == "Thanks to the Example HPC Centre.",
-          "a new run does not record the site's acknowledgement")
+    check(_J.default()["acknowledgement"] == "Thanks to the Example HPC Center.",
+          "a new run does not record the site's acknowledgment")
     check(acknowledgement({"acknowledgement": "Recorded."}) == "Recorded.",
-          "a run's recorded acknowledgement does not win")
+          "a run's recorded acknowledgment does not win")
     for _fmt in ("txt", "bib", "ris"):
         check("Recorded." in cite.formatted(_fmt, {"acknowledgement": "Recorded.",
                                                    "mmgbsa": False}),
-              "the %s citation does not carry the run's acknowledgement" % _fmt)
+              "the %s citation does not carry the run's acknowledgment" % _fmt)
 finally:
     os.environ.pop("ADCP_ACKNOWLEDGEMENT", None)
     if _saved_ack is not None:
@@ -2433,7 +2433,7 @@ for _code, _r in _lib.items():
     check(_ends == ["C", "N"],
           "%s is not drawn as a residue with two chain ends: %s" % (_code, _ends))
     check(sum(a.GetFormalCharge() for a in _m.GetAtoms()) == _r["charge"],
-          "%s is labelled charge %s but drawn with another" % (_code, _r["charge"]))
+          "%s is labeled charge %s but drawn with another" % (_code, _r["charge"]))
     if _m.HasSubstructMatch(_L, useChirality=True) or _m.HasSubstructMatch(_D, useChirality=True):
         check(_m.HasSubstructMatch(_L, useChirality=True)
               and not _m.HasSubstructMatch(_D, useChirality=True),
@@ -2642,7 +2642,7 @@ check("rebuild_sidechains" in _H5.HELP and "targetfile" in _H5.HELP
       and "always rebuilt" not in _H5.HELP["fill_loops"][1],
       "the help text does not cover the side chain setting and the target file")
 
-# The preparation: off takes out what was modelled, and only that.
+# The preparation: off takes out what was modeled, and only that.
 from adcp_dock._vendor import prepare as _pp                        # noqa: E402
 _k_on = _pp._prep_key(__file__, 7.4, "AMBER", "A", 0.0, False, False, False,
                       True, True, 10.0)

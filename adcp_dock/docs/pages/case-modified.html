@@ -17,7 +17,7 @@ angle brackets. A D residue is written with <code>&amp;</code> before its
 letter.</p>
 <pre>N&lt;BHD&gt;PIS&amp;DVD        seven residues: a modified asparagine
                        first, and a D-aspartate fifth
-S&lt;SEP&gt;                 phosphoserine, modelled as serine
+S&lt;SEP&gt;                 phosphoserine, modeled as serine
 Y&lt;PTR&gt;                 phosphotyrosine
 R&lt;CIR&gt;                 citrulline
 &amp;K                     D-lysine</pre>
@@ -29,7 +29,7 @@ residue, and the residue count under the box agrees with them. The library name 
 matched as written, in capitals; the standard letters are not.</p>
 <p>The library is ADCP 1.1's own, built by the Scripps Research Institute from the
 SwissSidechain database. It holds 209 non-natural side chains, each in an L and a D
-form, among them phosphorylated serine, threonine and tyrosine, oxidised methionine
+form, among them phosphorylated serine, threonine and tyrosine, oxidized methionine
 and tryptophan, citrulline and nitrotyrosine, and many synthetic residues. The 197
 that ADCP gives a coarse potential can be written in this syntax, and those are the
 ones the page offers.</p>
@@ -64,7 +64,7 @@ happens afterwards depends on the residue.</p>
 its L form, and the docked coordinates carry its handedness, which is exact for the
 force field the rescoring uses: it has no term that tells a residue from its mirror
 image. The hydrogens of each D residue are placed as a D residue has them, and every
-stereocentre is checked after the minimisation. A peptide whose only changes are D
+stereocenter is checked after the minimization. A peptide whose only changes are D
 residues is rescored and ranked with the standard peptides of the same run, on the
 same engine and the same protocol. <a href="rescoring.html#d-and-rings">Rescoring
 with MM-GBSA</a> gives the detail and how it was checked.</p>
@@ -73,17 +73,17 @@ parameters for their side chains. A peptide with one carries no MM-GBSA value, a
 the table lists it as unranked with the reason. In a list that mixes them with
 standard and D peptides, the others are rescored and ranked and these are not, so
 the two groups cannot be ranked against each other on energy.</p>
-<p><b>For non-standard residues, use ADCP 1.1's own minimisation instead.</b>
+<p><b>For non-standard residues, use ADCP 1.1's own minimization instead.</b>
 <b>Poses to minimize with
 OpenMM</b> relaxes the top poses with the Amber ff99SB force field and the GBn2
 solvent model, holding the receptor away from the peptide in place, and reports the
-lowest E(complex) minus E(receptor) beside the scores. It is at most five minimiser
+lowest E(complex) minus E(receptor) beside the scores. It is at most five minimizer
 iterations, ADCP's default, so it relaxes each complex rather than refining it. It
 is reported and never ranked on.</p>
-<p>The minimisation covers nearly every residue the dialog offers, with known
+<p>The minimization covers nearly every residue the dialog offers, with known
 exceptions. ADCP 1.1.21 has no parameters for IYR, PBF, PHI and TYI, and its
 parameters for FVAL, FPG2, FPG3, FTR and FT6 fail in OpenMM. A peptide containing
-one of these is still docked, its poses are left unminimised, and the run's log says
+one of these is still docked, its poses are left unminimized, and the run's log says
 so.</p>
 
 <h2 id="how-far-to-trust-it">How far to trust it</h2>
@@ -97,5 +97,5 @@ is the experiment worth doing: dock <code>TSFAEYWNLLS</code> and
 <code>TS&lt;...&gt;</code> variants of it together, look at the poses, and see
 whether the modification keeps the anchor residues in the groove.</p>
 <p>Runs that use these residues also cite SwissSidechain, and GAFF when the poses
-were minimised. <b>How to cite</b> adds them for you, scoped to the run, so the
+were minimized. <b>How to cite</b> adds them for you, scoped to the run, so the
 methods section says what was actually used.</p>

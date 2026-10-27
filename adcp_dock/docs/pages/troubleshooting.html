@@ -44,23 +44,23 @@ the run's row rather than being left amber; the list is in
 <tr><th>What you see</th><th>What it means</th></tr>
 <tr><td><code>the grid target is unusable</code></td><td>the target file was truncated or built from another structure. It is rebuilt once automatically; twice means <code>agfr</code> is failing, and its output is in the prepare log.</td></tr>
 <tr><td><code>tleap did not build topologies</code></td><td>the preparation log names the residue. It is usually a heteroatom kept by <b>Keep heteroatoms</b>, or a gap that <b>Rebuild missing loops</b> would close.</td></tr>
-<tr><td>the minimisation was skipped</td><td>something kept in the structure has no force field parameters, which is what keeping heteroatoms does. The results page says so.</td></tr>
+<tr><td>the minimization was skipped</td><td>something kept in the structure has no force field parameters, which is what keeping heteroatoms does. The results page says so.</td></tr>
 <tr><td><code>fault(s) in the peptide bonds and residues of the rebuilt loops</code></td><td>a loop built by <b>Rebuild missing loops</b> could not be made to join the measured chain properly, with every peptide bond in and beside it trans and every residue of the L hand, so the run stopped rather than dock against it. The message names the bond or residue that failed. Untick the setting to dock the structure as measured. See <a href="receptor.html#loops">rebuilding missing loops</a>.</td></tr>
 <tr><td><code>the prepared receptor has no hydrogens</code></td><td>both ways of protonating failed, and the protonation line in the preparation log says why. The run stops here because docking without hydrogens would ignore the run's pH. A structure that arrived with hydrogens of its own has them taken off first, so this is now rare.</td></tr>
 <tr><td><code>side chains: done; left as the structure has them</code></td><td>not a failure: <b>Rebuild missing side chains</b> was off, and the line lists the residues whose missing side-chain atoms are not in the prepared receptor. See <a href="receptor.html#side-chains">side chains</a>.</td></tr>
 <tr><td>a peptide with no MM-GBSA value</td><td>the list of unranked peptides at the end of <code>results.txt</code> gives the reason for each. It has non-standard residues, which the force field has no parameters for; or it was docked as a ring and none of its top poses closes it; or the run was set up before D residues and rings were rescored, and keeps skipping them; or its rescoring failed, and the task log says why.</td></tr>
 <tr><td><code>ring not closed in this pose: ends 4.31 &Aring; apart</code></td><td>not a failure: that pose left the ring open, so it was not rescored, and the peptide's value is the mean of its closed poses. <a href="rescoring.html#d-and-rings">D residues and rings</a> gives the distances a pose must meet.</td></tr>
-<tr><td>a pose's line says it <code>changed handedness</code>, or gives the length of <code>the closing</code> bond after the minimisation</td><td>the minimisation turned a stereocentre of the peptide into its mirror image, or did not bring a ring's closing bond to length, so that pose's energy would belong to another molecule and was not used.</td></tr>
+<tr><td>a pose's line says it <code>changed handedness</code>, or gives the length of <code>the closing</code> bond after the minimization</td><td>the minimization turned a stereocenter of the peptide into its mirror image, or did not bring a ring's closing bond to length, so that pose's energy would belong to another molecule and was not used.</td></tr>
 <tr><td><code>the Prime engine does not score a peptide with</code> D residues or a ring</td><td>it builds its own structure, and nothing has shown it keeps these as docked. Score them with AmberTools or OpenMM.</td></tr>
 <tr><td><code>AutoSite found no pocket to build a box around</code></td><td>agfr ran its whole receptor search and returned no pocket; its own output is in <code>target/pocket/pocket_agfr.out</code>. Place the box around residues instead.</td></tr>
-<tr><td><code>this is an alpha-carbon trace</code></td><td>the structure has one atom per residue, so every side chain is missing. Rebuilding them all is modelling rather than preparation, so the preparation stops at the start of the run.</td></tr>
+<tr><td><code>this is an alpha-carbon trace</code></td><td>the structure has one atom per residue, so every side chain is missing. Rebuilding them all is modeling rather than preparation, so the preparation stops at the start of the run.</td></tr>
 <tr><td><code>pose N discarded</code></td><td>that pose's bonded terms did not cancel, so the complex was split through a molecule rather than at the interface, and its energy was not used. Look at the chain selections and the rescoring log.</td></tr>
 <tr><td>the receptor was not protonated with reduce</td><td>reduce could not run, and PDB2PQR with PROPKA protonated the receptor instead, at the pH in the Receptor card. The <code>reduce</code> line of the preparation log says why; its full output is in <code>receptor/protonated.reduce.txt</code>.</td></tr>
 <tr><td>the receptor ADapt saved has changed since this run was set up</td><td>a file in the ADapt session folder was changed after the run read it back. Press Use ADapt's receptor now in the Receptor card, so ADapt writes it again.</td></tr>
 <tr><td>one task of the array failed</td><td>the others are unaffected. Open the run and resume it: only the peptides with no result are docked again.</td></tr>
 </table>
 <div class="note"><b>A failed preparation cannot be resumed into a result.</b> The
-dock tasks wait on the prepare job and are cancelled when it fails, so nothing was
+dock tasks wait on the prepare job and are canceled when it fails, so nothing was
 docked. Read the preparation log, fix what it names, and submit a new run.</div>
 
 <h2 id="where-the-logs-are">Where to look</h2>
@@ -77,7 +77,7 @@ will show you:</p>
 <tr><td><code>results.txt</code></td><td>the table, with its cautions written underneath</td></tr>
 </table>
 <p>The preparation log is the first place to look even when nothing failed. A run
-that produced a table from a receptor whose minimisation was skipped, or whose site
+that produced a table from a receptor whose minimization was skipped, or whose site
 residues fell outside the box, is a run whose numbers need a footnote.</p>
 
 <h2 id="the-page-itself">The page itself</h2>

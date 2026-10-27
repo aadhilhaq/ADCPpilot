@@ -209,7 +209,7 @@ def classify(text, pep=None):
 def lid_svg(pairs, on=("ionic", "stack", "hbond"), band=8):
     """The interaction diagram, as the viewer draws it (app.js drawLid): the
     peptide along the middle, each receptor residue above or below the peptide
-    residue it is closest to, lines coloured by kind, with a key of the kinds
+    residue it is closest to, lines colored by kind, with a key of the kinds
     drawn. A long peptide is drawn in bands of `band` residues, one under
     another, so the labels stay legible on a page; a line to a residue in
     another band runs to the edge of its own. None when there is nothing to
@@ -426,7 +426,7 @@ def prep_facts(steps, tail, j):
         out.append(("%s hydrogens added %s" % (m.group(1), how) if m else "protonated %s" % how).strip())
     m = re.search(r"moved ([\d.]+) A RMSD", by.get("minimisation", ""))
     if m:
-        out.append("heavy atoms moved %s \u00c5 in the restrained minimisation" % m.group(1))
+        out.append("heavy atoms moved %s \u00c5 in the restrained minimization" % m.group(1))
     return out
 
 
@@ -589,7 +589,7 @@ class Report:
 
     def structure(self, seq, rank, contacts):
         """What reportkit draws a pose with: the complex, seen side on, the
-        receptor grey, the peptide orange, the residues in contact as sticks."""
+        receptor gray, the peptide orange, the residues in contact as sticks."""
         pep = (contacts or {}).get("chain") or "Z"
         rec_ch = sorted({p["chain"] for p in (contacts or {}).get("pairs") or []}) or \
             list(self.j.get("chains") or ["A"])
@@ -683,7 +683,7 @@ class Report:
                     count(n, "pose")))
             else:
                 second = rows[1]
-                bits.append("<b>%s</b> (%s) has the most favourable %s, %s%s over its top %s, ahead of %s (%s)." % (
+                bits.append("<b>%s</b> (%s) has the most favorable %s, %s%s over its top %s, ahead of %s (%s)." % (
                     e(self.name(lead)), e(lead["peptide"]),
                     "MM-GBSA energy" if self.by_mm else "ADCP score", pm(self.mean(lead), self.sd(lead)), unit,
                     count(n, "pose"), e(self.name(second)), pm(self.mean(second), self.sd(second))))
@@ -780,7 +780,7 @@ class Report:
             maps = j.get("maps") or {}
             rows = [{"k": "Site from", "v": {"residues": "residues", "ligand": "a ligand", "pocket": "an AutoSite pocket",
                                              "target": "a target file"}.get(mode, mode or "residues")},
-                    {"k": "Centre (\u00c5)", "v": ", ".join(num(v, 2) for v in centre)},
+                    {"k": "Center (\u00c5)", "v": ", ".join(num(v, 2) for v in centre)},
                     {"k": "Size (\u00c5)", "v": dims},
                     {"k": "Grid spacing (\u00c5)", "v": num(j.get("spacing", 0.375), 3)}]
             if hs:
@@ -808,7 +808,7 @@ class Report:
                                    "style": {"stick": {"radius": 0.2, "colorscheme": "orangeCarbon"}}})
                 layers.append({"sel": {"elem": "H"}, "style": {}})
                 blocks.append({"kind": "figure", "id": "sitefig", "caption": (
-                    "The box (blue) on %s%s; receptor as a grey cartoon." % (
+                    "The box (blue) on %s%s; receptor as a gray cartoon." % (
                         e(self.rec), ", with %s as orange sticks" % _few(hs, "site residue") if hs else "")),
                     "structure": {"url": "/api/structure?" + _q(dir=self.rundir, what="receptor"),
                                   "format": "pdb", "layers": layers,
@@ -941,7 +941,7 @@ class Report:
         outside = [r for r in rows if r is not lead and id(r) not in near]
         if outside and len(inside) > 1:
             head = ("%s cannot be told apart by %s, their ranges over the top %s overlapping %s's (dark bars); "
-                    "%s %s less favourably (pale)" % (
+                    "%s %s less favorably (pale)" % (
                         and_list(e(self.name(r)) for r in inside), self.measure(), count(self.n_mean(), "pose"),
                         e(self.name(lead)),
                         and_list(e(self.name(r)) for r in outside), "scores" if len(outside) == 1 else "score"))
@@ -968,7 +968,7 @@ class Report:
                 {"key": "f_pep_buried", "label": "Buried", "num": True, "digits": 2,
                  "help": "The share of the peptide's own surface the receptor covers"},
                 {"key": "f_hydrophobic", "label": "Apolar", "num": True, "digits": 2,
-                 "help": "The share of the peptide's buried area that is carbon or sulphur"},
+                 "help": "The share of the peptide's buried area that is carbon or sulfur"},
                 {"key": "n_hbond", "label": "HB", "num": True, "help": "N or O atom pairs within 3.5 \u00c5"},
                 {"key": "n_ionic", "label": "SB", "num": True, "help": "Salt-bridged residue pairs"},
                 {"key": "n_stack", "label": "Stack", "num": True, "help": "Aromatic residue pairs within 5.0 \u00c5"},
@@ -998,7 +998,7 @@ class Report:
                 if one.get("site_n") else "")
             return {"kind": "table", "id": "panel", "columns": cols, "rows": out, "caption": (
                 "%s's pose %s buries %s \u00c5\u00b2 and makes %s and %s%s. The pose with the lowest MM-GBSA energy, "
-                "measured on its minimised complex; HB counts atom pairs, SB and Stack residue pairs." % (
+                "measured on its minimized complex; HB counts atom pairs, SB and Stack residue pairs." % (
                     e(self.name(one)), one.get("panel_pose"), num(one["bsa"], 0),
                     count(int(one.get("n_hbond") or 0), "hydrogen bond"),
                     count(int(one.get("n_ionic") or 0), "salt bridge"), site))}
@@ -1028,7 +1028,7 @@ class Report:
         clash_s = ("; %s clash" % and_list(e(self.name(r)) for r in clash)) if clash else ""
         return {"kind": "table", "id": "panel", "columns": cols, "rows": out, "caption": (
             "%s%s%s. Each row is one pose, the one with the lowest MM-GBSA energy (Pose), measured on the "
-            "minimised complex; HB counts atom pairs, SB and Stack residue pairs." % (lead, site, clash_s))}
+            "minimized complex; HB counts atom pairs, SB and Stack residue pairs." % (lead, site, clash_s))}
 
     # -- 4 each peptide -------------------------------------------------------------
     def peptides(self):
@@ -1095,7 +1095,7 @@ class Report:
             blocks.append({"kind": "figure", "id": "poses_" + jobmod.key(seq), "panels": panels,
                            "columns": min(3, len(panels)), "caption": (
                                "%s's top %s on %s, scoring %s kcal/mol by ADCP, %s in contact with %s receptor "
-                               "residues. Receptor grey, peptide orange, residues in contact (heavy atoms within "
+                               "residues. Receptor gray, peptide orange, residues in contact (heavy atoms within "
                                "4 \u00c5, or ring carbons within 5 \u00c5) as sticks, each seen side on across the "
                                "interface." % (
                                    e(name), count(len(shown), "pose") if len(shown) > 1 else "pose",
@@ -1121,7 +1121,7 @@ class Report:
                 blocks.append(fig)
         blocks += self.residue_tables(r)
         if r.get("omm_n"):
-            blocks.append({"kind": "p", "html": "ADCP 1.1's OpenMM minimisation of %s: the lowest E(complex) "
+            blocks.append({"kind": "p", "html": "ADCP 1.1's OpenMM minimization of %s: the lowest E(complex) "
                            "\u2212 E(receptor), %s kcal/mol, is pose %s's." % (
                                count(int(r["omm_n"]), "pose"), num(r.get("omm_best")), r.get("omm_best_pose"))})
         if r.get("pe_verdict"):
@@ -1172,7 +1172,7 @@ class Report:
                     lead += "; the other poses rescored lie between %s and %s" % (
                         num(min(p["mm"] for p in rest)), num(max(p["mm"] for p in rest)))
             else:
-                lead = ("Pose %s has the most favourable MM-GBSA energy, %s kcal/mol, though ADCP ranks it %s (%s); "
+                lead = ("Pose %s has the most favorable MM-GBSA energy, %s kcal/mol, though ADCP ranks it %s (%s); "
                         "pose 1, ADCP's best (%s), scores %s" % (
                             best["rank"], num(best["mm"]), _ordinal(best["rank"]), num(best["score"]),
                             num(first["score"]), num(first["mm"]) if first["mm"] is not None else "nothing, not rescored"))
@@ -1197,7 +1197,7 @@ class Report:
             return {"kind": "p", "tone": "caveat", "html": "Pose %s makes no %s with the receptor, so it has no "
                     "interaction diagram." % (rank, "contact" if "vdw" in on else
                                               "hydrogen bond, salt bridge or stacking")}
-        return {"kind": "figure", "id": fid, "svg": svg, "caption": "%s; lines are coloured by kind (key below), %s, "
+        return {"kind": "figure", "id": fid, "svg": svg, "caption": "%s; lines are colored by kind (key below), %s, "
                 "and each receptor residue sits beside the peptide residue it is closest to, on the docked pose." % (
                     pair_sentence(shown, name, self.rec, rank),
                     "van der Waals contacts drawn too" if "vdw" in on else "van der Waals contacts left out")}
@@ -1224,7 +1224,7 @@ class Report:
                 {"key": "dg", "label": "Energy (kcal/mol)", "num": True, "digits": 2,
                  "help": "The residue's share of the MM-GBSA energy; negative helps binding"}]
         if pep:
-            # The map is measured on the minimised complex, as the energy is.
+            # The map is measured on the minimized complex, as the energy is.
             have = [x for x in pep if x["dg"] is not None]
             best = min(have, key=lambda x: x["dg"]) if have else None
             worst = max(have, key=lambda x: x["dg"]) if have else None
@@ -1241,7 +1241,7 @@ class Report:
             out.append({"kind": "table", "id": "pres_" + key, "columns": cols, "rows": rows,
                         "caption": cap + ". Every peptide residue, with its contacts, its closest heavy-atom distance "
                         "to the receptor and its share of the energy (negative helps); the shares add up to within "
-                        "a few per cent of the total."})
+                        "a few percent of the total."})
         if rec:
             rec = sorted(rec, key=lambda x: (x["dg"] is None, x["dg"] if x["dg"] is not None else 0))
             best = rec[0] if rec[0]["dg"] is not None else None
@@ -1251,7 +1251,7 @@ class Report:
                      "kinds": kinds(x.get("kinds")), "d": x["d_min"], "dg": x["dg"],
                      "_class": "rk-mark" if x is best else ""} for x in rec]
             if best:
-                cap = "On the receptor, %s contributes most, %s kcal/mol, of the %d residues pose %s touches once minimised" % (
+                cap = "On the receptor, %s contributes most, %s kcal/mol, of the %d residues pose %s touches once minimized" % (
                     e(self.rec_res(best.get("resname"), best.get("chain"), best.get("resnum"))),
                     num(best["dg"], 2), len(rec), pose)
             else:
@@ -1259,7 +1259,7 @@ class Report:
             if site:
                 cap += ", %s of them site residues (marked)" % words(len(site))
             out.append({"kind": "table", "id": "rres_" + key, "columns": cols, "rows": rows,
-                        "caption": cap + ". Most favourable first; columns as in {{table:pres_%s}}." % key})
+                        "caption": cap + ". Most favorable first; columns as in {{table:pres_%s}}." % key})
         return out
 
     # -- the views added from the viewer --------------------------------------------
@@ -1324,9 +1324,9 @@ class Report:
             t = "Docking used a target file prepared outside this tool with AGFR%s, read in by %s." % (c("adfr"), tool)
         elif a.get("folder"):
             t = ("The receptor, %s, was prepared in ADapt, its hydrogens placed by reduce%s, and docked as ADapt "
-                 "saved it; the docking was set up and analysed with %s." % (e(self.rec), c("reduce"), tool))
+                 "saved it; the docking was set up and analyzed with %s." % (e(self.rec), c("reduce"), tool))
         elif j.get("receptor_prepared"):
-            t = ("The receptor, %s, came prepared and was docked as given; the docking was set up and analysed "
+            t = ("The receptor, %s, came prepared and was docked as given; the docking was set up and analyzed "
                  "with %s." % (e(self.rec), tool))
         else:
             did = []
@@ -1346,7 +1346,7 @@ class Report:
             t = "The receptor, %s, was prepared with %s at pH %s: %s." % (e(self.rec), tool, e(j.get("ph", 7.4)),
                                                                         and_list(did))
             if j.get("minimise", True) and ("minimisation" in done or not steps):
-                t += (" It was then minimised in OpenMM%s with ff14SB%s and the GBn2 implicit solvent%s, heavy atoms "
+                t += (" It was then minimized in OpenMM%s with ff14SB%s and the GBn2 implicit solvent%s, heavy atoms "
                       "restrained at %s kcal/mol/\u00c5\u00b2, for at most %s steps." % (
                           c("openmm"), c("ff14sb"), c("gbn2"), num(j.get("restraint", 10.0), 0),
                           e(j.get("minimise_steps", 500))))
@@ -1384,7 +1384,7 @@ class Report:
         if any(r.get("engine") == "ADCP 1.0 (macOS)" for r in self.rows):
             t += " ADCP 1.0 ran on a Mac, as Scripps builds no ADCP 1.1 for macOS."
         if int(j.get("omm_minimize") or 0):
-            t += (" ADCP minimised the top %s poses in OpenMM%s with Amber ff99SB%s%s." % (
+            t += (" ADCP minimized the top %s poses in OpenMM%s with Amber ff99SB%s%s." % (
                 e(j.get("omm_minimize")), c("openmm"), c("ff99sb"),
                 " and GBn2%s" % c("gbn2") if (j.get("omm_env") or "implicit") == "implicit" else ""))
         if any(pepmod.nonstandard((p.get("sequence") or "").upper()) for p in j.get("peptides") or []):
@@ -1394,7 +1394,7 @@ class Report:
             model = j.get("mmgbsa_model") or "obc2"
             if self.mm_engine == "amber":
                 t = ("The top %s of each peptide were rescored by MM-GBSA in AmberTools%s: tleap built each complex "
-                     "with ff14SB%s, sander minimised it with the receptor restrained, and MMPBSA.py%s took the "
+                     "with ff14SB%s, sander minimized it with the receptor restrained, and MMPBSA.py%s took the "
                      "energy of that one structure in %s, with no entropy term. A peptide's energy is the mean over "
                      "its top %s rescored." % (
                          count(int(j.get("mmgbsa_poses") or 0), "pose"), c("amber"), c("ff14sb"), c("mmpbsa"),
@@ -1403,16 +1403,16 @@ class Report:
                          count(self.n_mm, "pose")))
             else:
                 t = ("The top %s of each peptide were rescored by MM-GBSA with %s on the geometry sander "
-                     "minimised%s, with no entropy term; its energies are on its own scale." % (
+                     "minimized%s, with no entropy term; its energies are on its own scale." % (
                          count(int(j.get("mmgbsa_poses") or 0), "pose"),
                          GB_LABELS.get(self.mm_engine, self.mm_engine), c("amber")))
             if any(r.get("bsa") is not None for r in self.rows):
-                t += (" Each peptide's lowest-energy pose was measured on its minimised complex: buried surface by "
+                t += (" Each peptide's lowest-energy pose was measured on its minimized complex: buried surface by "
                       "Shrake and Rupley with Bondi radii and a 1.4 \u00c5 probe, and each residue's share of the "
                       "energy by MMPBSA.py's decomposition of the same structure.")
             paras.append(("Rescoring", t))
         paras.append(("Contacts", "Contacts in the interaction diagrams were classified by distance between heavy "
-                      "atoms on the docked pose: a hydrogen bond, nitrogen, oxygen or sulphur atoms within 3.5 \u00c5; "
+                      "atoms on the docked pose: a hydrogen bond, nitrogen, oxygen or sulfur atoms within 3.5 \u00c5; "
                       "a salt bridge, a basic and an acidic side-chain tip within 4.0 \u00c5; stacking, carbons of two "
                       "aromatic residues (Phe, Tyr, Trp, His) within 5.0 \u00c5; van der Waals, any other heavy atoms "
                       "within 4.0 \u00c5. Angles were not assessed."))
@@ -1499,7 +1499,7 @@ class Report:
                 out.append({"heading": "The maps: AGFR's log", "blocks": [{"kind": "pre", "text": txt[:20000]}]})
         rows = [["Receptor file", e(j.get("receptor") or "")], ["Chains", e(", ".join(j.get("chains") or []))],
                 ["pH", e(j.get("ph"))], ["Protonation", e(jobmod.protonation_of(j))],
-                ["Minimisation", "%s steps, heavy atoms restrained at %s kcal/mol/\u00c5\u00b2" % (
+                ["Minimization", "%s steps, heavy atoms restrained at %s kcal/mol/\u00c5\u00b2" % (
                     e(j.get("minimise_steps")), e(j.get("restraint"))) if j.get("minimise", True) else "none"],
                 ["Site from", e(j.get("site_mode") or ("residues" if j.get("hotspots") else ""))],
                 ["Engine", e(self.engine)], ["Replicas", "{:,}".format(int(j.get("replicas") or 0))],

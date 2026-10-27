@@ -12,20 +12,20 @@ and not an approximation: ff14SB has no term that tells a residue from its
 mirror image. Its torsions all have phases of 0 or 180 degrees, so each is
 an even function of the angle and reflecting the molecule leaves it
 unchanged, and it has no CMAP grid, which is the one protein term that is
-not even. Bonds, angles, van der Waals, electrostatics and the generalised
+not even. Bonds, angles, van der Waals, electrostatics and the generalized
 Born term depend on distances and angles only. Both claims are checked: the
 torsion phases in the parameter files and in every topology built, and the
 energy of a D peptide against its exact mirror image as an L peptide, which
 agree to the last printed digit (tests/test_mmgbsa_forms.py). The one place
 the L template does matter is where tleap puts the hydrogens it adds, which
 it takes from the template's own geometry and so puts on the wrong side of a
-D centre; mmgbsa.mirror_hydrogens places them as the mirror image of where
+D center; mmgbsa.mirror_hydrogens places them as the mirror image of where
 tleap puts them on the mirrored residue.
 
 RINGS are rescored only where the docked pose actually closes them. ADCP's
 ring is a restraint its search pulls on, not a bond, and a pose can leave the
 two ends apart. Building such a pose with the closing bond would have the
-minimisation drag the ends together, and the energy would describe a pose
+minimization drag the ends together, and the energy would describe a pose
 that was never docked; building it without the bond would score a linear
 peptide in place of the ring. Neither is done: a pose whose ends are further
 apart than the cutoffs below is not rescored, and says so.
@@ -66,7 +66,7 @@ SKIP_OLD_RING = "cyclic peptide"                   # what older runs recorded
 # end residues' alpha carbons about 2.2 A apart, where a peptide bond puts
 # them 3.8 A apart, and its ends sit at any distance up to a few angstroms,
 # with no gap to cut at. What decides it is what closing the bond does: the
-# further apart the ends, the more the minimisation moves an end residue to
+# further apart the ends, the more the minimization moves an end residue to
 # close it, which can turn its alpha carbon into its mirror image. A carbon
 # and a nitrogen that are not bonded touch at about 3.25 A, so at 2.5 A they
 # are held by the restraint, not resting in contact.
@@ -76,7 +76,7 @@ SKIP_OLD_RING = "cyclic peptide"                   # what older runs recorded
 # measured on ring poses docked into MDM2 (1YCR). Two sulfurs that are not
 # bonded touch at about 3.6 A, twice sulfur's van der Waals radius, so a pair
 # closer than 3.5 A is held by the restraint; and 3.5 A is where ADCP's own
-# OpenMM minimisation adds the bond. So it is the distribution that sets this
+# OpenMM minimization adds the bond. So it is the distribution that sets this
 # one.
 BACKBONE_CLOSED = 2.5
 DISULFIDE_CLOSED = 3.5
@@ -150,7 +150,7 @@ def engine_refusal(engine, seq, mode):
     AmberTools and OpenMM read the topology tleap builds, which carries the
     closing bond and the D residues' coordinates, so both can. Prime is
     given the prepared complex as a PDB and builds its own: nothing here has
-    shown that it keeps a ring's closing bond or leaves a D centre as it is,
+    shown that it keeps a ring's closing bond or leaves a D center as it is,
     so it refuses rather than return a number for some other molecule.
     """
     mode = str(mode or "none")

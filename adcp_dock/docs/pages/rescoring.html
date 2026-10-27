@@ -18,10 +18,10 @@ chain of its own, B unless the receptor uses B and then the first letter it does
 not use, and a TER record ends the receptor, each of its chains and each piece of
 a chain broken by a gap, so nothing is bonded that is not bonded in the
 structure.</li>
-<li><code>sander</code> minimises the complex with the receptor's heavy atoms
+<li><code>sander</code> minimizes the complex with the receptor's heavy atoms
 restrained, up to 1,000 cycles.</li>
 <li><code>MMPBSA.py</code> computes the interaction energy and its four parts on
-that minimised geometry, with 0.15 M salt.</li>
+that minimized geometry, with 0.15 M salt.</li>
 </ol>
 <p>It roughly doubles the length of a run. It needs AmberTools; without it the
 option is switched off and the page says why.</p>
@@ -33,12 +33,12 @@ values from two different receptors are not comparable.</div>
 ranked with the rest: see <a href="#d-and-rings">D residues and rings</a>.
 Peptides with non-standard residues are not: the force field has no parameters
 for their side chains. Those rows have no MM-GBSA value, the table lists them as
-unranked with the reason, and ADCP 1.1's own OpenMM minimisation is the number to
+unranked with the reason, and ADCP 1.1's own OpenMM minimization is the number to
 use for them instead.</p>
 
 <figure>
 <img src="img/docking-settings.png" alt="The Docking and rescoring card, with its Rescoring part showing">
-<figcaption><b>The rescoring controls.</b> They are greyed out until <b>Rescore with
+<figcaption><b>The rescoring controls.</b> They are grayed out until <b>Rescore with
 MM-GBSA</b> is ticked, and the line under the solvation model and the engine states
 the force field, the solvent model and the radii the energies will be computed
 with.</figcaption>
@@ -72,7 +72,7 @@ not. The table says which, in the heading of the column it ranked on.</p>
 <p>Two implicit solvent models are offered. <b>GB-OBC(II)</b> is the default and
 is what every earlier run used; <b>GBn2</b> is a newer model with its own atomic
 radii. Each is run with the radii it was fitted with, and the run records which,
-because an energy computed with one set of radii and labelled with the other is
+because an energy computed with one set of radii and labeled with the other is
 wrong in a way nothing downstream can detect.</p>
 <p>The two give different numbers. Compare peptides within one model, never
 across the two.</p>
@@ -81,7 +81,7 @@ across the two.</p>
 <table>
 <tr><th>Engine</th><th>What it computes</th><th>How to read it</th></tr>
 <tr><td><b>AmberTools</b></td><td>ff14SB with GB-OBC(II), through <code>sander</code> and <code>MMPBSA.py</code>. The default.</td><td>The reference. Every earlier number came from it.</td></tr>
-<tr><td><b>OpenMM</b></td><td>The same force field and the same solvent model, on the geometry <code>sander</code> minimised.</td><td>A check on the solver, not a second estimate. On the example run's fifteen poses it lands 2.0 to 3.3 kcal/mol below AmberTools, pose by pose, and leaves the order unchanged.</td></tr>
+<tr><td><b>OpenMM</b></td><td>The same force field and the same solvent model, on the geometry <code>sander</code> minimized.</td><td>A check on the solver, not a second estimate. On the example run's fifteen poses it lands 2.0 to 3.3 kcal/mol below AmberTools, pose by pose, and leaves the order unchanged.</td></tr>
 <tr><td><b>Schrodinger Prime</b></td><td>OPLS with VSGB 2.0, a different force field and a different solvent model.</td><td>Its own scale entirely. Nothing calibrates it against the other two.</td></tr>
 </table>
 <p>Each engine writes its own columns, none is merged into another, and the table
@@ -92,9 +92,9 @@ nothing is docked again, the same poses are scored, the new numbers appear besid
 the old ones, and the table stays ranked on the engine it already used.</p>
 <p>The OpenMM engine deliberately scores <code>sander</code>'s geometry rather
 than making its own, and declines to run where <code>sander</code> is absent.
-Letting it minimise further moves the energy by tens of kcal/mol, because the
+Letting it minimize further moves the energy by tens of kcal/mol, because the
 extra relaxation loosens the interface: the two energy models agree, and the
-minimisation was the whole of the difference.</p>
+minimization was the whole of the difference.</p>
 
 <h2 id="d-and-rings">D residues and rings</h2>
 <p><b>A D residue is built with the template of its L form, and the docked
@@ -105,8 +105,8 @@ same energy for an angle and for its negative, and it has no CMAP grid, the one
 protein term that would not. Bonds, angles, van der Waals, electrostatics and
 the solvation term depend only on distances and angles, which a mirror image
 keeps. It was checked directly: a D peptide and its exact mirror image as an L
-peptide have the same energy, term by term. After a minimisation of 1,000 steps
-they still agree within 1 kcal/mol, because the minimiser's path from two
+peptide have the same energy, term by term. After a minimization of 1,000 steps
+they still agree within 1 kcal/mol, because the minimizer's path from two
 mirrored starting points differs by rounding.</p>
 <p>The one thing the L template would get wrong is where <code>tleap</code>
 puts the atoms a docked pose does not carry, the hydrogens and the last
@@ -115,8 +115,8 @@ residue it puts the alpha hydrogen on the wrong side. So those atoms of each D
 residue are placed as the mirror image of where they go on its L form. ADCP 1.1
 builds a D threonine or a D isoleucine with only its alpha carbon inverted,
 which is the allo form, and the hydrogen on its beta carbon is then put on the
-open side of that carbon. After the minimisation every stereocentre of the
-peptide is checked against the docked pose, and a pose in which any centre
+open side of that carbon. After the minimization every stereocenter of the
+peptide is checked against the docked pose, and a pose in which any center
 changed its handedness is not scored.</p>
 <p><b>A ring is rescored only on the poses that close it.</b> ADCP's ring is a
 restraint its search pulls on rather than a bond, and a pose can leave the two
@@ -128,22 +128,22 @@ are no further apart than this:</p>
 <tr><td>disulfide</td><td>the sulfurs of the two cysteines</td><td>2.04 &Aring;</td><td>3.5 &Aring;</td></tr>
 </table>
 <p>The two distances come from ring poses docked into MDM2, each of which was
-also built with its closing bond and minimised whatever its distance, to see
+also built with its closing bond and minimized whatever its distance, to see
 what closing it does. A carbon and a nitrogen that are not bonded touch at
 about 3.25 &Aring;, so ends within 2.5 &Aring; are held together by ADCP's
 restraint rather than resting in contact, and the further apart they are, the
-more the minimisation has to move an end residue to close the bond, which can
+more the minimization has to move an end residue to close the bond, which can
 turn its alpha carbon into its mirror image. The sulfurs of a disulfide fell in
 two groups with ADCP 1.1, 2.0 to 3.2 &Aring; or 3.9 &Aring; and more, nothing
 in between. Two sulfurs that are not bonded touch at about 3.6 &Aring;, so a
 pair closer than 3.5 &Aring; is held there by the ring, and 3.5 &Aring; is also
-where ADCP's own minimisation adds the bond. ADCP's head to tail restraint holds
+where ADCP's own minimization adds the bond. ADCP's head to tail restraint holds
 the two end residues closer together than a peptide bond would, so the
-minimisation opens the join out a little.</p>
+minimization opens the join out a little.</p>
 <p>A closed pose is built with its closing bond: a head to tail ring with no
 free amine and no carboxylate, and a disulfide between two CYX residues. The
-bond is checked after the minimisation as well, and a pose whose bond the
-minimisation did not bring to length is not scored. A pose that is not closed is
+bond is checked after the minimization as well, and a pose whose bond the
+minimization did not bring to length is not scored. A pose that is not closed is
 not rescored, and the task log says so for that pose, for example
 <code>ring not closed in this pose: ends 4.31 &Aring; apart</code>. A ring is
 never scored as a linear chain.</p>
@@ -154,13 +154,13 @@ is the mean of. A ring none of whose top poses is closed has no MM-GBSA value:
 it keeps its docking score and its interface panel, and the table lists it as
 unranked with the reason.</p>
 <p><b>They rank with the others.</b> D peptides and closed rings are scored with
-the same engine, force field, minimisation and solvent model as linear peptides
+the same engine, force field, minimization and solvent model as linear peptides
 of L residues, so all of them are ranked together in one table.</p>
 <p><b>AmberTools and OpenMM score both</b>, from the same topology. Prime builds
 its own structure from a PDB file, and nothing has shown that it keeps a closing
-bond or a D centre as they were docked, so it refuses these peptides and says
+bond or a D center as they were docked, so it refuses these peptides and says
 why rather than score another molecule.</p>
-<p><b>ADCP 1.1's own minimised poses are not used.</b> Its OpenMM minimisation
+<p><b>ADCP 1.1's own minimized poses are not used.</b> Its OpenMM minimization
 does add a ring's closing bond, but with another force field, on a receptor it
 completes itself, and only in a run that asked for it. Taking those poses for
 rings while linear peptides start from their docked poses would score the two
@@ -172,7 +172,7 @@ rules. Start a new run to rescore them.</p>
 
 <h2 id="what-else-it-measures">What else it measures</h2>
 <p>While each pose is rescored, the run also measures the interface on the same
-minimised geometry: buried surface area, how much of the peptide is buried,
+minimized geometry: buried surface area, how much of the peptide is buried,
 typed contacts and clashes, and the per residue breakdown of the energy. Those
 are the interface columns in the results, and they are described in
 <a href="results.html">Reading the results</a>.</p>

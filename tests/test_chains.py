@@ -263,7 +263,7 @@ out = {"modes": [{"rank": 1, "score": -20.0}]}
 pipeline._panel_geometry(run, j, P53, out, pdir, log=lambda *a: None)
 bsa = (out.get("panel") or {}).get("bsa")
 check(bsa is not None and bsa > 300,
-      "the interface of p53 on MDM2 relabelled as chain B measures %s A2 of "
+      "the interface of p53 on MDM2 relabeled as chain B measures %s A2 of "
       "buried surface; on chain A it is over 1000" % bsa)
 
 # --- with Amber: tleap builds every one of them -----------------------------

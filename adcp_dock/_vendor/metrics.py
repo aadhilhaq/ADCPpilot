@@ -12,7 +12,7 @@ module computes that panel from what a run already has on disk:
   per residue    MMPBSA.py's own decomposition of the same frame, the same
                  topologies and the same GB model, rather than a second
                  estimate from a second force field. It agrees with the
-                 reported total to within a few per cent, not exactly: see
+                 reported total to within a few percent, not exactly: see
                  decomposition() for why, and never present a per residue
                  energy as an exact share of the reported number
   interface      buried area, the share of the peptide that is buried, how
@@ -20,13 +20,13 @@ module computes that panel from what a run already has on disk:
   site           what the nominated residues contribute, and how much of the
                  nominated site the peptide actually touches
 
-ONE GEOMETRY, for every number here: the sander minimised complex where
+ONE GEOMETRY, for every number here: the sander minimized complex where
 MM-GBSA ran, and the docked pose against the prepared receptor where it did
 not. A metric measured on a different structure from the energy is not a
 property of the same pose, and reporting the two side by side invites the
 reader to relate them.
 
-Nothing in here re-docks or re-minimises anything, and nothing here changes
+Nothing in here re-docks or re-minimizes anything, and nothing here changes
 the ranking. The energies are read, the geometry is measured.
 """
 from __future__ import annotations
@@ -67,8 +67,8 @@ IONIC_A = 4.0
 STACK_A = 5.0
 VDW_A = 4.0
 # A pair closer than this fraction of the sum of its two radii. On a
-# minimised complex the count should be zero; anything above it is a pose the
-# minimiser could not pull apart, because the receptor is restrained.
+# minimized complex the count should be zero; anything above it is a pose the
+# minimizer could not pull apart, because the receptor is restrained.
 CLASH_F = 0.80
 
 POLAR = ("N", "O")
@@ -89,7 +89,7 @@ AROM = {"PHE": ("CG", "CD1", "CD2", "CE1", "CE2", "CZ"),
         "HIE": ("CG", "ND1", "CD2", "CE1", "NE2"),
         "HIP": ("CG", "ND1", "CD2", "CE1", "NE2")}
 
-# Carbon and sulphur count as apolar, and a hydrogen counts as whatever it
+# Carbon and sulfur count as apolar, and a hydrogen counts as whatever it
 # hangs off: see burial(), which folds each hydrogen's area onto its parent
 # heavy atom rather than classing it on its own.
 APOLAR_ELEM = ("C", "S")
@@ -301,7 +301,7 @@ def sasa(xyz, radii, probe=PROBE, points=POINTS):
 
     Numerical, not analytical: each atom's expanded sphere carries `points`
     test points and the area is the share of them no other expanded sphere
-    covers. Numpy over every neighbour at once, so a 2000 atom complex takes
+    covers. Numpy over every neighbor at once, so a 2000 atom complex takes
     well under a second and the three states of a pose are free.
     """
     xyz = np.asarray(xyz, dtype=float)
@@ -311,7 +311,7 @@ def sasa(xyz, radii, probe=PROBE, points=POINTS):
         return np.zeros(0)
     unit = _sphere(points)
     out = np.zeros(n)
-    # Neighbours found a block of atoms at a time. A full n by n matrix is
+    # Neighbors found a block of atoms at a time. A full n by n matrix is
     # fine for a peptide complex and is 3 GB for a 20000 atom one, which is a
     # receptor this tool is expected to dock against.
     BLOCK = 256
@@ -416,7 +416,7 @@ def burial(complex_st, lig_chain="B", points=None):
         # WHICH ATOMS this area was rolled over, carried beside the area and
         # not inferred later. A complex that has been through tleap has its
         # hydrogens and a docked pose does not, and the same pose measured
-        # both ways differs by 8 per cent in buried area and 0.05 in the
+        # both ways differs by 8 percent in buried area and 0.05 in the
         # apolar share. The two are not comparable, so the basis travels with
         # the number.
         "bsa_basis": ("heavy atoms and hydrogens" if (~complex_st.heavy).any()
@@ -615,7 +615,7 @@ def terms(dat, mmpbsa_in=None):
 # tleap numbers the residues 1 to N in the order they appear in the file it
 # reads and ignores the PDB's own numbers, and ambpdb writes that numbering
 # back out with no chain identifier at all. Both the decomposition and the
-# minimised geometry therefore speak in positions, while the site, the log and
+# minimized geometry therefore speak in positions, while the site, the log and
 # the receptor the user chose speak in chain and residue number. This is the
 # dictionary between them, read from the file tleap was actually given.
 def tleap_map(forleap_pdb):
@@ -645,13 +645,13 @@ def tleap_map(forleap_pdb):
 
 
 class Mismatch(Exception):
-    """The minimised file and the file tleap read are not the same complex."""
+    """The minimized file and the file tleap read are not the same complex."""
 
 
 def read_minimised(min_pdb, tmap):
-    """The minimised complex, with its chains and residue numbers put back.
+    """The minimized complex, with its chains and residue numbers put back.
 
-    ambpdb writes tleap's numbering and no chain column, so an unrelabelled
+    ambpdb writes tleap's numbering and no chain column, so an unrelabeled
     file cannot be asked which atoms are the peptide, and a hotspot given as
     A:54 cannot be found in it.
 
@@ -662,7 +662,7 @@ def read_minimised(min_pdb, tmap):
     count went from 0 to 8 and the site coverage from 1.0 to 0.67, all of it
     plausible and all of it wrong. So the fit is checked rather than assumed,
     on the count and on every residue name, and a mismatch raises instead of
-    returning a labelled structure nobody can tell is mislabelled.
+    returning a labeled structure nobody can tell is mislabeled.
     """
     st = read_pdb(min_pdb)
     if not tmap:
@@ -675,16 +675,16 @@ def read_minimised(min_pdb, tmap):
             seen = k
         idx.append(n)
     if n != len(tmap):
-        raise Mismatch("the minimised file holds %d residues and the file "
+        raise Mismatch("the minimized file holds %d residues and the file "
                        "tleap read holds %d, so the two are not the same "
                        "complex" % (n, len(tmap)))
     for i, k in enumerate(idx):
         got = tmap.get(k)
         if not got:
-            raise Mismatch("residue %d of the minimised file is not in the "
+            raise Mismatch("residue %d of the minimized file is not in the "
                            "map" % k)
         if got[2] != st.resname[i]:
-            raise Mismatch("residue %d is %s in the minimised file and %s in "
+            raise Mismatch("residue %d is %s in the minimized file and %s in "
                            "the file tleap read" % (k, st.resname[i], got[2]))
     for i, k in enumerate(idx):
         got = tmap[k]
@@ -715,7 +715,7 @@ def decomposition(path, tmap=None):
     gbsa=2 for any decomposition, so the per residue nonpolar term is an ICOSA
     per atom surface, while the totals table keeps the LCPO surface. Measured
     over the five scored poses of one peptide, the decomposition sums to
-    between 1.5 and 5.3 per cent more negative than the reported total, 0.5 to
+    between 1.5 and 5.3 percent more negative than the reported total, 0.5 to
     1.4 kcal/mol. The van der Waals, electrostatic and polar sums agree with
     the reported terms to within 0.05 kcal/mol in every one of them: the whole
     difference is the two surface models. So expect agreement to a few per
@@ -774,7 +774,7 @@ def site_metrics(hotspots, per_residue, decomp=None):
 
     `hotspots` is [(chain, resnum)] as the run recorded them. Coverage is
     the share of those residues that the pose actually contacts, and it is
-    quantised by the size of the site: on a site of four residues it can only
+    quantized by the size of the site: on a site of four residues it can only
     ever be 0, 0.25, 0.5, 0.75 or 1.
     """
     if not hotspots:
@@ -879,7 +879,7 @@ _IGB = re.compile(r"\bigb\s*=\s*(\d+)")
 
 
 def igb_of(mmpbsa_in, default=5):
-    """The generalised Born model a pose was scored with, from its own input.
+    """The generalized Born model a pose was scored with, from its own input.
 
     A decomposition in a different model from the energy it decomposes would
     be a decomposition of some other number.
@@ -908,9 +908,9 @@ def masks_of(mmpbsa_in):
 def scored_rst(posedir, prefix):
     """(restart file, what it is) for the coordinates MMPBSA.py was given.
 
-    Almost always the minimised complex. When sander writes no restart file,
+    Almost always the minimized complex. When sander writes no restart file,
     run_amber hands MMPBSA.py the complex as tleap built it instead, and the
-    energy in the table is then a single point on an unminimised pose. The
+    energy in the table is then a single point on an unminimized pose. The
     panel has to measure THAT geometry, or the columns describe a structure
     the energy was never computed on. run_amber records its choice beside the
     pose; the file order here is the fallback for a pose scored before it did.
@@ -965,7 +965,7 @@ def decomp_file(posedir, prefix, log=print, make=True):
     """The per residue file for a pose, computed on demand if it is missing.
 
     A run scored before the panel existed has its topologies and its
-    minimised frame but no decomposition, and recomputing the decomposition
+    minimized frame but no decomposition, and recomputing the decomposition
     is seconds against the minutes the pose already cost. It is written
     beside the pose so it is computed once.
     """
@@ -977,7 +977,7 @@ def decomp_file(posedir, prefix, log=print, make=True):
     rec_mask, lig_mask = masks_of(os.path.join(posedir,
                                                "%s_mmpbsa.in" % prefix))
     # The coordinates the energy was computed on, which is not always the
-    # minimised ones: a pose scored without minimisation gets a decomposition
+    # minimized ones: a pose scored without minimization gets a decomposition
     # of what it was actually scored on rather than no decomposition at all.
     rst, _what = scored_rst(posedir, prefix)
     need = [os.path.join(posedir, "%s_%s" % (prefix, s))
@@ -1019,11 +1019,11 @@ MAXCYC_MSG = "Maximum number of minimization cycles reached"
 
 
 def minimisation(min_out):
-    """What the minimisation before the energy actually did.
+    """What the minimization before the energy actually did.
 
     Nothing read this before, and the pose's energy depends on it entirely.
     sander stops at maxcyc rather than at a gradient in almost every case,
-    which is expected for a restrained rescoring minimisation and is not the
+    which is expected for a restrained rescoring minimization and is not the
     same thing as having converged. Reporting the final gradient and where it
     stopped lets a reader tell a relaxed pose from one that was still moving.
     """
@@ -1051,7 +1051,7 @@ def from_atoms(rec_atoms, pose, lig_chain="B"):
     The path for a run with no MM-GBSA: no Amber installed, a peptide with
     non-standard residues, which has no protein force field topology and so
     can never have one, or a ring none of whose poses is closed. Heavy atoms
-    only, and no minimisation, so the energy columns stay empty while the
+    only, and no minimization, so the energy columns stay empty while the
     interface columns are still measured.
     """
     xyz, name, resname, chain, resnum, element = [], [], [], [], [], []
@@ -1136,9 +1136,9 @@ def for_pose(posedir, prefix, hotspots=None, lig_chain="B", log=print,
                                         lig_chain=lig_chain,
                                dat=dat if os.path.isfile(dat) else None,
                                decomp=dec, mmpbsa_in=mmin)
-    # Which coordinates these numbers describe, and what the minimisation
+    # Which coordinates these numbers describe, and what the minimization
     # that produced them did. Recorded rather than assumed: run_amber falls
-    # back to the unminimised pose when sander writes no restart file, and
+    # back to the unminimized pose when sander writes no restart file, and
     # that pose's energy and its interface are both a different thing.
     mi = minimisation(os.path.join(posedir, "%s_min.out" % prefix))
     m.update(mi)

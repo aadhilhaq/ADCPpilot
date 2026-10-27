@@ -29,7 +29,7 @@ rescoring then does is described in
 <h2 id="adcp-11">The ADCP 1.1 suite</h2>
 <p>ADCP 1.1 is the current version of AutoDock CrankPep, and every run docks with
 it. It docks non-standard and D amino acids, writes all-atom poses in one file, and
-can minimise and re-rank the top poses with OpenMM. Scripps distributes it as its
+can minimize and re-rank the top poses with OpenMM. Scripps distributes it as its
 own Python 3.7 environment, for Linux on x86-64:</p>
 <pre>adcp-dock install-adcp11</pre>
 <p>On a cluster, <code>install.sh</code> runs this for you, or uses a suite already
@@ -53,9 +53,9 @@ shows its version. What it lets you dock is in
 <a href="case-modified.html">Modified and D amino acids</a>.</p>
 <p>Scripps builds the suite for Linux only; a Mac docks with ADCP 1.0 instead
 (below). <code>prepare_receptor</code>, and the MolKit
-and PyBabel it loads, carry a licence for non-commercial use only; the
+and PyBabel it loads, carry a license for non-commercial use only; the
 repository's third party notices say which parts of the suite carry which
-licence.</p>
+license.</p>
 
 <h2 id="on-a-mac">On a Mac: ADCP 1.0</h2>
 <p>Scripps builds no ADCP 1.1 for macOS, so on a Mac <code>adcp-dock local</code>,
@@ -67,7 +67,7 @@ built for Intel; on Apple silicon, run <code>softwareupdate --install-rosetta</c
 once first.</p>
 <p>A run docked there says <b>ADCP 1.0 (macOS)</b> in its job file and in every
 result, and its page and report say that its scores are not comparable with runs
-docked with ADCP 1.1. Non-standard and D amino acids and the OpenMM minimisation
+docked with ADCP 1.1. Non-standard and D amino acids and the OpenMM minimization
 need ADCP 1.1, ADCP 1.0 writes at most 10 poses per peptide, and AutoSite's
 pockets cannot be found before submitting. ADFRsuite 1.0's <code>msms</code> is a
 32-bit program, which macOS 10.15 and later do not run, so the viewers draw their
@@ -75,7 +75,7 @@ own surfaces. A run made on a Mac is finished on that Mac. For ADCP 1.1, use a
 cluster, the Colab notebook or a Linux virtual machine.</p>
 <p>ADFRsuite 1.0 is mostly LGPL 2, but its MSMS and UT packages are free for academic
 use only, and its MolKit, mglutil, Support, DejaVu2, PyBabel and Volume carry the
-MGLTOOLS licence, for non-commercial use only; <code>prepare_receptor</code> and
+MGLTOOLS license, for non-commercial use only; <code>prepare_receptor</code> and
 agfr load them. The repository's third party notices set this out.</p>
 
 <h2 id="adapt">ADapt</h2>
@@ -138,11 +138,11 @@ package. Without it the viewers draw their own.</li>
 
 <h2 id="the-receptor-tools">PDBFixer, OpenMM and Biopython</h2>
 <p>These three do the receptor repair work: PDBFixer rebuilds missing side chains
-(unless that is turned off) and loops, OpenMM runs the restrained minimisation, and Biopython reads mmCIF files.
+(unless that is turned off) and loops, OpenMM runs the restrained minimization, and Biopython reads mmCIF files.
 They install with the package's <code>prep</code> or <code>local</code> extra.</p>
 <p>They are optional in the sense that the run continues without them, but the
 preparation log then says which steps it had to skip, and a receptor that was not
-minimised is a receptor docked with unrelaxed hydrogens. Install them.</p>
+minimized is a receptor docked with unrelaxed hydrogens. Install them.</p>
 
 <h2 id="schrodinger">Schrodinger Prime</h2>
 <p>If your site licenses the Schrodinger suite, Prime appears as a third MM-GBSA

@@ -9,7 +9,7 @@ own templates and rotamers (scripts/modifications_table.py). Charged side
 chains are drawn charged, as at pH 7 and as ADCP models them, so that
 variants that differ only in charge (SEP and SEP2) look different. A D
 residue is drawn as the mirror image of the L one, which is how ADCP builds
-it: every stereocentre is inverted, double bonds are not.
+it: every stereocenter is inverted, double bonds are not.
 """
 import functools
 import json
@@ -73,7 +73,7 @@ def library():
 
 
 def mirror(mol):
-    """The mirror image: every tetrahedral centre inverted."""
+    """The mirror image: every tetrahedral center inverted."""
     m = Chem.Mol(mol)
     for a in m.GetAtoms():
         t = a.GetChiralTag()
@@ -144,7 +144,7 @@ def _layout(mol):
 
 @functools.lru_cache(maxsize=512)
 def svg(letter="", code="", d=False, dark=False):
-    """An SVG drawing of the residue, stereocentres wedged and labelled R or
+    """An SVG drawing of the residue, stereocenters wedged and labeled R or
     S, on a transparent background."""
     mol = residue(letter, code, d)
     _layout(mol)

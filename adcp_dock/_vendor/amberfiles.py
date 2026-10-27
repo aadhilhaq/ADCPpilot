@@ -10,9 +10,9 @@ made on any run whose files are on disk.
 What the checks are for. A ring peptide is rescored with a bond tleap was
 told to make, and a D residue with the template of its L form, so two
 things have to be shown on every such pose rather than assumed: that the
-bond is in the topology and is a bond after the minimisation (its length
-and its energy term, before and after), and that every stereocentre of the
-peptide has the handedness the docking gave it once the minimisation is
+bond is in the topology and is a bond after the minimization (its length
+and its energy term, before and after), and that every stereocenter of the
+peptide has the handedness the docking gave it once the minimization is
 done (stereo_centres, handedness).
 """
 from __future__ import annotations
@@ -158,15 +158,15 @@ def bond_term(parm, xyz, i, j):
 
 
 def signed_volume(a, centre, b, c):
-    """(a - centre) . ((b - centre) x (c - centre)): its sign is the
-    handedness of the three substituents seen from the centre."""
+    """(a - center) . ((b - center) x (c - center)): its sign is the
+    handedness of the three substituents seen from the center."""
     centre = np.asarray(centre)
     return float(np.dot(np.asarray(a) - centre,
                         np.cross(np.asarray(b) - centre,
                                  np.asarray(c) - centre)))
 
 
-# The stereocentres of the twenty amino acids, as (centre, three heavy atom
+# The stereocenters of the twenty amino acids, as (center, three heavy atom
 # substituents, the hydrogen on it). The alpha carbon of every residue but
 # glycine, and the beta carbon of threonine and isoleucine. For an L residue
 # the alpha volume (N, C, CB) is positive.
@@ -187,8 +187,8 @@ def _base(label):
 
 
 def stereo_centres(parm, residue_indices):
-    """[(residue index, residue, centre, (a, b, c, h) atom indices)] for the
-    stereocentres of the given residues, from the topology alone."""
+    """[(residue index, residue, center, (a, b, c, h) atom indices)] for the
+    stereocenters of the given residues, from the topology alone."""
     out = []
     table = {r: (lab, atoms) for r, lab, atoms in residues(parm)}
     for r in residue_indices:
@@ -210,8 +210,8 @@ def stereo_centres(parm, residue_indices):
 def handedness(centres, xyz):
     """[{"residue", "name", "centre", "volume", "h_opposite"}] at these
     coordinates. "volume" is the signed volume of the three heavy
-    substituents, "h_opposite" whether the hydrogen on the centre sits on
-    the side away from them, which is where a tetrahedral centre has it."""
+    substituents, "h_opposite" whether the hydrogen on the center sits on
+    the side away from them, which is where a tetrahedral center has it."""
     out = []
     for r, base, centre, (ic, ia, ib, iq, ih) in centres:
         v = signed_volume(xyz[ia], xyz[ic], xyz[ib], xyz[iq])

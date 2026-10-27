@@ -298,7 +298,7 @@ function offViewer(size){
   }
   return OFF;
 }
-/* The structure turned so the line from one side's centre to the other's runs
+/* The structure turned so the line from one side's center to the other's runs
    across the picture: an interface seen side on. PDB text only. */
 function sideOn(pdb, a, b){
   const rows = pdb.split('\n').filter(l => /^(ATOM  |HETATM)/.test(l));

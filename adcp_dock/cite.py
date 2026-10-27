@@ -71,7 +71,7 @@ REFERENCES = [
      "2017.  (PDBFixer is distributed with OpenMM.)",
      "10.1371/journal.pcbi.1005659"),
     ("openmm", "the receptor's minimization, or ADCP 1.1's",
-     "the restrained energy minimisation",
+     "the restrained energy minimization",
      "Eastman P, et al. OpenMM 7: rapid development of high performance "
      "algorithms for molecular dynamics. PLoS Comput Biol 13(7):e1005659, "
      "2017.",
@@ -95,7 +95,7 @@ REFERENCES = [
      "calculations. J Chem Theory Comput 8(9):3314-3321, 2012.",
      "10.1021/ct300418h"),
     ("gbmodel", "mmgbsa",
-     "the generalised Born model itself (igb=5, GB-OBC II, 0.15 M salt)",
+     "the generalized Born model itself (igb=5, GB-OBC II, 0.15 M salt)",
      "Onufriev A, Bashford D, Case DA. Exploring protein native states and "
      "large-scale conformational changes with a modified generalized born "
      "model. Proteins 55(2):383-394, 2004.",
@@ -453,7 +453,7 @@ def used_by(job):
             mmforms.unscoreable(s, job, _jobring.ring_of(job, p)) is None
             for s, p in zip(seqs, peps))):
         keys |= {"amber", "ff14sb", "mmpbsa"} | by
-        # The paper for the generalised Born model the energies were computed
+        # The paper for the generalized Born model the energies were computed
         # in: OBC(II) by default, GBn2 when the run asked for it.
         keys.add("gbn2" if job.get("mmgbsa_model") == "gbn2" else "gbmodel")
     omm = int(job.get("omm_minimize") or 0)
@@ -498,7 +498,7 @@ def text(job=None, out=print):
         if when != "always":
             out("      (only if: %s)" % when)
     out("")
-    out("ACKNOWLEDGEMENT")
+    out("ACKNOWLEDGMENT")
     out("  " + acknowledgement(job))
     out("")
     out("PI: %s" % PI)
@@ -655,7 +655,7 @@ def bibtex(job=None, year=2026):
         out.append("  doi     = {%s}" % doi)
         out.append("}")
         out.append("")
-    out.append("% Acknowledgement to include in the manuscript:")
+    out.append("% Acknowledgment to include in the manuscript:")
     for line in _wrap(acknowledgement(job), 74):
         out.append("%% %s" % line)
     return "\n".join(out) + "\n"
@@ -714,7 +714,7 @@ def ris(job=None, year=2026):
         else:
             out.append("SP  - %s" % pages)
         out += ["DO  - %s" % doi, "N1  - used for: %s" % did, "ER  - ", ""]
-    out += ["", "Acknowledgement to include in the manuscript:",
+    out += ["", "Acknowledgment to include in the manuscript:",
             acknowledgement(job)]
     return "\n".join(out) + "\n"
 

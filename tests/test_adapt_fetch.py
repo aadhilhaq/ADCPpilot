@@ -181,7 +181,7 @@ def deployment(name):
 
 
 def make_suite(path):
-    """A stand-in ADCP 1.1 suite, as the interface recognises one."""
+    """A stand-in ADCP 1.1 suite, as the interface recognizes one."""
     os.makedirs(os.path.join(path, "bin"))
     os.makedirs(os.path.join(path, "lib", "python3.7", "site-packages", "ADCP"))
     open(os.path.join(path, "bin", "adcp"), "w").close()

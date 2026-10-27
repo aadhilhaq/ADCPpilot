@@ -9,13 +9,13 @@ structure needs more before it can be docked against:
 * selenomethionine read as methionine
 * waters removed, except any requested near the site
 * other heteroatoms removed unless wanted, since an arbitrary cofactor
-  cannot be parameterised here
+  cannot be parameterized here
 * missing side-chain atoms rebuilt (or, if asked, left missing in the
   result), and missing residues if requested
 * termini capped, so a chain break is not read as a charged terminus
 * disulfides found and named, so they are not reduced by accident
 * hydrogens and titration states at a stated pH
-* a restrained minimisation, so the result is a structure the force field
+* a restrained minimization, so the result is a structure the force field
   accepts
 
 Every step is optional and every step is logged. A structure whose ligand
@@ -23,7 +23,7 @@ was removed, or which kept a clash, without saying so is worse than one
 left alone, so the log is part of the output.
 
 Not done: ligand protomer enumeration. Loop rebuilding is off by default,
-because a modelled loop cannot be told from a measured one afterwards.
+because a modeled loop cannot be told from a measured one afterwards.
 """
 from __future__ import annotations
 
@@ -103,7 +103,7 @@ def looks_like_trace(lines):
     """Whether this is a backbone trace rather than a full structure.
 
     One atom per residue means every side chain is missing. Rebuilding them
-    is a different job from preparation, it is modelling, and it takes long
+    is a different job from preparation, it is modeling, and it takes long
     enough that starting it by accident costs a run.
     """
     res, atoms = set(), 0
@@ -265,7 +265,7 @@ def drop_waters(lines, steps, keep_within=0.0, near=None):
 
 
 def drop_hetatms(lines, steps, keep_ions=True):
-    """Ligands and cofactors out: nothing here can parameterise them."""
+    """Ligands and cofactors out: nothing here can parameterize them."""
     dropped, kept = {}, {}
     out = []
     for l in lines:
@@ -292,7 +292,7 @@ def drop_hydrogens(lines, steps):
     hydrogen again from the heavy atoms. One already there is not neutral:
     a protonated C terminus (HXT) stops PDB2PQR outright ("Unable to debump
     biomolecule"), which left a receptor that had been prepared elsewhere
-    with no hydrogens and no minimisation, docked anyway."""
+    with no hydrogens and no minimization, docked anyway."""
     keep, n = [], 0
     for line in lines:
         # the polymer's and the waters' only: a kept ligand's hydrogens are
@@ -341,7 +341,7 @@ BACKBONE_ATOMS = frozenset({"N", "CA", "C", "O", "OXT"})
 
 # The names an amino acid can carry between here and the prepared file: the
 # standard twenty, and the names pdb2pqr and the Amber force fields give to
-# protonation states and disulphides.
+# protonation states and disulfides.
 AMINO_ACIDS = frozenset({
     "ALA", "ARG", "ASN", "ASP", "CYS", "GLN", "GLU", "GLY", "HIS", "ILE",
     "LEU", "LYS", "MET", "PHE", "PRO", "SER", "THR", "TRP", "TYR", "VAL",
@@ -401,7 +401,7 @@ def fix_structure(path, out_path, steps, fill_loops=False, cap_termini=True,
 
     With rebuild_sidechains off the same atoms are still built here when
     model_missing is on, because pdb2pqr completes any residue it is given
-    whatever this step does, and the minimisation's force field has no
+    whatever this step does, and the minimization's force field has no
     template for an incomplete one. strip_modelled_side_chains takes them
     out again once both have run; the log says so instead of saying they
     were rebuilt.
@@ -409,7 +409,7 @@ def fix_structure(path, out_path, steps, fill_loops=False, cap_termini=True,
     With model_missing off as well, the missing side-chain atoms are not
     built at all. That is right only when nothing later needs whole
     residues: reduce protonates a residue as it stands, so a receptor
-    protonated with reduce and not minimised never needs them.
+    protonated with reduce and not minimized never needs them.
     """
     try:
         from pdbfixer import PDBFixer
@@ -467,7 +467,7 @@ def fix_structure(path, out_path, steps, fill_loops=False, cap_termini=True,
                     fixer.missingAtoms[res] = keep
                 else:
                     del fixer.missingAtoms[res]
-        # PDBFixer's own minimisation on one thread of the CPU platform, so the
+        # PDBFixer's own minimization on one thread of the CPU platform, so the
         # same loop comes out on every node (a GPU node's platform, or another
         # number of threads, sums the forces in another order)
         with _one_cpu_thread() as cpu:
@@ -495,8 +495,8 @@ def fix_structure(path, out_path, steps, fill_loops=False, cap_termini=True,
                   f"structure has them; rebuilt {n_side - n_sc} other "
                   f"missing atom(s)")
     else:
-        detail = (f"modelled {n_sc} missing side-chain atom(s) only so "
-                  f"protonation and minimisation can run; they are taken out "
+        detail = (f"modeled {n_sc} missing side-chain atom(s) only so "
+                  f"protonation and minimization can run; they are taken out "
                   f"again at the end. Rebuilt {n_side - n_sc} other missing "
                   f"atom(s)")
     if n_term:
@@ -526,7 +526,7 @@ RELAX_SCHEDULE = ((10.0, 2.0), (5.0, 5.0), (2.0, 10.0), (1.0, 10.0), (0.5, 20.0)
 #: relaxation, as ADapt's rebuilding checks its loops: the C-N bond (A), the
 #: two backbone angles across it (degrees; ideal 1.33 A, 116 and 122), CA to
 #: CA (A; 3.80 across a trans bond in crystal structures, a little more once
-#: minimised in ff14SB) and the twist, omega (CA-C-N-CA), within `trans`
+#: minimized in ff14SB) and the twist, omega (CA-C-N-CA), within `trans`
 #: degrees of 180. A cis bond, within `trans` of 0, passes only before a
 #: proline, with CA to CA in `ca_ca_cis`. Every rebuilt residue with a CB is
 #: of the L hand: its improper N-C-CA-CB within `hand` degrees of HAND, and a
@@ -547,7 +547,7 @@ HAND_HA = -119.0
 #: the natural form and negative in the allo form.
 CHIRAL_CB = {"THR": ("OG1", "CG2"), "ILE": ("CG1", "CG2")}
 #: The restraints that hold a rebuilt loop's chemistry while it relaxes and in
-#: the minimisation that ends the preparation. Both are flat-bottomed, so a
+#: the minimization that ends the preparation. Both are flat-bottomed, so a
 #: loop inside their wells feels neither: each peptide bond in or beside it
 #: trans (omega within TRANS_SLACK degrees of 180), and each rebuilt residue
 #: and stem with a CB of the L hand (its impropers within HAND_SLACK degrees
@@ -659,7 +659,7 @@ def _closest_contact(heavy, made, links):
     away, or None. heavy: [(residue, name, xyz)]; links: the peptide bonds
     between residues, as (residue, next residue). Bonds are read from the
     distances: within a residue under 1.9 A, C to N along `links`, and SG to SG
-    under 2.3 A (a disulphide)."""
+    under 2.3 A (a disulfide)."""
     import numpy as np
     new = [i for i, h in enumerate(heavy) if h[0] in made]
     if not new or len(heavy) < 2:
@@ -673,7 +673,7 @@ def _closest_contact(heavy, made, links):
             close.append((float(d[j]), i, int(j)))
     if not close:
         return None
-    # the bonds among the atoms that came close, and their neighbours
+    # the bonds among the atoms that came close, and their neighbors
     where = sorted({j for _d, i, j in close} | {i for _d, i, j in close})
     pocket = np.array([xyz[j] for j in where])
     region = [j for j in range(len(heavy))
@@ -737,7 +737,7 @@ class _one_cpu_thread:
 class _seeded_random:
     """Python's random module seeded for what runs inside, and its state put
     back after. Modeller.addHydrogens lays each new hydrogen at a random place
-    and then minimises it, so unseeded the same structure came out of the
+    and then minimizes it, so unseeded the same structure came out of the
     relaxation two ways on two runs."""
 
     def __init__(self, seed):
@@ -901,7 +901,7 @@ def _l_hand(topology, xyz, made):
 def _ha_opposite(topology, xyz, made):
     """xyz (nm) with the HA of every rebuilt residue with a CB put opposite its
     CA's three other substituents, 0.109 nm from CA, where the L hand has it.
-    Modeller lays a new hydrogen at random and minimises it, and on a CA that
+    Modeller lays a new hydrogen at random and minimizes it, and on a CA that
     PDBFixer left nearly flat it can settle on CB's side. With HA held as well
     (HAND_HA), 7A3R chain A's loops passed on the second attempt with HA placed
     here first, and on the third without. Returns how many were placed."""
@@ -978,10 +978,10 @@ def relax_built(path, out_path, steps, built, log=print):
     """The residues fix_structure made, relaxed before anything protonates them.
 
     Every measured atom is held exactly where it was measured (mass zero, so
-    the minimiser cannot move it); only built residues move, with hydrogens
+    the minimizer cannot move it); only built residues move, with hydrogens
     from OpenMM's templates so the force field covers them. Done before
     protonation because reduce cannot place an amide hydrogen on a junction
-    PDBFixer closed badly, and the minimisation that would have repaired it
+    PDBFixer closed badly, and the minimization that would have repaired it
     then fails for the want of that hydrogen. While it relaxes, every peptide
     bond in or beside the loop is held trans and every rebuilt residue of the
     L hand (_hold_chemistry); afterwards every one of those bonds and residues
@@ -1015,7 +1015,7 @@ def relax_built(path, out_path, steps, built, log=print):
         xyz = np.array(m.positions.value_in_unit(unit.nanometer))
         righted = _l_hand(m.topology, xyz, made)
         m.positions = [openmm.Vec3(*p) for p in xyz] * unit.nanometer
-        # Modeller lays each new hydrogen at random before minimising it
+        # Modeller lays each new hydrogen at random before minimizing it
         with _seeded_random(LOOP_SEEDS[0]), _one_cpu_thread() as cpu:
             m.addHydrogens(ff, pH=7.0, platform=cpu)
         xyz = np.array(m.positions.value_in_unit(unit.nanometer))
@@ -1024,7 +1024,7 @@ def relax_built(path, out_path, steps, built, log=print):
         system = ff.createSystem(m.topology, nonbondedMethod=app.CutoffNonPeriodic,
                                  nonbondedCutoff=1.2 * unit.nanometer, constraints=None)
         # A loop held rigidly at both ends often cannot close: 7A3R's stayed
-        # at C-N-CA 92 degrees. As loop modelling does, the stems (FLANK
+        # at C-N-CA 92 degrees. As loop modeling does, the stems (FLANK
         # measured residues either side) may give a little, on a spring to
         # where they were measured; everything further away does not move.
         res = list(m.topology.residues())
@@ -1089,8 +1089,8 @@ def relax_built(path, out_path, steps, built, log=print):
             fh.writelines(out)
         return moved
 
-    # Each attempt starts again from PDBFixer's loop: minimise, a warm spell to
-    # leave its closure, minimise again. Later attempts loosen the stems and
+    # Each attempt starts again from PDBFixer's loop: minimize, a warm spell to
+    # leave its closure, minimize again. Later attempts loosen the stems and
     # stay warm longer. They are independent, so they run side by side, one
     # process and one thread each, and the first in RELAX_SCHEDULE's order
     # whose every bond and residue passes is kept: the answer a run of them one
@@ -1146,8 +1146,8 @@ def relax_built(path, out_path, steps, built, log=print):
 
 def _relax_attempt(job):
     """One attempt of RELAX_SCHEDULE: (attempt, spring, energy in kcal/mol,
-    the positions in A of the system's atoms, or the error as text). Minimise,
-    a warm spell to leave PDBFixer's closure, minimise again, on one thread.
+    the positions in A of the system's atoms, or the error as text). Minimize,
+    a warm spell to leave PDBFixer's closure, minimize again, on one thread.
     The integrator is seeded before its context is made, which is when OpenMM
     reads the seed."""
     xml, pos0, n, k_spring, warm_ps = job
@@ -1271,7 +1271,7 @@ def strip_modelled_side_chains(measured, path, out_path, steps):
     """Side chains left as the structure had them.
 
     `measured` is the structure before anything was rebuilt (tidied.pdb) and
-    `path` the structure after protonation and minimisation. On every amino
+    `path` the structure after protonation and minimization. On every amino
     acid that `measured` has, a side-chain heavy atom it lacks is taken out,
     with the hydrogens on it. The backbone, the C terminal oxygen, residues
     the structure did not have at all (a rebuilt loop, a cap) and anything
@@ -1280,7 +1280,7 @@ def strip_modelled_side_chains(measured, path, out_path, steps):
     An atom counts as measured if `measured` has one of that name in that
     residue, or has a heavy atom of that residue within 0.9 A of it. The
     second covers a measured atom the force field renamed: the restrained
-    minimisation moves a heavy atom a fraction of that, and a modelled atom
+    minimization moves a heavy atom a fraction of that, and a modeled atom
     sits at least a bond length, 1.4 A, from every measured one.
     """
     import math
@@ -1369,8 +1369,8 @@ def strip_modelled_side_chains(measured, path, out_path, steps):
     steps.append(Step(
         "side chains", True,
         f"left as the structure has them: {n_heavy} side-chain atom(s) it "
-        f"lacks, and the {n_h} hydrogen(s) on them, were modelled only for "
-        f"protonation and minimisation and are not in the prepared receptor; "
+        f"lacks, and the {n_h} hydrogen(s) on them, were modeled only for "
+        f"protonation and minimization and are not in the prepared receptor; "
         f"{len(where)} residue(s): {', '.join(where[:8])}"
         + (", ..." if len(where) > 8 else "")))
     return out_path
@@ -1380,7 +1380,7 @@ def strip_modelled_side_chains(measured, path, out_path, steps):
 # to tleap next. OpenMM writes the methyl of an NME as C with H1, H2 and H3
 # on it; Amber calls them CH3 and HH31 to HH33, and tleap answers an unknown
 # atom name by dropping the atom and rebuilding it. Renaming here keeps the
-# hydrogens that were just minimised instead of having them guessed again.
+# hydrogens that were just minimized instead of having them guessed again.
 CAP_NAMES = {"ACE": {"H1": "HH31", "H2": "HH32", "H3": "HH33"},
              "NME": {"C": "CH3", "H1": "HH31", "H2": "HH32", "H3": "HH33"},
              "NMA": {"C": "CH3", "H1": "HH31", "H2": "HH32", "H3": "HH33"}}
@@ -1407,23 +1407,23 @@ def amber_cap_names(path):
 
 def minimise(path, out_path, steps, restraint=10.0, max_iterations=500,
              log=print, free=()):
-    """A restrained minimisation, the way the wizard's last step is.
+    """A restrained minimization, the way the wizard's last step is.
 
     Heavy atoms are held with a spring rather than frozen, so hydrogens and
     clashes relax while the structure that was measured stays where it was
     measured. Reported as the RMSD it moved: if that is large, something was
-    wrong before minimising and is worth looking at rather than accepting.
+    wrong before minimizing and is worth looking at rather than accepting.
     """
     try:
         import openmm
         from openmm import app, unit
     except ImportError:
         steps.append(Step("minimisation", False,
-                          "openmm is not installed, so nothing was minimised"))
+                          "openmm is not installed, so nothing was minimized"))
         return None
     # The same chain-break problem affects OpenMM. It bonds residue i's C
     # to residue i+1's N for every consecutive pair within a chain, by
-    # name rather than by distance, so a structure with an unmodelled
+    # name rather than by distance, so a structure with an unmodeled
     # loop gets a long bond across the gap. The residues on either side,
     # which pdb2pqr has correctly given terminal atoms, then match no
     # template, and the error names a residue without mentioning the gap.
@@ -1438,7 +1438,7 @@ def minimise(path, out_path, steps, restraint=10.0, max_iterations=500,
         if mapping:
             path = split
             steps.append(Step(
-                "minimisation setup", True,
+                "minimization setup", True,
                 "%d backbone break(s) named as separate chains, so the force "
                 "field is not asked to bond across them" % len(gaps)))
     try:
@@ -1446,11 +1446,11 @@ def minimise(path, out_path, steps, restraint=10.0, max_iterations=500,
         # tip3p IS WHERE THE IONS ARE. amber14-all.xml carries protein,
         # nucleic acid and lipid templates and no monovalent ions, so a
         # receptor keeping the sodium a crystal came with stopped the
-        # minimisation with "No template found for residue 104 (NA). The
+        # minimization with "No template found for residue 104 (NA). The
         # residue contains Na atoms, which are not supported by any template
         # in the force field" - and keep_ions is on by default, so that is
         # most structures. Nothing else changes: with implicit solvent there
-        # are no waters to parameterise unless the caller kept some, and
+        # are no waters to parameterize unless the caller kept some, and
         # then TIP3P is the right answer for them too.
         ff = app.ForceField("amber14-all.xml", "amber14/tip3p.xml",
                             "implicit/gbn2.xml")
@@ -1461,7 +1461,7 @@ def minimise(path, out_path, steps, restraint=10.0, max_iterations=500,
         if any(r.name in CAP_RESIDUES for r in topology.residues()):
             _m = app.Modeller(topology, positions)
             # seeded and on one thread: Modeller lays each new hydrogen at
-            # random before minimising it
+            # random before minimizing it
             with _seeded_random(LOOP_SEEDS[0]), _one_cpu_thread() as cpu:
                 _m.addHydrogens(ff, platform=cpu)
             topology, positions = _m.topology, _m.positions
@@ -1470,7 +1470,7 @@ def minimise(path, out_path, steps, restraint=10.0, max_iterations=500,
         # a restraint on a guessed position is a guess that cannot correct
         # itself. Everything measured stays where it was measured.
         try:
-            # A cutoff, not NoCutoff. Generalised-Born with every pair
+            # A cutoff, not NoCutoff. Generalized-Born with every pair
             # considered is quadratic in atom count, and measured it was 391
             # of the 393 seconds a preparation took: the rest of the work was
             # 2.3. At 1.2 nm the pairs that matter are still there and the
@@ -1520,7 +1520,7 @@ def minimise(path, out_path, steps, restraint=10.0, max_iterations=500,
 
         integrator = openmm.LangevinIntegrator(
             300 * unit.kelvin, 1 / unit.picosecond, 0.002 * unit.picoseconds)
-        # One thread, so the same structure minimises to the same coordinates
+        # One thread, so the same structure minimizes to the same coordinates
         # every time: on several, the CPU platform sums its forces in whatever
         # order the threads finish.
         sim = app.Simulation(topology, system, integrator,
@@ -1562,8 +1562,8 @@ def minimise(path, out_path, steps, restraint=10.0, max_iterations=500,
         f"kcal/mol; heavy atoms moved {rmsd:.2f} A RMSD"))
     if rmsd > 1.0:
         steps.append(Step(
-            "minimisation warning", True,
-            f"{rmsd:.2f} A is a long way for a restrained minimisation. The "
+            "minimization warning", True,
+            f"{rmsd:.2f} A is a long way for a restrained minimization. The "
             f"structure disagreed with the force field somewhere, which is worth "
             f"looking at before trusting a docking against it."))
     return out_path
@@ -1678,9 +1678,9 @@ def backbone_gaps(path, tol=GAP_TOLERANCE):
     This is the measurement that predicts whether protonation will run at
     all. pdb2pqr treats a backbone gap as an incomplete structure and gives
     up on the WHOLE file (not on the fragment, on the file) so a receptor
-    with one unmodelled loop anywhere in it came out with no hydrogens, no
-    titration states and, because minimisation needs hydrogens, no
-    minimisation either.
+    with one unmodeled loop anywhere in it came out with no hydrogens, no
+    titration states and, because minimization needs hydrogens, no
+    minimization either.
     """
     import math
     per, keys = {}, []
@@ -1801,7 +1801,7 @@ def restore_chains(path, mapping, out_path=None):
     return out_path
 
 
-#: The caps this adds at a chain break. Not restrained during minimisation,
+#: The caps this adds at a chain break. Not restrained during minimization,
 #: and not counted as part of the measured structure.
 CAP_RESIDUES = ("ACE", "NME", "NMA")
 
@@ -1965,10 +1965,10 @@ def cap_breaks(path, out_path, gaps, steps, log=print, amide_h=False):
     # WHOLE RESIDUES, NAMED AS THE FORCE FIELDS NAME THEM. The caps used to
     # be two or three heavy atoms with no hydrogens, and the methyl carbon of
     # the NME was called C, which is not an atom NME has. OpenMM could not
-    # match either template and the minimisation stopped on the first one:
+    # match either template and the minimization stopped on the first one:
     #     No template found for residue 0 (ACE). The set of atoms is similar
     #     to NGLY, but is missing 1 H atom and 1 N atom.
-    # so every receptor with an unmodelled break came out unminimised, and
+    # so every receptor with an unmodeled break came out unminimized, and
     # the step that says so is one line in a log nobody reads twice.
     for a, b, _d in gaps:
         A, B = at.get(a, {}), at.get(b, {})
@@ -2049,7 +2049,7 @@ def cap_breaks(path, out_path, gaps, steps, log=print, amide_h=False):
             drop.add((b, "H"))
 
     # THE AMIDE HYDROGEN, placed from the cap's carbonyl carbon, which is
-    # the nitrogen's new neighbour, in the plane of the amide and trans to
+    # the nitrogen's new neighbor, in the plane of the amide and trans to
     # the carbonyl oxygen. Written for every capped residue, whichever
     # protonation ran: the terminal hydrogens it put there have just been
     # dropped, so without this the nitrogen has none. A proline's nitrogen
@@ -2147,7 +2147,7 @@ def protonate(path, out_path, steps, ph=7.4, forcefield="AMBER", log=print):
     # refuses a structure whose backbone jumps ("Found gap in biomolecule
     # structure"), and it refuses the whole file, which would leave the
     # receptor with no hydrogens, no titration states and, since
-    # minimisation needs hydrogens, no minimisation. Naming the fragments
+    # minimization needs hydrogens, no minimization. Naming the fragments
     # as chains costs nothing. --nodebump also avoids the refusal by
     # switching off clash resolution; it remains the fallback when no
     # chain letters are left to rename with.
@@ -2162,7 +2162,7 @@ def protonate(path, out_path, steps, ph=7.4, forcefield="AMBER", log=print):
             src = split
             steps.append(Step(
                 "backbone gaps", True,
-                "%d unmodelled break(s) (%s%s) written as separate chains "
+                "%d unmodeled break(s) (%s%s) written as separate chains "
                 "so pdb2pqr protonates the whole structure instead of "
                 "refusing it. The fragment ends become termini, which is what "
                 "the file already implies; the original chain letters go back "
@@ -2171,7 +2171,7 @@ def protonate(path, out_path, steps, ph=7.4, forcefield="AMBER", log=print):
         else:
             steps.append(Step(
                 "backbone gaps", False,
-                "%d unmodelled break(s) (%s) and no free chain letter to "
+                "%d unmodeled break(s) (%s) and no free chain letter to "
                 "name the fragments with; pdb2pqr will be asked not to debump "
                 "instead" % (len(gaps), where)))
 
@@ -2207,7 +2207,7 @@ def protonate(path, out_path, steps, ph=7.4, forcefield="AMBER", log=print):
                               f"pdb2pqr without PROPKA also failed: {why2}"))
             steps.append(Step(
                 "protonation consequence", True,
-                "WITHOUT HYDROGENS the minimisation cannot run either. The "
+                "WITHOUT HYDROGENS the minimization cannot run either. The "
                 "docking will add them geometrically and the run's pH will "
                 "not be reflected in the receptor."))
             return None
@@ -2432,14 +2432,14 @@ def protonate_reduce(path, out_path, steps, exe=None, log=print):
     and one more: -Nterm set to the first residue number of the chains, so
     a chain that starts at residue 25 is charged as a terminus there, as
     pdb2pqr treats it. Without it reduce puts no hydrogen on that nitrogen
-    at all, and the minimisation's force field has no template for the
+    at all, and the minimization's force field has no template for the
     residue.
 
     HYDROGENS THE STRUCTURE ARRIVES WITH ARE TRIMMED FIRST, with reduce's own
     -Trim, which is the two-pass order reduce documents for a file that is
     already protonated. -BUILD adds what is missing and leaves what it finds,
     and what it finds was placed by whoever wrote the file. One such atom is
-    enough to lose the minimisation: 7A3R arrives with 2,859 hydrogens, HXT
+    enough to lose the minimization: 7A3R arrives with 2,859 hydrogens, HXT
     among them, which is a proton on the C-terminal carboxylate. That makes
     the terminus neutral, Amber's templates have only the charged form, and
     createSystem then refuses the whole structure for want of a template for
@@ -2523,7 +2523,7 @@ def keep_chain(lines, chain, steps):
     preparing one of them leaves the peptide pressed against a hole.
 
     The run uses one chain. Preparing all of them rebuilds side chains, adds
-    hydrogens and minimises nineteen copies of a protein that nothing will
+    hydrogens and minimizes nineteen copies of a protein that nothing will
     look at: on a twenty-chain cryo-EM structure that is the difference
     between a job that finishes and one that does not.
     """
@@ -2587,7 +2587,7 @@ def _prep_key(pdb_in, ph, forcefield, chain, keep_waters_within,
            "restraint": float(restraint)}
     # Recorded only when off. A preparation made before the setting existed
     # rebuilt side chains and has no such entry, and it must still be
-    # recognised as made with the default.
+    # recognized as made with the default.
     if not rebuild_sidechains:
         key["sidechains"] = False
     # The same for the protonation: a preparation made before it could be
@@ -2607,9 +2607,9 @@ def run(pdb_in, workdir, ph=7.4, forcefield="AMBER", log=print, chain="",
     """Prepare a receptor. Returns the prepared PDB, or None if nothing ran.
 
     The order matters and is the wizard's: tidy the file first, rebuild what
-    is missing, then protonate, then minimise. Protonating before rebuilding
-    would put hydrogens on atoms that are about to move; minimising before
-    protonating would minimise a structure with no hydrogens on it.
+    is missing, then protonate, then minimize. Protonating before rebuilding
+    would put hydrogens on atoms that are about to move; minimizing before
+    protonating would minimize a structure with no hydrogens on it.
 
     `protonation` is "reduce" (reduce_exe, the ADCP 1.1 suite's) or "propka"
     (PDB2PQR with PROPKA at `ph`, what every run made before the choice
@@ -2617,10 +2617,10 @@ def run(pdb_in, workdir, ph=7.4, forcefield="AMBER", log=print, chain="",
     instead and the log says so.
 
     Missing side chains with rebuild_sidechains off: PDB2PQR completes every
-    residue it is given and the minimisation needs whole residues, so they
-    are modelled for those two and taken out at the end. reduce protonates a
-    residue as it stands, so with reduce they are modelled only when the
-    minimisation will run, and not at all when it will not.
+    residue it is given and the minimization needs whole residues, so they
+    are modeled for those two and taken out at the end. reduce protonates a
+    residue as it stands, so with reduce they are modeled only when the
+    minimization will run, and not at all when it will not.
     """
     protonation = protonation_of(protonation)
     os.makedirs(workdir, exist_ok=True)
@@ -2673,7 +2673,7 @@ def run(pdb_in, workdir, ph=7.4, forcefield="AMBER", log=print, chain="",
         for s in steps:
             log(str(s))
         log("  " + why)
-        log("  Preparation stopped. Rebuilding every side chain is modelling "
+        log("  Preparation stopped. Rebuilding every side chain is modeling "
             "rather than preparation, and it takes long enough to lose a run.")
         log("  What to do instead, in the order worth trying:")
         log("    1. Look for another structure of the same protein. A trace "
@@ -2699,7 +2699,7 @@ def run(pdb_in, workdir, ph=7.4, forcefield="AMBER", log=print, chain="",
     tidy = _write(os.path.join(workdir, "tidied.pdb"), lines)
     current = tidy
 
-    # Missing side-chain atoms that will not be kept are modelled only for
+    # Missing side-chain atoms that will not be kept are modeled only for
     # what cannot work without them (see above).
     modelled = (not rebuild_sidechains
                 and (protonation != "reduce" or minimise_structure))
@@ -2772,12 +2772,12 @@ def run(pdb_in, workdir, ph=7.4, forcefield="AMBER", log=print, chain="",
 
     # The rebuilt loops as they leave: the relaxation's checks again, on the
     # structure that is written, so nothing after it (protonation, the
-    # minimisation) has twisted a bond or turned a residue unseen.
+    # minimization) has twisted a bond or turned a residue unseen.
     if built:
         bad = junction_geometry(current, built)
         if bad:
             why = (f"{len(bad)} fault(s) in the peptide bonds and residues of the rebuilt loops "
-                   f"after protonation and minimisation ({'; '.join(bad[:4])}). Untick "
+                   f"after protonation and minimization ({'; '.join(bad[:4])}). Untick "
                    f"'{LOOPS_SETTING}' to dock the structure as measured.")
             steps.append(Step("rebuilt loops checked", False, why))
             _write_prep_log(workdir, pdb_in, out, protonation, ph, forcefield, steps,
@@ -2788,8 +2788,8 @@ def run(pdb_in, workdir, ph=7.4, forcefield="AMBER", log=print, chain="",
                           f"residue(s) trans, every one of them of the L hand, none nearer than "
                           f"{JUNCTION['contact']:g} A to another atom"))
 
-    # Last, so protonation and minimisation ran on whole residues, which
-    # neither can do without: what was modelled for them comes out here.
+    # Last, so protonation and minimization ran on whole residues, which
+    # neither can do without: what was modeled for them comes out here.
     if modelled:
         bare = strip_modelled_side_chains(
             tidy, current, os.path.join(workdir, "sidechains_as_measured.pdb"),
@@ -2828,7 +2828,7 @@ def run(pdb_in, workdir, ph=7.4, forcefield="AMBER", log=print, chain="",
         with open(keyf, "w") as fh:
             json.dump(want, fh, indent=1)
     except OSError:
-        pass                      # reuse is an optimisation, not the result
+        pass                      # reuse is an optimization, not the result
     return out
 
 

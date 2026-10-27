@@ -9,7 +9,7 @@ description = "Browser and command-line workflow for ADCP peptide docking"
 readme = "README.md"
 requires-python = ">=3.9"
 # This package's code is BSD 3-Clause; the wheel also carries Mol* (MIT) and
-# 3Dmol.js (BSD 3-Clause), whose licence texts are listed with it.
+# 3Dmol.js (BSD 3-Clause), whose license texts are listed with it.
 license = "BSD-3-Clause AND MIT"
 license-files = ["LICENSE", "adcp_dock/static/3Dmol.LICENSE.txt",
                  "adcp_dock/static/3Dmol-min.js.LICENSE.txt",
@@ -26,7 +26,7 @@ dependencies = ["numpy>=1.21", "rdkit>=2022.3"]
 [project.optional-dependencies]
 launcher = ["paramiko>=3.0"]
 # pdbfixer rebuilds missing side chains and loops, OpenMM runs the restrained
-# minimisation, and Biopython reads mmCIF receptors. Without them the
+# minimization, and Biopython reads mmCIF receptors. Without them the
 # preparation log says which steps were skipped.
 prep = ["pdbfixer", "openmm", "biopython"]
 # Everything needed to run on one machine with `adcp-dock local`, including
@@ -53,7 +53,7 @@ packages = ["adcp_dock", "adcp_dock._vendor", "adcp_launcher"]
 adcp_dock = ["static/*.js", "static/*.css", "static/*.txt", "static/*.json",
              # The documentation served at /docs/: its pages and its
              # pictures. The stylesheet is generated from the interface's own
-             # colours, so there is no file to ship.
+             # colors, so there is no file to ship.
              "docs/pages/*.html", "docs/img/*.png",
              # The example run, one pattern per folder depth: setuptools
              # before 62.3 does not expand "**".

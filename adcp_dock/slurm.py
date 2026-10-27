@@ -379,7 +379,7 @@ def state(job_id, rundir=None):
     """{state: count} over the tasks of a job, from squeue then sacct.
 
     A local job (see LOCAL EXECUTION below) is read from the run directory
-    instead, in the same shape, so nothing that summarises it can tell the
+    instead, in the same shape, so nothing that summarizes it can tell the
     difference.
     """
     if is_local(job_id):

@@ -247,12 +247,12 @@ jobs:
       - name: ad-hoc sign it
         # Not a substitute for a Developer ID. Ad-hoc signing does not get
         # past the unverified-developer prompt, only a Developer ID and
-        # notarisation do, but it is what lets the binary execute at all on
+        # notarization do, but it is what lets the binary execute at all on
         # Apple Silicon once the user has allowed it.
         run: |
           codesign --force --deep --sign - "dist/ADCP-Docking-launcher.app" || \
             echo "could not ad-hoc sign the app; continuing"
-          echo "Not notarised. On first open macOS will refuse it:"
+          echo "Not notarized. On first open macOS will refuse it:"
           echo "  right-click the app and choose Open, then confirm."
 
       - name: pack the .app so it survives the download

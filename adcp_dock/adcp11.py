@@ -106,7 +106,7 @@ def command(exe):
 def version(exe):
     """ADCP's version number, e.g. "1.1.21". Read from its source, where
     utils.py sets BUILD_VERSION and runADCP.py prints "1.1.%d": asking ADCP
-    imports its whole modelling stack, which takes half a minute on a node
+    imports its whole modeling stack, which takes half a minute on a node
     whose file cache is cold, and the page waits for the answer."""
     for pkg in glob.glob(os.path.join(home_of(exe), "lib", "python3*",
                                       "site-packages", "ADCP")):
@@ -236,7 +236,7 @@ def start_arguments(seq, helical):
 
 
 def helical_replicas(replicas, helical):
-    """How many of `replicas` start as a helix at `helical` per cent: ADCP
+    """How many of `replicas` start as a helix at `helical` percent: ADCP
     starts replica numbers 1 to replicas * p / 100 as a helix (jobNum <=
     numHelix in runADCP.py), so the count is rounded down."""
     try:

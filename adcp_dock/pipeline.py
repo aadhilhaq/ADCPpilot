@@ -364,9 +364,9 @@ def stage_prepare(rundir, j=None, log=print):
         prepared, recq, came = _take_prepared(rundir, j, rec, T, log)
     else:
         # The full preparation: alternate locations, modified residues,
-        # waters, cofactors, missing side chains, termini, disulphides,
+        # waters, cofactors, missing side chains, termini, disulfides,
         # protonation (reduce, or PDB2PQR with PROPKA at the chosen pH),
-        # then a restrained minimisation.
+        # then a restrained minimization.
         log("preparing the receptor (this is the full Amber preparation), "
             "protonated with %s"
             % ("reduce" if protonation == "reduce"
@@ -377,8 +377,8 @@ def stage_prepare(rundir, j=None, log=print):
             chain=",".join(rec.chains),
             keep_hetatms=bool(j.get("keep_hetatms", False)),
             # Ions go with the other heteroatoms unless those are kept, as
-            # the page says: a kept ion has no template in the minimisation's
-            # force field, and the minimisation is then skipped.
+            # the page says: a kept ion has no template in the minimization's
+            # force field, and the minimization is then skipped.
             keep_ions=bool(j.get("keep_hetatms", False)),
             fill_loops=bool(j.get("fill_loops", False)),
             # Absent from job files written before the setting existed, and
@@ -430,7 +430,7 @@ def stage_prepare(rundir, j=None, log=print):
         site.update({"pocket": "chosen", "pockets": sp.get("table") or [],
                      "pocket_points": len(chosen), "pocket_box": size})
         log("  the box is around the pocket(s) chosen on the page (%s): "
-            "centre %.2f %.2f %.2f, %.1f x %.1f x %.1f A"
+            "center %.2f %.2f %.2f, %.1f x %.1f x %.1f A"
             % (", ".join(str(r) for r in sp.get("ranks") or []),
                centre[0], centre[1], centre[2], size[0], size[1], size[2]))
         log("  %d residue(s) line it: %s"
@@ -610,7 +610,7 @@ def _take_prepared(rundir, j, rec, T, log=print):
         fh.write(head)
         fh.write("  receptor came prepared: done; %s. This package's "
                  "preparation was not run: no hydrogen was removed or added, "
-                 "no residue renamed, nothing minimised\n" % said)
+                 "no residue renamed, nothing minimized\n" % said)
         fh.write("  protonation: done; as the receptor was prepared, %d "
                  "hydrogens kept\n" % took["hydrogens"])
         if took["waters_dropped"] or took["groups_dropped"]:
@@ -681,7 +681,7 @@ def _carry_protonation(rec, j, prepared, log=print):
     can carry a histidine's state to tleap. Under reduce (the default, and
     every receptor from ADapt) the states are the ones reduce chose for the
     receptor that was docked into: HID, HIE or HIP from where it put the
-    ring protons, CYX for a cysteine in a disulphide, and an Asn or Gln it
+    ring protons, CYX for a cysteine in a disulfide, and an Asn or Gln it
     turned over is turned over in the coordinates themselves, which the
     complex keeps. Under PDB2PQR with PROPKA nothing is attached, and the
     complex is protonated again at the run's pH, as it always was.
@@ -966,7 +966,7 @@ def _stage_mmgbsa(rundir, j, seq, out, pdir, keep, cpus, opts, log=print):
             skipped.append({"pose": ranks[r - 1] if 0 < r <= len(ranks)
                             else r, "why": verify.explain(bad)})
     # A pose given to MM-GBSA that came back without an energy: the checks
-    # on the minimised peptide say why when they were the reason.
+    # on the minimized peptide say why when they were the reason.
     closing = []
     for r in range(1, len(mols) + 1):
         chk = os.path.join(mmdir, mm, "pose%d" % r, "%s_checks.json" % mm)
@@ -1137,7 +1137,7 @@ def _panel_geometry(rundir, j, seq, out, pdir, log=print):
     """The panel without an energy: the docked pose against the prepared
     receptor.
 
-    Heavy atoms and no minimisation, so the interface columns are filled and
+    Heavy atoms and no minimization, so the interface columns are filled and
     the energy columns stay empty. It is the only panel available for a
     peptide with non-standard residues, a ring with no closed pose, a D
     residue or a ring in a run made before those were rescored, and a run
@@ -1187,6 +1187,8 @@ def _panel_geometry(rundir, j, seq, out, pdir, log=print):
             continue
         m["pose"] = k
         m["dg"] = None
+        # Stored as every earlier run stored it, and as the other lab tools
+        # write it; the results page shows the words in US spelling.
         m["geometry"] = "docked pose, not minimised"
         poses.append(m)
         if best is None:
@@ -1201,7 +1203,7 @@ def _panel_geometry(rundir, j, seq, out, pdir, log=print):
     out["panel_poses"] = poses
     _write_panel(rundir, seq, poses, panel.get("pose"), hot, rows_best,
                  log=log)
-    log("  interface of the top pose, measured without minimisation: buried "
+    log("  interface of the top pose, measured without minimization: buried "
         "%s A2, %s H-bond(s), %s clash(es)"
         % (panel.get("bsa"), panel.get("n_hbond"), panel.get("n_clash")))
 
@@ -1315,7 +1317,7 @@ def stage_panel(rundir, j=None, log=print):
     """Measure the panel for a run that was docked before the panel existed.
 
     Nothing is docked or rescored again. Every number comes from the files the
-    MM-GBSA already left: the topologies, the minimised frame and the output
+    MM-GBSA already left: the topologies, the minimized frame and the output
     the energy was read from. The per residue decomposition is the only thing
     computed here, and it is seconds against the minutes each pose cost.
 
@@ -1409,7 +1411,7 @@ def stage_poseviewer(rundir, j=None, rows=None, log=print):
 
         receptor.pdb          the prepared receptor, hydrogens and all
         complex_<name>.pdb    one per peptide, chain A receptor, chain L
-                              peptide, for a viewer to colour by chain
+                              peptide, for a viewer to color by chain
         ranked.pdb / .sdf     every peptide in one file, best first
         ranked.mae            the same with the scores attached as
                               properties, plus the receptor
@@ -1466,7 +1468,7 @@ def stage_poseviewer(rundir, j=None, rows=None, log=print):
         # Which engine produced that number, beside the number. The three are
         # on different scales, so a value with no engine against it cannot be
         # read. mmgbsa_engine, not engine: "engine" is the DOCKING program,
-        # and reading it here labelled every energy "ADCP 1.1.21".
+        # and reading it here labeled every energy "ADCP 1.1.21".
         if r.get("mmgbsa_engine"):
             props["MMGBSA_engine"] = str(r["mmgbsa_engine"])
         if r.get("engine"):
@@ -1486,7 +1488,7 @@ def stage_poseviewer(rundir, j=None, rows=None, log=print):
         return pvdir
 
     # One receptor plus peptide complex each: a single file a viewer can
-    # colour by chain and pick the contacting residues out of.
+    # color by chain and pick the contacting residues out of.
     for _label, mol, _props, stem in entries:
         safe = re.sub(r"[^A-Za-z0-9_.-]", "_", stem)[:80] or "peptide"
         conf = mol.GetConformer()
@@ -1620,7 +1622,7 @@ def stage_report(rundir, j=None, log=print):
 
 
 def _model_text(rundir):
-    """The generalised Born model and radii a run's MM-GBSA actually used.
+    """The generalized Born model and radii a run's MM-GBSA actually used.
 
     Read from the run's own record, not from the setting: a run keeps the
     model it started with, so the setting can say one thing and the energies
@@ -1642,19 +1644,19 @@ def _openmm_used_for(j):
     """The stages of THIS run that used OpenMM, and nothing else.
 
     OpenMM does two jobs here and neither is an energy anyone is ranked by:
-    it minimises the receptor during preparation, and ADCP 1.1 minimises its
+    it minimizes the receptor during preparation, and ADCP 1.1 minimizes its
     top poses with it when asked. Every reported energy comes from
     AmberTools. Listing only the stages a given run actually used keeps the
     record from implying an engine that never ran.
     """
     used = []
     if not str(j.get("target_file") or "").strip() and j.get("minimise", True):
-        used.append("the receptor's restrained minimisation during "
+        used.append("the receptor's restrained minimization during "
                     "preparation, with amber14-all (ff14SB) and GBn2. It "
                     "settles the prepared structure and is not an energy "
                     "anything is ranked by")
     if int(j.get("omm_minimize") or 0):
-        used.append("ADCP 1.1's minimisation of its top %d pose(s), with "
+        used.append("ADCP 1.1's minimization of its top %d pose(s), with "
                     "ff99SB and %s, reported in the omm_best column beside "
                     "the scores and not ranked by"
                     % (int(j["omm_minimize"]),
@@ -1682,10 +1684,10 @@ def _constants(j, rundir=None):
               # a reader cannot otherwise tell which one a number came from.
               # Every reported energy is AmberTools; see openmm_used_for.
               "mmgbsa": "AmberTools only: tleap builds the topologies, sander "
-                        "minimises the complex with the receptor restrained, "
+                        "minimizes the complex with the receptor restrained, "
                         "and MMPBSA.py computes the energy and its per residue "
                         "decomposition. ff14SB, %s, 0.150 M salt, interior "
-                        "dielectric 1, one minimised frame. No OpenMM is "
+                        "dielectric 1, one minimized frame. No OpenMM is "
                         "involved in any reported energy or in any panel "
                         "column" % _model_text(rundir),
               "openmm_used_for": _openmm_used_for(j),
@@ -1696,7 +1698,7 @@ def _constants(j, rundir=None):
                                "surface terms are apportioned per atom. A "
                                "decomposition is forced to gbsa=2, a per atom "
                                "surface, where the total keeps LCPO, so the "
-                               "per residue column sums to a few per cent "
+                               "per residue column sums to a few percent "
                                "more negative than the reported total and not "
                                "to it exactly; the pairwise terms agree",
               "ph": float(j.get("ph", 7.4)),
@@ -1997,7 +1999,7 @@ def stage_rescore(rundir, engine, j=None, log=print):
     mmdir = os.path.join(rundir, "mmgbsa")
     n_want = int(j.get("mmgbsa_poses", 5))
     ph = float(j.get("ph", 7.4))
-    # Prime runs one job at a time. Its force field is a separate licence,
+    # Prime runs one job at a time. Its force field is a separate license,
     # often with a single seat, so several jobs at once would put some poses
     # on S-OPLS and the rest on OPLS_2005 in one column, which is two
     # different quantities with nothing to tell them apart.
@@ -2055,7 +2057,7 @@ def stage_rescore(rundir, engine, j=None, log=print):
 def submit_rescore(rundir, engine, j=None, python=None, log=print):
     """Send a rescoring to SLURM, then rebuild the report behind it.
 
-    Submitted rather than run here: it minimises every pose with sander and
+    Submitted rather than run here: it minimizes every pose with sander and
     scores it, or runs Prime, which is not work for the machine serving the
     page. The report is chained behind it so the new columns appear when it
     finishes, and afterany so a partial rescoring still shows what it got.

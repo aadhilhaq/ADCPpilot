@@ -233,7 +233,7 @@ def receptor_mol(pdb_path: str) -> Chem.Mol | None:
 def write_mae(entries, path: str, rec_pdb: str | None = None) -> int:
     """Maestro pose viewer, receptor included as the first entry.
 
-    Written directly rather than converted, so no Schrodinger licence is needed.
+    Written directly rather than converted, so no Schrodinger license is needed.
     A PDB carries residues but no entry title Maestro will read; an SDF carries a
     title but no residues. The .mae carries both, plus the scores as properties.
     """

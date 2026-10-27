@@ -53,7 +53,7 @@ body{margin:0;background:var(--bg);color:var(--fg);
 header{position:relative;background:var(--card);border-bottom:1px solid var(--line);
   padding:18px 24px 14px;text-align:center}
 /* Docs in the corner, where a documentation link is looked for, and out of
-   the centred block so it keeps its place whatever the title block holds. */
+   the centered block so it keeps its place whatever the title block holds. */
 .docscorner{position:absolute;top:12px;right:16px}
 .brandblock{max-width:760px;margin:0 auto}
 .brandblock h1{margin:0 0 6px}
@@ -82,7 +82,7 @@ main{max-width:1180px;margin:0 auto;padding:20px 24px 80px}
 .mustcite .ref{white-space:nowrap}
 .embed .headbar{margin-top:0;justify-content:flex-end}
 .embed main{max-width:none;padding:14px 18px 60px}
-/* Centred by default. Sequences, the residue strip, logs and the contact
+/* Centered by default. Sequences, the residue strip, logs and the contact
    list keep their left edge, because reading those depends on where the
    line starts. */
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;
@@ -180,7 +180,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .pickfilter input{flex:1 1 auto;min-width:0}
 .missing,.missing:focus{border-color:var(--warn) !important;
   outline:2px solid var(--warn)}
-/* A container is not an input. #peps has no border for a border colour to
+/* A container is not an input. #peps has no border for a border color to
    change and no height when it is empty, so an outline traced nothing and
    the page said something was missing while showing nothing in red. */
 .missingbox{border:1px dashed var(--warn);border-radius:6px;
@@ -199,7 +199,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 label{display:block;font-size:11.5px;color:var(--dim);margin-bottom:4px}
 /* Flex, not inline-flex. .card sets text-align:center and a label inherits it
    through .row>div. A block label still starts at the left edge of its
-   control, but an inline-level box is centred by text-align, so inline-flex
+   control, but an inline-level box is centered by text-align, so inline-flex
    would move every label with a "?" into the middle of its column.
    Block-level flex keeps the label full width with its content at the start,
    and still stops the marker wrapping onto its own line.
@@ -248,7 +248,7 @@ textarea{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;min-height:76
 .prepgroup .why:empty{display:none}
 #prepnote,#mapsnote{margin-top:8px}
 /* The box switch sits on the viewer it draws into. The site row reports the
-   box as a centre and edge lengths, which cannot be judged against a groove
+   box as a center and edge lengths, which cannot be judged against a groove
    by eye, so the box is drawn in the picker over the structure, and the tick
    that hides it goes on the viewer's caption line, beside what it controls.
    Not .checks: that is a block of settings with its own 14px top margin and
@@ -270,7 +270,7 @@ textarea{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;min-height:76
 #surfnote{margin-top:4px;font-size:11.5px;text-align:left}
 #surfnote:empty{display:none}
 /* What stays a choice of the structure file and not of ADapt's receptor is
-   greyed out while ADapt's is used, as is the pH while reduce is chosen. */
+   grayed out while ADapt's is used, as is the pH while reduce is chosen. */
 .prepsteps .chk.off{opacity:.45}
 #adaptuse .bar{margin-top:8px}
 /* ADapt in the Receptor card: the line saying which receptor is docked, its
@@ -325,7 +325,7 @@ textarea{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;min-height:76
 
    A caption is a grid item of its own, in the column of the field it
    describes. Inside the field it would make that field taller than its
-   neighbours and lift every other label to meet it. The row gap is the
+   neighbors and lift every other label to meet it. The row gap is the
    space between rows of fields once they wrap; a caption takes most of it
    back, so it sits close under its field.
 
@@ -351,8 +351,8 @@ textarea{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;min-height:76
   color:var(--fg)}
 #mmcap{grid-row:2;grid-column:2/span 2}
 #autofill{width:100%}
-/* Rescoring off: its settings stay where they are, greyed and disabled, as
-   the receptor's preparation greys a setting that does not apply. */
+/* Rescoring off: its settings stay where they are, grayed and disabled, as
+   the receptor's preparation grays a setting that does not apply. */
 #mmopts.off{opacity:.45}
 @media (max-width:940px){
   .dpart.cols4>.row,.dpart.dengine>.row{
@@ -372,7 +372,7 @@ textarea{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;min-height:76
      ghost      outlined in the ink: utilities, such as close, copy, refresh,
                 and the extra actions on a row
      a link     only for what nobody needs in order to carry on
-   None is pale: a needed action never sits in grey text on a faint line.
+   None is pale: a needed action never sits in gray text on a faint line.
    Every one shows the keyboard's focus. */
 button{font:inherit;padding:8px 16px;border-radius:999px;cursor:pointer;
   border:1px solid var(--pill-line);background:var(--card);color:var(--fg)}
@@ -478,7 +478,7 @@ button:disabled{opacity:.45;cursor:default}
   font-size:13.5px;line-height:1.9;min-height:46px;box-sizing:border-box;
   overflow-wrap:anywhere;white-space:pre-wrap;text-align:left}
 /* An empty box has no residue numbers, so the 18px of headroom they need
-   would only push the placeholder down. It is centred instead, and the box
+   would only push the placeholder down. It is centered instead, and the box
    keeps the same height either way, so nothing jumps when the first letter is
    typed. */
 .seq:empty{padding:0 12px;display:flex;align-items:center}
@@ -514,8 +514,8 @@ button:disabled{opacity:.45;cursor:default}
        https://css-tricks.com/overriding-default-button-styles/
        https://ishadeed.com/article/styling-the-good-old-button/
 
-   So there is no box: a "?" in the accent colour at the size of the text
-   beside it, which changes colour under the pointer. */
+   So there is no box: a "?" in the accent color at the size of the text
+   beside it, which changes color under the pointer. */
 button.q,.row button.q,.listing button.q{
   all:unset;
   font:inherit;font-size:.92em;font-weight:700;
@@ -577,7 +577,7 @@ button.q:focus-visible{outline:1px dotted var(--accent);outline-offset:2px}
 .sitegrid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);
   gap:14px;margin-top:12px}
 @media (max-width:820px){.sitegrid{grid-template-columns:minmax(0,1fr)}}
-/* AutoSite's pockets: a dot in each pocket's colour beside its row. */
+/* AutoSite's pockets: a dot in each pocket's color beside its row. */
 .pkdot{display:inline-block;width:10px;height:10px;border-radius:50%;
   margin-right:6px;vertical-align:-1px}
 #pocketlist table td,#pocketlist table th{padding:5px 10px}
@@ -617,7 +617,7 @@ table{border-collapse:collapse;width:100%;font-size:13px}
 th,td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--line)}
 th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--dim)}
 td.num{text-align:right;font-variant-numeric:tabular-nums}
-/* Centred, except names and sequences. Numbers read as a column when their
+/* Centered, except names and sequences. Numbers read as a column when their
    digits line up under the heading; a sequence is read letter by letter, so
    it stays left-aligned and monospaced. */
 th.c,td.c{text-align:center}
@@ -697,7 +697,7 @@ tr.pick{cursor:pointer} tr.pick:hover{background:var(--soft)}
 tr.on{background:var(--accent2)}
 /* A pill is a control, so it needs a surface to sit on. With only a border
    and no background it had nothing to show on a dark card, where the line
-   colour is close to the card's own, and a selected one had no style at all
+   color is close to the card's own, and a selected one had no style at all
    outside the viewer bar: .pill.on was written as .vbar .pill.on, so the
    contact pills could be clicked but never looked clicked. */
 .pill{display:inline-block;font-size:11px;padding:2px 9px;border-radius:999px;
@@ -710,9 +710,9 @@ tr.on{background:var(--accent2)}
   color:var(--on-accent);font-weight:650;
   box-shadow:0 0 0 2px var(--accent2)}
 .pill.on:hover{border-color:var(--accent)}
-/* The interaction types carry their colour as a dot rather than as the
-   text colour. Yellow and mid grey on a dark card are unreadable, and the
-   dot keeps the colour that matches the drawing without spending it on the
+/* The interaction types carry their color as a dot rather than as the
+   text color. Yellow and mid gray on a dark card are unreadable, and the
+   dot keeps the color that matches the drawing without spending it on the
    label. */
 .kdot{display:inline-block;width:9px;height:9px;border-radius:50%;
   margin-right:5px;vertical-align:-1px;border:1px solid rgba(0,0,0,.25)}
@@ -731,7 +731,7 @@ __CREDITBAR_CSS__
 a.btnlink.ghost{font-size:12.5px;padding:5px 12px;color:var(--dim)}
 footer{color:var(--dim);font-size:12px;text-align:center;padding:18px 0 4px;
   border-top:1px solid var(--line);margin-top:22px}
-/* the viewer's own bar: pills, grouped and labelled */
+/* the viewer's own bar: pills, grouped and labeled */
 /* A group does not wrap inside itself, so a label is never separated from the
    buttons it names. */
 .vgrp{display:inline-flex;gap:6px;align-items:center;flex:0 0 auto}
@@ -782,15 +782,15 @@ footer{color:var(--dim);font-size:12px;text-align:center;padding:18px 0 4px;
    Five numbers across the top, one per step to a run, in the order the
    cards below take them. A number fills green, with a tick in place of the
    digit, when the page's own checks say its step is done, so the state is
-   not carried by colour alone; the step to do next is filled in the accent
-   colour. Each number is a button that scrolls to its card.
+   not carried by color alone; the step to do next is filled in the accent
+   color. Each number is a button that scrolls to its card.
 
    It stays in view while the page scrolls, on a screen with room for it.
    On a phone it stays at the top: there it would take a tenth of the screen
    from the form for as long as the form is used.
 
-   The line between two numbers is drawn from the centre of one to the
-   centre of the next, short of both circles: 50% is the centre of a step,
+   The line between two numbers is drawn from the center of one to the
+   center of the next, short of both circles: 50% is the center of a step,
    and 20px is the circle's radius (15px) and a gap. */
 /* The band behind the strip is 6px wider than the strip on each side, so
    the 3px ring of a lit card scrolling under it does not show beside it. */
@@ -847,15 +847,15 @@ footer{color:var(--dim);font-size:12px;text-align:center;padding:18px 0 4px;
 }
 
 /* ---- the cards follow the guide --------------------------------------
-   The card of the step to do next is lit. The cards after it are grey, and
+   The card of the step to do next is lit. The cards after it are gray, and
    a finished card is green with a tick where its number was. The number in
    a card's heading is a counter over the cards that are steps, so it cannot
    disagree with the strip's order.
 
-   Grey is a cue and nothing more. Nothing in a grey card is disabled or
+   Gray is a cue and nothing more. Nothing in a gray card is disabled or
    made unclickable: a target file fills two steps at once, and a reused
-   run fills four, and neither should have to be walked through. A grey
-   card comes back to full colour under the pointer or the keyboard.
+   run fills four, and neither should have to be walked through. A gray
+   card comes back to full color under the pointer or the keyboard.
 
    scroll-margin-top keeps a card's heading clear of the strip when a step
    number scrolls to it. */
@@ -965,7 +965,7 @@ main{counter-reset:step}
    far, and a line that it is fine to carry on. The inline size is one line,
    for a wait beside a button. Both turn into an error with Try again.
 
-   The colours are the page's tokens, so both themes follow. With less motion
+   The colors are the page's tokens, so both themes follow. With less motion
    asked for, the shimmer and the drawing stop and everything is shown
    still. */
 .ld-host{position:relative}
@@ -1340,7 +1340,7 @@ __STALE__
   <!-- The preparation is the receptor's, so its choices are here rather than
        among the docking settings, beside the chains they are applied to and
        in the order prepare.run applies them: heteroatoms are dropped, missing
-       atoms are rebuilt, hydrogens go on at the pH, then the minimisation. -->
+       atoms are rebuilt, hydrogens go on at the pH, then the minimization. -->
   <div class=prepgroup id=prepgroup>
     <div class=grouphead>Receptor preparation
       <span>in the order it is done</span></div>
@@ -1364,7 +1364,7 @@ __STALE__
       <label class=chk for=ph id=phlabel><span>pH</span>
         <input type=number id=ph value="7.4" step="0.1" min="0" max="14"></label>
       <label class=chk><input type=checkbox id=minimise checked>
-        <span>Minimise the receptor after protonation</span></label>
+        <span>Minimize the receptor after protonation</span></label>
     </div>
     <div class=why id=prepnote></div>
   </div>
@@ -1702,7 +1702,7 @@ __STALE__
       <label class=chk><input type=checkbox id=mmgbsa checked>
         <span>Rescore with MM-GBSA</span></label>
     </div>
-    <!-- Unticked, these stay in place, greyed and disabled (app.js,
+    <!-- Unticked, these stay in place, grayed and disabled (app.js,
          mmOpts), so nothing below them moves. -->
     <div id=mmopts class=row>
       <div><label for=mmposes>Poses to rescore</label>
@@ -1712,7 +1712,7 @@ __STALE__
           <option value="obc2" selected>GB-OBC(II), the default</option>
           <option value="gbn2">GBn2</option>
         </select></div>
-      <div><label for=mmengine title="Which program computes the MM-GBSA energy. AmberTools is the reference and every earlier number came from it. OpenMM scores the same pose, on the same geometry sander minimised, with its own generalised Born code: it lands within about 1.3 kcal/mol of AmberTools and is a check on the solver rather than a different estimate. Schrodinger Prime uses OPLS with VSGB 2.0, a different model entirely, on its own scale. Each writes its own column and none is compared with another by value.">MM-GBSA engine</label>
+      <div><label for=mmengine title="Which program computes the MM-GBSA energy. AmberTools is the reference and every earlier number came from it. OpenMM scores the same pose, on the same geometry sander minimized, with its own generalized Born code: it lands within about 1.3 kcal/mol of AmberTools and is a check on the solver rather than a different estimate. Schrodinger Prime uses OPLS with VSGB 2.0, a different model entirely, on its own scale. Each writes its own column and none is compared with another by value.">MM-GBSA engine</label>
         <select id=mmengine>
           <option value="amber" selected>AmberTools, the reference</option>
           <option value="openmm">OpenMM, a second opinion on the same pose</option>
@@ -1830,16 +1830,16 @@ the queue for twice that and half an hour more, and at least two hours">Estimate
   <h2>Pose</h2>
   <div class=vbar id=rvbar>
     <span class=vgrp>
-    <span class=lb>colour</span>
+    <span class=lb>color</span>
     <button class="pill on" data-rcol=element>element</button>
     <button class=pill data-rcol=chain>chain</button>
     <button class=pill data-rcol=plain>plain</button>
     <button class=pill data-rcol=custom>custom</button>
-    <label class=cpick title="receptor colour">rec
+    <label class=cpick title="receptor color">rec
       <input type=color id=rccol value="#4A6FA5"></label>
-    <label class=cpick title="peptide colour">pep
+    <label class=cpick title="peptide color">pep
       <input type=color id=rlcol value="#D4763A"></label>
-    <label class=cpick title="colour of everything outside the close-up">bg
+    <label class=cpick title="color of everything outside the close-up">bg
       <input type=color id=rbcol value="#DFE3E6"></label>
     </span>
     <span class=vsep></span>
@@ -1852,15 +1852,15 @@ the queue for twice that and half an hour more, and at least two hours">Estimate
     <span class=vsep></span>
     <span class=vgrp>
     <span class=lb>surface</span>
-    <button class="pill on" id=rsurf title="The receptor's molecular surface, computed by MSMS, in the receptor's colour. See-through to start with, so the peptide stays in view. Cycles mesh, off, solid, see-through.">rec see-through</button>
-    <button class=pill id=rsurfl title="The peptide's molecular surface, computed by MSMS, in the peptide's colour. Cycles solid, see-through, mesh, off.">pep off</button>
+    <button class="pill on" id=rsurf title="The receptor's molecular surface, computed by MSMS, in the receptor's color. See-through to start with, so the peptide stays in view. Cycles mesh, off, solid, see-through.">rec see-through</button>
+    <button class=pill id=rsurfl title="The peptide's molecular surface, computed by MSMS, in the peptide's color. Cycles solid, see-through, mesh, off.">pep off</button>
     </span>
     <span class=vsep></span>
     <span class=vgrp>
     <span class=lb>contacts</span>
     <button class="pill on" id=rcontact>on</button>
     <span class=lb>distances</span>
-    <button class="pill on" id=rdist title="The measured heavy-atom distance on every contact drawn, in angstroms. A dashed line says two residues touch; the number says how closely, which is the difference between a hydrogen bond and two atoms in the same neighbourhood.">on</button>
+    <button class="pill on" id=rdist title="The measured heavy-atom distance on every contact drawn, in angstroms. A dashed line says two residues touch; the number says how closely, which is the difference between a hydrogen bond and two atoms in the same neighborhood.">on</button>
     <span class=lb>figure</span>
     <button class=pill id=rpub title="Active-site view for a paper: pale ribbon, contacting residues and the peptide as sticks, bonds as black dashes, labels as plain text.">off</button>
     <select id=rlabel style="width:auto;padding:4px 9px;font-size:11.5px">
@@ -1935,7 +1935,7 @@ larger of the two and takes a moment the first time.">
   <div class=modbody>
     <div class=modnote>Click a residue, then choose its D form or a non-standard
       residue from ADCP 1.1's library. The library comes from SwissSidechain:
-      phosphorylated, oxidised and halogenated residues among many synthetic
+      phosphorylated, oxidized and halogenated residues among many synthetic
       ones. Saving changes the sequence here; it is not typed.</div>
     <div id=modseq></div>
     <div id=modrows></div>
@@ -2045,7 +2045,7 @@ __CREDITBAR__
 <script src="/static/app.js"></script>
 """
 
-# The dark colour tokens, used twice in the page: for the system setting and
+# The dark color tokens, used twice in the page: for the system setting and
 # for the switch in the header.
 DARK_VARS = """
   color-scheme:dark;
@@ -2131,7 +2131,7 @@ def _number(n):
 
 
 def choice_options(choices, selected, element_id):
-    """A <select> of (value, hint) pairs, labelled with the NUMBER first."""
+    """A <select> of (value, hint) pairs, labeled with the NUMBER first."""
     out = ['<select id=%s>' % element_id]
     for value, hint in choices:
             # The number alone: a dropdown is a list of values to

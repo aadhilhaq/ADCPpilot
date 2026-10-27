@@ -1,4 +1,4 @@
-"""Ranking. Two objectives are maximised jointly: binding affinity (lowest Vina
+"""Ranking. Two objectives are maximized jointly: binding affinity (lowest Vina
 score) and sequence-specific engagement (most side-chain contacts to the site).
 
 These do not conflict - on a fixed-length library they correlate positively - so
@@ -17,7 +17,7 @@ def zscore(v: np.ndarray) -> np.ndarray:
 
 # What a contact beside the hotspot is worth, relative to the hotspot itself.
 #
-# A neighbour of a hotspot is part of the same epitope patch and a peptide
+# A neighbor of a hotspot is part of the same epitope patch and a peptide
 # touching it IS engaging the site - so it counts, but never as much as the
 # residue somebody actually asked for. sc_near is already graded from 1 at the
 # hotspot to 0 at the edge of the shell, so this is the weight on that graded
@@ -28,7 +28,7 @@ NEAR_WEIGHT = 0.5
 #
 # A peptide spanning two hotspots is a different molecule from one perched on
 # a single one: it engages more of the interface, and the residues it touches
-# on the way are the rest of that interface rather than incidental neighbours.
+# on the way are the rest of that interface rather than incidental neighbors.
 # Nothing scored this at all - a pose touching one hotspot twenty times and a
 # pose touching two hotspots ten times each were indistinguishable.
 BRIDGE_WEIGHT = 0.35
@@ -64,7 +64,7 @@ def joint(rows: list[dict], w_score: float = 1.0, w_contact: float = 1.0,
             r["z"] = float(zz)
         return sorted(rows, key=lambda r: -r["z"])
     if graded:
-        # The graded neighbourhood replaces the flat one rather than adding to
+        # The graded neighborhood replaces the flat one rather than adding to
         # it: they measure the same thing, one of them badly.
         ct = np.array([r["sc_hot"] + near_weight * float(r["sc_near"])
                        for r in rows], float)
@@ -119,7 +119,7 @@ def joint(rows: list[dict], w_score: float = 1.0, w_contact: float = 1.0,
 # binding per atom, which is what shape complementarity looks like.
 #
 # Reported alongside the raw score, never instead of it: efficiency on its own
-# favours small glycine-rich peptides whose contacts are mostly backbone, which
+# favors small glycine-rich peptides whose contacts are mostly backbone, which
 # is why this module did not use it for the primary ranking. Two columns, both
 # visible, is the honest presentation.
 _SC_HEAVY = {"G": 0, "A": 1, "S": 2, "C": 2, "T": 3, "P": 3, "V": 3,
@@ -129,11 +129,11 @@ _SC_HEAVY = {"G": 0, "A": 1, "S": 2, "C": 2, "T": 3, "P": 3, "V": 3,
 
 def overlapping(rows, detail, key="sequence", value="mmgbsa",
                 values_of=None):
-    """Neighbours in the ranking whose pose energies overlap, as groups.
+    """Neighbors in the ranking whose pose energies overlap, as groups.
 
     A construct's MM-GBSA is one number reduced from several poses, and those
     poses can be tens of kcal/mol apart. When two constructs' pose energies
-    cover each other, the order between them is an artefact of the reduction,
+    cover each other, the order between them is an artifact of the reduction,
     not something the calculation showed - and the table prints them one above
     the other with no hint of it.
 
@@ -184,7 +184,7 @@ def overlapping(rows, detail, key="sequence", value="mmgbsa",
 
 def say_overlaps(rows, detail, log=print, key="sequence", value="mmgbsa",
                  values_of=None, what="pose energies"):
-    """Log which neighbours the measurements do not separate."""
+    """Log which neighbors the measurements do not separate."""
     groups = overlapping(rows, detail, key, value, values_of)
     if not groups:
         return groups

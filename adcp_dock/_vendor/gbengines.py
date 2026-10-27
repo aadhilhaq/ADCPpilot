@@ -8,25 +8,25 @@ beside an absolute value from another:
     AmberTools   ff14SB + OBC(II), igb=5, mbondi2 radii
     OpenMM       ff14SB + OBC(II), the same model on the same topology
     Schrodinger  S-OPLS + VSGB 2.0, or OPLS_2005 when the single force
-                 field licence is taken, which is a different answer again
+                 field license is taken, which is a different answer again
 
 AmberTools and OpenMM at least share a force field and a topology, so the
-difference between them is the solver, the minimisation and the generalised
+difference between them is the solver, the minimization and the generalized
 Born implementation. Schrodinger shares none of it.
 
 What was measured, on topologies that were byte for byte the same. The
 variable is how far the pose is relaxed before the energy is taken:
 
-    OpenMM on the geometry sander minimised      1.3 kcal/mol from
+    OpenMM on the geometry sander minimized      1.3 kcal/mol from
                                                  MMPBSA.py, order unchanged
     OpenMM given 1000 more steps from there      8.7 out
-    OpenMM minimising the raw pose itself,       29.5 out
+    OpenMM minimizing the raw pose itself,       29.5 out
     1000 steps
-    OpenMM minimising the raw pose to            29.6 out, and on a 19
+    OpenMM minimizing the raw pose to            29.6 out, and on a 19
     convergence                                  residue peptide the pose
                                                  order reversed
 
-So the two energy models agree and the MINIMISATION was the entire
+So the two energy models agree and the MINIMIZATION was the entire
 difference. sander's maxcyc=1000 is a shallow relaxation while OpenMM's
 L-BFGS converges well inside 1000 iterations: capping it at 1000 steps and
 letting it run to convergence land 29.5 and 29.6 out, which is the same
@@ -319,18 +319,18 @@ class _OpenMM(Engine):
             return False
         # tleap builds the topology and sander produces the geometry, and
         # this engine needs both. It used to require only tleap, on the
-        # assumption that OpenMM would minimise for itself; that was measured
+        # assumption that OpenMM would minimize for itself; that was measured
         # to put the energy about 30 kcal/mol out, so the geometry is sander's
         # and sander is a requirement. MMPBSA.py is the part not needed.
         return all(_have(x) for x in ("tleap", "sander"))
 
 
 class _Schrodinger(Engine):
-    """Prime MM-GBSA, which needs two different licences to do its best work.
+    """Prime MM-GBSA, which needs two different licenses to do its best work.
 
     The rescoring itself takes 8 PSP_PLOP tokens a job, so the size of that
     pool, less what other Schrodinger jobs hold, sets how many run at once.
-    But the force field is a separate licence: prime_mmgbsa's own help says
+    But the force field is a separate license: prime_mmgbsa's own help says
     the default is S-OPLS "if the proper license is present", and
     OPLS_VERSION=OPLS_2005 is how you step down from it deliberately.
 
@@ -357,12 +357,12 @@ class _Schrodinger(Engine):
         return find_schrodinger()
 
     def _status(self, timeout=30):
-        """The licence server's report, or "" if it cannot be read.
+        """The license server's report, or "" if it cannot be read.
 
         `timeout` is the TOTAL budget, shared between the commands tried,
         not a budget each. It used to be per command, so two attempts at 5
         seconds could block a caller for 10: the page asks for this while it
-        loads, and on a compute node that cannot reach the licence server
+        loads, and on a compute node that cannot reach the license server
         both attempts ran to the full timeout and the whole request stalled.
         """
         root = find_schrodinger() or ""
@@ -399,8 +399,8 @@ class _Schrodinger(Engine):
             return None
         return max(0, free // self.TOKENS_PER_JOB)
 
-    #: The last licence reading, and when it was taken. Reading it means
-    #: talking to a licence server, which is fast when that works and a
+    #: The last license reading, and when it was taken. Reading it means
+    #: talking to a license server, which is fast when that works and a
     #: multi-second stall when it does not, so a page that asks on every
     #: load asks this instead.
     _CACHE = {"at": 0.0, "value": None}
@@ -427,7 +427,7 @@ class _Schrodinger(Engine):
         if free is None:
             return remember({"readable": False, "jobs": None,
                              "modern_jobs": None, "forcefield": None,
-                             "why": "the licence pool could not be read"})
+                             "why": "the license pool could not be read"})
         jobs = max(0, free // self.TOKENS_PER_JOB)
         modern = 0 if ff_free is None else min(jobs, ff_free)
         return remember({
@@ -491,11 +491,11 @@ OPENMM = _OpenMM(
     forcefield="ff14SB", solvation="OBC(II)", radii="mbondi2",
     column="mmgbsa_openmm", comparable=("openmm",),
     note="A second opinion on the same pose. It replaces MMPBSA.py and not "
-         "sander: the geometry is the one sander minimised, and OpenMM "
-         "computes that geometry's energy with its own generalised Born "
+         "sander: the geometry is the one sander minimized, and OpenMM "
+         "computes that geometry's energy with its own generalized Born "
          "code. In testing it lands within about 1.3 kcal/mol of "
          "AmberTools with the pose order unchanged, so it is a check on the "
-         "solver rather than a different estimate. Letting it minimise for "
+         "solver rather than a different estimate. Letting it minimize for "
          "itself was tried and put the energy about 30 kcal/mol out, so it "
          "does not.")
 
@@ -504,7 +504,7 @@ SCHRODINGER = _Schrodinger(
     # S-OPLS when the single FFLD_OPLS_MAIN seat is free, OPLS_2005 when it
     # is not. Which one a job got is recorded with the result rather than
     # assumed from here.
-    forcefield="S-OPLS, or OPLS_2005 without the licence",
+    forcefield="S-OPLS, or OPLS_2005 without the license",
     solvation="VSGB 2.0", radii="n/a",
     column="mmgbsa_schrodinger", comparable=("schrodinger",),
     note="A different force field and a different solvent model, so its "
@@ -514,7 +514,7 @@ SCHRODINGER = _Schrodinger(
          "energy, taken like the others from the complex's own geometry; its "
          "headline figure also subtracts the strain of a separately relaxed "
          "free peptide, which grew from 9 to 59 kcal/mol between a 5 and a 15 "
-         "residue peptide. Two licences are needed: each job takes 8 PSP_PLOP "
+         "residue peptide. Two licenses are needed: each job takes 8 PSP_PLOP "
          "tokens, and S-OPLS also needs a seat of its own, which a site often "
          "has fewer of. A job that finds no seat free runs on OPLS_2005, and "
          "which force field a result came from is recorded with it.")

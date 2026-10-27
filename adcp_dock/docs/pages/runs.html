@@ -1,5 +1,5 @@
 <h1>Following your runs</h1>
-<p class="lead">Every run you have made, with a coloured dot for its state, and
+<p class="lead">Every run you have made, with a colored dot for its state, and
 the buttons that open it, resume it, download it or take it away. A second view
 walks the runs folder itself, down to every file in it.</p>
 
@@ -18,7 +18,7 @@ here.</figcaption>
 <tr><td>amber</td><td>queued</td><td>submitted, waiting for the scheduler</td></tr>
 <tr><td>green</td><td>finished</td><td>every job completed</td></tr>
 <tr><td>orange</td><td>failed</td><td>a job failed, timed out or ran out of memory</td></tr>
-<tr><td>grey</td><td>cancelled, or not submitted</td><td>the run exists but nothing is in the queue for it</td></tr>
+<tr><td>gray</td><td>canceled, or not submitted</td><td>the run exists but nothing is in the queue for it</td></tr>
 </table>
 <p>A running dot pulses on purpose: a static green looks the same as a finished
 one. Open a run and each of its jobs gets its own dot and its own line, so you
@@ -86,7 +86,7 @@ size, a time, and the buttons for what the page can do with it.</figcaption>
 <li><b>A folder</b> opens when you click its name. The trail along the top, and
 <b>up</b> at the head of the list, take you back.</li>
 <li><b>A folder that is a run</b>, one that holds the run's settings in
-<code>job.json</code>, is labelled <b>run</b> and has an <b>Open run</b> button
+<code>job.json</code>, is labeled <b>run</b> and has an <b>Open run</b> button
 beside it. Inside it, <b>Open as a run</b> does the same. Either shows the run
 below, with its jobs, its table and its poses, exactly as <b>Open</b> does in All
 runs. A long run name has room: drag the grip on the right edge of the
@@ -121,7 +121,7 @@ walltime, to a node that died, and to a list where one peptide failed.</p>
 run that has already been submitted once.</p>
 <div class="note"><b>A run whose preparation failed cannot be resumed into
 usefulness.</b> Nothing was docked, because the dock tasks wait on the prepare
-job and are cancelled when it fails. Read
+job and are canceled when it fails. Read
 <code>logs/</code> and the preparation log, fix what it names, and submit a new
 run.</div>
 
@@ -139,7 +139,7 @@ sander and MMPBSA.py were given or left while each pose was scored. What stays
 is everything the results page, the pose viewer, the report, MM-GBSA
 rescoring, re-ranking, <b>reuse settings</b> and the downloads open: the
 tables, the ranked poses and ADCP's log, the prepared receptor and the grid
-maps, the energies, and each pose's topologies, minimised coordinates and
+maps, the energies, and each pose's topologies, minimized coordinates and
 decomposition, from which the interface panel is measured. A peptide that has
 not finished is left as it is, so a resume still docks it from what is
 there.</p>
@@ -164,6 +164,6 @@ tidies, and <code>--undo</code> puts the files back.</p>
 <h2 id="while-you-wait">While you wait</h2>
 <p>The run's logs are written as it goes, and the preparation log in particular is
 worth reading before the docking finishes: it says what was dropped, what was
-rebuilt, whether the minimisation ran, and whether any of your site residues fell
+rebuilt, whether the minimization ran, and whether any of your site residues fell
 outside the box. If something there is not what you intended, you have learned it
 an hour earlier than the table would have told you.</p>

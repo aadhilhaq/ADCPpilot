@@ -101,7 +101,7 @@
  *   viewer.render()                      full re-render, synchronous
  *   viewer.setLabelStyle(label, spec)    24068  REPLACES stylespec wholesale
  *   viewer.getCanvas()                   -> glDOM, the WebGL canvas
- *   label.canvas.width / .height         26831 / 26917  the rasterised box,
+ *   label.canvas.width / .height         26831 / 26917  the rasterized box,
  *                                               and its CSS px size on screen
  *   label.stylespec                      26829  the live style object
  *   label.sprite.position                26994  the MODEL position
@@ -255,7 +255,7 @@
     }
 
     /* Mutate the material in place. This is the drag-frame write: no dispose,
-     * no re-rasterise, no new texture. Compare setLabelStyle (line 24068),
+     * no re-rasterize, no new texture. Compare setLabelStyle (line 24068),
      * which does all three and must never be called on a mousemove. */
     function setOffset(label, x, y) {
       try {
@@ -291,14 +291,14 @@
      * cannot be placed. Derivation, from the render path quoted in the header:
      *
      *   box size    = canvas.width x canvas.height, in CSS px
-     *   box centre  = anchor
+     *   box center  = anchor
      *                 + alignment.x * width  / 2      (alignment is half-box)
      *                 - alignment.y * height / 2      (alignment y is UP)
      *                 + screenOffset.x                (CSS px, right)
      *                 - screenOffset.y                (CSS px, UP)
      *
      * Sanity check with the default alignment topLeft (1,-1) and no offset:
-     * centre = anchor + (w/2, h/2), so the box spans [anchor, anchor+w] and
+     * center = anchor + (w/2, h/2), so the box spans [anchor, anchor+w] and
      * [anchor, anchor+h]; the anchor is the top-left corner, as the name
      * promises. With `center` (0,0) the box straddles the anchor. */
     function rectOf(label) {
@@ -711,7 +711,7 @@
     }
 
     /* Hover feedback. Passive in every sense: it never stops the event, so
-     * 3Dmol keeps its own hover and rotation behaviour. */
+     * 3Dmol keeps its own hover and rotation behavior. */
     function onHoverMove(ev) {
       if (!enabled || dragging) { return; }
       var hit = null;

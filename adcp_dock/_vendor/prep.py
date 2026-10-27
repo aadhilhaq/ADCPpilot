@@ -5,7 +5,7 @@ By Aadhil Haq
 prep.run() hands the work to prepare, which follows the steps of a
 preparation wizard: alternate locations, modified residues, waters,
 cofactors, missing side chains, termini, disulfides, protonation at a
-stated pH, and a restrained minimisation. run() and summarise() keep the
+stated pH, and a restrained minimization. run() and summarise() keep the
 same interface for existing callers.
 """
 from __future__ import annotations

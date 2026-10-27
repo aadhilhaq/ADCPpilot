@@ -31,7 +31,7 @@ NEEDED = {
     "prepare_receptor": "writing the receptor as PDBQT",
     "pdb2pqr": "protonating the receptor at a chosen pH",
     "tleap": "building Amber topologies for MM-GBSA",
-    "sander": "the minimisation before MM-GBSA",
+    "sander": "the minimization before MM-GBSA",
     "MMPBSA.py": "the MM-GBSA calculation itself",
     "ante-MMPBSA.py": "splitting the complex topology for MM-GBSA",
 }

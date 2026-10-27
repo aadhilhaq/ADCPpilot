@@ -27,7 +27,7 @@ def main(argv=None):
         assert "--host 127.0.0.1" in line, line
         assert tunnel.AUTH_PATIENCE >= 120, "the two-factor timeout was shortened"
         assert session.URL.search("http://127.0.0.1:8123/?t=abcDEF_-"), \
-            "the server's URL line would not be recognised"
+            "the server's URL line would not be recognized"
         # The window needs a display and paramiko needs installing,
         # neither of which is true on a cluster. Both are reported
         # rather than required, so this check can run anywhere.

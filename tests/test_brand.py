@@ -133,7 +133,7 @@ _css = open(os.path.join(ROOT, "adcp_dock", "page.py")).read()
 _q = _css[_css.index(".q{"):_css.index(".q:hover")]
 # No box at all. A <button> arrives with a user-agent border, background,
 # padding and minimum size, each of which overrides a declared size.
-# all:unset removes them, leaving a "?" in the accent colour at the size of
+# all:unset removes them, leaving a "?" in the accent color at the size of
 # the text beside it.
 check("all:unset" in _q,
       "the marker does not reset the user-agent button styling, so its "

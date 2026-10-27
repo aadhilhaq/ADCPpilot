@@ -69,7 +69,7 @@ ROOTS = [r for r in (os.environ.get("ADCP_TEST_TOOLS", ""),
 # 0 < p < 100; at 0 and 100 the case of the sequence decides.
 seq, extra = adcp11.start_arguments("ETFSN<BHD>LW", 0)
 check(seq == "etfsn<BHD>lw" and extra == [],
-      "0%% helical should be the old behaviour, lower case and no -p; got "
+      "0%% helical should be the old behavior, lower case and no -p; got "
       "%r %r" % (seq, extra))
 seq, extra = adcp11.start_arguments("ETFSN<BHD>LW", 100)
 check(seq == "ETFSN<BHD>LW" and extra == [],

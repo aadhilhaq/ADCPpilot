@@ -11,7 +11,7 @@ Neither PDB nor SDF can carry everything a pose viewer needs:
 
 The .mae format carries all of it (title, residue and atom names, chains, bonds
 and arbitrary typed properties) and is plain text, so writing it needs no
-Schrodinger licence.
+Schrodinger license.
 """
 from __future__ import annotations
 from rdkit import Chem

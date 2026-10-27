@@ -265,7 +265,7 @@ def main(argv=None):
                         "(the newest by default)")
     n.add_argument("--no-minimise", dest="minimise",
                    action="store_false", default=True,
-                   help="skip the restrained minimisation after "
+                   help="skip the restrained minimization after "
                         "protonation (it is on by default)")
     n.add_argument("--keep-hetatms", action="store_true",
                    help="keep cofactors and other heteroatoms. Off by "
@@ -296,7 +296,7 @@ def main(argv=None):
                         "(linear, head to tail or disulfide) is docked with "
                         "that ring instead")
     n.add_argument("--helical", type=int, default=25,
-                   help="the per cent of replicas that start as a helix, "
+                   help="the percent of replicas that start as a helix, "
                         "the rest as coil (adcp -p). 25 by default; 0 starts "
                         "every replica as coil")
     n.add_argument("--keep-trajectories", action="store_true",
@@ -378,7 +378,7 @@ def main(argv=None):
                          "their own columns")
     rs.add_argument("--here", action="store_true",
                     help="run it on this machine instead of submitting it to "
-                         "SLURM. It minimises every pose, so this is for a "
+                         "SLURM. It minimizes every pose, so this is for a "
                          "workstation, not a cluster login node.")
     p = sub.add_parser("affinity",
                        help="what a target Kd is worth in kcal/mol")
@@ -517,7 +517,7 @@ def main(argv=None):
         import importlib
         for mod, label, why in (
                 ("numpy", "numpy", ""), ("rdkit", "RDKit", ""),
-                ("openmm", "OpenMM", "the receptor's restrained minimisation"),
+                ("openmm", "OpenMM", "the receptor's restrained minimization"),
                 ("pdbfixer", "PDBFixer", "rebuilding missing atoms and side chains"),
                 ("Bio", "Biopython", "reading mmCIF files")):
             try:

@@ -7,7 +7,7 @@ around it, and ADCP searches inside that box and nowhere else.</p>
 <img src="img/site-residues.png" alt="The Site card with 22 residues typed, and the note reporting the box it builds">
 <figcaption><b>The site, checked.</b> The note under the boxes reports how many
 of the residues were found, how far they span, the box that was built and its
-centre. Here 22 residues of MDM2 span more than the 30 &Aring; maximum, so the
+center. Here 22 residues of MDM2 span more than the 30 &Aring; maximum, so the
 box is clamped to 30 &Aring; on every axis.</figcaption>
 </figure>
 
@@ -58,10 +58,10 @@ most direct way to say where the site is. Once a receptor is loaded,
 <li><b>peptides</b>, the protein chains of up to 50 residues, named by their
 chain, like <code>B</code>;</li>
 <li><b>hetero groups</b>, named <code>CHAIN:NAME:NUMBER</code>, like
-<code>A:NUT:201</code>. Crystallisation additives such as glycerol and sulfate
+<code>A:NUT:201</code>. Crystallization additives such as glycerol and sulfate
 come last, and waters are not listed.</li>
 </ul>
-<p>The box is centred on the middle of the ligand's extent and spans that extent
+<p>The box is centered on the middle of the ligand's extent and spans that extent
 plus the padding on each side, which is how AGFR places a box around a ligand
 (<code>-b ligand</code>), and then it is held between the minimum and the
 maximum. The residues the ligand touches, within 4 &Aring;, become the site
@@ -111,7 +111,7 @@ run's <code>job.json</code> lists every pocket AutoSite found with its score.</p
 maps for <code>-b fill</code> at the 1 &Aring; spacing AutoSite searched at,
 which is too coarse to dock into, so the box it chose is kept and the maps are
 built over it again at the usual 0.375 &Aring;. On MDM2 the best scoring pocket
-was the p53 groove: its box is centred 3.5 &Aring; from the centre of the
+was the p53 groove: its box is centered 3.5 &Aring; from the center of the
 crystal p53 peptide.</div>
 
 <h2 id="pockets">Choosing the pockets</h2>
@@ -130,7 +130,7 @@ receptor it took 13 seconds over the whole structure and 98 seconds inside a
 box, which is the slower way round, because the grid inside a box is finer. The
 answer is kept, so asking again is instant.</li>
 <li>The pockets are listed ranked, with AutoSite's score, energy, number of
-points, radius and buriedness, and drawn in the site view in their own colours.
+points, radius and buriedness, and drawn in the site view in their own colors.
 <b>Rank them by</b> chooses AutoSite's peptide score (energy &times;
 buriedness<sup>1.5</sup>), the default here since a peptide is what is docked,
 or its general score, the one agfr uses.</li>

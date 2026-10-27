@@ -202,7 +202,7 @@ def find(path, cache, exe, chains=(), drop=(), keep_het=False, centre=None,
     cmd = [os.path.join(home, "bin", "python"), script, "-r", "rec.pdbqt",
            "-o", "as"]
     if centre and size:
-        # Written with = so that a centre starting with a minus sign is not
+        # Written with = so that a center starting with a minus sign is not
         # read as an option; AutoSite evaluates the text as a tuple.
         cmd += ["--boxcenter=(%.3f,%.3f,%.3f)" % tuple(centre),
                 "--boxdim=(%.1f,%.1f,%.1f)" % tuple(size)]
@@ -269,7 +269,7 @@ def chosen(cache, key, ranks):
 
 
 def box_around(points, padding=8.0, minimum=20.0, maximum=30.0):
-    """(centre, size, clipped axes) around points, by the rule every box here
+    """(center, size, clipped axes) around points, by the rule every box here
     follows: the span plus the padding on each side, held between the
     limits."""
     lo = [min(p[i] for p in points) for i in range(3)]

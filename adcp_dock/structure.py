@@ -293,7 +293,7 @@ def centre_of(atoms, hotspots):
 
 
 def box_for(atoms, hotspots, padding=8.0, minimum=20.0, maximum=30.0):
-    """(centre, size, note), by the rule the run itself uses (receptor.box):
+    """(center, size, note), by the rule the run itself uses (receptor.box):
     along each axis, the span of the chosen residues plus padding on each
     side, clamped. Never smaller than `minimum`, because a handful of
     residues in a line would otherwise give a box a peptide cannot fit in,
@@ -354,7 +354,7 @@ def distance(a, b):
 # the padding on each side) and given to agfr as a box, and the ligand is
 # kept out of the receptor here.
 
-#: Hetero groups that are crystallisation additives (AGFR's own list, from
+#: Hetero groups that are crystallization additives (AGFR's own list, from
 #: recFromPDB.PDBProfiler._additives). Offered, but after the ligands.
 ADDITIVES = {"P4G", "EOH", "1PE", "DMS", "ACT", "ACY", "PEG", "PGE", "BME",
              "FMT", "BUD", "GOL", "MRY", "BU3", "PO4", "MLI", "PDO", "PG4",
@@ -471,8 +471,8 @@ def ligand_problems(atoms, spec, chains_keep=(), keep_hetatms=False):
 
 
 def ligand_box(lig, padding=8.0, minimum=20.0, maximum=30.0):
-    """(centre, size, note) for a box around a ligand, by AGFR's rule for
-    -b ligand: centred on the middle of its extent, the extent plus the
+    """(center, size, note) for a box around a ligand, by AGFR's rule for
+    -b ligand: centered on the middle of its extent, the extent plus the
     padding on each side. Then clamped, as a box around residues is."""
     if not lig:
         return None, None, "the ligand has no atoms in this structure"

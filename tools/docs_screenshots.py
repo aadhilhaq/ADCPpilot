@@ -376,7 +376,7 @@ def main():
 
             # how every peptide is built and started
             def peptide_options():
-                # Centred, so the labels above the fields are on screen too.
+                # Centered, so the labels above the fields are on screen too.
                 pg.evaluate("document.getElementById('cyclic')"
                             ".scrollIntoView({block: 'center'})")
                 pg.wait_for_timeout(500)

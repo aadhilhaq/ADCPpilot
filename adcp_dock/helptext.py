@@ -46,7 +46,7 @@ HELP = {
         "Opening it changes nothing: docking uses this page's own preparation "
         "until you change something in ADapt. From the first change the line "
         "above the frame says that docking will use the receptor as set in "
-        "ADapt, and the preparation settings are greyed out, since ADapt and "
+        "ADapt, and the preparation settings are grayed out, since ADapt and "
         "AGFR decide them. You do not need ADapt's save button: when you "
         "submit, ADapt writes the receptor as it is set there, and it is read "
         "back and recorded with the run. Use ADapt's receptor now writes it "
@@ -92,7 +92,7 @@ HELP = {
         "What the loaded structure holds that a box could be built around: "
         "peptides, the protein chains of up to 50 residues, named by their "
         "chain; and hetero groups, named CHAIN:NAME:NUMBER, like A:NUT:201. "
-        "Crystallisation additives come last and waters are not listed.\n\n"
+        "Crystallization additives come last and waters are not listed.\n\n"
         "The ligand is never docked into. A peptide's chain is left out of "
         "the receptor, and if you tick it among the chains to keep the run "
         "is refused. A hetero group goes with the other heteroatoms; with "
@@ -316,10 +316,10 @@ HELP = {
         "7.4 is physiological. If your assay runs at a different pH, use "
         "that: an endosomal target at 5.5 has a different surface. The same "
         "pH is used again when MM-GBSA builds its complexes. reduce takes "
-        "no pH, so with reduce chosen this box is greyed out."),
+        "no pH, so with reduce chosen this box is grayed out."),
     "minimise": (
-        "Minimise after protonation",
-        "A restrained minimisation: heavy atoms are held near their measured "
+        "Minimize after protonation",
+        "A restrained minimization: heavy atoms are held near their measured "
         "positions while the newly placed hydrogens and any clashes "
         "relax.\n\n"
         "Leave it on. Hydrogens are placed by geometry and have not been "
@@ -331,9 +331,9 @@ HELP = {
         "Cofactors, ligands, metals and other non-protein atoms are removed "
         "unless you tick this.\n\n"
         "Tick it when what is bound there is part of the site, such as a "
-        "structural zinc or a haem your peptide must sit against. Leave it "
-        "off for a crystallisation additive or a ligand you intend to "
-        "displace. The minimisation's force field has no parameters for "
+        "structural zinc or a heme your peptide must sit against. Leave it "
+        "off for a crystallization additive or a ligand you intend to "
+        "displace. The minimization's force field has no parameters for "
         "most of what this keeps, metal ions included, so it is then "
         "skipped, and the results page says so."),
     "rebuild_sidechains": (
@@ -343,11 +343,11 @@ HELP = {
         "PDBFixer rebuilds the missing atoms and they are docked against "
         "like the rest.\n\n"
         "Off, the receptor that is docked into keeps its side chains as the "
-        "structure has them. With reduce and no minimisation the missing "
+        "structure has them. With reduce and no minimization the missing "
         "atoms are never built: reduce places hydrogens on a residue as it "
-        "stands. The minimisation needs whole residues, and PDB2PQR "
+        "stands. The minimization needs whole residues, and PDB2PQR "
         "completes every residue it is given, so with either of those the "
-        "missing atoms are modelled for a moment and then taken out with "
+        "missing atoms are modeled for a moment and then taken out with "
         "the hydrogens on them. The backbone, the terminal oxygen and any "
         "loop you ask to be rebuilt are completed either way.\n\n"
         "A rebuilt side chain is placed from a template, not measured. Turn "
@@ -374,7 +374,7 @@ HELP = {
     "mmgbsa": (
         "Rescore with MM-GBSA",
         "A physics-based rescoring of the docked poses: the complex is "
-        "protonated with the peptide bound, minimised, and its interaction "
+        "protonated with the peptide bound, minimized, and its interaction "
         "energy computed.\n\n"
         "It separates peptides that the docking score ranks together, and it "
         "is the slowest step in the run, taking roughly as long again as the "
@@ -434,7 +434,7 @@ HELP = {
     "sitesurf": (
         "Show the receptor's surface",
         "Draws the molecular surface of the chains you keep over the "
-        "structure, with the residues you picked coloured blue on it, so a "
+        "structure, with the residues you picked colored blue on it, so a "
         "groove shows as a groove and the patch the box is built around "
         "shows with it.\n\n"
         "The surface is computed by MSMS, Michel Sanner's program, which "
@@ -450,7 +450,7 @@ HELP = {
         "you picked.\n\n"
         "ADCP docks into what is inside this box and nothing else, so it is "
         "worth checking before you submit: whether it covers the groove, "
-        "whether it reaches a neighbouring chain, and how much of it is "
+        "whether it reaches a neighboring chain, and how much of it is "
         "solvent. If it misses part of the site, add a residue there or "
         "raise the padding; if it covers far too much, lower the padding or "
         "the maximum. It is drawn from the same numbers the run will use, "
@@ -500,7 +500,7 @@ STEP_CHOICES = [
 
 # Independent searches. ADCP runs these across the cores the task holds, so
 # below the core count they add little wall time, and they are the main
-# defence against one search settling in the wrong place.
+# defense against one search settling in the wrong place.
 REPLICA_CHOICES = [
     (25, "below every published setting; a quick look only"),
     (50, "ADCP's default, below the 100 to 300 guideline"),

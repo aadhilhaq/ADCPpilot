@@ -9,7 +9,7 @@ footer. Screenshots, where an interface has them, are in img/: of the
 interface itself, taken by the repository's tools/docs_screenshots.py, so they
 show the page as it is.
 
-Each interface builds a Site with its own name, colours, pages and credit
+Each interface builds a Site with its own name, colors, pages and credit
 line, and the layout is the same. This module is shared, byte for byte, with
 other tools by the same authors; keep the copies identical.
 """
@@ -17,7 +17,7 @@ import html
 import os
 import re
 
-#: The colours ADapt's documentation uses, as the default. An interface
+#: The colors ADapt's documentation uses, as the default. An interface
 #: passes its own, so the docs read as part of the same tool.
 LIGHT = {"bg": "#f7f8fb", "card": "#fff", "line": "#dfe3ee", "fg": "#1b2333",
          "dim": "#5d6780", "accent": "#1a56db", "accent2": "#e8efff",
@@ -154,7 +154,7 @@ def style_css(site):
     return STYLE.replace("__LIGHT__", _tokens(site.light)).replace("__DARK__", _tokens(site.dark))
 
 
-STYLE = """/* The documentation's look, shared with the interface's colours. */
+STYLE = """/* The documentation's look, shared with the interface's colors. */
 :root{color-scheme:light;__LIGHT__}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;__DARK__}}
 :root[data-theme="dark"]{color-scheme:dark;__DARK__}

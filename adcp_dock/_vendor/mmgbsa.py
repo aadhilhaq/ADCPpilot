@@ -67,12 +67,12 @@ quit
 RING_PROP = "mm_ring"
 D_PROP = "mm_d"
 
-#: The longest a closing bond may be after the minimisation and still count
-#: as the bond: its length in ff14SB plus this. A bond the minimisation did
+#: The longest a closing bond may be after the minimization and still count
+#: as the bond: its length in ff14SB plus this. A bond the minimization did
 #: not bring to length means the energy belongs to a strained ring.
 CLOSING_SLACK = 0.25
 
-MIN_IN = """Minimisation before rescoring: tleap adds hydrogens without regard to
+MIN_IN = """Minimization before rescoring: tleap adds hydrogens without regard to
 the partner molecule, and a single-point energy on the raw complex is dominated by
 those clashes rather than by the interaction.
 &cntrl
@@ -116,7 +116,7 @@ INTDIEL = 1.0
 RADII = "mbondi2"
 LEGACY_RADII = "mbondi"
 
-# The generalised Born models on offer, each with the radii it was fitted
+# The generalized Born models on offer, each with the radii it was fitted
 # with. OBC(II) is the default and what every earlier run used. GBn2 (Nguyen,
 # Roe and Simmerling, J Chem Theory Comput 9:2020, 2013) is Amber's igb=8 and
 # only means anything with its own mbondi3 radii, which tleap also provides,
@@ -337,7 +337,7 @@ def peptide_chain(used):
 
 #: Two residues of one chain whose C and N are further apart than this are
 #: not bonded: a peptide bond is 1.33 A, and anything past 2 A is a gap, an
-#: unmodelled loop or the end of one piece of a chain and the start of
+#: unmodeled loop or the end of one piece of a chain and the start of
 #: another.
 BREAK_A = 2.0
 
@@ -349,7 +349,7 @@ def separate_chains(pdb_path, lig_chain=LIGAND_CHAIN, log=None):
     A TER goes between chains, between receptor and peptide, and wherever a
     receptor chain is broken (its C and the next residue's N more than BREAK_A
     apart): tleap otherwise reads one continuous chain and bonds across the
-    gap, a bond of tens of angstroms that the minimisation then pulls on, or
+    gap, a bond of tens of angstroms that the minimization then pulls on, or
     that stops the build. The peptide's own residues are never split. Every
     TER the file had is replaced, so what reduce or PDB2PQR did with them
     does not matter, and running it again changes nothing.
@@ -481,7 +481,7 @@ def _amber_name(res: str, hs: set) -> str | None:
 
     A histidine is named for its ring protons, a carboxylate with a proton on
     it for its neutral form, a lysine with two amine hydrogens LYN, and a
-    cysteine without its thiol hydrogen CYX, since that is a disulphide.
+    cysteine without its thiol hydrogen CYX, since that is a disulfide.
     """
     if res == "HIS":
         d, e = "HD1" in hs, "HE2" in hs
@@ -759,7 +759,7 @@ def prep_complex_reduce(com_pdb: str, workdir: str, prefix: str,
     The receptor's residues are named for the protonation the docked
     receptor has (protonation["states"], read from its hydrogens by
     residue_states): HID, HIE or HIP from where reduce put the ring protons,
-    CYX in a disulphide. Asn, Gln and His that reduce turned over are turned
+    CYX in a disulfide. Asn, Gln and His that reduce turned over are turned
     over in the receptor's coordinates, which are the prepared ones, so they
     stay turned. The peptide is protonated by reduce on the whole complex,
     so its histidines are chosen with the receptor around them, and its
@@ -1134,8 +1134,8 @@ def mirror_hydrogens(workdir, prefix, com_pdb, spec, n_rec_res, home, env,
     each hydrogen whose place depends on handedness, on the wrong side: on
     the 13 residue p53 peptide reflected, 81 of 108 hydrogens landed 0.1 to
     1.8 A from their mirror images, and the angle energy rose from 1065 to
-    3113 kcal/mol. A minimisation that started there would push the heavy
-    atoms, which are free, towards the L form.
+    3113 kcal/mol. A minimization that started there would push the heavy
+    atoms, which are free, toward the L form.
 
     So the peptide is reflected, which makes each D residue an L one, built
     alone by tleap the same way, and reflected back: each D residue's
@@ -1214,12 +1214,12 @@ def mirror_hydrogens(workdir, prefix, com_pdb, spec, n_rec_res, home, env,
                 x[0] = -x[0]
                 xc[ic] = x
                 moved += 1
-    # A centre the mirror image does not cover. ADCP 1.1 builds &T and &I
+    # A center the mirror image does not cover. ADCP 1.1 builds &T and &I
     # with the alpha carbon inverted and the beta carbon as in the L residue
     # (the allo forms), so the reflected residue is not the L template's
-    # either, and its beta hydrogen lands beside its neighbours. Any
-    # hydrogen on a stereocentre of a D residue that is still on the side of
-    # its three heavy neighbours is put where a tetrahedral centre has it:
+    # either, and its beta hydrogen lands beside its neighbors. Any
+    # hydrogen on a stereocenter of a D residue that is still on the side of
+    # its three heavy neighbors is put where a tetrahedral center has it:
     # 1.09 A out, opposite the mean of the three bond directions.
     turned = 0
     first = n_rec_res + 1
@@ -1241,23 +1241,23 @@ def mirror_hydrogens(workdir, prefix, com_pdb, spec, n_rec_res, home, env,
 
 
 def check_peptide(topo, traj, log=print):
-    """What the minimisation did to the peptide's stereocentres and to its
+    """What the minimization did to the peptide's stereocenters and to its
     ring, from the topology and the coordinates before and after.
 
     Returns (why not, report). "why not" is None when the pose may be
     scored, and a reason otherwise:
 
       a residue whose alpha carbon does not have the handedness the sequence
-      gives it in the docked pose, or loses it in the minimisation, or a
+      gives it in the docked pose, or loses it in the minimization, or a
       threonine or isoleucine beta carbon that changes, or a hydrogen on a
-      stereocentre left on the same side as its three heavy neighbours;
+      stereocenter left on the same side as its three heavy neighbors;
 
-      a closing bond that is not in the topology, or that the minimisation
+      a closing bond that is not in the topology, or that the minimization
       left longer than its length in the force field plus CLOSING_SLACK.
 
     The report is written beside the pose as <prefix>_checks.json, with the
     closing bond's length and its energy term before and after, so the run
-    can say what the minimisation did to each ring.
+    can say what the minimization did to each ring.
     """
     import json
     from . import amberfiles as af
@@ -1287,10 +1287,10 @@ def check_peptide(topo, traj, log=print):
                             % (pos, b["name"], form))
         elif b["volume"] * a["volume"] <= 0:
             problems.append("residue %d (%s) changed handedness at %s in the "
-                            "minimisation" % (pos, b["name"], b["centre"]))
+                            "minimization" % (pos, b["name"], b["centre"]))
         elif a["h_opposite"] is False:
             problems.append("residue %d (%s) has its %s hydrogen on the wrong "
-                            "side after the minimisation"
+                            "side after the minimization"
                             % (pos, b["name"], b["centre"]))
     closing = []
     ring = spec.get("ring")
@@ -1319,7 +1319,7 @@ def check_peptide(topo, traj, log=print):
                                 % what)
             elif t1["length"] > t0["r0"] + CLOSING_SLACK:
                 problems.append("the closing %s bond is %.2f A after the "
-                                "minimisation, against %.2f A for the bond"
+                                "minimization, against %.2f A for the bond"
                                 % (what, t1["length"], t0["r0"]))
     why = "; ".join(problems) or None
     report = {"why": why, "scored_on": os.path.basename(tp),
@@ -1332,11 +1332,11 @@ def check_peptide(topo, traj, log=print):
         pass
     for c in closing:
         log(f"    {topo.prefix}: closing {c['bond']} bond {c['before']:.2f} A "
-            f"({c['energy_before']:.1f} kcal/mol) before the minimisation, "
+            f"({c['energy_before']:.1f} kcal/mol) before the minimization, "
             f"{c['after']:.2f} A ({c['energy_after']:.2f} kcal/mol) after")
     if d and not why:
-        log(f"    {topo.prefix}: every D centre is still D after the "
-            f"minimisation ({len(d)} residue(s))")
+        log(f"    {topo.prefix}: every D center is still D after the "
+            f"minimization ({len(d)} residue(s))")
     return why, report
 
 
@@ -1440,7 +1440,7 @@ def _topologies(rec, pose_mol, workdir, prefix, log=print,
     # receptor PDB has none, and the file handed to tleap has none; the
     # hydrogens are built by ff14SB from the residue names PROPKA chose. If
     # that step half-fails, tleap still writes a topology and sander still
-    # minimises it, and MM-GBSA returns a number computed on a molecule with
+    # minimizes it, and MM-GBSA returns a number computed on a molecule with
     # no hydrogen bonds in it. Nothing downstream would say so, and the number
     # looks like every other number in the column.
     n_heavy = sum(1 for l in open(com_pdb)
@@ -1486,7 +1486,7 @@ def _topologies(rec, pose_mol, workdir, prefix, log=print,
             f"built with the L template; {placed['atoms_placed']} "
             f"added atom(s) placed as their mirror image"
             + (f", {placed['hydrogens_turned']} more turned to the open side "
-               f"of their centre" if placed["hydrogens_turned"] else ""))
+               f"of their center" if placed["hydrogens_turned"] else ""))
     ante = prep.find_tool("ante-MMPBSA.py")
     if ante is None:
         log(f"    {prefix}: ante-MMPBSA.py not found, skipped")
@@ -1511,13 +1511,13 @@ def _minimise(topo, log=print):
     """Relax the pose with sander. Returns the trajectory to score.
 
     The restraint holds the receptor so the added hydrogens and the peptide
-    relax while the prepared geometry stays put, and the generalised Born
+    relax while the prepared geometry stays put, and the generalized Born
     model is the one the radii select. On failure the raw pose is returned,
     so a caller always has something to score.
 
     Extracted so every engine relaxes the pose the SAME way, which turned out
     to matter more than the energy model. On sander's own minimum OpenMM
-    lands within 1.3 kcal/mol of MMPBSA.py; OpenMM minimising the same pose
+    lands within 1.3 kcal/mol of MMPBSA.py; OpenMM minimizing the same pose
     itself lands about 30 out. sander's 1000 cycles is a shallow relaxation
     and OpenMM's L-BFGS converges well inside 1000 iterations, so matching
     the step count does not match the amount of relaxation, and the extra
@@ -1529,7 +1529,7 @@ def _minimise(topo, log=print):
     with open(mininp, "w") as fh:
         fh.write(MIN_IN.format(rec_mask=topo.rec_mask,
                                igb=model_of(radii)[1]))
-    log(f"    {prefix}: minimising the complex")
+    log(f"    {prefix}: minimizing the complex")
     minrst = os.path.join(workdir, f"{prefix}_min.rst7")
     sander = os.path.join(topo.home, "bin", "sander")
     subprocess.run([sander, "-O", "-i", mininp,
@@ -1547,9 +1547,9 @@ def run_amber(rec, pose_mol, workdir: str, prefix: str, log=print,
               prep_ph: float | None = 7.4,
               intdiel: float = INTDIEL,
               radii: str = RADII) -> float | None:
-    """The reference engine: sander minimises, MMPBSA.py decomposes.
+    """The reference engine: sander minimizes, MMPBSA.py decomposes.
 
-    ff14SB with whichever generalised Born model the radii select. It is
+    ff14SB with whichever generalized Born model the radii select. It is
     the default, and the engine every run used before others could be
     chosen.
     """
@@ -1566,7 +1566,7 @@ def run_amber(rec, pose_mol, workdir: str, prefix: str, log=print,
     with open(os.path.join(workdir, f"{prefix}_scored_on.txt"), "w") as fh:
         fh.write(traj + "\n")
     # The peptide that is scored must be the one that was docked: its
-    # stereocentres as docked, and a ring's closing bond a bond.
+    # stereocenters as docked, and a ring's closing bond a bond.
     why, _rep = check_peptide(topo, traj, log)
     if why:
         log(f"    {prefix}: not scored: {why}")
@@ -1576,23 +1576,23 @@ def run_amber(rec, pose_mol, workdir: str, prefix: str, log=print,
         # on the complex as tleap built it: hydrogens unrelaxed, and the pose
         # where the docking left it. That is a different quantity from every
         # other pose's energy. It used to be logged as "did not converge",
-        # which reads as a detail about a minimisation that never produced
+        # which reads as a detail about a minimization that never produced
         # anything.
-        log(f"    {prefix}: sander wrote no minimised coordinates, so this "
-            f"energy is for the UNMINIMISED complex and is not comparable "
+        log(f"    {prefix}: sander wrote no minimized coordinates, so this "
+            f"energy is for the UNMINIMIZED complex and is not comparable "
             f"with the other poses")
     else:
-        # Whether the minimisation reached a gradient or ran out of cycles.
+        # Whether the minimization reached a gradient or ran out of cycles.
         # The panel reports this, and the energy means less when the
         # structure was still moving.
         _m = _min_state(os.path.join(workdir, f"{prefix}_min.out"))
         if _m:
-            log(f"    {prefix}: minimised to RMS gradient {_m['rms']:.3f} "
+            log(f"    {prefix}: minimized to RMS gradient {_m['rms']:.3f} "
                 f"kcal/mol/A in {_m['cycles']} cycle(s)"
                 + (", stopped at maxcyc" if _m["maxed"] else ""))
-        # What the minimisation started from, which indicates whether
+        # What the minimization started from, which indicates whether
         # the pose was usable at all. A pose that begins at a large
-        # positive energy is one the minimiser rescued rather than
+        # positive energy is one the minimizer rescued rather than
         # one that was plausible.
         start = _first_energy(os.path.join(workdir, f"{prefix}_min.out"))
         junction = _at_ring_junction(topo)
@@ -1601,8 +1601,8 @@ def run_amber(rec, pose_mol, workdir: str, prefix: str, log=print,
             # pulls the end residues' alpha carbons to about 2.2 A, where a
             # peptide bond holds them 3.8 A apart, so the hydrogens tleap adds
             # there overlap. That is inside the peptide, which is free to
-            # move, and the closing bond and the stereocentres are checked
-            # after the minimisation (check_peptide).
+            # move, and the closing bond and the stereocenters are checked
+            # after the minimization (check_peptide).
             log(f"    {prefix}: the pose started at {start:.2e} kcal/mol, "
                 f"from {junction} where the ring closes, crowded as the "
                 f"docking leaves it; the peptide is free to move there")
@@ -1644,7 +1644,7 @@ def run_amber(rec, pose_mol, workdir: str, prefix: str, log=print,
 
 
 # The restraint weight sander applies through restraint_wt, kept here only so
-# the two protocols can be compared in one place. The minimisation is
+# the two protocols can be compared in one place. The minimization is
 # sander's.
 OMM_RESTRAINT_KCAL_A2 = 5.0
 
@@ -1669,15 +1669,15 @@ def run_openmm(rec, pose_mol, workdir: str, prefix: str, log=print,
 
     What this replaces is MMPBSA.py, not sander. The pose is relaxed by
     sander, exactly as run_amber relaxes it, and OpenMM then computes that
-    geometry's energy with its own generalised Born code.
+    geometry's energy with its own generalized Born code.
 
-    WHY IT DOES NOT MINIMISE FOR ITSELF. It was written that way first and
+    WHY IT DOES NOT MINIMIZE FOR ITSELF. It was written that way first and
     came out 24 to 32 kcal/mol from AmberTools on a 5 residue peptide and 52
     to 65 on a 19 residue one, with the pose order reversed on the longer one.
     Measured back to its cause: on sander's own minimum OpenMM agrees with
     MMPBSA.py to 1.3 kcal/mol across five poses with the order unchanged, so
-    the energy models agree and the minimisation was the whole difference.
-    Minimising further made the answer worse, so it is not offered.
+    the energy models agree and the minimization was the whole difference.
+    Minimizing further made the answer worse, so it is not offered.
     """
     try:
         import openmm                                          # noqa: F401
@@ -1686,8 +1686,8 @@ def run_openmm(rec, pose_mol, workdir: str, prefix: str, log=print,
         return None
     if amber_home() is None:
         log(f"    {prefix}: the OpenMM engine scores the geometry sander "
-            f"minimises, and AmberTools was not found, so there is no "
-            f"calibrated geometry to score. Skipped rather than minimised "
+            f"minimizes, and AmberTools was not found, so there is no "
+            f"calibrated geometry to score. Skipped rather than minimized "
             f"here, which would put the energy about 30 kcal/mol out.")
         return None
     topo = _topologies(rec, pose_mol, workdir, prefix, log, prep_ph, radii)
@@ -1695,7 +1695,7 @@ def run_openmm(rec, pose_mol, workdir: str, prefix: str, log=print,
         return None
     traj = _minimise(topo, log)
     if traj != f"{prefix}_min.rst7":
-        log(f"    {prefix}: minimisation did not converge, using the raw pose")
+        log(f"    {prefix}: minimization did not converge, using the raw pose")
     why, _rep = check_peptide(topo, traj, log)
     if why:
         log(f"    {prefix}: not scored: {why}")
@@ -1707,9 +1707,9 @@ def openmm_dg(topo, log=print, intdiel: float = INTDIEL,
               rst: str | None = None) -> float | None:
     """OpenMM's MM-GBSA energy for one already built, already relaxed pose.
 
-    `rst` is the coordinate file to score; without one the minimised
+    `rst` is the coordinate file to score; without one the minimized
     coordinates are used if present and the raw pose otherwise. Nothing is
-    minimised here.
+    minimized here.
 
     Single trajectory, like MMPBSA.py: the receptor and ligand energies come
     from the SAME frame as the complex by slicing its coordinates, so the
@@ -1777,7 +1777,7 @@ def openmm_dg(topo, log=print, intdiel: float = INTDIEL,
 # The binding energy Prime reports that means what the other two engines'
 # numbers mean: dG_Bind(NS), "no strain", taken with ligand and receptor in
 # their complex geometry, which is how single-trajectory MM-GBSA is defined.
-# Prime's headline dG_Bind adds a ligand strain term from minimising the free
+# Prime's headline dG_Bind adds a ligand strain term from minimizing the free
 # peptide separately, and for a flexible peptide the free peptide collapses in
 # implicit solvent into a shape it does not hold: the strain was +8.9 kcal/mol
 # on a 5 residue peptide and +59.3 on a 15 residue one, turning -62.2 into
@@ -1788,7 +1788,7 @@ _PRIME_DG = "r_psp_MMGBSA_dG_Bind(NS)"
 def prime_forcefield(log=print, timeout=30):
     """Which OPLS version a Prime job started now would actually get.
 
-    Returns (flags, name). The force field licence is a separate pool from
+    Returns (flags, name). The force field license is a separate pool from
     the rescoring one, often with a single seat, so a job started while no
     seat is free falls back to OPLS_2005 on its own. Asking first means
     the result can say which force field produced it, instead of the table
@@ -1800,10 +1800,10 @@ def prime_forcefield(log=print, timeout=30):
     if free is None:
         # Unreadable is not the same as absent. Let Prime pick its own
         # default and record that the choice was not verified.
-        return [], eng.FF_MODERN + " (assumed; the licence was not readable)"
+        return [], eng.FF_MODERN + " (assumed; the license was not readable)"
     if free > 0:
         return [], eng.FF_MODERN
-    log(f"    the {eng.FF_FEATURE} licence is fully in use "
+    log(f"    the {eng.FF_FEATURE} license is fully in use "
         f"({total} seat(s)), so this runs on {eng.FF_LEGACY}")
     return ["-prime_opt", "OPLS_VERSION=" + eng.FF_LEGACY], eng.FF_LEGACY
 
@@ -1817,7 +1817,7 @@ def run_prime(rec, pose_mol, workdir: str, prefix: str, log=print,
     A different force field and a different solvent model from the other two
     engines, so its numbers belong in their own column and are never averaged
     or compared by value with them. It is here because groups holding the
-    licence often need it for comparability with their existing work.
+    license often need it for comparability with their existing work.
 
     The topologies are still built by tleap, for one reason: the protonation
     and the atoms are then identical to what the other engines read, so a
@@ -1845,7 +1845,7 @@ def run_prime(rec, pose_mol, workdir: str, prefix: str, log=print,
     env = dict(os.environ, SCHRODINGER=schro)
     plan = gbengines.SCHRODINGER.plan()
     if plan.get("readable") and not plan.get("jobs"):
-        log(f"    {prefix}: every {gbengines.SCHRODINGER.FEATURE} licence is "
+        log(f"    {prefix}: every {gbengines.SCHRODINGER.FEATURE} license is "
             f"in use, and one job needs "
             f"{gbengines.SCHRODINGER.TOKENS_PER_JOB}, skipped")
         return None
@@ -2125,7 +2125,7 @@ CLASHED_START = 1e6
 
 def _at_ring_junction(topo):
     """The atom with the largest force at the first step of the
-    minimisation, as "atom HA of residue 1", when the peptide is a head to
+    minimization, as "atom HA of residue 1", when the peptide is a head to
     tail ring and that atom is in its first or last residue; else ""."""
     spec = getattr(topo, "spec", None) or {}
     ring = spec.get("ring") or {}
@@ -2152,10 +2152,10 @@ def _at_ring_junction(topo):
 
 
 def _min_state(min_out):
-    """Where the minimisation stopped, or None.
+    """Where the minimization stopped, or None.
 
     sander stops at maxcyc rather than at a gradient for almost every pose,
-    which is expected of a restrained rescoring minimisation and is not the
+    which is expected of a restrained rescoring minimization and is not the
     same thing as having converged. Nothing read this file before, and the
     energy of a pose that was still moving means less than one that settled.
     """
@@ -2227,7 +2227,7 @@ def summarise(values, aggregate="median"):
     """
     v = sorted(float(x) for x in values if x is not None)
     # A pose whose interaction energy is large and positive is a failed
-    # calculation rather than a weak binder: a clash the minimisation
+    # calculation rather than a weak binder: a clash the minimization
     # could not relax, or a topology that does not match the structure.
     # Small positive values are kept. Beyond the cutoff those poses are
     # dropped from the summary instead of averaged into it, and a
@@ -2268,7 +2268,7 @@ def run(constructs: list[dict], rec, poses: dict, workdir: str, log=print,
         model: str | None = None, engine: str = "") -> dict:
     """Rescore each construct. Returns sequence -> dG, missing where it failed.
 
-    `model` ("obc2" or "gbn2") picks the generalised Born model for a run whose
+    `model` ("obc2" or "gbn2") picks the generalized Born model for a run whose
     MM-GBSA has not started. A run that has started keeps the model it began
     with, whatever is asked for, because its model is its radii and a run
     keeps those; see MODELS.
@@ -2294,7 +2294,7 @@ def run(constructs: list[dict], rec, poses: dict, workdir: str, log=print,
             "needs tleap and MMPBSA.py on PATH; Prime needs $SCHRODINGER set, "
             "which on a cluster usually means module load Schrodinger.")
         return {}
-    # An engine named by the caller is honoured; otherwise the default above.
+    # An engine named by the caller is honored; otherwise the default above.
     from . import gbengines
     engine = (engine or "").strip().lower() or BACKEND_ENGINE.get(b, b)
     eng = gbengines.get(engine)
@@ -2327,7 +2327,7 @@ def run(constructs: list[dict], rec, poses: dict, workdir: str, log=print,
         log(f"  MM-GBSA engine: {eng.label}, {eng.forcefield} with "
             f"{MODELS[mname]['label']}, {radii} radii and an interior "
             f"dielectric of {float(intdiel):g}, scoring the geometry sander "
-            f"minimised")
+            f"minimized")
     else:
         log(f"  MM-GBSA engine: {eng.label}, {MODELS[mname]['label']} "
             f"(igb={igb}) with {radii} radii and an interior dielectric of "

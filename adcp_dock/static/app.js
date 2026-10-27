@@ -1,4 +1,4 @@
-/* The page's behaviour. Plain JavaScript, no framework and no build step.
+/* The page's behavior. Plain JavaScript, no framework and no build step.
    Served by the same process that does the work, so it always matches the
    server it talks to.
 
@@ -595,7 +595,7 @@ function colResize(t, key, opt){
                done only once the three steps before it are
      submit    the run was submitted, and nothing in the form has changed
                since
-   The first step not done is the one to do now. Later cards are grey, and
+   The first step not done is the one to do now. Later cards are gray, and
    stay usable: a target file or a reused run fills several steps at once,
    and nobody should be walked through steps that are already done. */
 const STEPS = ['receptor', 'site', 'peptides', 'docking', 'submit'];
@@ -633,7 +633,7 @@ function guideSteps(f){
    numbers inside min and max; the step a box moves by is a convenience, not
    a rule, so 48 cores is valid though the stepper moves in fours. Tasks at
    once and poses to minimize may be left empty, which means none. A choice
-   greyed out because this machine cannot run it is not valid. */
+   grayed out because this machine cannot run it is not valid. */
 function dockingProblem(){
   const whole = (id, empty) => {
     const el = $(id);
@@ -791,16 +791,16 @@ function gbEngines(rows){
     const r = have[sel.value];
     if(!r){ note.textContent = ''; sel.title = ''; return; }
     const L = r.licence;
-    // With the licence readable, name the force field a job would ACTUALLY
+    // With the license readable, name the force field a job would ACTUALLY
     // get rather than the registry's "one or the other" wording.
     const ff = (L && L.readable && L.forcefield) ? L.forcefield : r.forcefield;
     let t = ff + ', ' + r.solvation;
     if(r.radii && r.radii !== 'n/a') t += ', ' + r.radii + ' radii';
     if(L && L.readable){
       t += '. ' + (L.jobs ? (L.modern_jobs + ' of ' + L.jobs + ' job'
-           + (L.jobs === 1 ? '' : 's') + ' can use it') : 'no licence free now');
+           + (L.jobs === 1 ? '' : 's') + ' can use it') : 'no license free now');
     } else if(L){
-      t += '. Licences unreadable from here';
+      t += '. Licenses unreadable from here';
     }
     // Not installed on a machine that has the suite means the install is
     // somewhere this does not know to look. Say where it looked.
@@ -843,7 +843,7 @@ function gbEngines(rows){
     MAC10 = true;
     $('enginename').textContent = d.mac10.label;
     en.innerHTML = '<span class=warn>' + esc(d.mac10.note) + '</span>';
-    en.title = 'Non-standard and D residues and OpenMM minimisation need '
+    en.title = 'Non-standard and D residues and OpenMM minimization need '
       + 'ADCP 1.1; ADCP 1.0 writes at most ' + d.mac10.max_poses + ' poses.';
     $('omm_minimize').value = 0;
     $('omm_minimize').disabled = true;
@@ -897,7 +897,7 @@ function gbEngines(rows){
   // The MM-GBSA settings follow the box, whose change event never fires
   // for a box that starts ticked or is unticked here.
   mmOpts();
-  // Choices this machine cannot run are greyed out now, which the docking
+  // Choices this machine cannot run are grayed out now, which the docking
   // step reads.
   guideSoon();
 });
@@ -1619,7 +1619,7 @@ $('adaptread').onclick = async () => {
   adaptSays('Save ' + u.n + ' still cannot be read: ' + u.why);
 };
 /* Everything that depends on whether ADapt's receptor is the one docked: the
-   card says so, and the settings that belong to a structure file are greyed
+   card says so, and the settings that belong to a structure file are grayed
    out, since ADapt and AGFR make those choices. */
 const PREP_IDS = ['keep_hetatms', 'rebuild_sidechains', 'fill_loops',
                   'protonation', 'ph', 'minimise'];
@@ -1956,7 +1956,7 @@ function surfaceMesh(d){
   return d._mesh;
 }
 /* One surface into a viewer, as a custom shape. `colourOf` gives a residue's
-   colour ("A:96") or null for the surface's own; per vertex colours are used
+   color ("A:96") or null for the surface's own; per vertex colors are used
    only below 64,000 vertices, where 3Dmol keeps a mesh in one piece. */
 function addSurfaceMesh(viewer, d, style, colourOf){
   const m = surfaceMesh(d);
@@ -1974,9 +1974,9 @@ function addSurfaceMesh(viewer, d, style, colourOf){
     });
   }
   const shape = viewer.addCustom(spec);
-  /* 3Dmol paints every vertex with the shape's colour when it draws it,
-     unless the shape has none, which is how it colours a surface by value
-     itself; without this the residues' colours never reach the screen. */
+  /* 3Dmol paints every vertex with the shape's color when it draws it,
+     unless the shape has none, which is how it colors a surface by value
+     itself; without this the residues' colors never reach the screen. */
   if(spec.colorArr) delete shape.color;
   return shape;
 }
@@ -2448,8 +2448,8 @@ function drawSeqStrip(){
   // What is not there is shown too.
   //
   // This strip holds the residues the structure contains, and each row is
-  // labelled with the number of its first residue. Where a loop was never
-  // modelled, the numbers jump (rows starting 30, 31, 33), which would read as
+  // labeled with the number of its first residue. Where a loop was never
+  // modeled, the numbers jump (rows starting 30, 31, 33), which would read as
   // a numbering fault rather than a gap in the structure. Those gaps are the
   // backbone breaks the preparation splits the chain at, so a user picking a
   // site should see that a residue next to their hotspot is missing.
@@ -2479,7 +2479,7 @@ function drawSeqStrip(){
         return '<span class=gap title="' + x.gap + ' residue'
           + (x.gap === 1 ? '' : 's') + ' missing from the structure ('
           + x.from + (x.gap === 1 ? '' : ' to ' + x.to)
-          + ' were never modelled)">\u00b7\u00b7\u00b7</span>';
+          + ' were never modeled)">\u00b7\u00b7\u00b7</span>';
       const sep = (k && k % 10 === 0) ? ' ' : '';
       k++;
       return sep + '<span class=r data-k="' + esc(x.chain + ':' + x.resnum)
@@ -2567,7 +2567,7 @@ async function refreshSite(){
   SITE = d.error ? null : d;
   $('sitenote').innerHTML = d.error
     ? '<span class=bad>' + esc(d.error) + '</span>'
-    : esc(d.note) + '<br>centre ' + d.centre.join(', ') + '; box '
+    : esc(d.note) + '<br>center ' + d.centre.join(', ') + '; box '
       + d.size.map(x => x.toFixed(1)).join(' × ') + ' Å'
       + (d.contacts ? '<br>' + d.contacts.length + ' residue'
          + (d.contacts.length === 1 ? '' : 's') + ' touch it, and each pose '
@@ -2752,7 +2752,7 @@ function pocketChosen(){
         .map(x => ({axis: x[1], span: x[2],
                     padding: Math.max(0, (+$('bmax').value - x[2]) / 2)}));
       $('sitenote').innerHTML = 'The box is around pocket' + (sel.length === 1 ? ' ' : 's ')
-        + sel.map(p => p.rank).join(', ') + ': centre ' + centre.join(', ') + '; box '
+        + sel.map(p => p.rank).join(', ') + ': center ' + centre.join(', ') + '; box '
         + size.map(x => x.toFixed(1)).join(' \u00d7 ') + ' \u00c5'
         + clippedNote({clipped: clip, box_max: +$('bmax').value,
                        box_padding: pad}, 'pocket');
@@ -2764,7 +2764,7 @@ function pocketChosen(){
   $('pocketnote').innerHTML = html;
   drawPockets();
 }
-/* Each pocket's points in its own colour: the ones ticked large, the rest
+/* Each pocket's points in its own color: the ones ticked large, the rest
    small and faint. One model of pseudo atoms per pocket, on a chain no
    structure uses, so the picker's styling never reaches them. */
 function drawPockets(){
@@ -3103,7 +3103,7 @@ function targetChanged(){
 function targetSite(){
   if(!TARGET) return;
   SITE = {centre: TARGET.centre, size: TARGET.size};
-  $('sitenote').innerHTML = 'The box is the target file\'s own: centre '
+  $('sitenote').innerHTML = 'The box is the target file\'s own: center '
     + TARGET.centre.map(x => (+x).toFixed(2)).join(', ') + '; box '
     + TARGET.size.map(x => (+x).toFixed(1)).join(' × ') + ' Å. '
     + '<span class=why>The residues, padding and limits here are not used '
@@ -3149,7 +3149,7 @@ function addPoints(pts){
   const m = VD.addModel(lines.join('\n') + '\nEND\n', 'pdb');
   m.setStyle({}, POINT_STYLE);
 }
-/* A colour the receptor's rainbow cartoon never takes, large enough to see
+/* A color the receptor's rainbow cartoon never takes, large enough to see
    at the distance the whole receptor is shown from. */
 const POINT_STYLE = {sphere:{radius:0.7, color:'#d61f69'}};
 
@@ -3164,7 +3164,7 @@ $('trgbrowse').onclick = () => openPicker({
 
 /* ===================== peptides ====================================== */
 /* The sequence editor is contenteditable, so residues can be numbered and
-   coloured as they are typed. The numbers live in a ::after pseudo-element
+   colored as they are typed. The numbers live in a ::after pseudo-element
    keyed off a data attribute; as real text they would end up in textContent
    and become part of the sequence. */
 const HYDRO = new Set(['A','V','L','I','M','F','W','C','P']);
@@ -3712,8 +3712,8 @@ function pepmsg(text, bad){
   e.innerHTML = bad ? '<span class=bad>' + esc(text) + '</span>' : esc(text);
 }
 
-/* Rescoring off: its settings stay in place, greyed and disabled, the way
-   the receptor's preparation greys a setting that does not apply, so
+/* Rescoring off: its settings stay in place, grayed and disabled, the way
+   the receptor's preparation grays a setting that does not apply, so
    nothing under them moves when the box is ticked or unticked. A disabled
    field is skipped by the keyboard and by the docking step's checks, which
    read these only while the box is ticked. */
@@ -3843,7 +3843,7 @@ function clearMissingOn(id){
 function markMissing(id, why){
   const e = $(id);
   if(!e) return;
-  /* A container with no border shows nothing when only its border colour is
+  /* A container with no border shows nothing when only its border color is
      set, and an empty one has no height for an outline to trace. The peptide
      list is such a container, so it is given something to draw. */
   if(e.tagName === 'DIV') e.classList.add('missingbox');
@@ -4077,7 +4077,7 @@ function applyViewBg(){
       MV.plugin.canvas3d.setProps({renderer: {backgroundColor:
         parseInt(viewBg(false).slice(1), 16)}});
     }
-  } catch(err){ /* a viewer that is not drawn yet takes the colour at birth */ }
+  } catch(err){ /* a viewer that is not drawn yet takes the color at birth */ }
 }
 function themeChanged(){
   themeButton();
@@ -4161,11 +4161,11 @@ $('fbclose').onclick = () => $('fbdlg').close();
      amber          queued, waiting for the scheduler
      green          finished
      orange         a job failed, timed out or ran out of memory
-     grey           cancelled, or nothing submitted yet
+     gray           canceled, or nothing submitted yet
    The page polls only while something is live, so it does not keep calling
    squeue on a login node after everything has finished. */
 const DOT_WORDS = {running:'running', queued:'queued', done:'finished',
-                   failed:'failed', gone:'cancelled', new:'not submitted'};
+                   failed:'failed', gone:'canceled', new:'not submitted'};
 function dot(kind){
   return '<span class="dot ' + esc(kind || 'gone') + '" title="'
     + esc(DOT_WORDS[kind] || kind || '') + '"></span>';
@@ -4256,7 +4256,7 @@ async function listRuns(){
           + '<button class="ghost sm" data-reuse="' + esc(r.rundir)
           + '" title="load this run\'s settings back into the form">'
           + 'reuse settings</button> '
-          // Buttons, not anchors. An <a> takes the link colour and underline
+          // Buttons, not anchors. An <a> takes the link color and underline
           // from any rule that outranks its class and reads as a link; these
           // sit in a row of buttons and behave as buttons, and the navigation
           // is one line of script.
@@ -4591,14 +4591,14 @@ function colgroups(rows, tn, mm, omm){
   if(any(rows, 'site_n')) G.push({key: 'site', label: 'nominated site',
     on: true, cols: [
     {h: 'contacted', cls: 'c', t: 'How many of the residues the site was built '
-      + 'from this pose touches, out of how many there were. Quantised by the '
+      + 'from this pose touches, out of how many there were. Quantized by the '
       + 'size of the site: on four residues it can only be 0, 1, 2, 3 or 4.',
      f: r => (r.site_touched == null ? '-'
               : r.site_touched + ' / ' + r.site_n)},
     {h: 'site dG', cls: 'c', t: 'The sum of those residues’ own '
       + 'contributions, from MMPBSA.py’s per residue decomposition of this '
       + 'same pose, the same topology and the same GB model. It agrees with the '
-      + 'total to within a few per cent rather than exactly, and always '
+      + 'total to within a few percent rather than exactly, and always '
       + 'slightly more negative, because a decomposition uses a per atom '
       + 'surface term where the total uses LCPO; the energy terms themselves '
       + 'agree. Read it as a decomposition of this pose and not as an exact '
@@ -4617,7 +4617,7 @@ function colgroups(rows, tn, mm, omm){
     {h: 'buried', cls: 'c', t: 'The share of the peptide’s own free '
       + 'surface that the receptor covers.', f: r => fmt(r.f_pep_buried, 2)},
     {h: 'apolar', cls: 'c', t: 'The share of the peptide’s buried area '
-      + 'that is carbon or sulphur, with each hydrogen’s area folded onto '
+      + 'that is carbon or sulfur, with each hydrogen’s area folded onto '
       + 'the heavy atom it hangs off.', f: r => fmt(r.f_hydrophobic, 2)},
     {h: 'HB', cls: 'c', t: 'Atom pairs of N or O within 3.5 \u00c5 across the '
       + 'interface. A distance test between the two atoms; no '
@@ -4631,7 +4631,7 @@ function colgroups(rows, tn, mm, omm){
     {h: 'contacts', cls: 'c', t: 'Residue pairs with any heavy atom pair '
       + 'within 4.0 \u00c5.', f: r => r.n_contact},
     {h: 'clash', cls: 'c', t: 'Heavy atom pairs across the interface closer '
-      + 'than 0.80 of the sum of their radii. On a minimised complex this '
+      + 'than 0.80 of the sum of their radii. On a minimized complex this '
       + 'should be zero: the receptor is restrained, so an overlap cannot '
       + 'relax out.', f: r => r.n_clash},
   ]});
@@ -4653,7 +4653,7 @@ function colgroups(rows, tn, mm, omm){
        + 'standard deviations of this run, already weighted.',
     f: r => pc(r['z_' + k], 2)})))});
   // How the interface columns were measured: how many poses, on what
-  // coordinates, and how the minimisation before the energy ended. It exists
+  // coordinates, and how the minimization before the energy ended. It exists
   // only once the interface has been measured, so a run that has only its
   // MM-GBSA breakdown is not shown a group of empty columns.
   if(any(rows, 'panel_geometry') || any(rows, 'panel_n')
@@ -4669,16 +4669,18 @@ function colgroups(rows, tn, mm, omm){
     {h: 'area over', cls: 'c', t: 'Which atoms the buried area was measured '
       + 'over. A complex that has been through the MM-GBSA has its hydrogens '
       + 'and a docked pose does not; the same pose measured both ways differs '
-      + 'by about 8 per cent, so the two are not comparable.',
+      + 'by about 8 percent, so the two are not comparable.',
      f: r => esc(r.bsa_basis || '-')},
     {h: 'geometry', cls: 'c', t: 'The coordinates the panel was measured on. '
-      + 'Anything other than a minimised complex means the energy beside it '
+      + 'Anything other than a minimized complex means the energy beside it '
       + 'was computed on a pose that was not relaxed.',
-     f: r => esc(r.panel_geometry || '-')},
-    {h: 'minimisation', cls: 'c', t: 'Cycles used and the final RMS gradient '
-      + 'of the minimisation before the energy. sander stops at its cycle '
+     // Stored in the engine's own spelling ("minimised complex"), as
+     // earlier runs have it; only the words shown change.
+     f: r => esc(String(r.panel_geometry || '-').replace(/minimis/g, 'minimiz'))},
+    {h: 'minimization', cls: 'c', t: 'Cycles used and the final RMS gradient '
+      + 'of the minimization before the energy. sander stops at its cycle '
       + 'limit rather than at a gradient for almost every pose, which is '
-      + 'expected of a restrained rescoring minimisation and is not the same '
+      + 'expected of a restrained rescoring minimization and is not the same '
       + 'as having converged, so both facts are shown instead of a verdict.',
      f: r => (r.min_cycles == null ? '-'
               : r.min_cycles + ' cyc, grad ' + fmt(r.min_rms_grad, 3)
@@ -5176,10 +5178,10 @@ async function openRun(dir){
    inside a block comment would end the comment early. */
 let VR = null, RDRAG = null, MODEL = null, PEPCHAIN = null, POSES = [], WHICH = null;
 let RCOLOR = 'element', RDRAW = 'cartoon', RCONTACT = true, RPUB = false;
-/* The distance on the dashed line. A contact labelled only with its two
+/* The distance on the dashed line. A contact labeled only with its two
    residue names says that they touch but not how closely, which is the
    difference between a hydrogen bond at 2.8 A and two atoms in the same
-   neighbourhood at 4.4 A. */
+   neighborhood at 4.4 A. */
 let RDIST = true;
 /* The receptor's surface is drawn on a pose's page from the start, see-
    through, so the groove shows and the peptide stays visible in it. */
@@ -5277,7 +5279,7 @@ async function showResidues(dir, pep){
     + 'partner, in angstroms.">closest</th>'
     + '<th class=c title="This residue\u2019s share of the MM-GBSA energy, in '
     + 'kcal/mol. Negative helps binding. The shares add up to within a few '
-    + 'per cent of the MM-GBSA value, not exactly.">energy</th></tr></thead>'
+    + 'percent of the MM-GBSA value, not exactly.">energy</th></tr></thead>'
     + '<tbody>' + list.map((r, i) => '<tr class="resgo'
       + (r.site === '1' ? ' site' : '') + '" data-side="'
       + (r.side === 'peptide' ? 'peptide' : 'receptor') + '" data-chain="'
@@ -5301,7 +5303,7 @@ async function showResidues(dir, pep){
     + (pepRows.length ? '<div><div class=reshead>The peptide, every residue'
        + '</div>' + table(pepRows, 'residue') + '</div>' : '')
     + (recRows.length ? '<div><div class=reshead>The receptor, residues in '
-       + 'contact, most favourable first</div>' + table(recRows, 'residue')
+       + 'contact, most favorable first</div>' + table(recRows, 'residue')
        + '</div>' : '')
     + '</div>'
     + (!pepRows.length ? '<div class=why>This run\u2019s map was written before '
@@ -5309,7 +5311,7 @@ async function showResidues(dir, pep){
        + 'again adds them.</div>' : '')
     + '<div class=why style="margin-top:6px">Energy is each residue\u2019s '
     + 'share of the MM-GBSA value; negative helps binding. The shares add up '
-    + 'to within a few per cent of the MM-GBSA value, not exactly. Click a '
+    + 'to within a few percent of the MM-GBSA value, not exactly. Click a '
     + 'residue to see it and what it touches in the 3D view. The full '
     + 'map is in <code>metrics/</code>.</div>';
   box.querySelectorAll('tr.resgo').forEach(tr => tr.onclick = () =>
@@ -5480,7 +5482,7 @@ function classifyContacts(pdb, pep){
        touch at several atoms (a tryptophan against a tyrosine can give twenty
        qualifying pairs), and drawing each would fan parallel dashes between
        the same two side chains. The closest atom pair gives the distance and
-       the most specific kind gives the colour. */
+       the most specific kind gives the color. */
     const pk = a.ch + ':' + a.resi + '|' + b.ch + ':' + b.resi;
     const have = seenPair[pk];
     if (have){
@@ -5547,7 +5549,7 @@ function draw(frame){
       VR.addCylinder({start:{x:pp.ax,y:pp.ay,z:pp.az}, end:{x:pp.bx,y:pp.by,z:pp.bz},
         radius: pp.kind === 'vdw' ? 0.035 : 0.055, dashed:true, dashLength:0.25,
         gapLength:0.22, fromCap:1, toCap:1, color: col});
-      // On the midpoint of the line it measures, in the contact's own colour,
+      // On the midpoint of the line it measures, in the contact's own color,
       // to one decimal place: the precision a 3 A structure supports.
       if(!RDIST) return;
       const dl = labelFor(false, col, {fontSize:9,
@@ -5715,8 +5717,8 @@ function drawContactList(res){
 
 /* ===================== the ligand interaction diagram ================ */
 /* The peptide along the middle, each receptor residue above or below the
-   peptide residue it is closest to, with lines coloured by the kind of
-   interaction. Flat, labelled and printable, for a figure.
+   peptide residue it is closest to, with lines colored by the kind of
+   interaction. Flat, labeled and printable, for a figure.
 
    Lanes are assigned before the canvas is sized. Two receptor residues nearest
    the same peptide residue need two lanes, and a height estimated from an
@@ -6406,7 +6408,7 @@ async function viewFile(rel, kind, name){
       VF.setStyle({}, {stick: {radius: 0.18}});
     } else {
       /* One chain, in the rainbow the site view uses. A complex, in the pose
-         viewer's colours: the receptor's chains blue, a short chain (the
+         viewer's colors: the receptor's chains blue, a short chain (the
          peptide) orange with its side chains drawn. */
       const res = {};
       atoms.forEach(a => { (res[a.chain] = res[a.chain] || new Set()).add(a.resi); });

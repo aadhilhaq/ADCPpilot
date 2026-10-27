@@ -122,11 +122,11 @@ def prep_warnings(rundir, j):
         out.append("The docking receptor was written from the structure as "
                    "read, not from the prepared one: prepare_receptor could "
                    "not use the prepared structure. Rebuilt side chains, caps, "
-                   "protonation and minimisation are not in what was docked "
+                   "protonation and minimization are not in what was docked "
                    "against. See the prepare log.")
     mini = steps.get("minimisation", "")
     if j.get("minimise", True) and mini and not mini.startswith("done"):
-        out.append("The restrained minimisation did not run (%s)."
+        out.append("The restrained minimization did not run (%s)."
                    % _prep_detail(mini))
     return out
 
@@ -816,7 +816,7 @@ class App:
         out = []
         for row in gbengines.catalogue():
             if row["name"] == "schrodinger":
-                # The licence, not just the program: Prime needs 8 rescoring
+                # The license, not just the program: Prime needs 8 rescoring
                 # tokens a job and the modern force field has seats of its
                 # own, so what is free decides what a run would actually get.
                 try:
@@ -1622,7 +1622,7 @@ class App:
     def rescore_run(self, rundir, engine):
         """Score a finished run's poses again with another MM-GBSA engine.
 
-        Submitted to the scheduler, like the panel: it minimises every pose,
+        Submitted to the scheduler, like the panel: it minimizes every pose,
         which is not work for the machine serving this page. The run's own
         values, the ones it is ranked on, are left alone; the new engine's
         numbers appear beside them as their own columns once the report
@@ -2026,7 +2026,7 @@ class App:
         used = {L[21] for L in open(rec) if L[:4] in ("ATOM", "HETA")}
         lig = next((c for c in "ZYXWV" if c not in used), "Z")
         # TER records are kept, and are why the cartoon renders as a
-        # protein: prepared.pdb carries one at every unmodelled loop,
+        # protein: prepared.pdb carries one at every unmodeled loop,
         # and filtering to ATOM/HETATM alone discards them.
         out = [L for L in open(rec)
                if L[:4] in ("ATOM", "HETA") or L[:3] == "TER"]
@@ -2065,8 +2065,8 @@ class App:
                 row["mmgbsa"] = mm[i] if i < len(mm) else None
         return {"poses": out}
 
-    # How a SLURM state maps to the one word and colour a person needs.
-    # Anything unrecognised is "queued" rather than "done": calling an
+    # How a SLURM state maps to the one word and color a person needs.
+    # Anything unrecognized is "queued" rather than "done": calling an
     # unknown state finished stops the page watching something that is
     # still running.
     STATE_DOT = {

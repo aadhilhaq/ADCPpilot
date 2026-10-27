@@ -17,7 +17,7 @@ from . import clusters
 URL = re.compile(r"http://127\.0\.0\.1:(\d+)/\?t=([A-Za-z0-9_\-]+)")
 
 #: Printed by the remote command when the Python it found is too old. A
-#: marker rather than a sentence, so the launcher can recognise it without
+#: marker rather than a sentence, so the launcher can recognize it without
 #: matching on wording that may be translated or reworded.
 OLD_PYTHON_MARKER = "ADCP_PYTHON_TOO_OLD"
 

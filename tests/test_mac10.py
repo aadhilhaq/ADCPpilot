@@ -224,7 +224,7 @@ probs = jobmod.validate(dict(j, peptides=[{"name": "nst",
 check(any("macOS" in p and "Non-standard" in p for p in probs),
       "a non-standard peptide is not refused on a Mac: %s" % probs)
 check(any("OpenMM" in p for p in jobmod.validate(dict(j, omm_minimize=2))),
-      "OpenMM minimisation is not refused on a Mac")
+      "OpenMM minimization is not refused on a Mac")
 check(any("at most 10" in p for p in jobmod.validate(dict(j, poses=11)))
       and not any("at most" in p for p in jobmod.validate(dict(j, poses=10))),
       "a Mac run's poses are not held to ADCP 1.0's ten")

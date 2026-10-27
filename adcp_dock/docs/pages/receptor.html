@@ -48,7 +48,7 @@ to dock against; none ticked keeps them all. A structure solved with its
 partner bound, as 1YCR is, usually wants only the receptor chain: see
 <a href="case-two-chains.html">A site between two chains</a>.</p>
 <div class="note"><b>A backbone trace is not prepared.</b> One atom per residue
-means every side chain is missing, and rebuilding them all is modelling rather
+means every side chain is missing, and rebuilding them all is modeling rather
 than preparation. The preparation stops with that message at the start of the
 run.</div>
 
@@ -56,7 +56,7 @@ run.</div>
 <p>Its settings are in the Receptor card, under the chains, as one group in the
 order they are applied: <b>Keep heteroatoms</b>, <b>Rebuild missing side
 chains</b>, <b>Rebuild missing loops</b>, <b>Protonate with</b> (reduce, or
-PROPKA at a <b>pH</b>) and <b>Minimise the receptor after protonation</b>.</p>
+PROPKA at a <b>pH</b>) and <b>Minimize the receptor after protonation</b>.</p>
 <p>The preparation runs as the first job of the run, not while you are typing.
 Every step is logged in <code>receptor/preparation.log</code> inside the run,
 and the results page reads that log back, so a step that was skipped is
@@ -73,7 +73,7 @@ selenomethionine as methionine, phosphoserine as serine, and so on.</li>
 <li>Waters are removed.</li>
 <li>Other heteroatoms are removed unless you keep them. See
 <a href="#heteroatoms">heteroatoms</a>.</li>
-<li>Disulphides within 2.5 &Aring; are found and named in the log, so you can
+<li>Disulfides within 2.5 &Aring; are found and named in the log, so you can
 see which cysteines are paired. pdb2pqr works them out for itself.</li>
 <li>Missing atoms are rebuilt and the termini capped, so a chain break is not
 read as a charged terminus. Missing side-chain atoms can be left out of the
@@ -82,7 +82,7 @@ residues are left alone unless you ask for them: see
 <a href="#loops">loops</a>.</li>
 <li>Hydrogens, by reduce or by PDB2PQR with PROPKA at your pH: see
 <a href="#protonation">protonation</a>.</li>
-<li>A restrained minimisation: see <a href="#minimisation">minimisation</a>.</li>
+<li>A restrained minimization: see <a href="#minimisation">minimization</a>.</li>
 </ol>
 <p>Then <code>prepare_receptor</code> writes the PDBQT and <code>agfr</code>
 builds the grid maps over your box (see <a href="site.html#maps">the grid
@@ -105,10 +105,10 @@ each residue's pKa</td></tr>
 call for them</td><td>a state chosen from the predicted pKa at your pH</td></tr>
 <tr><td>Asn, Gln and His</td><td>turned over where the hydrogen bonds say the file
 has them the wrong way round</td><td>turned over by PDB2PQR's own hydrogen bond
-optimisation</td></tr>
+optimization</td></tr>
 <tr><td>Asp, Glu, Lys, Arg</td><td>charged, always</td><td>charged or not, at your
 pH</td></tr>
-<tr><td>the <b>pH</b> box</td><td>not used, and greyed out</td><td>used</td></tr>
+<tr><td>the <b>pH</b> box</td><td>not used, and grayed out</td><td>used</td></tr>
 </table>
 <p>reduce is the default because it places histidine protons better. Checked
 against the protein structures in the PDB solved by neutron diffraction, where
@@ -135,33 +135,33 @@ and PROPKA, and <b>reuse settings</b> on one of them sets PROPKA again, so it
 reproduces. What a site with histidines in it calls for is worth a page of its
 own: <a href="case-histidines.html">Histidines at the site</a>.</p>
 
-<h2 id="minimisation">Minimising after protonation</h2>
-<p><b>Minimise the receptor after protonation</b> runs a restrained
-minimisation: the heavy atoms are held near their measured positions at
+<h2 id="minimisation">Minimizing after protonation</h2>
+<p><b>Minimize the receptor after protonation</b> runs a restrained
+minimization: the heavy atoms are held near their measured positions at
 10 kcal/mol/&Aring;&sup2; while the new hydrogens and any clashes relax.</p>
 <p>Leave it on. Hydrogens are placed by geometry and have not been relaxed
 against the force field, so docking without this docks into strain that is not
 really there. It takes under a minute for a few hundred residues. In the
 example it moved the heavy atoms 0.11 &Aring; RMSD and took the energy from
--2,620 to -3,295 kcal/mol, which is what a working restrained minimisation
+-2,620 to -3,295 kcal/mol, which is what a working restrained minimization
 looks like: a large energy change and almost no movement.</p>
 
 <h2 id="heteroatoms">Heteroatoms</h2>
 <p>Cofactors, ligands, metals and everything else that is not protein are
 removed unless you tick <b>Keep heteroatoms</b>.</p>
 <p>Tick it when what is bound there is part of the site: a structural zinc, or
-a haem your peptide has to sit against. Leave it off for a crystallisation
+a heme your peptide has to sit against. Leave it off for a crystallization
 additive, or for a ligand you intend to displace.</p>
-<div class="note"><b>Keeping heteroatoms skips the minimisation.</b> The force
+<div class="note"><b>Keeping heteroatoms skips the minimization.</b> The force
 field has no parameters for most of what this keeps, metal ions included, so
-the minimisation cannot run and the results page says so. You are choosing
+the minimization cannot run and the results page says so. You are choosing
 between a site that is complete and a structure that has been relaxed.</div>
 
 <h2 id="side-chains">Rebuilding missing side chains</h2>
 <p>Many structures lack the ends of some side chains, usually lysines, arginines
 and glutamates on the surface, where the density was too weak to place them.
 <b>Rebuild missing side chains</b> is on by default: PDBFixer rebuilds the
-missing atoms from a template, they are protonated and minimised with the rest,
+missing atoms from a template, they are protonated and minimized with the rest,
 and the peptide is docked against them. Every run made before this setting
 existed did the same.</p>
 <p>Turn it off when a rebuilt side chain would sit in your site and you would
@@ -174,12 +174,12 @@ carries only the side-chain atoms the structure had.</p>
 <tr><td>whole residues</td><td colspan="2">only with <b>Rebuild missing loops</b>, and then built whole, side chains included</td></tr>
 <tr><td>hydrogens</td><td>on every atom</td><td>on every atom that is kept</td></tr>
 </table>
-<div class="note"><b>Off with reduce and no minimisation, nothing is
-modelled.</b> reduce places hydrogens on a residue as it stands, so the missing
-atoms are never built. The minimisation's force field has no template for an
+<div class="note"><b>Off with reduce and no minimization, nothing is
+modeled.</b> reduce places hydrogens on a residue as it stands, so the missing
+atoms are never built. The minimization's force field has no template for an
 incomplete residue, and pdb2pqr completes any residue it is given, so with the
-minimisation on, or with PROPKA chosen, the missing atoms are built for a
-moment, protonation and minimisation run on whole residues, and then those atoms
+minimization on, or with PROPKA chosen, the missing atoms are built for a
+moment, protonation and minimization run on whole residues, and then those atoms
 and the hydrogens on them are taken out. The preparation log names the residues
 on its <code>side chains</code> line. MM-GBSA builds a complex of its own and
 needs whole residues too, so the rescoring completes them again there.</div>
@@ -218,7 +218,7 @@ come within 2.5&nbsp;&Aring; of another. A loop is built the same way every
 time. If it cannot be made to fit after several attempts it is built again
 another way, up to three times, and only then does the preparation stop; the
 log names the bond or residue that failed. Untick the setting to dock the
-structure as measured. The final minimisation leaves built loops free too,
+structure as measured. The final minimization leaves built loops free too,
 since nobody measured them, but holds their bonds trans and their residues L,
 and the loops are checked once more as they are written.</p>
 
@@ -262,10 +262,10 @@ exactly as it would without ADapt.</li>
 <li><b>Docking will use the receptor as set in ADapt.</b> From the first change
 in ADapt, an unticked chain or the waters taken out for example, the line says
 so and names the assembly and the last changes. The preparation settings and
-the chain ticks are greyed out, because ADapt and AGFR decide them now.</li>
+the chain ticks are grayed out, because ADapt and AGFR decide them now.</li>
 </ul>
 <figure>
-<img src="img/receptor-adapt.png" alt="The Receptor card after the waters were unticked in ADapt: the line above the frame says docking will use the receptor as set in ADapt, the preparation settings are greyed out, and the receptor ADapt wrote is described below">
+<img src="img/receptor-adapt.png" alt="The Receptor card after the waters were unticked in ADapt: the line above the frame says docking will use the receptor as set in ADapt, the preparation settings are grayed out, and the receptor ADapt wrote is described below">
 <figcaption><b>After a change in ADapt.</b> Docking now uses the receptor as set
 there. Once ADapt has written it, a status card above the frame says so, with
 the save, the chains and the hetero groups kept, and whether anything has
@@ -315,7 +315,7 @@ session folder, the save and the files&rsquo; checksums in
 <code>job.json</code>, so a save changed later is refused rather than docked
 into, and <b>reuse settings</b> reads the same save back and opens ADapt on it
 again. Nothing of this package&rsquo;s preparation runs on it: no rebuilt side
-chains, no minimisation, and reduce placed the hydrogens in ADapt. From the
+chains, no minimization, and reduce placed the hydrogens in ADapt. From the
 command line the same is <code>adcp-dock new RUN --adapt-session FOLDER
 [--adapt-save N] -s ...</code>.</p>
 <div class="note"><b>Where ADapt is missing or too old.</b> Without ADapt the
@@ -327,7 +327,7 @@ update it.</div>
 <p>A HOPE Labs flow prepares every receptor once, before any docking, with
 HOPE-MD&rsquo;s Prepare at the flow&rsquo;s pH. Preparing it again here would
 undo that: the hydrogens would be taken off and placed again by another
-program, and the histidines, disulphides and neutral acids and bases decided a
+program, and the histidines, disulfides and neutral acids and bases decided a
 second time. So such a receptor is given with
 <code>adcp-dock new RUN -r prepared.pdb --receptor-prepared --ph 6.5 --chain A
 -s ...</code> (<code>"receptor_prepared": true</code> in
@@ -342,7 +342,7 @@ caps are given the same AutoDock types as the standard residues would be.
 MM-GBSA keeps the receptor&rsquo;s states as they came and protonates only the
 peptide, with PDB2PQR and PROPKA at the pH given.</p>
 <p>What does not happen: no hydrogen is removed or added, nothing is renamed,
-rebuilt or minimised. The run records that the receptor came prepared, by what
+rebuilt or minimized. The run records that the receptor came prepared, by what
 and at what pH where a record beside the file says so (the
 <code>prepared.json</code> a Prepare card leaves), in
 <code>receptor/preparation.log</code>, in <code>job.json</code> and in the

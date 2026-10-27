@@ -250,7 +250,7 @@ rc, out = install(dict(base_env, ADCP_ENV=e1,
                        PATH=os.path.join(dep, "tools", "amber", "bin") + ":/usr/bin:/bin"),
                   "--check")
 check(rc == 0 and "the wrappers an earlier run wrote" in out,
-      "a second run does not recognise its own AmberTools wrappers:\n" + out[-900:])
+      "a second run does not recognize its own AmberTools wrappers:\n" + out[-900:])
 
 # --- 2. AmberTools in neither: added to a writable conda environment -------------
 e2 = make_env("env_noamber", ["numpy", "rdkit", "openmm", "pdbfixer", "Bio"])
@@ -298,7 +298,7 @@ for root, dirs, files in os.walk(e3):
 os.chmod(e3, os.stat(e3).st_mode & ~0o222)
 rc, out = install(dict(base_env, ADCP_ENV=e3))
 check(rc == 0 and "which you cannot write to" in out
-      and "the receptor's restrained minimisation is off" in out
+      and "the receptor's restrained minimization is off" in out
       and "MM-GBSA rescoring is off" in out,
       "a read-only environment was not reported with what is off (exit %d):\n%s"
       % (rc, out[-1500:]))

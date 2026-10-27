@@ -1,6 +1,6 @@
 """HOPE-PE: peptide practicality evaluation.
 
-Docking and rescoring optimise for binding. Neither asks whether the peptide
+Docking and rescoring optimize for binding. Neither asks whether the peptide
 that comes out can be made, kept in solution, or survive long enough to reach
 the target. This module adds that check as a separate layer, so a
 construct is judged on two independent axes and neither is hidden inside the
@@ -38,9 +38,9 @@ without trace, because a chemist needs to know which residue to change:
                    (chymotrypsin). Counts, not rates.
   oxidation        M, W, and free C.
   deamidation      NG, NS, NT, QG - NG is the fast one.
-  isomerisation    DG, DP, DS. DP additionally acid-labile.
+  isomerization    DG, DP, DS. DP additionally acid-labile.
   n_end_rule       N-terminal residue class; R, K, F, L, W, Y are
-                   destabilising in the eukaryotic N-end rule.
+                   destabilizing in the eukaryotic N-end rule.
   synth_difficulty Consecutive beta-branched/bulky runs (I, V, T, F, W, Y) and
                    long identical runs, both of which stall solid-phase
                    coupling and cause on-resin aggregation.
@@ -92,7 +92,7 @@ PKA_SIDE = {"C": 8.5, "D": 3.9, "E": 4.1, "H": 6.5, "K": 10.8, "R": 12.5, "Y": 1
 POSITIVE = set("KRH")
 PKA_NTERM, PKA_CTERM = 8.6, 3.6
 
-DESTABILISING_NEND = set("RKFLWY")     # eukaryotic N-end rule, destabilising set
+DESTABILISING_NEND = set("RKFLWY")     # eukaryotic N-end rule, destabilizing set
 BULKY = set("IVTFWY")                  # beta-branched / bulky: slow SPPS coupling
 
 
@@ -240,7 +240,7 @@ RULES = [
     ("aliphatic_index", lambda v, s: v < 20, 1, "low aliphatic index: little hydrophobic core, weak thermostability"),
     ("boman",       lambda v, s: v > 2.48,  1, "Boman index > 2.48: promiscuous protein binding, specificity risk"),
     ("hydrophobic_moment", lambda v, s: v > 0.55 and s["gravy"] > 0.3, 2,
-     "amphipathic and hydrophobic: membrane-seeking, likely haemolytic"),
+     "amphipathic and hydrophobic: membrane-seeking, likely hemolytic"),
 ]
 
 LIABILITY_RULES = [
@@ -248,11 +248,11 @@ LIABILITY_RULES = [
     ("protease_trypsin", lambda v: v == 1, 1, "1 tryptic site"),
     ("protease_chymotrypsin", lambda v: v >= 3, 1, "{v} chymotryptic sites"),
     ("deamidation_fast", lambda v: v >= 1, 2, "{v} NG motif(s): fast deamidation, isoAsp formation"),
-    ("isomerisation", lambda v: v >= 1, 1, "{v} Asp isomerisation motif(s)"),
+    ("isomerisation", lambda v: v >= 1, 1, "{v} Asp isomerization motif(s)"),
     ("acid_labile", lambda v: v >= 1, 1, "{v} DP motif(s): acid-labile, cleaved during TFA cleavage"),
-    ("free_cys", lambda v: v >= 1, 1, "{v} free cysteine(s): disulfide scrambling, dimerisation"),
+    ("free_cys", lambda v: v >= 1, 1, "{v} free cysteine(s): disulfide scrambling, dimerization"),
     ("oxidation", lambda v: v >= 3, 1, "{v} oxidation-prone residues (M/W/C)"),
-    ("n_end_destabilising", lambda v: v == 1, 1, "destabilising N-terminal residue (N-end rule): cap or reorder"),
+    ("n_end_destabilising", lambda v: v == 1, 1, "destabilizing N-terminal residue (N-end rule): cap or reorder"),
     ("bulky_run", lambda v: v >= 4, 2, "run of {v} beta-branched/bulky residues: difficult SPPS, on-resin aggregation"),
     ("bulky_run", lambda v: v == 3, 1, "run of 3 bulky residues: watch coupling efficiency"),
     ("homopolymer_run", lambda v: v >= 4, 1, "homopolymer run of {v}: synthesis and aggregation risk"),

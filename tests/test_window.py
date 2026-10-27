@@ -68,7 +68,7 @@ check(clusters.PORT_BASE >= 9000,
 # and the default is auto, which is the only thing that cannot collide
 check(clusters.parse_port("") == 0 and clusters.parse_port("auto") == 0,
       "a blank or 'auto' port box does not mean 'let the server choose'")
-check(clusters.parse_port("9443") == 9443, "a typed port is not honoured")
+check(clusters.parse_port("9443") == 9443, "a typed port is not honored")
 check(clusters.parse_port("80") == 0,
       "a privileged port was accepted; it cannot be bound and the failure "
       "would look like the server dying")
@@ -106,11 +106,11 @@ for W in (680, 760, 1200):
     L = banner_layout(W, Banner.H, HT, WD)
     x1, y1, x2, y2 = L["panel"]
     check(abs((y1 + y2) / 2.0 - Banner.H / 2.0) < 0.51,
-          "at %dpx the mark's panel is not centred vertically" % W)
+          "at %dpx the mark's panel is not centered vertically" % W)
     top = L["text_ys"][0]
     bottom = L["text_ys"][-1] + HT[-1]
     check(abs((top + bottom) / 2.0 - Banner.H / 2.0) < 0.51,
-          "at %dpx the text block is not centred on the mark's centre line "
+          "at %dpx the text block is not centered on the mark's center line "
           "(top %.1f, bottom %.1f)" % (W, top, bottom))
     check(0 <= top and bottom <= Banner.H,
           "at %dpx the text runs outside the banner" % W)
@@ -126,7 +126,7 @@ check(L["motif"] is None or L["motif"][0] >= L["text_x"] + 560,
 check(banner_layout(1200, Banner.H, HT, WD)["motif"] is not None,
       "on a wide window there is room for the motif and it was left out")
 check(all(BANNER[k].startswith("#") and len(BANNER[k]) == 7 for k in BANNER),
-      "a banner colour is not a #rrggbb value")
+      "a banner color is not a #rrggbb value")
 check(BANNER["deep"] == brand.DEEP and BANNER["teal"] == brand.TEAL
       and BANNER["warm"] == brand.WARM,
       "the launcher banner's palette has drifted from the brand's")
@@ -144,7 +144,7 @@ DW, DH = 300, 140
 
 x, y = centre_on(720, 600, 165, 170, DW, DH, SW, SH)
 check(x == 165 + (720 - DW) // 2,
-      "a dialog over a real parent is not horizontally centred on it: x=%d"
+      "a dialog over a real parent is not horizontally centered on it: x=%d"
       % x)
 check(170 < y < 170 + 600,
       "the dialog is not inside the parent vertically: y=%d" % y)
@@ -157,7 +157,7 @@ check((x, y) != (0, 0),
       "a parent reporting 1x1 at (0,0) still puts the dialog in the "
       "top-left corner. That is the bug, not the fix")
 check(abs(x - (SW - DW) // 2) <= 1,
-      "the fallback is not the centre of the screen: x=%d" % x)
+      "the fallback is not the center of the screen: x=%d" % x)
 
 # a parent smaller than the dialog cannot be a real parent either
 x, y = centre_on(200, 100, 900, 800, DW, DH, SW, SH)

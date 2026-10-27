@@ -46,8 +46,8 @@ taken out of them:
                 run at 82 square angstroms per residue and MMNFGWH the
                 highest at 120.
 
-  n_hbond,      counted raw, NOT per residue. The instinct is to normalise
-  n_ionic       every count the way bsa is normalised, and the measurements
+  n_hbond,      counted raw, NOT per residue. The instinct is to normalize
+  n_ionic       every count the way bsa is normalized, and the measurements
                 say not to: a hydrogen bond count is already independent of
                 length (rho +0.02), so dividing by length would not remove a
                 size bias, it would introduce one in the other direction
@@ -152,7 +152,7 @@ ENERGY_WEIGHT = 1.0
 # Clashes do not raise anything, and they are not a gate either.
 #
 # A gate would remove a construct from the ranking for a measurement that is
-# usually a geometry artefact of a rescoring minimisation rather than evidence
+# usually a geometry artifact of a rescoring minimization rather than evidence
 # the design is bad, and removing it is the one thing that cannot be undone by
 # the person reading the table. So it is a penalty, taken from the combined
 # score and never added to it, and the count stays in the table beside it.
@@ -320,7 +320,7 @@ def score(rows, w=None, min_rows=MIN_ROWS):
         # Only the rows that actually clash are touched. A z-score would hand
         # a bonus to every row below the mean, and a construct with no clashes
         # has earned nothing by not having any - it has merely not been
-        # penalised.
+        # penalized.
         pen = np.where(clash > 0, np.maximum(pen, 0.0), 0.0)
         parts["clash"] = -pen
         total = total - pen
@@ -361,7 +361,7 @@ def spans(rows, poses_of, w=None, info=None):
     What ``rank.overlapping`` does for MM-GBSA, for the combined score. A
     construct's row describes ONE pose chosen out of several, and the poses
     are tens of kcal/mol and hundreds of square angstroms apart; the order
-    between two constructs whose poses cover each other is an artefact of
+    between two constructs whose poses cover each other is an artifact of
     reducing several poses to one number, not something the run established.
 
     The run's scale is held fixed while one construct's poses are swapped
@@ -425,7 +425,7 @@ def spans(rows, poses_of, w=None, info=None):
 
 
 def unseparated(rows, pose_spans):
-    """Neighbours in the combined order whose ranges cover each other.
+    """Neighbors in the combined order whose ranges cover each other.
 
     ``rank.overlapping`` with the combined score's own ranges: the mechanism
     is that function's, this only feeds it a different number.
@@ -511,7 +511,7 @@ def top(rows, n, w=None, pose_spans=None, log=None, with_ties=False):
     dynamics, where every extra construct is days of compute, so the default
     returns exactly ``n`` and NAMES what sits against the line instead of
     quietly lengthening the list. ``with_ties=True`` restores the other
-    behaviour for a caller that wants the longer table.
+    behavior for a caller that wants the longer table.
 
     Either way the near-ties are established rather than assumed: a construct
     joins the cut only if its range over its own poses covers the cut row's,
@@ -801,7 +801,7 @@ def reorder(rundir, n=0, w=None, out=None, log=print, with_ties=False):
     log("  %d of %d construct(s) are in a different position from the run's "
         "own order." % (moved, len(original)))
     if groups:
-        log("  CAUTION %d construct(s) fall in %d chain(s) of neighbours the "
+        log("  CAUTION %d construct(s) fall in %d chain(s) of neighbors the "
             "combined score does not separate: scored over their own poses "
             "each one's score covers the next one's, so a step of one place "
             "inside a chain is not something the run showed."

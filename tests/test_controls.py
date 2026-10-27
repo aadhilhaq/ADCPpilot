@@ -8,7 +8,7 @@ card's step is waiting for; an outlined secondary, in the accent, at least
 outlined in the ink, is a utility such as close, copy or refresh; and a link
 is only for what nobody needs in order to go on. A label, such as the "run"
 beside a folder, is not shaped like a button at all. This reads the page and
-its script to hold every control to that, and checks that the colours that
+its script to hold every control to that, and checks that the colors that
 carry the words are readable in both themes.
 
     python3 tests/test_controls.py
@@ -66,9 +66,9 @@ check(pri.get("background") == "var(--accent)" and pri.get("color") == "var(--on
       "a primary button is not filled, with the ink the theme gives a filled control: %r" % pri)
 ghost = props("button.ghost")
 check(ghost.get("color") == "var(--fg)",
-      "a ghost button is still pale grey text: %r" % ghost)
+      "a ghost button is still pale gray text: %r" % ghost)
 check("var(--pill-line)" in props("button").get("border", ""),
-      "a plain button's edge is the faint line colour")
+      "a plain button's edge is the faint line color")
 check(props(".btnlink").get("color") == "var(--fg)", "a link styled as a button is pale")
 check("button:focus-visible" in css and ".ld-retry:focus-visible" in css,
       "the buttons do not show the keyboard's focus")

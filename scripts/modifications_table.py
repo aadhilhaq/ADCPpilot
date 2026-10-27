@@ -254,7 +254,7 @@ def from_template(code, templates, rotamers, bb):
     heavy.RemoveAllConformers()
     heavy.AddConformer(conf)
     Chem.AssignStereochemistryFrom3D(heavy)
-    # A phosphate or sulfonate centre looks chiral once its oxygens are
+    # A phosphate or sulfonate center looks chiral once its oxygens are
     # written as =O, O- and OH, but they are equivalent.
     for a in heavy.GetAtoms():
         if sum(1 for n in a.GetNeighbors()
@@ -352,7 +352,7 @@ def tidy(name):
 
 
 def soften(title):
-    """PubChem capitalises words in a title ("(S)-2-Amino-3-..."); write them
+    """PubChem capitalizes words in a title ("(S)-2-Amino-3-..."); write them
     the way the dictionary's names read. Element symbols, stereo prefixes and
     locants are left alone."""
     return re.sub(r"(^|[\s\-(\[])([A-Z])(?=[a-z]{2})",
@@ -361,7 +361,7 @@ def soften(title):
 
 def usable(title):
     """A PubChem title that names this one compound: not a racemate, an
-    optical rotation, an index entry ("L-valine, 3-fluoro-"), a catalogue
+    optical rotation, an index entry ("L-valine, 3-fluoro-"), a catalog
     number (SCHEMBL123456, NPC168081), or written in capitals."""
     return not (re.search(r"\bDL-|\brac\b|\((?:\+|-|\u00b1|\+/-|RS)\)|azaniumyl|,\s*\S+-$",
                           title)
@@ -387,7 +387,7 @@ def opsin(names, jar):
 
 def describes(name, free, parsed):
     """False when OPSIN reads the name as a different molecule: another
-    skeleton, or every stereocentre given and one of them different."""
+    skeleton, or every stereocenter given and one of them different."""
     smiles = parsed.get(name)
     if not smiles:
         return True
@@ -447,7 +447,7 @@ def swap_alpha(name):
 
 def mirror_name(name):
     """The name of the mirror image, when the name states configurations:
-    every R and S, and D and L, swapped (reflection inverts every centre;
+    every R and S, and D and L, swapped (reflection inverts every center;
     E, Z, cis, trans, allo and threo are unchanged). None when the name
     states none, so the page says "D form of" instead."""
     flip = {"R": "S", "S": "R"}
@@ -582,7 +582,7 @@ def main(adcpsuite, opsin_jar=None):
     # structure, PubChem's IUPAC name. Each must agree with the residue's
     # stereochemistry and, where OPSIN can read it, describe this molecule:
     # the dictionary's names are not always right (BIF is biphenylalanine,
-    # named as a cyclohexyl), and PubChem's titles include catalogue numbers.
+    # named as a cyclohexyl), and PubChem's titles include catalog numbers.
     cache = {}
     for r in rows:
         if r["_free"] is not None:

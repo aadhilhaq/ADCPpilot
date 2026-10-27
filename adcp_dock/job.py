@@ -23,7 +23,7 @@ def max_poses(engine):
     return mac10.MAX_POSES if engine == mac10.ENGINE else MAX_POSES
 
 
-#: The share of replicas that start as a helix in a new run, in per cent.
+#: The share of replicas that start as a helix in a new run, in percent.
 HELICAL_DEFAULT = 25
 #: What a job file's adcp_engine may say. Every run docks with ADCP 1.1:
 #: "auto", which new runs said before, means it too.
@@ -40,14 +40,14 @@ def default(**kw):
         "version": VERSION,
         "created": time.strftime("%Y-%m-%d %H:%M:%S"),
         "label": "",
-        # the computing facility's required acknowledgement, if any
+        # the computing facility's required acknowledgment, if any
         "acknowledgement": os.environ.get("ADCP_ACKNOWLEDGEMENT", "").strip(),
         # receptor
         "receptor": "",          # path to the input structure
         "chains": [],            # chains to keep; empty means all
         "ph": 7.4,
         # Full Amber preparation is the default rather than an extra.
-        # Protonating at a chosen pH sets the charges, and minimising
+        # Protonating at a chosen pH sets the charges, and minimizing
         # afterwards relaxes the hydrogens just placed along with the
         # clashes that come with them.
         "minimise": True,
@@ -137,7 +137,7 @@ def default(**kw):
         # or through a disulfide between two cysteines ("disulfide", -cys).
         # The run's choice, which every peptide takes unless it has its own.
         "cyclic": "none",
-        # The per cent of replicas that start as a helix, the rest as coil
+        # The percent of replicas that start as a helix, the rest as coil
         # (ADCP's -p). A job file without it was docked with every replica
         # starting as coil, so it reads as 0.
         "helical": HELICAL_DEFAULT,
@@ -166,7 +166,7 @@ def default(**kw):
         "target_file": "",
         # rescoring
         "mmgbsa": False,
-        # The generalised Born model: "obc2", GB-OBC(II), what every run
+        # The generalized Born model: "obc2", GB-OBC(II), what every run
         # before it used, or "gbn2", Amber's GBn2 with its own radii. Both
         # run in AmberTools. A run keeps the model its MM-GBSA started with.
         "mmgbsa_model": "obc2",
@@ -586,7 +586,7 @@ def validate(j):
         from . import adcp11 as _a
         lib = _a.library(exe)
     if mac and int(j.get("omm_minimize") or 0):
-        out.append("Minimising poses with OpenMM needs ADCP 1.1, which "
+        out.append("Minimizing poses with OpenMM needs ADCP 1.1, which "
                    "Scripps does not build for macOS.")
     if not j.get("peptides"):
         out.append("No peptides to dock.")

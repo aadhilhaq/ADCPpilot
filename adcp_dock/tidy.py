@@ -90,7 +90,7 @@ What stays, with what reads it:
   <p>_scored_on.txt, <p>_scored.pdb, <p>_decomp.dat, <p>_min.out,
   <p>_chains.json, <p>_checks.json
                                 the interface panel, measured from these
-                                without docking or minimising again
+                                without docking or minimizing again
                                 (metrics.for_pose, pipeline.measurable, which
                                 decides whether the page offers to measure it)
   pose<n>/<p>_com_forleap.pdb, <p>_com_forleap.json, <p>_com_prepped.pdb
@@ -132,7 +132,7 @@ SCRIPT = "06_tidy.sbatch"
 LIVE = ("PENDING", "RUNNING", "CONFIGURING", "COMPLETING", "REQUEUED",
         "SUSPENDED")
 #: gzip's own default: most of what is packed is text, and level 9 takes about
-#: twice as long for a few per cent.
+#: twice as long for a few percent.
 LEVEL = 6
 
 #: What a pose folder packs, by what follows the folder's own name.
@@ -615,7 +615,7 @@ def waiting_auto(state):
 def arm(rundir, also=()):
     """Queue the run's own tidy behind every job it has queued, the ones just
     submitted (`also`) among them, as Tidy would be pressed by hand once they
-    had all ended. An automatic tidy still waiting is cancelled first: the run
+    had all ended. An automatic tidy still waiting is canceled first: the run
     has more jobs than it was waiting for. Keep every file (keep_files) leaves
     the run alone, and so does the local executor, whose stages run one after
     another on this machine, where Tidy is pressed by hand."""

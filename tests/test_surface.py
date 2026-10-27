@@ -147,11 +147,11 @@ near = [(0.0, 0.0, 0.0, 1.8), (1.8 + 1.8 + p2 - 0.01, 0.0, 0.0, 1.8)]
 far = [(0.0, 0.0, 0.0, 1.8), (1.8 + 1.8 + p2 + 0.01, 0.0, 0.0, 1.8)]
 check(len(surface.pieces(near)) == 1, "two atoms the probe cannot pass between are one piece")
 check(len(surface.pieces(far)) == 2, "two atoms the probe can pass between are two pieces")
-# A chain whose neighbours in the file are apart, joined only across the grid.
+# A chain whose neighbors in the file are apart, joined only across the grid.
 zig = [(i * 2.0, (i % 2) * 30.0, 0.0, 1.7) for i in range(20)]
 zig_parts = surface.pieces(zig)
 check(len(zig_parts) == 2 and sorted(len(p) for p in zig_parts) == [10, 10],
-      "atoms are joined across the grid, not only to their neighbours in the file "
+      "atoms are joined across the grid, not only to their neighbors in the file "
       "(%s)" % [len(p) for p in zig_parts])
 
 # The test structure that shows the bug: MDM2 and a copy of it 45 A away, as

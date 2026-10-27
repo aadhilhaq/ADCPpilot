@@ -3,7 +3,7 @@
 By Aadhil Haq
 
 What can be checked here is the shape: the command it would run, the line
-it would recognise coming back, the timeout it allows for two-factor
+it would recognize coming back, the timeout it allows for two-factor
 approval, and that the authorship is written in one place that everything
 else reads. Whether a cluster accepts the key needs a real cluster.
 """
@@ -101,7 +101,7 @@ check("version_info" in line2,
       "the Python version is not checked before the import that would fail, "
       "so the failure arrives as a SyntaxError traceback")
 check(session.OLD_PYTHON_MARKER in line2,
-      "there is no marker for the launcher to recognise an old Python by")
+      "there is no marker for the launcher to recognize an old Python by")
 # Order matters, but only check it when both parts are present: .index()
 # raises when a part is missing, and a traceback is not a failure message.
 def _before(text, first, second, why):
@@ -147,12 +147,12 @@ check("Traceback" not in _msg,
 _msg2 = session._why("SyntaxError: future feature annotations is not "
                      "defined", "/x/y")
 check("install.sh" in _msg2,
-      "the raw SyntaxError is not recognised: %r" % _msg2)
+      "the raw SyntaxError is not recognized: %r" % _msg2)
 
 # --- the line it reads back --------------------------------------------------
 m = session.URL.search("ADCP docking is at\n\n"
                        "    http://127.0.0.1:40515/?t=yDCQJyk0-_abc\n")
-check(m is not None, "the server's own URL line is not recognised")
+check(m is not None, "the server's own URL line is not recognized")
 if m:
     check(m.group(1) == "40515" and m.group(2) == "yDCQJyk0-_abc",
           "the port and token were read as %r / %r" % (m.group(1), m.group(2)))
@@ -193,7 +193,7 @@ for word in ("password", "passcode", "push", "lower()"):
     check(word not in body.lower(),
           "the handler looks at the prompt text (%r in its body). The site's "
           "sign-in service writes that wording and changes it; a handler that "
-          "recognised 'password' in a hidden prompt would one day hand the "
+          "recognized 'password' in a hidden prompt would one day hand the "
           "account password to the second step" % word)
 
 # --- selftest and version -------------------------------------------------
@@ -282,11 +282,11 @@ check(_L.ENGINE_CREDIT in _c,
       "can drift")
 check("HOW_TO_CITE.txt" in _L.HOW_TO_CITE and "CITATION.bib" in _L.HOW_TO_CITE,
       "the launcher never says the citation files come with a download")
-# A facility's acknowledgement is the cluster's to set, in activate.sh, which
+# A facility's acknowledgment is the cluster's to set, in activate.sh, which
 # the command sources; the launcher's own table names no facility.
 from adcp_launcher import clusters as _C                         # noqa: E402
 check(not any(s.get("ack") for s in _C.SITES.values()),
-      "the launcher's site table carries a facility's acknowledgement")
+      "the launcher's site table carries a facility's acknowledgment")
 check(_C.sites()[-2:] == [_C.OTHER, _C.THIS] and not _C.SITES[_C.OTHER]["host"]
       and not _C.SITES[_C.OTHER]["runs"],
       "any other cluster and this computer do not come last, or the other "
@@ -321,9 +321,9 @@ check(_C.site_of("Some cluster an older version offered") == _C.OTHER
       "a site saved by an older version is not read as the cluster")
 _line = session.command("/x", env={"ADCP_ACKNOWLEDGEMENT": "Thanks, HPC."})
 check("export ADCP_ACKNOWLEDGEMENT='Thanks, HPC.';" in _line,
-      "the acknowledgement is not passed to the server: %s" % _line[:160])
+      "the acknowledgment is not passed to the server: %s" % _line[:160])
 check("ADCP_ACKNOWLEDGEMENT" not in session.command("/x"),
-      "an empty acknowledgement is still exported")
+      "an empty acknowledgment is still exported")
 
 # --- one name, read from each of three files ---------------------------------
 #

@@ -28,7 +28,7 @@ LAB = "HOPE Lab"
 AUTHORS = ("Aadhil Haq", "Sandun Fernando")
 PI = "Dr. Sandun Fernando"
 POWERED_BY = "Powered by HOPE Lab"
-# A computing facility may require an acknowledgement in publications.
+# A computing facility may require an acknowledgment in publications.
 # Which one applies depends on where the work ran, so it is configuration:
 # ADCP_ACKNOWLEDGEMENT holds the facility's text, and each run records it.
 GENERIC_ACK = ("Acknowledge the computing facility that ran this work, if "
@@ -36,7 +36,7 @@ GENERIC_ACK = ("Acknowledge the computing facility that ran this work, if "
 
 
 def acknowledgement(job=None):
-    """The acknowledgement recorded for a run, else the one set in
+    """The acknowledgment recorded for a run, else the one set in
     ADCP_ACKNOWLEDGEMENT, else a generic reminder."""
     import os
     text = ((job or {}).get("acknowledgement")

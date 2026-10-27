@@ -161,7 +161,7 @@ what_for() {
   case "$1" in
     numpy|rdkit) echo "everything: adcp-dock does not start without it" ;;
     pdb2pqr) echo "protonation with PROPKA at a chosen pH, and the fallback when reduce cannot run" ;;
-    openmm) echo "the receptor's restrained minimisation" ;;
+    openmm) echo "the receptor's restrained minimization" ;;
     pdbfixer) echo "rebuilding missing atoms and side chains in the receptor" ;;
     Bio) echo "reading mmCIF structure files" ;;
     amber) echo "MM-GBSA rescoring" ;;

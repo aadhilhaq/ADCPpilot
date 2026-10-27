@@ -39,7 +39,7 @@ The answer is the triangulation itself: vertices, normals and triangles,
 packed as little-endian binary and base64 encoded, so a surface of fifty
 thousand vertices costs the page about a megabyte rather than several. Each
 vertex also carries the residue of the atom it lies over, so a viewer can
-colour a patch of the surface by residue or by chain. VIEWER_JS is the other
+color a patch of the surface by residue or by chain. VIEWER_JS is the other
 half: the page code that turns an answer into a 3Dmol shape.
 
 Where msms is absent, refuses, runs out of time or memory, or the structure
@@ -476,7 +476,7 @@ def spheres(atoms, table=None):
 
 # --- pieces ------------------------------------------------------------------
 
-#: The neighbouring cells of a grid, each pair once: the cell itself is
+#: The neighboring cells of a grid, each pair once: the cell itself is
 #: handled apart.
 _HALF = [(dx, dy, dz) for dx in (-1, 0, 1) for dy in (-1, 0, 1)
          for dz in (-1, 0, 1) if (dx, dy, dz) > (0, 0, 0)]
@@ -491,10 +491,10 @@ def pieces(rows, probe=PROBE):
     diameter. A piece's outer surface is then one connected surface, which
     is what MSMS triangulates when it is given that piece.
 
-    Done without comparing every atom with every other. Neighbours in the
+    Done without comparing every atom with every other. Neighbors in the
     file are joined first, because bonded atoms follow each other, which
     leaves a few groups per chain. Then on a grid whose cells are as wide as
-    the longest reach, only groups in the same or neighbouring cells that are
+    the longest reach, only groups in the same or neighboring cells that are
     not already one piece are compared, atom by atom, until one pair is close
     enough. On a compute node the 10,434 atoms of the antibody 1IGT took
     0.03 s and the 58,870 of GroEL with GroES 0.2 s.
@@ -802,7 +802,7 @@ def cache_key(atoms, exe, probe=PROBE, density=None):
 
 def cached(atoms, exe, cache_dir, probe=PROBE, density=None, log=None):
     """compute(), read from cache_dir when it was computed before, and
-    written there when it was not. The cache is an optimisation: a folder
+    written there when it was not. The cache is an optimization: a folder
     that cannot be written is not an error."""
     key = cache_key(atoms, exe, probe, density)
     path = os.path.join(cache_dir, key + ".json") if cache_dir else None
@@ -847,7 +847,7 @@ def answer(text, exe, cache_dir=None, name="", fmt=None, chains=None,
 
 #: The page's half, for a page that draws with 3Dmol. msmsSurface fetches an
 #: answer once per key and keeps it for the session; msmsAdd draws one as
-#: custom shapes, coloured by residue when a colourOf function is given (it
+#: custom shapes, colored by residue when a colourOf function is given (it
 #: is handed residue keys, "A:96"). ADCP docking's static app.js carries
 #: its own copy of these functions.
 VIEWER_JS = r"""
@@ -892,9 +892,9 @@ function msmsMesh(d){
 }
 /* One surface into a viewer, as custom shapes, which are returned so a page
    can take them out again (viewer.removeShape). `colourOf` is given a
-   residue key ("A:96") and returns a colour, or null for the style's own.
+   residue key ("A:96") and returns a color, or null for the style's own.
    A large surface goes in as several shapes of at most 60,000 vertices:
-   3Dmol splits a larger shape into groups by itself, and per vertex colours
+   3Dmol splits a larger shape into groups by itself, and per vertex colors
    then land on the wrong triangles. */
 function msmsAdd(viewer, d, style, colourOf){
   const m = msmsMesh(d), CHUNK = 60000;
@@ -913,8 +913,8 @@ function msmsAdd(viewer, d, style, colourOf){
                                style);
     if(ca) spec.colorArr = ca;
     const shape = viewer.addCustom(spec);
-    /* 3Dmol paints every vertex with the shape's colour when it draws it,
-       unless the shape has none; without this the residues' colours never
+    /* 3Dmol paints every vertex with the shape's color when it draws it,
+       unless the shape has none; without this the residues' colors never
        reach the screen. */
     if(ca) delete shape.color;
     return shape;

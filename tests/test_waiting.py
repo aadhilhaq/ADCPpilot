@@ -13,7 +13,7 @@ What is checked here is what can be checked without a browser: the rules that
 decide each step and each error, and the status card's state, run under Node
 where Node can be found (ADCP_NODE, or node on the PATH); the server's word on
 how far a start has got, and that a failed start can be tried again; and the
-page's markup and style (role=status, reduced motion, the page's own colour
+page's markup and style (role=status, reduced motion, the page's own color
 tokens, a phone). The screenshot script drives the page in a browser.
 
     python3 tests/test_waiting.py
@@ -94,10 +94,10 @@ if calm:
           "with less motion the mark is not drawn still and whole")
 check("matchMedia('(prefers-reduced-motion: reduce)')" in wait_js,
       "the fade does not stop for prefers-reduced-motion")
-# Colours from the page's tokens, so both themes follow.
+# Colors from the page's tokens, so both themes follow.
 for name, block in (("loading screen", wcss), ("status card", cardcss)):
     check(not re.search(r"#[0-9a-fA-F]{3,6}\b", block),
-          "the %s has a colour of its own instead of a token: %r"
+          "the %s has a color of its own instead of a token: %r"
           % (name, re.findall(r"#[0-9a-fA-F]{3,6}\b", block)))
     for tok in set(re.findall(r"var\(--([\w-]+)\)", block)):
         check("--%s:" % tok in page.DARK_VARS and "--%s:" % tok in css,
@@ -145,7 +145,7 @@ check("if(was) was.w.drop();" in adapt_wait_js,
       "a retry leaves the failed card behind")
 check("ADAPT_LIMIT_MS" in appjs and "{late: true}" in appjs,
       "a start that never answers is waited on for ever")
-# The old line of grey text is gone.
+# The old line of gray text is gone.
 check("A first start can take a " not in appjs and "function adaptWait(" not in appjs,
       "the line of text the loading screen replaces is still there")
 

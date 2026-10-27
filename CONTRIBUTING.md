@@ -22,7 +22,7 @@ python3 tests/test_launcher.py
 
 ## Changes
 
-Keep a change focused. Say what it changes in the scientific behaviour, the defaults or the dependencies, update the documentation when a command, setting or output changes, and include the test results.
+Keep a change focused. Say what it changes in the scientific behavior, the defaults or the dependencies, update the documentation when a command, setting or output changes, and include the test results.
 
 ## Contact
 

@@ -17,10 +17,10 @@ one of them two residues long):
   atom of a cap within 2.5 A of a heavy atom that is neither bonded to it nor
   one bond beyond. Built extended, the ACE on 184 stood 1.4 A from that
   residue's own OD1;
-- through the whole preparation (PDB2PQR, the caps, then the minimisation,
-  which leaves the caps free to move) the same holds before the minimisation,
+- through the whole preparation (PDB2PQR, the caps, then the minimization,
+  which leaves the caps free to move) the same holds before the minimization,
   each capped residue has one hydrogen on its nitrogen, and both caps come out
-  of the minimisation as trans amides.
+  of the minimization as trans amides.
 
 The torsion used to be measured as 180 degrees less than the one _place
 builds, so an NME's nitrogen was placed by the mirror of its true torsion: on
@@ -104,7 +104,7 @@ def caps(path, where, built=True):
     """Check every cap in `path`. Returns {"NME": n, "ACE": n}.
 
     As built (built=True) its angle and its room are checked too. After the
-    minimisation those are the force field's, and what has to have survived
+    minimization those are the force field's, and what has to have survived
     is the peptide bond, trans."""
     at = atoms(path)
     xyz = np.array([x["xyz"] for x in at])
@@ -253,7 +253,7 @@ try:
         seen = caps(capped, "cap_breaks' output")
         check(seen == {"NME": 2, "ACE": 2}, "two NMEs and two ACEs: %s" % seen)
 
-    # ---- and the whole preparation, minimisation included -------------------------
+    # ---- and the whole preparation, minimization included -------------------------
     missing = []
     if not prepare.find_tool("pdb2pqr", "pdb2pqr30"):
         missing.append("pdb2pqr")
@@ -273,16 +273,16 @@ try:
     before = os.path.join(tmp, "prep", "capped.pdb")
     check(os.path.isfile(before), "the preparation capped nothing")
     if os.path.isfile(before):
-        seen = caps(before, "the preparation, before minimisation")
+        seen = caps(before, "the preparation, before minimization")
         check(seen == {"NME": 2, "ACE": 2},
-              "two NMEs and two ACEs before minimising: %s" % seen)
+              "two NMEs and two ACEs before minimizing: %s" % seen)
     plog = open(os.path.join(tmp, "prep", "preparation.log")).read()
-    check("minimisation: done" in plog, "the minimisation did not run:\n" + plog)
+    check("minimisation: done" in plog, "the minimization did not run:\n" + plog)
     check(out is not None, "the preparation wrote nothing")
     if out:
-        seen = caps(out, "the minimised receptor", built=False)
+        seen = caps(out, "the minimized receptor", built=False)
         check(seen == {"NME": 2, "ACE": 2},
-              "two NMEs and two ACEs after minimising: %s" % seen)
+              "two NMEs and two ACEs after minimizing: %s" % seen)
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

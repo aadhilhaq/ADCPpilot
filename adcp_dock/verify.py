@@ -27,7 +27,7 @@ _ROW = re.compile(r"^(BOND|ANGLE|DIHED|1-4 VDW|1-4 EEL)\s+(-?\d+\.\d+)")
 def mmgbsa_split(dat_path):
     """(ok, [(term, value), ...]) for the terms that failed to cancel.
 
-    ok is True when every bonded term cancelled, meaning the complex was split
+    ok is True when every bonded term canceled, meaning the complex was split
     along the interface. A file that cannot be read returns (True, []): the
     caller already knows whether it received a number.
     """

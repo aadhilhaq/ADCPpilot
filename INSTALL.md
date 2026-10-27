@@ -205,7 +205,7 @@ Set the required scheduler options below the run name and output folder. Leave t
   `--name=value`, for example `--qos=normal`, `--partition=short` or
   `--constraint=icelake`.
 
-* **Acknowledgement**: if your computing facility asks to be acknowledged
+* **Acknowledgment**: if your computing facility asks to be acknowledged
   in publications, set `ADCP_ACKNOWLEDGEMENT` to its text, for example in
   `activate.sh`. Every run records it in its citation files.
 
@@ -374,7 +374,7 @@ what is missing.
   held at its version, so nothing another user relies on changes. If you
   cannot write to it, it is used as it is, and the script says what is
   missing and what that turns off (for example OpenMM: the receptor's
-  restrained minimisation). If it lacks numpy, RDKit or PDB2PQR and cannot be
+  restrained minimization). If it lacks numpy, RDKit or PDB2PQR and cannot be
   given them, it is not used, and `install.sh` builds an environment in the
   folder you give instead. The adcp-dock code is never installed into an
   environment `install.sh` did not build; the `adcp-dock` command runs it
@@ -453,7 +453,7 @@ installation. Runs are written to `~/adcp_runs`.
   run says "ADCP 1.0 (macOS)" in its job file, in every result, on its page
   and in its report, and **its scores are not comparable with runs docked
   with ADCP 1.1**. ADCP 1.0 has no non-standard or D amino acids and no
-  OpenMM minimisation, and writes at most 10 poses per peptide. Its `msms`
+  OpenMM minimization, and writes at most 10 poses per peptide. Its `msms`
   is a 32-bit program, which macOS 10.15 and later do not run, so the
   viewers draw their own surfaces. For ADCP 1.1, use a cluster through the
   [desktop launcher](#5-the-desktop-launcher), the Colab notebook
@@ -507,7 +507,7 @@ Without `--dest` it goes where `$ADCPSUITE_HOME` names, otherwise into the insta
 
 What it brings:
 
-* **Non-standard and D amino acids.** Write a non-standard residue as the one-letter code of the standard residue whose coarse model it uses, followed by its library name in angle brackets, and a D residue with `&` before its letter: `N<BHD>PIS&DVD` is seven residues. The names are those of ADCP 1.1's library, built by the Scripps Research Institute from the SwissSidechain database: 209 non-natural side chains, each in L and D form, among them phosphorylated serine, threonine and tyrosine, oxidised methionine and tryptophan, citrulline and nitrotyrosine, and many synthetic residues. The 197 that ADCP gives a coarse potential can be written in this syntax, and the page offers those. Common modifications such as lysine acetylation or methylation are not in it. ADCP builds and docks every residue in the library, but its accuracy on peptides containing them has not yet been benchmarked in a publication, so treat such results as exploratory. Runs that use them also cite SwissSidechain, and GAFF when they are minimized. MM-GBSA rescoring is skipped for these peptides, since its force field has no parameters for them; use the OpenMM minimization instead.
+* **Non-standard and D amino acids.** Write a non-standard residue as the one-letter code of the standard residue whose coarse model it uses, followed by its library name in angle brackets, and a D residue with `&` before its letter: `N<BHD>PIS&DVD` is seven residues. The names are those of ADCP 1.1's library, built by the Scripps Research Institute from the SwissSidechain database: 209 non-natural side chains, each in L and D form, among them phosphorylated serine, threonine and tyrosine, oxidized methionine and tryptophan, citrulline and nitrotyrosine, and many synthetic residues. The 197 that ADCP gives a coarse potential can be written in this syntax, and the page offers those. Common modifications such as lysine acetylation or methylation are not in it. ADCP builds and docks every residue in the library, but its accuracy on peptides containing them has not yet been benchmarked in a publication, so treat such results as exploratory. Runs that use them also cite SwissSidechain, and GAFF when they are minimized. MM-GBSA rescoring is skipped for these peptides, since its force field has no parameters for them; use the OpenMM minimization instead.
 * **Choosing them in the page.** Open a peptide's &#8942; menu and choose *Non-standard and D amino acids*. Click a residue, then pick its D form or one of the non-standard residues ADCP has for it; the list offers only what the installed ADCP 1.1 contains. Each choice is drawn below the list as the residue sits in the chain, with the charge ADCP models it with, so variants such as SEP and SEP2 (charge &minus;1 and &minus;2) can be told apart. A D residue is drawn as the mirror image of the L one, which is how ADCP builds it. Saving writes the sequence in the syntax above.
 * **OpenMM minimization.** *Poses to minimize with OpenMM* (`--omm-minimize N`) minimizes the top N poses in implicit solvent and reports the lowest E(complex) minus E(receptor) beside the scores. ADCP uses the Amber ff99SB force field with the GBn2 solvent model, holds receptor residues away from the peptide in place, and runs at most five minimizer iterations, its default, so this relaxes each docked complex rather than refining it. The minimized complexes and their Amber topologies stay in the run's docking folder. It covers nearly every residue the dialog offers. ADCP 1.1.21 has no parameters for IYR, PBF, PHI and TYI, and its parameters for FVAL, FPG2, FPG3, FTR and FT6 fail in OpenMM; a peptide containing one of these is still docked, its poses are left unminimized, and the run's log says so.
 
@@ -520,7 +520,7 @@ Every run also takes these settings; each is named the same in the page and on t
 
 A run can also start from a target file made in AGFR or AGFRGUI: give its path under *or a target file* (`--target-file`). The receptor, maps and box then come from that file, and this package's receptor preparation is not run. The file's name must not be changed, since ADCP finds the maps by it.
 
-Most of the suite's Scripps packages carry the BSD 2-Clause licence, but `prepare_receptor` (AutoDockTools) and the MolKit and PyBabel it loads carry the MGLTOOLS licence, which allows non-commercial use only, and every receptor this package prepares passes through them; check those terms before commercial use. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Most of the suite's Scripps packages carry the BSD 2-Clause license, but `prepare_receptor` (AutoDockTools) and the MolKit and PyBabel it loads carry the MGLTOOLS license, which allows non-commercial use only, and every receptor this package prepares passes through them; check those terms before commercial use. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ### ADapt (optional)
 
@@ -568,7 +568,7 @@ At `$ADAPT_HOME`, in a folder named `adapt` beside the ADCP 1.1 suite, in the in
 When the interface finds ADapt and ADCP 1.1, ADapt opens by itself in a frame inside the Receptor card, on every structure loaded there: a PDB id fetched, a file on the cluster or one from your own computer. Opening it changes nothing. The line above the frame always says which receptor will be docked:
 
 * **Docking will use this page's preparation.** Until you change anything in ADapt, the structure is prepared as the Receptor card's settings say, exactly as without ADapt.
-* **Docking will use the receptor as set in ADapt.** From the first change there, an unticked chain or the waters taken out for example, ADapt decides what stays in the receptor: the assembly, hetero groups such as a catalytic zinc, metal charges, alternate locations and modified residues. The card's preparation settings are greyed out.
+* **Docking will use the receptor as set in ADapt.** From the first change there, an unticked chain or the waters taken out for example, ADapt decides what stays in the receptor: the assembly, hetero groups such as a catalytic zinc, metal charges, alternate locations and modified residues. The card's preparation settings are grayed out.
 
 You do not need ADapt's own save button. When you submit, the page asks ADapt to write the receptor as it is set there (its `api/save`, the call its *receptor PDBQT* button makes), and reads back what ADapt wrote in its session folder: the receptor PDBQT, its `_rec_H.pdb` and `session.json`. The PDBQT is docked as ADapt wrote it, and this package's preparation does not run. The run copies the three files into its `receptor` folder and records the session, the save and their checksums. *Use ADapt's receptor now* does the same at once, so the site can be checked on the receptor that will be docked, and *Use this page's preparation instead* goes back. *Open full screen* shows the same session in a tab of its own; on a phone the card offers *Open in ADapt*, which opens it in a tab. From the command line: `adcp-dock new RUN --adapt-session FOLDER [--adapt-save N] -s ...`. ADapt keeps its sessions in `adapt_sessions` inside the runs folder, and it stops when the interface stops. The built-in Docs page *A receptor prepared in ADapt* shows each step.
 

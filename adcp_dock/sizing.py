@@ -40,7 +40,7 @@ REFERENCE_LENGTH = 6
 
 # Wall seconds for one pose's MM-GBSA against a receptor of MMGBSA_REF_ATOMS.
 #
-# tleap, one restrained sander minimisation and one MMPBSA.py call, in
+# tleap, one restrained sander minimization and one MMPBSA.py call, in
 # series; none is faster with more cores, only running several poses at once
 # is. Cost scales with receptor size.
 BOX_PER_RESIDUE = 1.14
@@ -110,7 +110,7 @@ def mmgbsa_seconds(atoms=0):
 # so wall time is the number of waves, not the number of poses.
 MM_WORKERS_DEFAULT = 8
 
-# The prepare stage: pdb2pqr, the restrained minimisation, prepare_receptor
+# The prepare stage: pdb2pqr, the restrained minimization, prepare_receptor
 # and agfr, as its own job with its own walltime. The floor grows with
 # receptor size rather than being flat, and is set for the smallest receptor.
 PREP_FLOOR_MINUTES = 4.0

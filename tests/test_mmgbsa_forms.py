@@ -14,7 +14,7 @@ rings, whether its peptides are docked now or rescored later.
 
 With Amber: that ff14SB cannot tell a D peptide from its mirror image (the
 torsion phases in a built topology, and the energy of a D peptide against
-its exact mirror image as an L peptide, before and after a minimisation);
+its exact mirror image as an L peptide, before and after a minimization);
 that tleap alone puts the hydrogens of a D residue in the wrong place, and
 mirror_hydrogens puts them right; and that both kinds of ring build, with
 the closing bond in the topology, no termini on a head to tail ring and an
@@ -368,7 +368,7 @@ SP = """single point
   imin=1, maxcyc=1, ncyc=1, ntb=0, igb=5, cut=999.0, ntpr=1,
 /
 """
-MIN = """minimisation
+MIN = """minimization
 &cntrl
   imin=1, maxcyc=300, ncyc=150, ntb=0, igb=5, cut=999.0, ntpr=300,
 /
@@ -435,15 +435,15 @@ check(abs(e0 - eL) > 1.0,
       % (e0, eL))
 mL, _ = sander_energy(wdL, parmL, crdL, "minL", MIN)
 mD, _ = sander_energy(wdD, parmD, crdD, "minD", MIN)
-print("  after 300 steps of minimisation: L %.4f, D %.4f kcal/mol" % (mL, mD))
+print("  after 300 steps of minimization: L %.4f, D %.4f kcal/mol" % (mL, mD))
 check(abs(mL - mD) < 0.05,
-      "and so do the two minimised the same way (L %.4f, D %.4f)" % (mL, mD))
+      "and so do the two minimized the same way (L %.4f, D %.4f)" % (mL, mD))
 xD = af.read_rst7(os.path.join(wdD, "minD.rst7"))
 hand = af.handedness(af.stereo_centres(af.read_parm7(os.path.join(wdD, parmD)),
                                        [1, 2, 3, 4, 5]), xD)
 check(all(h["volume"] < 0 for h in hand if h["centre"] == "CA")
       and all(h["h_opposite"] for h in hand),
-      "every D centre is still D after the minimisation, its hydrogen opposite "
+      "every D center is still D after the minimization, its hydrogen opposite "
       "(%s)" % hand)
 check(len([h for h in hand if h["centre"] == "CB"]) == 2,
       "the beta carbons of Thr and Ile are checked as well")

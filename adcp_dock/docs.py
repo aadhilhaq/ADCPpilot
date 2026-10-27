@@ -5,7 +5,7 @@ By Aadhil Haq
 The layout, the stylesheet and the credit bar come from docskit, a module
 shared with other tools by the same authors. This module holds only what is
 this interface's own: the sidebar, the pages each "?" leads to, the
-colours of this interface and the credit line.
+colors of this interface and the credit line.
 
 A page is an HTML fragment in adcp_dock/docs/pages/<slug>.html: an <h1>, a
 lead paragraph, then sections under <h2>. Screenshots are in
@@ -109,7 +109,7 @@ CREDITS = [
     "al., Biopolymers 1996)",
 ]
 
-#: The interface's own colours, from the :root block in page.py, under the
+#: The interface's own colors, from the :root block in page.py, under the
 #: names the kit uses. Everything else (warnings, code, marks) keeps the
 #: kit's own values.
 LIGHT = {"bg": "#f7f8fb", "card": "#fff", "line": "#dfe3ee", "fg": "#1b2333",

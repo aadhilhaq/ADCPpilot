@@ -5,7 +5,7 @@ By Aadhil Haq
 The guide is five numbers across the top of the page and the five cards they
 stand for. What is checked here is what can be checked without a browser:
 that the strip and the cards agree on the steps and their order, that a done
-step is marked by more than its colour, that grey cards are only grey (never
+step is marked by more than its color, that gray cards are only gray (never
 disabled), that motion stops for somebody who asked for less of it, and the
 rule that decides each step. That rule is a pure function in app.js; it is
 run under Node where Node can be found (ADCP_NODE, or node on the PATH), and
@@ -85,13 +85,13 @@ for want in ("id=poses", "id=replicas", "id=mmgbsa", "id=walltime",
              "id=autofill", "id=estnote"):
     check(want in _dock, "%s is not in the Docking card" % want)
 
-# --- grey is a cue, never a lock ------------------------------------------------
+# --- gray is a cue, never a lock ------------------------------------------------
 for rule in re.findall(r"\.card\.step-later[^{]*\{[^}]*\}", css):
     check("pointer-events" not in rule and "display:none" not in rule
           and "visibility" not in rule,
-          "a grey card is made unusable: %s" % rule)
+          "a gray card is made unusable: %s" % rule)
 check(".card.step-later:focus-within" in css and ".card.step-later:hover" in css,
-      "a grey card does not come back to full colour when it is used")
+      "a gray card does not come back to full color when it is used")
 _guide_js = appjs[appjs.index("function guide(){"):
                   appjs.index("function guideSoon(")]
 for bad in (".disabled", "inert", "pointerEvents", "pointer-events",
@@ -106,10 +106,10 @@ check(_calm and ".gnum" in _calm.group(1) and ".card[data-step]" in _calm.group(
 check("prefers-reduced-motion: reduce" in appjs[appjs.index("data-goto"):
                                                 appjs.index("let ADCP11")],
       "a step number scrolls smoothly even when less motion was asked for")
-# Colours from the page's own tokens, so both themes follow.
+# Colors from the page's own tokens, so both themes follow.
 _gcss = css[css.index("---- the step guide"):css.index("---- the runs: two views")]
 check(not re.search(r"#[0-9a-fA-F]{3,6}\b", _gcss),
-      "the guide's style has a colour of its own instead of a token: %r"
+      "the guide's style has a color of its own instead of a token: %r"
       % re.findall(r"#[0-9a-fA-F]{3,6}\b", _gcss))
 for tok in set(re.findall(r"var\(--([\w-]+)\)", _gcss)):
     check("--%s:" % tok in page.DARK_VARS and "--%s:" % tok in css,

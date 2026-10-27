@@ -29,7 +29,7 @@ not match it is deleted and the install stops.
 
 LICENSING. ADFRsuite is mostly LGPL 2, but bundles MSMS and the UT packages,
 free for academic use only, and six packages in CCSBpckgs (MolKit, mglutil,
-Support, DejaVu2, PyBabel and Volume) carry the MGLTOOLS licence, for
+Support, DejaVu2, PyBabel and Volume) carry the MGLTOOLS license, for
 non-commercial use only; prepare_receptor and agfr load five of the six.
 The installer passes -l, which skips Scripps' academic-or-commercial
 question about the MSMS library, an answer only the installing user can

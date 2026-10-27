@@ -137,9 +137,9 @@ PANEL_KEYS = [
     ("apolar_run", "apolar_run"), ("pe_score", "pe_score"),
     ("pe_verdict", "verdict"), ("pe_flags", "pe_flags"),
     ("panel_geometry", "geometry"),
-    # What the minimisation before the energy did. sander stops at maxcyc
+    # What the minimization before the energy did. sander stops at maxcyc
     # rather than at a gradient for almost every pose, which is expected of a
-    # restrained rescoring minimisation and is not the same as converging, so
+    # restrained rescoring minimization and is not the same as converging, so
     # both facts are published instead of a verdict.
     ("panel_n", "panel_n"),
     ("min_cycles", "min_cycles"), ("min_rms_grad", "min_rms_grad"),
@@ -312,7 +312,7 @@ def table(rows, top_n=TOP_N, on_combined=False):
 def _geometry_notes(rows):
     """Two different cautions, which it is tempting to write as one.
 
-    A pose scored without minimising is a caution about its ENERGY: that
+    A pose scored without minimizing is a caution about its ENERGY: that
     number is a single point on a complex the docking left where it was, and
     it does not belong in a column beside the others. A geometry that was not
     kept is a caution about the PANEL only, and says nothing at all about the
@@ -323,7 +323,7 @@ def _geometry_notes(rows):
            if "without minimisation" in (r.get("panel_geometry") or "")]
     gone = [r for r in rows if "not kept" in (r.get("panel_geometry") or "")]
     if raw:
-        out += ["", "Scored on a complex that was not minimised, so these "
+        out += ["", "Scored on a complex that was not minimized, so these "
                     "energies are not comparable with the",
                 "others: %s." % ", ".join(str(r.get("name") or r["peptide"])
                                           for r in raw[:6])]

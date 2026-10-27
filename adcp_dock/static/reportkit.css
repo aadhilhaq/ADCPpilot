@@ -1,5 +1,5 @@
 /* reportkit: the lab's report page. By Aadhil Haq.
-   The same file in every tool. A sheet of A4 on a grey desk on screen; black
+   The same file in every tool. A sheet of A4 on a gray desk on screen; black
    on white at full size in print, whatever the zoom or the theme. */
 :root{--rk-ink:#1b2333;--rk-dim:#5c667a;--rk-line:#d9dee8;--rk-accent:#1a56db;--rk-paper:#ffffff;--rk-desk:#eef1f6;
   --rk-warn-bg:#fff6e5;--rk-warn-line:#e0a24a;--rk-good:#1a7f5a}

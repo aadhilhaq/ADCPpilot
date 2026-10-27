@@ -38,7 +38,7 @@ p53,ETFSDLWKLLPEN,head to tail a third column: the peptide's own ring
 sequence,name,ring             a header row, if you want to be sure</pre>
 <p>A two column row split by a tab, a comma or a semicolon works in either
 order: the field that reads as a sequence is taken as the sequence. Where both
-could be read as sequences, which ordinary words can be, the capitalisation
+could be read as sequences, which ordinary words can be, the capitalization
 decides, and a header row settles it for the whole list. Lines starting with
 <code>#</code> are ignored. Blank lines separate FASTA records.</p>
 <p>A third column is the peptide's ring: <code>linear</code> (or
@@ -91,7 +91,7 @@ reason is written under the sequence. The same messages appear in both places:</
 <div class="note"><b>Name a peptide with a colon, not a space.</b> Spaces inside a
 line are joined, so <code>alpha SWQWWWQPQRDCR</code> reads as one 18 residue
 peptide, <code>ALPHASWQWWWQPQRDCR</code>, and every letter of it is a residue. The
-page recognises the shape, a word and then a sequence, and refuses the paste with
+page recognizes the shape, a word and then a sequence, and refuses the paste with
 that reason instead of adding the longer peptide. Write
 <code>alpha: SWQWWWQPQRDCR</code>, or use FASTA. <code>adcp-dock new</code> refuses
 such a line in the same way. An uploaded list is different: it is added whole, the
@@ -171,7 +171,7 @@ disulfide. A pose that is not closed is not rescored and the task log says so, a
 peptide with no closed pose among its top poses keeps its docking score and its
 interface panel and is listed as unranked. See
 <a href="rescoring.html#d-and-rings">D residues and rings</a>. ADCP 1.1's OpenMM
-minimisation, in the Docking card, is a separate option: it adds the ring's closing
+minimization, in the Docking card, is a separate option: it adds the ring's closing
 bond too, and for a disulfide only where the two sulfurs are within 3.5 &Aring; of
 each other.</div>
 

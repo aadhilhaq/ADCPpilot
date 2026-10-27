@@ -135,7 +135,7 @@ def capped_smiles(seq: str) -> str:
 def validate_templates(verbose: bool = False) -> list[str]:
     """Every residue template must reproduce RDKit's own sequence parser.
 
-    This catches inverted side-chain stereocentres, which are otherwise silent
+    This catches inverted side-chain stereocenters, which are otherwise silent
     and corrupt every peptide containing that residue.
     """
     bad = []
@@ -208,7 +208,7 @@ def apply_ph_states(mol: "Chem.Mol", ph: float = 7.4, log=None) -> int:
     formally neutral aspartate makes the wrong hydrogen bonds and is scored with
     the wrong desolvation, and at pH 5.5 a neutral histidine misses a cation the
     site may well be built around. Heavy atoms are untouched, so the atom
-    labelling, the layout tables and the pose transplant all still line up; only
+    labeling, the layout tables and the pose transplant all still line up; only
     formal charges change, and RDKit re-derives the hydrogens.
 
     Returns the number of residues changed.
@@ -242,7 +242,7 @@ def apply_ph_states(mol: "Chem.Mol", ph: float = 7.4, log=None) -> int:
 
 def build_3d(seq: str, seed: int = 0xF00D, capped: bool = True,
              ph: float | None = None) -> Chem.Mol | None:
-    """Embed and MMFF-minimise one peptide of any length, capped or free-terminus.
+    """Embed and MMFF-minimize one peptide of any length, capped or free-terminus.
 
     `ph` sets the side-chain protonation states before embedding. None keeps the
     neutral SMILES as written, which is what the geometry-only callers want.

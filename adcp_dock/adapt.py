@@ -63,7 +63,7 @@ READS = (".pdb", ".ent", ".pdb.gz", ".ent.gz")
 #: No proxy for a connection to this same machine.
 _OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
-#: This checkout, whose tools folder and neighbours are searched; as in adcp11.
+#: This checkout, whose tools folder and neighbors are searched; as in adcp11.
 _HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 

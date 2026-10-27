@@ -226,7 +226,7 @@ def sizes(rundir):
     """{"results": (files, bytes), "all": (files, bytes)} for one run.
 
     Asked before anything is clicked: "download everything" on a run of
-    several gigabytes over a tunnelled connection is worth knowing in advance.
+    several gigabytes over a tunneled connection is worth knowing in advance.
     """
     n_all = b_all = n_res = b_res = 0
     for rel, path in walk(rundir):
