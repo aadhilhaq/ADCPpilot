@@ -195,11 +195,36 @@ function tableHTML(b){
     + '</table>' + (b.note ? '<p class=rk-note>' + refs(b.note) + '</p>' : '') + '</div>';
 }
 
+/* The sheet is A4 with 15 mm margins (reportkit.css: #rk-doc), so a figure is 180 mm wide
+   however wide the window is: 680 CSS pixels. A chart is drawn in that many user units rather
+   than in 640 that are then stretched to fit, which makes one user unit one pixel on the screen
+   and one 96th of an inch on paper, and a label's size in units the size it is drawn at.
+
+   That is what lets a chart keep the floor the rest of the lab keeps. Before this every chart
+   was 640 units wide whatever its box, so 11-unit labels landed at 11.7 px across the page and
+   at 5.8 px inside a half-width panel - 8.7 px even with the zoom at 150 % - which was the
+   smallest type in the product, on the page a tutorial film shows after a run. The font size
+   could not be raised to reach 13 px drawn, because 24.8 units in a chart whose rows are 20
+   units apart is a pile-up; drawn at the width it will occupy, 13 is just 13. */
+const FIG = 680, PANEL_GAP = 8;            /* .rk-panels{gap:var(--sp-2)} */
+/* Nothing the lab draws is under 13 px, a chart's furniture least of all: it is the floor, and
+   the floor leaves the most room for the data. */
+const LABEL = 13;
+function panelWidth(cols){
+  cols = Math.max(1, Math.min(cols || 1, 4));
+  return Math.floor((FIG - PANEL_GAP * (cols - 1)) / cols);
+}
+/* About how wide a label is drawn, in pixels: digits, a point and a minus sign average a little
+   under two thirds of the size in the report's sans-serif. A margin worked out from this is
+   never the reason a label is clipped. */
+const wide = (says, size) => 0.62 * (size || LABEL) * String(says).length;
+
 let SLOT = 0;
-function bodyHTML(x){
+function bodyHTML(x, box){
+  box = box || FIG;
   if(x.svg) return '<div class=rk-svg>' + x.svg + '</div>';
   if(x.png) return '<img class=rk-png alt="" src="' + esc(withToken(x.png)) + '">';
-  if(x.bars) return (Array.isArray(x.bars) ? x.bars : [x.bars]).map(barChart).join('');
+  if(x.bars) return (Array.isArray(x.bars) ? x.bars : [x.bars]).map(c => barChart(c, box)).join('');
   if(x.structure){
     const id = 'rk-mol-' + (++SLOT);
     JOBS.push({el: id, spec: x.structure});
@@ -211,35 +236,74 @@ function figureHTML(b){
   let body;
   if(b.panels && b.panels.length){
     const n = Math.min(b.columns || b.panels.length, 4);
-    body = '<div class="rk-panels rk-cols' + n + '">' + b.panels.map(p => '<div class=rk-panel>' + bodyHTML(p)
+    body = '<div class="rk-panels rk-cols' + n + '">' + b.panels.map(p => '<div class=rk-panel>'
+      + bodyHTML(p, panelWidth(n))
       + (p.label ? '<div class=rk-sub>' + refs(p.label) + '</div>' : '') + '</div>').join('') + '</div>';
-  } else body = bodyHTML(b);
+  } else body = bodyHTML(b, FIG);
   return '<figure class="rk-figure' + (b.wide ? ' rk-wide' : '') + '"' + (b.id ? ' id="rk-f-' + esc(b.id) + '"' : '') + '>'
     + body + '<figcaption><b>Figure ' + b._n + '.</b> ' + refs(b.caption) + '</figcaption></figure>';
 }
 
 /* Horizontal bars, from zero to each value, the first point at the top, with
-   its SD as an error bar. A point marked dim is drawn paler. */
-function barChart(c){
+   its SD as an error bar. A point marked dim is drawn paler.
+
+   Drawn at `box`, the width the figure or the panel gives it, so the labels are
+   the size they are written at. The row height, the gutter the names sit in and
+   the margin the last tick needs are all worked out from that size: a row has to
+   clear a 13 px name, not the 20 units that used to be enough for an 11-unit one. */
+function barChart(c, box){
   const pts = c.points || [];
   if(!pts.length) return '';
-  const W = 640, row = 20, L = 150, R = 24, top = 8, H = top + pts.length * row + 34;
+  const W = Math.max(160, box || FIG), fs = LABEL;
+  const row = Math.round(fs * 2), top = 8;
   const lo = Math.min(0, ...pts.map(p => p.v - (p.sd || 0))), hi = Math.max(0, ...pts.map(p => p.v + (p.sd || 0)));
   const span = (hi - lo) || 1;
-  const X = v => (L + (v - lo) / span * (W - L - R)).toFixed(1);
   const tick = Math.pow(10, Math.floor(Math.log10(span / 4)));
   const step = [1, 2, 5, 10].map(k => k * tick).find(k => span / k <= 6) || tick * 10;
-  let s = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + ' ' + H + '" font-family="Helvetica, Arial, sans-serif" '
-    + 'font-size="11" role="img" aria-label="' + esc(c.axis || '') + '">';
-  for(let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step){
-    s += '<line x1="' + X(v) + '" x2="' + X(v) + '" y1="' + top + '" y2="' + (H - 28) + '" stroke="#e3e6ec"/>'
-      + '<text x="' + X(v) + '" y="' + (H - 16) + '" text-anchor="middle" fill="#555">' + num(+v.toFixed(6)) + '</text>';
-  }
-  s += '<line x1="' + X(0) + '" x2="' + X(0) + '" y1="' + top + '" y2="' + (H - 28) + '" stroke="#888"/>';
+  const ticks = [];
+  for(let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) ticks.push(v);
+  const said = ticks.map(v => num(+v.toFixed(6)));
+  /* The ticks are centered on their lines, so the outermost needs half its width
+     outside the plot or it is cut off at the edge of the drawing. */
+  const R = Math.max(12, Math.ceil(Math.max(...said.map(t => wide(t, fs))) / 2) + 4);
+  /* The names get the room they need, up to a third of the chart; what will not
+     fit is shortened, and the whole name stays in the tooltip either way. */
+  const longest = Math.max(...pts.map(p => String(p.name).length));
+  const L = Math.min(Math.round(W * 0.34), Math.ceil(0.62 * fs * longest) + 12);
+  const fits = Math.max(4, Math.floor((L - 12) / (0.62 * fs)));
+  const short = n => String(n).length > fits ? String(n).slice(0, fits - 1) + '\u2026' : String(n);
+  /* The axis is a sentence, and in a panel half the page wide it is wider than
+     the chart: it is broken over two lines rather than run off the edge, because
+     the one thing it may not do is get smaller. */
+  const axis = String(c.axis || ''), lines = [];
+  if(wide(axis, fs) > W - 10){
+    const words = axis.split(' ');
+    let line = '';
+    words.forEach(w => {
+      if(line && wide(line + ' ' + w, fs) > W - 10){ lines.push(line); line = w; }
+      else line = line ? line + ' ' + w : w;
+    });
+    if(line) lines.push(line);
+  } else if(axis) lines.push(axis);
+  /* Two bands under the plot: the ticks, then the axis, a clear line apart, with
+     room under the axis for its descenders. The axis used to sit 2 units off the
+     bottom of a 640-unit drawing and lose the tail of every (kcal/mol). */
+  const band = (1 + Math.max(1, lines.length)) * fs + 16;
+  const H = top + pts.length * row + band, floor = H - band;
+  const X = v => (L + (v - lo) / span * (W - L - R)).toFixed(1);
+  let s = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + ' ' + H + '" style="max-width:'
+    + W + 'px;margin-inline:auto" font-family="Helvetica, Arial, sans-serif" font-size="' + fs + '" '
+    + 'role="img" aria-label="' + esc(c.axis || '') + '">';
+  ticks.forEach((v, k) => {
+    s += '<line x1="' + X(v) + '" x2="' + X(v) + '" y1="' + top + '" y2="' + floor + '" stroke="#e3e6ec"/>'
+      + '<text x="' + X(v) + '" y="' + (floor + fs + 4) + '" text-anchor="middle" fill="#555">' + said[k] + '</text>';
+  });
+  s += '<line x1="' + X(0) + '" x2="' + X(0) + '" y1="' + top + '" y2="' + floor + '" stroke="#888"/>';
   pts.forEach((p, k) => {
-    const y = top + k * row + 3, h = row - 7;
+    const y = top + k * row + 4, h = row - 9;
     const x0 = X(Math.min(0, p.v)), x1 = X(Math.max(0, p.v));
-    s += '<text x="' + (L - 6) + '" y="' + (y + h - 2) + '" text-anchor="end" fill="#20262b">' + esc(String(p.name).slice(0, 26)) + '</text>'
+    s += '<text x="' + (L - 8) + '" y="' + (y + h / 2 + fs * 0.35).toFixed(1) + '" text-anchor="end" fill="#20262b">'
+      + esc(short(p.name)) + '</text>'
       + '<rect x="' + x0 + '" y="' + y + '" width="' + Math.max(1, x1 - x0).toFixed(1) + '" height="' + h + '" fill="'
       + (p.dim ? '#9fb3d9' : '#1a56db') + '" opacity="0.85"><title>' + esc(p.name) + ': ' + num(p.v, c.digits)
       + (p.sd ? ' \u00b1 ' + num(p.sd, c.digits) : '') + '</title></rect>';
@@ -247,7 +311,13 @@ function barChart(c){
       + '<line x1="' + X(p.v - p.sd) + '" x2="' + X(p.v - p.sd) + '" y1="' + (y + 2) + '" y2="' + (y + h - 2) + '" stroke="#20262b"/>'
       + '<line x1="' + X(p.v + p.sd) + '" x2="' + X(p.v + p.sd) + '" y1="' + (y + 2) + '" y2="' + (y + h - 2) + '" stroke="#20262b"/>';
   });
-  s += '<text x="' + ((L + W - R) / 2) + '" y="' + (H - 2) + '" text-anchor="middle" fill="#333">' + esc(c.axis || '') + '</text></svg>';
+  /* Centered on the whole drawing, not on the plot: a long axis under a narrow
+     plot would otherwise hang off the right-hand edge. */
+  lines.forEach((line, k) => {
+    s += '<text x="' + (W / 2) + '" y="' + (floor + (2 + k) * fs + 11) + '" text-anchor="middle" fill="#333">'
+      + esc(line) + '</text>';
+  });
+  s += '</svg>';
   return '<div class="rk-svg rk-chart">' + s + '</div>';
 }
 
