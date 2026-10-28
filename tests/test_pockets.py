@@ -218,14 +218,61 @@ if os.path.isfile(EX):
 else:
     print("  (no example receptor; the ADapt and clipping checks were not run)")
 
+# --- the OpenBLAS threads, on a machine with many cores ------------------------------------
+# Under the memory cap, an OpenBLAS with a thread for each of 32 cores or more left
+# prepare_receptor writing no receptor. Each step's environment is read from a stand-in suite,
+# with the person's own environment asking for 128 threads.
+fake = os.path.join(TMP, "fakesuite")
+os.makedirs(os.path.join(fake, "bin"))
+os.makedirs(os.path.join(fake, "lib", "python3.7", "site-packages", "AutoSite", "bin"))
+open(os.path.join(fake, "lib", "python3.7", "site-packages", "AutoSite", "bin", "AS.py"),
+     "w").close()
+given = {}
+
+
+def _recording(cmd, cwd, env, name):
+    given[name] = env.get("OPENBLAS_NUM_THREADS")
+    if name == "prepare_receptor":
+        open(os.path.join(cwd, "rec.pdbqt"), "w").close()
+
+
+real_run, asked = pockets._run, os.environ.get("OPENBLAS_NUM_THREADS")
+pockets._run, os.environ["OPENBLAS_NUM_THREADS"] = _recording, "128"
+os.environ.setdefault("HOPE_CACHE", os.path.join(TMP, "hopecache"))
+try:
+    pockets.find(pdb, os.path.join(TMP, "fakecache"), os.path.join(fake, "bin", "adcp"))
+finally:
+    pockets._run = real_run
+    if asked is None:
+        os.environ.pop("OPENBLAS_NUM_THREADS")
+    else:
+        os.environ["OPENBLAS_NUM_THREADS"] = asked
+check(set(given) == {"prepare_receptor", "autosite"}
+      and all(v == str(pockets.BLAS_THREADS) for v in given.values()),
+      "the pocket search's OpenBLAS is not held to %d threads: %s" % (pockets.BLAS_THREADS, given))
+check(pockets.BLAS_THREADS <= 16, "more OpenBLAS threads than fit under the memory cap")
+check(adcp11.agfr_env(os.path.join(fake, "bin", "adcp")).get("OPENBLAS_NUM_THREADS")
+      == os.environ.get("OPENBLAS_NUM_THREADS"),
+      "the targets and the docking are held to the pocket search's threads")
+
 # --- AutoSite itself, where the ADCP 1.1 suite is installed -----------------------------
 roots = [r for r in (os.environ.get("ADCP_TEST_TOOLS", ""),
                      os.environ.get("ADCPSUITE_HOME", ""))
          if r and os.path.isdir(r)]
 exe = adcp11.find(roots)
 if exe and pockets.autosite_script(exe) and os.path.isfile(EX):
-    found = pockets.find(EX, os.path.join(TMP, "cache"), exe, chains=["A"],
-                         centre=[31.06, -22.43, -7.19], size=[30, 30, 30])
+    # Asked for as a 128-core workstation's environment would: on a node with 32 cores or more
+    # this failed before the pocket search set its own thread count.
+    asked = os.environ.get("OPENBLAS_NUM_THREADS")
+    os.environ["OPENBLAS_NUM_THREADS"] = "128"
+    try:
+        found = pockets.find(EX, os.path.join(TMP, "cache"), exe, chains=["A"],
+                             centre=[31.06, -22.43, -7.19], size=[30, 30, 30])
+    finally:
+        if asked is None:
+            os.environ.pop("OPENBLAS_NUM_THREADS")
+        else:
+            os.environ["OPENBLAS_NUM_THREADS"] = asked
     check(found["pockets"] and found["pockets"][0]["rank"] == 1
           and len(found["pockets"][0]["xyz"]) == found["pockets"][0]["points"],
           "AutoSite found no pocket in the MDM2 groove, or its points were lost")

@@ -42,6 +42,12 @@ TIMEOUT = 240
 #: Its address space, capped as the surfaces' msms is, since it runs beside
 #: the page's server.
 MEMORY = 4 << 30
+#: The OpenBLAS threads prepare_receptor and AutoSite are given. The suite's
+#: OpenBLAS starts one per core and reserves memory for each, so under MEMORY
+#: prepare_receptor wrote no receptor from 32 cores up (measured on Grace:
+#: 16 threads work, 32 and 48 fail; reported on a 128-core workstation).
+#: One thread finds the same pockets in the same time as four.
+BLAS_THREADS = 4
 #: Points drawn per pocket in the page's view; the run is given all of them.
 DRAW = 1500
 #: The residues AutoSite's quick receptor leaves out.
@@ -186,6 +192,9 @@ def find(path, cache, exe, chains=(), drop=(), keep_het=False, centre=None,
     os.makedirs(folder)
     home = adcp11.home_of(exe)
     env = adcp11.agfr_env(exe)
+    # Here rather than in agfr_env: the targets and the docking run without
+    # the memory cap, and are not to be held to a few threads for it.
+    env["OPENBLAS_NUM_THREADS"] = str(BLAS_THREADS)
     t0 = time.time()
     if path.lower().endswith(".pdbqt"):
         shutil.copyfile(path, os.path.join(folder, "rec.pdbqt"))
