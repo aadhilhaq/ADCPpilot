@@ -3319,7 +3319,7 @@ function drawPeps(){
 
   $('peps').querySelectorAll('.ps').forEach((el, i) => {
     // A peptide with non-standard or D residues is shown, not typed: its
-    // sequence is changed in the dialog, as on AlphaFold Server.
+    // sequence is changed in the dialog.
     if(isModified(PEPS[i].sequence)){
       renderModified(el, PEPS[i].sequence);
       el.contentEditable = 'false';
