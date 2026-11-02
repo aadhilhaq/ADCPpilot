@@ -16,9 +16,9 @@ Host keys are checked against the user's known_hosts and a change is
 reported rather than accepted silently.
 """
 import os
-import select
 import socket
 import socketserver
+import time
 import threading
 
 try:
@@ -176,41 +176,76 @@ def run(t, command, timeout=60):
                 out.append(ch.recv(65536).decode("utf8", "replace"))
             break
         else:
-            select.select([ch], [], [], 0.2)
-    return "".join(out), ch.recv_exit_status()
+            # a short sleep, not select() on the channel: that makes paramiko keep a pipe
+            # for it, which its own thread can write into after the channel has closed
+            time.sleep(0.05)
+    status = ch.recv_exit_status()
+    ch.close()                  # its session is given back now, not when collected
+    return "".join(out), status
 
 
 class _Handler(socketserver.BaseRequestHandler):
+    """One browser connection, carried over a channel of the shared connection.
+
+    A thread each way, each waiting on its own side. It used to wait on both with select(),
+    which asks paramiko for the channel's file number, and for that paramiko keeps a pipe beside
+    the channel that its own thread writes to whenever data arrives. A browser that gives up on
+    a request - it does all the time, whenever a page loads something else instead - closed the
+    channel, and that pipe, while the rest of the answer was still arriving; paramiko's thread
+    then wrote into a pipe no longer there, took the error for its connection failing ("Broken
+    pipe", "Bad file descriptor") and ended it, and the page stopped answering as if signed out.
+    Nothing here asks for a file number, so paramiko makes no pipe.
+    """
+
     def handle(self):
         try:
             ch = self.server.transport.open_channel(
-                "direct-tcpip", (self.server.remote_host,
-                                 self.server.remote_port),
+                "direct-tcpip", (self.server.remote_host, self.server.remote_port),
                 self.request.getpeername())
         except Exception:                                       # noqa: BLE001
-            return
+            return                      # the far end is gone; the browser retries
         if ch is None:
             return
+        browser = self.request
+
+        def down():
+            # The answer, to the browser, until the far end or the browser is done.
+            try:
+                while True:
+                    data = ch.recv(65536)
+                    if not data:
+                        break
+                    browser.sendall(data)
+            except Exception:                                   # noqa: BLE001
+                pass                    # a closed browser tab is not an error
+            finally:
+                try:
+                    browser.shutdown(socket.SHUT_WR)
+                except OSError:
+                    pass
+
+        answer = threading.Thread(target=down, daemon=True)
+        answer.start()
         try:
             while True:
-                r, _w, _x = select.select([self.request, ch], [], [], 1.0)
-                if self.request in r:
-                    data = self.request.recv(16384)
-                    if not data:
-                        break
-                    ch.sendall(data)
-                if ch in r:
-                    data = ch.recv(16384)
-                    if not data:
-                        break
-                    self.request.sendall(data)
-        except OSError:
+                data = browser.recv(65536)
+                if not data:
+                    break
+                ch.sendall(data)
+        except Exception:                                       # noqa: BLE001
             pass
         finally:
             try:
-                ch.close()
+                ch.shutdown_write()     # the browser has said all it will: the far end may finish
             except Exception:                                   # noqa: BLE001
                 pass
+        # The rest of the answer is waited for, and a far end that keeps a connection the browser
+        # has left open for no reason is let go of after a minute: closing the channel ends the wait.
+        answer.join(60)
+        try:
+            ch.close()
+        except Exception:                                       # noqa: BLE001
+            pass
 
 
 class _Forwarder(socketserver.ThreadingTCPServer):
