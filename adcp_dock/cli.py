@@ -149,6 +149,7 @@ def _local(a):
         # is shared, so the address works there even when this cannot
         # open it.
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
+    server.leave_on_hangup()             # so ADapt is stopped with it (atexit), however it ends
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

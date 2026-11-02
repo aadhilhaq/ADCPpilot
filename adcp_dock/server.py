@@ -2733,8 +2733,34 @@ def build(host="127.0.0.1", port=8765, runs="~/adcp_runs", tools_roots=()):
     return httpd
 
 
+def leave_on_hangup():
+    """Leave on a hang-up, or when asked to stop, the way Ctrl-C leaves: through the clean-up
+    that stops ADapt, rather than where the process stands.
+
+    On a cluster the interface runs on the terminal of an SSH session, and the session ending
+    (signing out, a connection dropped) hangs that terminal up. SIGHUP's own action ends the
+    process at once, before the clean-up runs, and ADapt, which runs in a session of its own so
+    that it can be stopped as a group, never sees the hang-up: it went on running on the login
+    node with nobody to use it, one of them for two days. SIGXCPU is the login node's limit on a
+    process's CPU time, which ends it outright a second later.
+    """
+    import signal
+
+    def leave(signum, frame):
+        raise SystemExit(128 + signum)
+    for name in ("SIGHUP", "SIGTERM", "SIGXCPU"):
+        sig = getattr(signal, name, None)            # Windows has none of the three but SIGTERM
+        if sig is None:
+            continue
+        try:
+            signal.signal(sig, leave)
+        except (ValueError, OSError):                # not the main thread, or not allowed here
+            pass
+
+
 def serve(host="127.0.0.1", port=8765, runs="~/adcp_runs", tools_roots=()):
     httpd = build(host, port, runs, tools_roots)
+    leave_on_hangup()
     # The port the socket actually received, which is not `port` when 0
     # was requested.
     bound = httpd.server_address[1]

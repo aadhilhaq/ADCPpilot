@@ -705,6 +705,73 @@ fake.shutdown()
 for k in ("http_proxy", "HTTP_PROXY"):
     os.environ.pop(k, None)
 
+# --- the interface's terminal hangs up: ADapt goes with it --------------------------
+# On a cluster the interface runs on the terminal of an SSH session, and the session ending hangs
+# that terminal up. SIGHUP ended the interface where it stood, before the clean-up that stops
+# ADapt, and ADapt, in a session of its own, went on running on the login node: one was found
+# there two days later. The interface is run here as `serve` runs it, ADapt (the stand-in) is
+# started as the page starts it, and the interface is hung up on.
+import signal  # noqa: E402
+import subprocess  # noqa: E402
+
+hang = os.path.join(tmp, "hangup.py")
+open(hang, "w").write("""
+import os, sys, threading
+sys.path.insert(0, %(root)r)
+from adcp_dock import adapt, adcp11, server
+adcp11._HERE = adapt._HERE = %(alone)r
+built = server.build
+def build(*a, **k):
+    h = built(*a, **k)
+    def warm():
+        h.app.adapt_open()
+        print("ADAPT-PID %%d" %% h.app._adapt_runner.proc.pid, flush=True)
+    threading.Timer(0.3, warm).start()
+    return h
+server.build = build
+server.serve(host="127.0.0.1", port=0, runs=%(runs)r)
+""" % {"root": ROOT, "alone": adapt._HERE, "runs": os.path.join(tmp, "runs_hang")})
+env_ = dict(os.environ, ADAPT_HOME=home, ADCPSUITE_HOME=suite, HOME=tmp)
+iface = subprocess.Popen([sys.executable, "-u", hang], stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT, env=env_, universal_newlines=True)
+adapt_pid, said_ = None, []
+end_ = time.time() + 60
+while time.time() < end_ and adapt_pid is None:
+    line = iface.stdout.readline()
+    if not line:
+        break
+    said_.append(line.rstrip())
+    if line.startswith("ADAPT-PID "):
+        adapt_pid = int(line.split()[1])
+check(adapt_pid is not None, "the interface started ADapt (%s)" % " / ".join(said_[-4:]))
+
+
+def _running(pid):
+    try:
+        with open("/proc/%d/stat" % pid) as fh:
+            return fh.read().rsplit(")", 1)[1].split()[0] != "Z"
+    except OSError:
+        return False
+
+
+if adapt_pid:
+    check(_running(adapt_pid), "and ADapt is running")
+    iface.send_signal(signal.SIGHUP)
+    try:
+        iface.wait(timeout=20)
+    except subprocess.TimeoutExpired:
+        iface.kill()
+    for _ in range(100):
+        if not _running(adapt_pid):
+            break
+        time.sleep(0.1)
+    check(iface.returncode is not None, "a hang-up ends the interface")
+    check(not _running(adapt_pid), "and ADapt with it, rather than leaving it on the login node")
+    if _running(adapt_pid):
+        os.killpg(adapt_pid, signal.SIGKILL)
+else:
+    iface.kill()
+
 if fails:
     print("test_adapt FAILED (%d)" % len(fails))
     for f in fails:
