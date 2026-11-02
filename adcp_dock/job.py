@@ -175,6 +175,13 @@ def default(**kw):
         # run that does not ask for anything else stays comparable with them.
         "mmgbsa_engine": "amber",
         "mmgbsa_poses": 5,
+        # The peptide strain of every pose MM-GBSA scores: the peptide alone
+        # in its docked shape, against itself relaxed from it (_vendor/
+        # strain.py), or Prime's own for a run Prime scores. Reported beside
+        # the energy and never ranked on. A job file without it was written
+        # before strain existed, and a resume of it measures none; Add
+        # measures adds it to such a run, and turns this on.
+        "mmgbsa_strain": True,
         # D residues and rings are rescored: a D residue with its L form's
         # template and the docked handedness, a ring only on the poses that
         # close it (mmforms). A job file without it was made when both were

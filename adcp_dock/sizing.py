@@ -287,6 +287,30 @@ def mmgbsa_minutes(poses, cores=0, workers=MM_WORKERS_DEFAULT, atoms=0):
     return waves * mmgbsa_seconds(atoms) / 60.0
 
 
+# The peptide strain of one scored pose: the peptide alone, one sander run of
+# 5000 conjugate gradient steps (_vendor/strain.py), single-threaded. 30 to 45
+# s a pose on Grace's compute nodes over the 120 poses the protocol was
+# settled on, 6 to 13 residues; booked at a minute.
+STRAIN_SECONDS = 60.0
+
+
+def strain_minutes(poses, cores=0):
+    """Wall minutes for the strain of `poses` scored poses, one per core at
+    a time, as the dock task and the added measures run them."""
+    poses = max(0, int(poses))
+    if not poses:
+        return 0.0
+    n = max(1, min(int(cores or 1), poses))
+    return -(-poses // n) * STRAIN_SECONDS / 60.0
+
+
+def measures_minutes(poses, cores):
+    """What the one short job that adds measures to a finished run books:
+    twice a minute a pose shared over its cores, and half an hour more."""
+    cores = max(1, int(cores or 1))
+    return SAFETY * (max(0, int(poses)) * STRAIN_SECONDS / 60.0 / cores) + BUFFER_MINUTES
+
+
 def per_task(length, replicas, steps, cores, mmgbsa=False, mm_poses=0,
              atoms=0):
     """The longest one array task will run, in minutes."""
@@ -347,10 +371,11 @@ def plan(peptides, replicas, steps, cores=None, mmgbsa=False, mm_poses=5,
 
     `options` holds the run's settings that change the cost: autosite,
     receptor_gradient, site_mode, cyclic, helical, poses,
-    keep_trajectories, box_max, protonation, from_adapt, receptor_prepared.
-    Missing ones cost what they did before the settings existed. "rings",
-    when given, is each peptide's own ring in the order of `peptides`; a
-    peptide without one is priced with the run's "cyclic".
+    keep_trajectories, box_max, protonation, from_adapt, receptor_prepared,
+    strain (mmgbsa_strain: the peptide strain of each scored pose, after its
+    MM-GBSA). Missing ones cost what they did before the settings existed.
+    "rings", when given, is each peptide's own ring in the order of
+    `peptides`; a peptide without one is priced with the run's "cyclic".
     """
     o = dict(options or {})
     lengths = [len(p) if isinstance(p, str) else int(p) for p in peptides]
@@ -392,6 +417,10 @@ def plan(peptides, replicas, steps, cores=None, mmgbsa=False, mm_poses=5,
                                 bool(o.get("keep_trajectories")))
     dock += extra
     mm = mmgbsa_minutes(mm_poses, cores, atoms=atoms) if mmgbsa else 0.0
+    # The strain of the same poses follows their MM-GBSA in the same task.
+    strain = (strain_minutes(mm_poses, cores)
+              if mmgbsa and o.get("strain") else 0.0)
+    mm += strain
     task = dock + mm
     at_once = int(throttle) if int(throttle or 0) > 0 else n
     waves = max(1, -(-n // max(1, at_once)))
@@ -403,6 +432,7 @@ def plan(peptides, replicas, steps, cores=None, mmgbsa=False, mm_poses=5,
         "prep_minutes": round(prep, 1),
         "dock_minutes": round(dock, 1),
         "mmgbsa_minutes": round(mm, 1),
+        "strain_minutes": round(strain, 1),
         "task_minutes": round(task, 1),
         "array_minutes": round(array, 1),
         "report_minutes": round(REPORT_MINUTES, 1),
@@ -416,7 +446,7 @@ def plan(peptides, replicas, steps, cores=None, mmgbsa=False, mm_poses=5,
         "rings_differ": rings_differ,
         "core_hours": round(
             sum(c + extra
-                + (mmgbsa_minutes(mm_poses, cores, atoms=atoms)
+                + (mmgbsa_minutes(mm_poses, cores, atoms=atoms) + strain
                    if mmgbsa else 0.0)
                 for c, _x, _r in costs) * cores / 60.0, 1),
         # A run whose box cannot hold its own longest peptide costs
@@ -468,10 +498,12 @@ def suggest(peptides, replicas, steps, cores=None, mmgbsa=False, mm_poses=5,
     # so quoting them separately invites comparison with a queue row that
     # covers both.
     if p["mmgbsa_minutes"]:
-        task = ("one dock+mm task of %s (docking %s, then MM-GBSA %s; "
+        task = ("one dock+mm task of %s (docking %s, then MM-GBSA%s %s; "
                 "Slurm runs them as one job)"
                 % (human(p["dock_minutes"] + p["mmgbsa_minutes"]),
-                   human(p["dock_minutes"]), human(p["mmgbsa_minutes"])))
+                   human(p["dock_minutes"]),
+                   " and the peptide strain" if p.get("strain_minutes") else "",
+                   human(p["mmgbsa_minutes"])))
     else:
         task = "one dock task of %s" % human(p["dock_minutes"])
     stages = ["A prepare job of %s" % human(p["prep_minutes"]), task,

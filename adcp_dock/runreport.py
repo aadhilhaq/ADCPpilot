@@ -865,6 +865,12 @@ class Report:
             cols += [{"key": "eng_" + x, "label": "%s top %d" % (GB_LABELS[x], tn), "num": True, "digits": 1,
                       "help": "%s's mean over the top %d poses; each engine is on its own scale" % (GB_LABELS[x], tn)}
                      for x in engs]
+        if mm and any("pep_strain" in r for r in rows):
+            # Right after the MM-GBSA columns, and never part of the order: an
+            # empty cell where a pose's strain could not be measured, not 0.
+            from . import report as rmod
+            cols.append({"key": "pep_strain", "label": rmod.STRAIN_HEADING, "num": True, "digits": 2,
+                         "empty": "", "help": rmod.strain_help(rows)})
         if any(r.get("cluster_top") is not None for r in rows):
             cols.append({"key": "cluster", "label": "Top cluster", "num": True,
                          "help": "How many of ADCP's clustered solutions fall in the top pose's cluster, and "
@@ -1410,6 +1416,7 @@ class Report:
                 t += (" Each peptide's lowest-energy pose was measured on its minimized complex: buried surface by "
                       "Shrake and Rupley with Bondi radii and a 1.4 \u00c5 probe, and each residue's share of the "
                       "energy by MMPBSA.py's decomposition of the same structure.")
+            t += self.strain_method(c)
             paras.append(("Rescoring", t))
         paras.append(("Contacts", "Contacts in the interaction diagrams were classified by distance between heavy "
                       "atoms on the docked pose: a hydrogen bond, nitrogen, oxygen or sulfur atoms within 3.5 \u00c5; "
@@ -1419,6 +1426,22 @@ class Report:
         paras.append(("Figures", "Structures were drawn with 3Dmol.js%s." % c("3dmol")))
         return ("".join("<p><b>%s.</b> %s</p>" % (h, t) for h, t in paras),
                 [{"n": i, "text": t} for i, t in enumerate(texts, 1)])
+
+    def strain_method(self, c):
+        """The methods' sentence on the peptide strain, when the run has it,
+        with the citation marker function `c` methods() numbers them by."""
+        rows = [r for r in self.rows if "pep_strain" in r]
+        if not rows:
+            return ""
+        if any(r.get("pep_strain_engine") == "schrodinger" for r in rows):
+            return (" The peptide strain is Prime's own ligand strain, read from its output for the pose with the "
+                    "lowest energy; it is not part of the ranking.")
+        from ._vendor import strain as strainmod
+        return (" The peptide strain of each scored pose is the peptide's energy alone in that pose, with the "
+                "receptor taken away, minus the same peptide relaxed from that shape, unrestrained, by %s steps "
+                "of conjugate gradient in AmberTools' sander%s, both in the generalized Born model and salt of the MM-GBSA; "
+                "the table gives that of the pose with the lowest MM-GBSA energy, and it is not part of the "
+                "ranking." % ("{:,}".format(strainmod.STEPS), c("amber")))
 
     # -- the appendix ---------------------------------------------------------------
     def software(self):

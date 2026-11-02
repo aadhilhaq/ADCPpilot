@@ -470,6 +470,18 @@ def used_by(job):
     return keys
 
 
+def used_for(key, did, job=None):
+    """What a reference was used for, said for this run. AmberTools' sander
+    also relaxes the peptide on its own for its strain, in a run that
+    measures it that way (mmgbsa_strain, and not Prime's own strain); the
+    list of everything the tool can run says so too."""
+    if key == "amber" and (job is None or (
+            job.get("mmgbsa_strain")
+            and (job.get("mmgbsa_engine") or "amber") != "schrodinger")):
+        return did + ", and sander's relaxation of the peptide on its own for its strain"
+    return did
+
+
 def text(job=None, out=print):
     """The citation block. With a job, only what that run actually used."""
     keys = used_by(job) if job is not None else None
@@ -492,7 +504,7 @@ def text(job=None, out=print):
         if keys is not None and key not in keys:
             continue
         mark = "  " if when == "always" else "  "
-        out("%s- %s" % (mark, did))
+        out("%s- %s" % (mark, used_for(key, did, job)))
         out("      %s" % ref)
         out("      doi:%s" % doi)
         if when != "always":
@@ -630,7 +642,7 @@ def bibtex(job=None, year=2026):
             out += ["@misc{%s," % bk,
                     "  doi   = {%s}," % doi,
                     "  note  = {%s}," % ref.replace("{", "").replace("}", ""),
-                    "  title = {{%s}}" % did, "}", ""]
+                    "  title = {{%s}}" % used_for(key, did, job), "}", ""]
             continue
         if b.get("kind") == "software":
             out += ["@software{%s," % bk,
@@ -679,7 +691,7 @@ def ris(job=None, year=2026):
             continue
         b = BIB.get(key)
         if not b:
-            out += ["TY  - JOUR", "TI  - %s" % did, "N1  - %s" % ref,
+            out += ["TY  - JOUR", "TI  - %s" % used_for(key, did, job), "N1  - %s" % ref,
                     "DO  - %s" % doi, "ER  - ", ""]
             continue
         # pdbfixer and openmm are one paper; importing it twice
@@ -694,7 +706,7 @@ def ris(job=None, year=2026):
             out += ["AU  - %s" % a.strip() for a in b["author"].split(" and ")]
             out += ["PB  - %s" % b["publisher"], "PY  - %d" % b["year"],
                     "UR  - %s" % b["url"], "DO  - %s" % doi,
-                    "N1  - used for: %s" % did, "ER  - ", ""]
+                    "N1  - used for: %s" % used_for(key, did, job), "ER  - ", ""]
             continue
         out += ["TY  - JOUR", "TI  - %s" % b["title"].replace("--", "-")]
         # RIS takes one AU per author, "Family, Given", by which
@@ -713,7 +725,8 @@ def ris(job=None, year=2026):
             out += ["SP  - %s" % sp, "EP  - %s" % ep]
         else:
             out.append("SP  - %s" % pages)
-        out += ["DO  - %s" % doi, "N1  - used for: %s" % did, "ER  - ", ""]
+        out += ["DO  - %s" % doi, "N1  - used for: %s" % used_for(key, did, job),
+                "ER  - ", ""]
     out += ["", "Acknowledgment to include in the manuscript:",
             acknowledgement(job)]
     return "\n".join(out) + "\n"

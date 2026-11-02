@@ -99,6 +99,12 @@ What stays, with what reads it:
                                 the residue numbering of the panel
                                 (metrics.tleap_map); what Prime is given
                                 (mmgbsa.prime_dg)
+  pose<n>/<p>_strain.json       the pose's peptide strain and what it was
+                                measured on (_vendor/strain.measure), read
+                                back rather than measured again when strain
+                                is added once more (pipeline.stage_strain);
+                                it is measured from the topologies and the
+                                scored frame above, which stay with it
   every log outside out/        the problem report (bundle.LOGS): leap.log,
                                 <p>_com.log and the rest stay
   anything not named above      a file this module does not know is never

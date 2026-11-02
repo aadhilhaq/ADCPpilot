@@ -302,6 +302,136 @@ def fill_combined(results, rundir):
     return results
 
 
+#: What can be added to a finished run, in the order Add measures lists them:
+#: (key, name, what it is, which job). The light ones share one short job;
+#: an engine is a job of its own (pipeline.submit_measures). The words are
+#: the approved dialog's.
+MEASURES = [
+    ("strain", "Peptide strain",
+     "What the peptide pays to hold its docked shape, against the same "
+     "peptide relaxed on its own.", "light"),
+    ("panel", "Interface measures",
+     "Buried area, contacts, hydrogen bonds, salt bridges and clashes for "
+     "each pose.", "light"),
+    ("openmm", "MM-GBSA by OpenMM",
+     "A second engine's estimate on the same minimized poses.", "engine"),
+    ("prime", "MM-GBSA by Schrödinger Prime",
+     "Prime's estimate, with its own minimization. Uses a Schrödinger "
+     "license; ring and D-residue peptides cannot be scored.", "engine"),
+]
+#: The MM-GBSA engine (_vendor/gbengines) each engine measure runs.
+MEASURE_ENGINE = {"openmm": "openmm", "prime": "schrodinger"}
+#: Why a measure cannot be added when the files it is measured from are gone.
+FILES_GONE = "the files its poses were scored from are not on disk"
+
+# What each run has, keyed by the run and the times of the files it was read
+# from, so a page listing every run reads each one once.
+_MEASURES_CACHE = {}
+# One submission of added measures at a time, so a second press cannot queue
+# a run's jobs twice.
+_MEASURES_LOCK = threading.Lock()
+
+
+def _refused_kinds(seqs_rings):
+    """The peptides Prime refuses (mmforms.engine_refusal), in two words:
+    "ring peptides", "D-residue peptide", or both."""
+    from . import mmforms
+    ring = d = 0
+    for seq, ring_mode in seqs_rings:
+        ring += str(ring_mode or "none") != "none"
+        d += bool(mmforms.d_positions(seq))
+    word = "peptide" if len(seqs_rings) == 1 else "peptides"
+    if ring and d:
+        return "ring and D-residue " + word
+    return ("ring " if ring else "D-residue ") + word
+
+
+def run_measures(rundir, j=None, deep=False):
+    """What a finished run has of each measure Add measures offers.
+
+    Read from the run's job.json and its result files only, and nothing
+    computed, so the page can ask it of every run it lists: for each measure
+    whether the run has it, lacks it, or cannot have it and why, how many of
+    its scored peptides lack it, its scored poses, and why no measure can be
+    added at all (blocked). With `deep`, for the one run a page has open, the
+    pose folders are looked at too: a measure whose files are gone is one the
+    run cannot have, where the cheap reading would offer it.
+    """
+    from . import mmforms
+    try:
+        jstamp = os.path.getmtime(jobmod.path_of(rundir))
+        files = sorted(glob.glob(os.path.join(rundir, "results", "*.json")))
+        stamp = (jstamp, tuple((f, os.path.getmtime(f)) for f in files))
+    except OSError:
+        stamp, files = None, []
+    hit = _MEASURES_CACHE.get((rundir, bool(deep)))
+    if stamp is not None and hit and hit[0] == stamp:
+        return json.loads(hit[1])
+    j = j if j is not None else jobmod.load(rundir)
+    name = os.path.basename(os.path.normpath(rundir))
+    out = {"rundir": rundir, "name": name, "label": j.get("label") or name,
+           "created": j.get("created") or "", "poses": 0, "peptides": 0,
+           "has": [], "cannot": {}, "missing": {}, "blocked": None,
+           "engine": j.get("mmgbsa_engine") or "amber"}
+    scored = []
+    for f in files:
+        try:
+            r = json.load(open(f))
+        except (OSError, ValueError):
+            continue
+        if isinstance(r, dict) and r.get("mmgbsa"):
+            scored.append(r)
+    out["peptides"] = len(scored)
+    out["poses"] = sum(len(r.get("mmgbsa") or []) for r in scored)
+    if not files:
+        out["blocked"] = "no peptide has finished docking yet"
+    elif not scored:
+        out["blocked"] = "no poses were scored"
+    else:
+        mmdir = os.path.join(rundir, "mmgbsa")
+        prime_run = out["engine"] == "schrodinger"
+        from ._vendor import strain as strainmod
+
+        def strain_possible(r):
+            mm = mmforms.name(r.get("peptide") or "")
+            for n in pipeline._pose_dirs(mmdir, mm):
+                d = os.path.join(mmdir, mm, "pose%d" % n)
+                if (strainmod.prime(d, mm) is not None if prime_run
+                        else strainmod.measurable(d, mm)[0]):
+                    return True
+            return False
+
+        for key, done, possible in (
+                ("strain", pipeline.strain_done, strain_possible),
+                ("panel", lambda r: bool(r.get("panel")),
+                 lambda r: pipeline.measurable(rundir, r))):
+            lack = [r for r in scored if not done(r)]
+            if not lack:
+                out["has"].append(key)
+                continue
+            if deep and not any(possible(r) for r in lack):
+                out["cannot"][key] = FILES_GONE
+                continue
+            out["missing"][key] = len(lack)
+        own = out["engine"]
+        ran = set(j.get("mmgbsa_engines_run") or []) | {own}
+        for key, eng in MEASURE_ENGINE.items():
+            pairs = [(r["peptide"], pipeline.result_ring(j, r)) for r in scored]
+            refused = [(s, m) for s, m in pairs
+                       if mmforms.engine_refusal(eng, s, m)]
+            if refused and len(refused) == len(pairs):
+                out["cannot"][key] = _refused_kinds(refused)
+            elif eng in ran:
+                out["has"].append(key)
+            else:
+                out["missing"][key] = len(pairs) - len(refused)
+    if stamp is not None:
+        if len(_MEASURES_CACHE) > 500:
+            _MEASURES_CACHE.clear()
+        _MEASURES_CACHE[(rundir, bool(deep))] = (stamp, json.dumps(out))
+    return out
+
+
 def _open_detached(cmd):
     """Start a file manager and return at once; its window is the user's."""
     import subprocess
@@ -1342,7 +1472,10 @@ class App:
                 "box_max": float(j.get("box_max") or 30.0),
                 "protonation": jobmod.protonation_of(j),
                 "from_adapt": bool((j.get("adapt") or {}).get("folder")),
-                "receptor_prepared": bool(j.get("receptor_prepared"))}
+                "receptor_prepared": bool(j.get("receptor_prepared")),
+                # The peptide strain after each pose's MM-GBSA, on for every
+                # run the page makes.
+                "strain": bool(j.get("mmgbsa_strain"))}
 
     def sequence(self, path, chain):
         """The chain as residues, for the strip people click residues in."""
@@ -1564,6 +1697,132 @@ class App:
             return {"error": str(exc)}
         except Exception as exc:                                # noqa: BLE001
             return {"error": "could not submit the measurement: %s" % exc}
+
+    # ---- adding measures to finished runs --------------------------------
+    @staticmethod
+    def _offered():
+        """The measures Add measures offers here: the light ones always, and
+        an MM-GBSA engine only where it is installed."""
+        from ._vendor import gbengines
+        return [k for k, _n, _w, job in MEASURES
+                if job == "light" or gbengines.get(MEASURE_ENGINE[k]).available()]
+
+    def measures_list(self, also=""):
+        """Every run the page lists, with what it has of each measure
+        (GET /api/measures). `also` is a run the page has open that may be
+        outside the runs folder, a flow's run opened from HOPE Labs: it is
+        listed first, and it alone has its pose folders looked at."""
+        dirs = [r["rundir"] for r in self.list_runs()["runs"]]
+        real = {os.path.realpath(d): d for d in dirs}
+        deep = None
+        if also and not self.check_run(also):
+            deep = real.get(os.path.realpath(also))
+            if deep is None:
+                deep = also
+                dirs.insert(0, also)
+        runs = []
+        for d in dirs:
+            try:
+                got = run_measures(d, deep=(d == deep))
+            except (OSError, ValueError):
+                continue
+            if d == deep:
+                got["asked"] = True
+            runs.append(got)
+        offered = self._offered()
+        return {"measures": [{"k": k, "name": n, "what": w, "job": job}
+                             for k, n, w, job in MEASURES if k in offered],
+                "runs": runs, "root": self.runs, "local": slurm.local_mode()}
+
+    def measures_submit(self, body):
+        """Add the chosen measures to the chosen runs (POST /api/measures).
+
+        Per run: refused, with the reason, while a tidy moves its files or
+        another of its jobs is queued or running; otherwise one short job for
+        the light measures it lacks, one job for each engine it lacks, the
+        report rebuilt behind all of them, and the run's own tidy queued
+        again behind that. Nothing already measured is changed."""
+        body = body or {}
+        want = [str(k) for k in body.get("measures") or []]
+        runs = [str(d) for d in body.get("runs") or [] if d]
+        offered = self._offered()
+        bad = [k for k in want if k not in offered]
+        if bad:
+            return {"error": "%s cannot be added here" % ", ".join(bad)}
+        if not want:
+            return {"error": "choose a measure to add"}
+        if not runs:
+            return {"error": "choose a run to add it to"}
+        out = []
+        with _MEASURES_LOCK:
+            for d in runs:
+                out.append(self._measures_one(d, want))
+        return {"runs": out,
+                "queued": sum(1 for r in out if r.get("jobs")),
+                "refused": sum(1 for r in out if r.get("error"))}
+
+    def _run_measures(self, rundir, j):
+        """run_measures for the run a page has open, with what is offered
+        here and whether its jobs run on this machine; None if it cannot be
+        read, which the page takes as nothing to add."""
+        try:
+            got = run_measures(rundir, j, deep=True)
+        except (OSError, ValueError):
+            return None
+        got["offered"] = self._offered()
+        got["local"] = slurm.local_mode()
+        return got
+
+    def _measures_one(self, rundir, want):
+        name = os.path.basename(os.path.normpath(rundir))
+        bad = self.check_run(rundir)
+        if bad:
+            return {"rundir": rundir, "name": name, "error": bad}
+        try:
+            st = run_measures(rundir, deep=True)
+        except (OSError, ValueError) as exc:
+            return {"rundir": rundir, "name": name,
+                    "error": "its files could not be read (%s)" % exc}
+        if st.get("blocked"):
+            return {"rundir": rundir, "name": name, "error": st["blocked"]}
+        adds = [k for k in want if k not in st["has"] and k not in st["cannot"]]
+        if not adds:
+            why = [st["cannot"][k] for k in want if k in st["cannot"]]
+            return {"rundir": rundir, "name": name,
+                    "error": "; ".join(why) if why else
+                    "it already has what was chosen"}
+        busy = self._tidying(rundir)
+        if busy:
+            return {"rundir": rundir, "name": name, "error": busy}
+        from . import tidy as tidymod
+        live = tidymod.live_jobs(rundir)
+        if live:
+            return {"rundir": rundir, "name": name,
+                    "error": "its jobs are still queued or running (%s); add "
+                             "measures once they have finished" % ", ".join(live)}
+        try:
+            jobs = pipeline.submit_measures(
+                rundir, light=[k for k in adds if k in pipeline.LIGHT],
+                engines=[MEASURE_ENGINE[k] for k in adds if k in MEASURE_ENGINE],
+                log=lambda *a: None)
+        except SystemExit as exc:
+            return {"rundir": rundir, "name": name, "error": str(exc)}
+        except Exception as exc:                                # noqa: BLE001
+            return {"rundir": rundir, "name": name,
+                    "error": "could not submit: %s" % exc}
+        # What each job adds, in the order they were queued, for the dialog
+        # to say; the report is rebuilt behind all of them.
+        queued = []
+        if jobs.get("measures"):
+            queued.append({"id": jobs["measures"],
+                           "adds": [k for k in adds if k in pipeline.LIGHT]})
+        for k in adds:
+            jid = jobs.get("rescore_%s" % MEASURE_ENGINE.get(k, ""))
+            if jid:
+                queued.append({"id": jid, "adds": [k]})
+        return {"rundir": rundir, "name": name, "adds": adds, "jobs": jobs,
+                "queued": queued, "report": jobs.get("report"),
+                "tidy": self._arm(rundir, jobs)}
 
     def rerank_run(self, rundir):
         """Write a finished run's combined order into the run folder.
@@ -2180,6 +2439,10 @@ class App:
                                 for i, n, s2 in todo],
                 "done": done, "total": len(j.get("peptides") or []),
                 "results": results,
+                # What the run lacks of what Add measures offers, for the
+                # line over its table; its pose folders looked at, as this
+                # is the one run the page has open.
+                "measures": self._run_measures(rundir, j),
                 # Whether the run is tidied, and its tidy job: the page's
                 # Tidy button reads these. Neither walks the run.
                 "tidy": dict(tidymod.status(rundir),
@@ -2585,6 +2848,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(svg, ctype="image/svg+xml")
         if u.path == "/api/runs":
             return self._send(app.list_runs())
+        if u.path == "/api/measures":
+            # Every run listed, with what it has of each measure Add measures
+            # offers; dir= is the run the page has open, wherever it is.
+            return self._send(app.measures_list((q.get("dir") or [""])[0]))
         if u.path == "/api/folder":
             # The Folders view: one folder of the runs folder, and nothing
             # outside it.
@@ -2716,6 +2983,8 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/api/rescore":
             return self._send(app.rescore_run(body.get("rundir"),
                                               body.get("engine")))
+        if u.path == "/api/measures":
+            return self._send(app.measures_submit(body))
         if u.path == "/api/tidy":
             return self._send(app.tidy_run(body.get("rundir"),
                                            body.get("undo")))

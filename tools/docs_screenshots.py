@@ -52,7 +52,7 @@ WANT = ["interface.png", "receptor-loaded.png", "site-residues.png",
         "runs.png", "results-table.png", "pose-viewer.png", "cite.png",
         "adapt.png", "guide.png", "submit.png", "runs-folders.png",
         "file-viewer.png", "site-surface.png", "receptor-adapt.png",
-        "adapt-inline.png", "adapt-loading.png"]
+        "adapt-inline.png", "adapt-loading.png", "add-measures.png"]
 
 
 def start_server(python, runs, roots):
@@ -428,6 +428,21 @@ def main():
                 pg.locator("#rundetail").scroll_into_view_if_needed()
                 shot(pg.locator("#rundetail"), "results-table.png")
             step("results", results)
+
+            # Add measures, from the Runs card, with every measure and every
+            # run that lacks one chosen.
+            def add_measures():
+                pg.click("#measuresopen")
+                pg.wait_for_function(
+                    "() => !/Reading/.test(document.getElementById('mslead')"
+                    ".textContent)", timeout=60000)
+                for box in ("#msmall", "#msrall"):
+                    if pg.locator(box).is_enabled() and not pg.locator(box).is_checked():
+                        pg.locator(box).click()
+                pg.wait_for_timeout(600)
+                shot(pg.locator("#measuresdlg"), "add-measures.png")
+                pg.keyboard.press("Escape")
+            step("add measures", add_measures)
 
             def viewer():
                 # The viewer is hidden until a peptide is chosen, which is what

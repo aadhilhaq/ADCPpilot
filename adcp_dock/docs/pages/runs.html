@@ -63,7 +63,9 @@ does not send the poses.</li>
 </ul>
 <p><b>Browse</b> at the top of the card points the list at another folder, so runs
 made by a colleague, or by the command line somewhere else, can be opened and read
-here. The folder it is reading is printed beside the button.</p>
+here. The folder it is reading is printed beside the button. <b>Add
+measures&hellip;</b> beside it adds what finished runs lack, as
+<a href="#add-measures">below</a>.</p>
 <p>To resize a column, drag the thin grip on the right edge of its heading; with
 the keyboard, tab to the grip and use the left and right arrow keys. Double click
 the grip to fit the column to its widest entry. The page remembers the widths in
@@ -112,6 +114,48 @@ somewhere else is left out of the list, and the server refuses any path outside
 the folder, however it is written. <b>Browse</b> changes the folder both views
 read.</p>
 
+<h2 id="add-measures">Adding measures to finished runs</h2>
+<p>A run made now measures more than a run made months ago: the interface panel,
+and the <a href="results.html#peptide-strain">peptide strain</a> of each scored
+pose. <b>Add measures&hellip;</b>, at the top of the card, adds what finished runs
+lack, to as many of them as you choose, from the files their MM-GBSA left: nothing
+is docked again.</p>
+<figure>
+<img src="img/add-measures.png" alt="The Add measures dialog: the measures ticked on the left, the runs chosen on the right">
+<figcaption><b>Add measures.</b> Each measure says how many runs lack it, each
+run what it would get, and the line at the top what pressing Add will
+queue.</figcaption>
+</figure>
+<p>Tick the measures on the left; each says how many of your runs lack it. Then
+choose the runs on the right. <b>Missing something</b> lists the runs that lack a
+measure you ticked and <b>Every run</b> lists them all; <b>Find a run</b> narrows
+the list by name, <b>Select all</b> takes every run listed, and a shift-click
+chooses every run between two. The <b>Adds</b> column says what each run would
+get. A run that cannot take a measure says why, a ring peptide that Prime cannot
+score for one, and a run with no scored poses cannot be chosen. The line at the
+top says what to do next, and then what <b>Add</b> will queue.</p>
+<table>
+<tr><th>Measure</th><th>What it adds</th><th>Its job</th></tr>
+<tr><td><b>Peptide strain</b></td><td>the peptide strain of every scored pose</td><td>one short job a run, with the interface measures when both are added</td></tr>
+<tr><td><b>Interface measures</b></td><td>buried area, contacts, hydrogen bonds, salt bridges and clashes for each pose</td><td>the same short job</td></tr>
+<tr><td><b>MM-GBSA by OpenMM</b></td><td>a second engine's estimate on the same minimized poses</td><td>a job of its own, about as long as the run's own MM-GBSA</td></tr>
+<tr><td><b>MM-GBSA by Schr&ouml;dinger Prime</b></td><td>Prime's estimate, with its own minimization; it needs a Schr&ouml;dinger license, and ring and D-residue peptides cannot be scored</td><td>a job of its own, one pose at a time</td></tr>
+</table>
+<p>An engine is offered only where it is installed. The run's own MM-GBSA values,
+the ones it is ranked on, stay as they are, and a second engine's numbers appear
+beside them. Each run's report is rebuilt once its jobs have ended, and its table
+fills in then. Nothing already measured is changed. A run that is being tidied, or
+has a job still queued or running, is not queued, with the reason, and a run's own
+tidy is queued again behind its new jobs.</p>
+<p>Inside one run, a line over its table says what that run lacks, and <b>Add
+them&hellip;</b> opens the same dialog with the run and those measures already
+ticked.</p>
+<p>From the command line, <code>adcp-dock strain RUNDIR</code> adds the peptide
+strain, <code>adcp-dock panel RUNDIR</code> the interface measures and
+<code>adcp-dock rescore RUNDIR --engine openmm</code> another engine, each with the
+report rebuilt after it; <code>--here</code> runs it on the machine you are on
+instead, which on a cluster should be a compute node.</p>
+
 <h2 id="resuming">Resuming a run</h2>
 <p>An open run offers to resume when some of its peptides have no result. Only
 those peptides are docked again: the preparation, the maps and the peptides that
@@ -140,7 +184,8 @@ is everything the results page, the pose viewer, the report, MM-GBSA
 rescoring, re-ranking, <b>reuse settings</b> and the downloads open: the
 tables, the ranked poses and ADCP's log, the prepared receptor and the grid
 maps, the energies, and each pose's topologies, minimized coordinates and
-decomposition, from which the interface panel is measured. A peptide that has
+decomposition, from which the interface panel is measured, with its peptide
+strain beside them. A peptide that has
 not finished is left as it is, so a resume still docks it from what is
 there.</p>
 <p>Nothing is removed until the archive has been read back and found to hold
@@ -151,7 +196,7 @@ example run as it was docked, three peptides with MM-GBSA on five poses each,
 held 518 files and folders; tidying packs 153 of them and leaves 365.</p>
 <p>A run does this by itself. When it is submitted it queues its own tidy,
 which waits until every job of the run has ended, the report among them, and
-is queued again behind a rescoring or an interface panel added later. While it
+is queued again behind measures added later. While it
 waits it holds nothing: a rescoring can be queued, and pressing <b>Tidy</b>
 does it at once instead. <b>Keep every file, rather than tidying the run when
 it finishes</b>, on the form, leaves the run alone. Runs on a computer without

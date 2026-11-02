@@ -46,6 +46,10 @@ says how much the poses disagree; it is not a test of the ranking. A ring is
 rescored only on the poses that close it, so its count can be smaller than the
 others'. A peptide with no value at all is listed at the end of
 <code>results.txt</code> as unranked, with the reason beside its name.</p>
+<p><b>Peptide strain</b>, after the MM-GBSA columns, is what the peptide pays
+to hold its docked shape, for the pose the row's other per pose numbers describe.
+It is never ranked on; it has <a href="#peptide-strain">a section of its own</a>
+below.</p>
 <p><b>MM-GBSA breakdown</b> is the four parts of one pose's energy: van der
 Waals, electrostatic, polar solvation and nonpolar solvation. The pose is named in
 the group's first column: the lowest energy one among those measured.</p>
@@ -90,6 +94,38 @@ pose.</li>
 <li><b>The engines are on different scales.</b> Read each one down its own column,
 never across a row.</li>
 </ul>
+
+<h2 id="peptide-strain">The peptide strain</h2>
+<p><b>Peptide strain</b> is what the peptide pays to hold its docked shape: its
+energy in the pose, minus the same peptide relaxed on its own from that shape, in
+kcal/mol, in implicit solvent with the run's own GB model. Lower is easier. The
+column shows the strain of the pose the row's other per pose numbers describe, the
+one with the lowest MM-GBSA energy, and it is not part of the MM-GBSA ranking or
+of the combined score.</p>
+<p>The peptide is measured alone, with the receptor taken away: once in the shape
+it was scored in, and once relaxed from that shape by 5,000 steps of unrestrained
+conjugate gradient in AmberTools' <code>sander</code>, with the generalized Born
+model, the salt and the surface term of the run's own MM-GBSA. The step count is
+fixed, so the same pose always gives the same number; the relaxed peptide is not
+the bottom of its well. Each pose takes about 30 to 45 seconds, several at
+once.</p>
+<ul>
+<li><b>It grows with length.</b> A free peptide folds onto itself in implicit
+solvent, so a longer one relaxes further: on the 120 poses the method was settled
+on, the medians ran from 17 to 26 kcal/mol between 6 and 12 residues. Compare
+peptides of similar length.</li>
+<li><b>A very large strain is a pose to look at.</b> A docked shape with distorted
+bond angles shows as a strain of more than a hundred kcal/mol, which is what the
+column is for.</li>
+<li><b>A cell can be empty.</b> A pose whose strain could not be measured shows no
+number, never a 0, and the reason is under the pointer.</li>
+<li><b>A run scored by Schr&ouml;dinger Prime shows Prime's own ligand
+strain</b>, read from what Prime wrote, on its own force field and solvent
+model.</li>
+</ul>
+<p>A run made now measures it right after each pose's MM-GBSA. A finished run that
+has none gets it from <a href="runs.html#add-measures">Add measures</a>, from the
+files its MM-GBSA left, without docking or rescoring anything again.</p>
 
 <h2 id="the-poses">The poses</h2>
 <figure>
@@ -171,5 +207,8 @@ from elsewhere.</p>
 folder, draws a structure, shows a log or a table as text, and downloads the
 rest.</p>
 <p>A run docked before version 0.1.17 has its energy terms but no interface
-columns, because the panel is measured while each pose is rescored. Its page says so
-and offers to measure them from the files the MM-GBSA already left.</p>
+columns, because the panel is measured while each pose is rescored, and a run
+rescored before the peptide strain existed has no strain. Its page says so in one
+line over its table, and <b>Add them&hellip;</b> there measures what it lacks from
+the files the MM-GBSA already left; <a href="runs.html#add-measures">Add
+measures</a> does the same for many runs at once.</p>

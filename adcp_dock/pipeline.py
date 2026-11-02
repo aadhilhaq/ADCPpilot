@@ -1001,6 +1001,11 @@ def _stage_mmgbsa(rundir, j, seq, out, pdir, keep, cpus, opts, log=print):
                                  if opts["cyclic"] != "none"
                                  else "no pose could be scored")
     _panel_scored(rundir, j, seq, out, mmdir, folders, kept, good, log=log)
+    # The peptide's strain on the same scored poses, while their folders are
+    # fresh. A job file without the key was written before strain existed,
+    # and a resume of it docks the rest as the run began.
+    if j.get("mmgbsa_strain") and folders:
+        _strain_scored(j, seq, out, mmdir, folders, kept, log=log)
 
 
 def _hotspots(j):
@@ -1115,6 +1120,205 @@ def _panel_scored(rundir, j, seq, out, mmdir, folders, ranks, values,
             "total from them"
             % (panel.get("site_touched"), panel.get("site_n"),
                panel.get("site_dg")))
+
+
+#: Why a scored pose has no strain when its folder cannot be told from the
+#: others: an energy on disk that matches none of the run's own.
+UNMATCHED = "its pose folder could not be matched to its MM-GBSA energy"
+
+
+def strain_done(r):
+    """Whether a result file holds the strain of its scored poses, measured
+    with today's protocol and with nothing left to try again.
+
+    A pose whose measurement could not start (no AmberTools in the job, a
+    sander that did not finish) is kept with retry set, so its peptide is
+    offered again; a refusal the module wrote down is an answer."""
+    from ._vendor import strain as strainmod
+    got = r.get("strain")
+    if not isinstance(got, list) or r.get("strain_version") != strainmod.VERSION:
+        return False
+    return not any(isinstance(s, dict) and s.get("retry") for s in got)
+
+
+def _strain_of(j, seq, mmdir, folders, ranks, log=print):
+    """([{"pose", "strain", "why"}], engine) for the poses MM-GBSA scored,
+    folders[i] being the folder it wrote ADCP pose ranks[i] in.
+
+    The strain is the run's own MM-GBSA engine's: Prime's own ligand strain
+    for a run Prime scored, read from what it wrote, and otherwise
+    _vendor/strain's, measured with sander. A failure is None with its
+    reason, never 0, which would read as a pose that cost nothing.
+    """
+    from ._vendor import strain as strainmod
+    mm = mmforms.name(seq)
+    dirs = [os.path.join(mmdir, mm, "pose%d" % int(f)) for f in folders]
+    if (j.get("mmgbsa_engine") or "amber") == "schrodinger":
+        out = []
+        for d, k in zip(dirs, ranks):
+            v = strainmod.prime(d, mm)
+            out.append({"pose": k, "strain": None if v is None else round(v, 2),
+                        "why": None if v is not None else
+                        "Prime's output for this pose holds no ligand strain"})
+        log("  Prime's own ligand strain, read for %d pose(s)" % len(out))
+        return out, "schrodinger"
+    home = toolmod.amber_home(tools_for(j))
+    # Each pose is one single-threaded sander run, so several go at once on
+    # the cores the job holds, as the panel's poses do.
+    cpus = int(os.environ.get("SLURM_CPUS_PER_TASK", j.get("cpus", 0)) or 0)
+    workers = max(1, min(cpus or 1, len(dirs)))
+    log("  measuring the peptide strain of %d pose(s), %d at a time"
+        % (len(dirs), workers))
+
+    def one(i):
+        quiet = (lambda *a: None) if workers > 1 else log
+        try:
+            got = strainmod.measure(dirs[i], prefix=mm, home=home, log=quiet)
+        except Exception as exc:                                # noqa: BLE001
+            got = {"strain": None, "why": "the measurement stopped (%s)" % exc}
+        # An answer is a number, a refusal the module wrote into the pose
+        # folder, or a pose whose files are gone; anything else is tried
+        # again the next time strain is added.
+        final = (got.get("strain") is not None
+                 or strainmod.read(dirs[i], mm) is not None
+                 or not strainmod.measurable(dirs[i], mm)[0])
+        return i, got, final
+
+    if workers > 1:
+        import concurrent.futures as cf
+        with cf.ThreadPoolExecutor(max_workers=workers) as pool:
+            done = list(pool.map(one, range(len(dirs))))
+    else:
+        done = [one(i) for i in range(len(dirs))]
+    out = []
+    for i, got, final in sorted(done, key=lambda t: t[0]):
+        v = got.get("strain")
+        e = {"pose": ranks[i], "strain": None if v is None else round(float(v), 2),
+             "why": None if v is not None else (got.get("why") or "not measured")}
+        if not final:
+            e["retry"] = True
+        out.append(e)
+        if v is None:
+            log("    pose %s: no strain: %s" % (ranks[i], e["why"]))
+        else:
+            log("    pose %s: strain %.2f kcal/mol" % (ranks[i], v))
+    return out, "amber"
+
+
+def _strain_scored(j, seq, out, mmdir, folders, ranks, log=print):
+    """The strain of each pose MM-GBSA scored, written into the result `out`."""
+    from ._vendor import strain as strainmod
+    got, engine = _strain_of(j, seq, mmdir, folders, ranks, log=log)
+    out["strain"] = got
+    out["strain_engine"] = engine
+    out["strain_version"] = strainmod.VERSION
+
+
+def _scored_folders(mmdir, r, engine="amber"):
+    """[(ADCP rank, pose folder number or None)] for the poses a finished
+    result's MM-GBSA values describe.
+
+    The folder is found by its energy: the engine's cache, or the folder's
+    own MMPBSA.py output, holds the value the result file holds, and the
+    values are in folder order. A discarded or failed pose has a folder and
+    no value among them, and is passed over. The rank is the one the result
+    records (scored_ranks), so the strain and the row's energy name one pose.
+    """
+    mm = mmforms.name(r.get("peptide") or "")
+    vals = [v for v in (r.get("mmgbsa") or []) if v is not None]
+    ranks = scored_ranks(r)
+    cache = mmgbsa._read_cache(os.path.join(mmdir, mmgbsa.cache_name(mm, engine)))
+    out, i = [], 0
+    for n in _pose_dirs(mmdir, mm):
+        if i >= len(vals):
+            break
+        e = cache.get(n)
+        if e is None:
+            d = os.path.join(mmdir, mm, "pose%d" % n)
+            e = metrics.terms(os.path.join(d, "%s_mmgbsa.dat" % mm),
+                              os.path.join(d, "%s_mmpbsa.in" % mm)).get("total")
+        if e is not None and abs(e - vals[i]) < 0.006:
+            out.append((ranks[i], n))
+            i += 1
+    for k in range(i, len(vals)):
+        out.append((ranks[k], None))
+    return out
+
+
+scored_ranks = report.scored_ranks
+
+
+def stage_strain(rundir, j=None, log=print):
+    """Measure the peptide strain for a finished run's scored poses.
+
+    Nothing is docked or rescored again. Each peptide whose result file has
+    MM-GBSA energies and no strain yet has the strain of every pose those
+    energies describe measured, in the pose folders the MM-GBSA left, and
+    stored in its result file beside them; nothing else in the file
+    changes. Rebuilding the report then shows the column. The strain is
+    never part of the ranking.
+    """
+    import glob
+    import json
+    from ._vendor import strain as strainmod
+    j = j or jobmod.load(rundir)
+    mmdir = os.path.join(rundir, "mmgbsa")
+    files = sorted(glob.glob(os.path.join(rundir, "results", "*.json")))
+    if not files:
+        log("no results in this run yet")
+        return 0
+    todo = []
+    for f in files:
+        try:
+            r = json.load(open(f))
+        except (OSError, ValueError):
+            continue
+        if r.get("mmgbsa") and not strain_done(r):
+            todo.append(f)
+    if not todo:
+        log("every scored peptide in this run already has its strain")
+        return 0
+    engine = j.get("mmgbsa_engine") or "amber"
+    log("measuring the peptide strain for %d peptide(s) already docked and "
+        "rescored. Nothing is docked or rescored again." % len(todo))
+    done = 0
+    for f in todo:
+        r = json.load(open(f))
+        seq = r["peptide"]
+        log("  %s" % seq)
+        pairs = _scored_folders(mmdir, r, engine)
+        have = [(k, n) for k, n in pairs if n is not None]
+        got = []
+        if have:
+            got, by = _strain_of(j, seq, mmdir, [n for _k, n in have],
+                                 [k for k, _n in have], log=log)
+        else:
+            by = "schrodinger" if engine == "schrodinger" else "amber"
+        lost = [k for k, n in pairs if n is None]
+        if lost:
+            log("    pose(s) %s: %s" % (", ".join(str(k) for k in lost), UNMATCHED))
+        got = sorted(got + [{"pose": k, "strain": None, "why": UNMATCHED}
+                            for k in lost], key=lambda s: s["pose"])
+        # Read again just before it is written, and only these keys set, so
+        # whatever else wrote the file meanwhile keeps what it wrote.
+        cur = json.load(open(f))
+        cur["strain"] = got
+        cur["strain_engine"] = by
+        cur["strain_version"] = strainmod.VERSION
+        tmp = f + ".tmp"
+        with open(tmp, "w") as fh:
+            json.dump(cur, fh, indent=1)
+        os.replace(tmp, f)
+        done += 1
+    # The run measures strain from now on, so a peptide a resume docks gets
+    # it too. Read again before it is saved: a rescoring may be running on
+    # the run at the same time, and its own keys stay.
+    jj = jobmod.load(rundir)
+    if not jj.get("mmgbsa_strain"):
+        jj["mmgbsa_strain"] = True
+        jobmod.save(rundir, jj)
+    log("%d peptide(s) measured" % done)
+    return done
 
 
 def _pose_spread(poses):
@@ -1566,7 +1770,13 @@ def stage_report(rundir, j=None, log=print):
                                      # the dock stage recorded them.
                                      clusters=(r if r.get("cluster_total")
                                                else cluster_counts(rundir,
-                                                                   r))))
+                                                                   r)),
+                                     # The peptide strain of each scored
+                                     # pose, as its result file has it; the
+                                     # row shows the lowest energy pose's.
+                                     mm_ranks=scored_ranks(r),
+                                     strain=r.get("strain"),
+                                     strain_engine=r.get("strain_engine", "")))
     if not rows:
         log("no results to report yet")
         return None
@@ -1770,6 +1980,19 @@ def batch_notes(j, stage):
     """What a job script's stage will do, as comment lines for the top of
     the script. Read from job.json, which the stage itself reads too."""
     out = ["What this stage does, as job.json sets it:"]
+    parts = str(stage or "").split("+")
+    if all(p in LIGHT for p in parts):
+        # Measures added to a finished run (submit_measures), which dock and
+        # rescore nothing.
+        for p in parts:
+            if p == "panel":
+                out.append("  the interface panel of each scored peptide that "
+                           "has none, from the files MM-GBSA left")
+            else:
+                out.append("  the peptide strain of each scored pose that has "
+                           "none: %s" % _strain_words(j))
+        out.append("  nothing is docked or rescored again")
+        return out
     if stage == "prepare":
         if str(j.get("target_file") or "").strip():
             out.append("  receptor, maps and box from the target file %s"
@@ -1841,7 +2064,18 @@ def batch_notes(j, stage):
                       if jobmod.protonation_of(j) == "reduce"
                       else "is protonated again by PDB2PQR with PROPKA at "
                       "pH %g" % float(j.get("ph", 7.4))))
+        if j.get("mmgbsa_strain"):
+            out.append("  then the peptide strain of each scored pose: %s"
+                       % _strain_words(j))
     return out
+
+
+def _strain_words(j):
+    """How a run's peptide strain is had, in a few words."""
+    if (j.get("mmgbsa_engine") or "amber") == "schrodinger":
+        return "Prime's own ligand strain, read from its output"
+    from ._vendor import strain as strainmod
+    return "%s, in the run's own GB model" % strainmod.METHOD
 
 
 def _scripts(rundir, j, python=None):
@@ -2044,7 +2278,10 @@ def stage_rescore(rundir, engine, j=None, log=print):
         done += 1
 
     # Which engines have scored this run, so the page can say so without
-    # reading every cache.
+    # reading every cache. job.json is read again first: the peptide strain,
+    # or another engine, may be added to the run by a job running beside
+    # this one, and what it wrote stays.
+    j = jobmod.load(rundir)
     have = set(j.get("mmgbsa_engines_run") or
                [j.get("mmgbsa_engine") or "amber"])
     have.add(eng.name)
@@ -2121,6 +2358,92 @@ def submit_panel(rundir, j=None, python=None, log=print):
     j.setdefault("jobs", {}).update({"panel": id1, "report": id2})
     jobmod.save(rundir, j)
     return {"panel": id1, "report": id2}
+
+
+#: The measures a finished run can have added that need no MM-GBSA engine of
+#: their own, in the order one job does them: each reads the pose folders
+#: MM-GBSA left, so they share one short job (submit_measures).
+LIGHT = ("panel", "strain")
+
+
+def submit_measures(rundir, light=(), engines=(), j=None, python=None,
+                    log=print):
+    """Add measures to a finished run: one short job for the light ones
+    (LIGHT: the interface panel, the peptide strain), one job per MM-GBSA
+    engine (stage_rescore), and the report rebuilt once all of them have
+    ended, however they ended (afterany), so a part that failed still shows
+    what the rest got.
+
+    Returns {job key: id}. Nothing already measured is changed: each stage
+    measures only what is missing, and an engine's numbers go in columns of
+    their own.
+    """
+    from ._vendor import gbengines
+    j = j or jobmod.load(rundir)
+    light = [k for k in LIGHT if k in set(light or ())]
+    engines = [gbengines.get(e).name for e in engines or ()]
+    if not light and not engines:
+        raise SystemExit("nothing to add")
+    stages = []
+    if light:
+        # The interface first: it takes seconds a pose, the strain a minute.
+        stages.append(("measures", "+".join(light)))
+    for e in engines:
+        stages.append(("rescore_%s" % e, "rescore:%s" % e))
+    if slurm.local_mode():
+        return _submit_local(rundir, j, [(k, [s]) for k, s in stages]
+                             + [("report", ["report"])], python, log)
+    if not slurm.available():
+        raise SystemExit("sbatch was not found. This tool submits its work to "
+                         "SLURM rather than running it where you are sitting.")
+    common = _scripts(rundir, j, python)
+    cpus = int(j.get("cpus", 48) or 48)
+    poses = 0
+    import glob
+    import json
+    for f in glob.glob(os.path.join(rundir, "results", "*.json")):
+        try:
+            poses += len(json.load(open(f)).get("mmgbsa") or [])
+        except (OSError, ValueError):
+            continue
+    ids, order = {}, []
+    for key, stage in stages:
+        if key == "measures":
+            n = min(16, cpus)
+            script = slurm.write_script(
+                os.path.join(rundir, "04_measures.sbatch"),
+                name=job_name(rundir, j, "measures"), cpus=n,
+                time=slurm.within_limit(sizing.hhmmss(sizing.measures_minutes(poses, n)),
+                                        j.get("partition"), j.get("sbatch_extra")),
+                stage=stage, notes=batch_notes(j, stage), **common)
+        else:
+            e = stage.split(":", 1)[1]
+            # As submit_rescore asks for it: Prime runs one pose at a time.
+            script = slurm.write_script(
+                os.path.join(rundir, "05_rescore_%s.sbatch" % e),
+                name=job_name(rundir, j, "rescore"),
+                cpus=1 if e == "schrodinger" else min(16, cpus),
+                time=j.get("rescore_time", "06:00:00"), stage=stage, **common)
+        ids[key] = slurm.submit(script)
+        order.append(ids[key])
+        log("%s: %s" % (key, ids[key]))
+    s = slurm.write_script(os.path.join(rundir, "03_report.sbatch"),
+                           name=job_name(rundir, j, "report"), cpus=2,
+                           time=slurm.within_limit(sizing.REPORT_WALLTIME,
+                                                   j.get("partition"),
+                                                   j.get("sbatch_extra")),
+                           stage="report", **common)
+    ids["report"] = slurm.submit(s, depends_on=":".join(order), kind="afterany")
+    log("report: %s" % ids["report"])
+    j.setdefault("jobs", {}).update(ids)
+    jobmod.save(rundir, j)
+    return ids
+
+
+def submit_strain(rundir, j=None, python=None, log=print):
+    """Send the peptide strain of a finished run to SLURM, then rebuild the
+    report (submit_measures, the strain alone)."""
+    return submit_measures(rundir, light=("strain",), j=j, python=python, log=log)
 
 
 def resume(rundir, j=None, python=None, log=print):

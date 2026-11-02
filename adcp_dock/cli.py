@@ -324,6 +324,12 @@ def main(argv=None):
                         "schrodinger, Prime with OPLS and VSGB 2.0. Each "
                         "writes its own column. They are not comparable by "
                         "value, only by rank within one column")
+    n.add_argument("--no-strain", dest="mmgbsa_strain", action="store_false",
+                   help="do not measure the peptide strain of each pose "
+                        "MM-GBSA scores. It is measured by default: the "
+                        "peptide alone in its docked shape against itself "
+                        "relaxed, about a minute a pose, reported beside the "
+                        "energy and never ranked on")
     n.add_argument("--top-n", type=int, default=5)
     n.add_argument("--max-length", type=int, default=peptide.MAX_LENGTH)
     # No default partition. "cpu" is one cluster's name for it and not
@@ -366,6 +372,20 @@ def main(argv=None):
                          "to SLURM. It reads topologies and runs MMPBSA.py "
                          "once per pose, so this is for a workstation, not a "
                          "cluster login node.")
+
+    # For a run rescored before the peptide strain existed. It measures the
+    # strain of each scored pose from the files the MM-GBSA left and docks
+    # and rescores nothing again.
+    sn = sub.add_parser("strain",
+                        help="measure the peptide strain of a finished run's "
+                             "scored poses where it has none, then rebuild "
+                             "its report")
+    sn.add_argument("rundir")
+    sn.add_argument("--here", action="store_true",
+                    help="measure it on this machine instead of submitting it "
+                         "to SLURM. It runs sander for about a minute a pose, "
+                         "so this is for a workstation, not a cluster login "
+                         "node.")
 
     rs = sub.add_parser("rescore",
                         help="score a finished run's poses again with another "
@@ -591,7 +611,7 @@ def main(argv=None):
             chains=a.chain, ph=a.ph, minimise=a.minimise, poses=a.poses,
             replicas=a.replicas, steps=a.steps, mmgbsa=a.mmgbsa,
             mmgbsa_poses=a.mmgbsa_poses, mmgbsa_model=a.mmgbsa_model,
-            mmgbsa_engine=a.mmgbsa_engine,
+            mmgbsa_engine=a.mmgbsa_engine, mmgbsa_strain=a.mmgbsa_strain,
             top_n=a.top_n,
             max_length=a.max_length, partition=a.partition,
             cpus=a.cpus if a.cpus else slurm.cores_for_cluster(48),
@@ -682,6 +702,15 @@ def main(argv=None):
             pipeline.stage_report(a.rundir)
         else:
             pipeline.submit_panel(a.rundir)
+        return 0
+    if a.cmd == "strain":
+        if a.here:
+            pipeline.stage_strain(a.rundir)
+            pipeline.stage_report(a.rundir)
+        else:
+            got = pipeline.submit_strain(a.rundir)
+            print("submitted: strain %s, report %s"
+                  % (got.get("measures"), got.get("report")))
         return 0
 
     if a.cmd == "affinity":

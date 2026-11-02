@@ -679,7 +679,11 @@ _rows = [report.summarise(
     name="P%d" % i, panel=dict(panel, bsa_per_res=90.0 + i, n_hbond=6 + i),
     engine="ADCP 1.1",
     openmm=[{"e_complex_receptor": -55.0, "rank_adcp": 2}],
-    clusters={"cluster_top": 30, "cluster_total": 300, "cluster_modes": 100})
+    clusters={"cluster_top": 30, "cluster_total": 300, "cluster_modes": 100},
+    # The peptide strain, its lowest energy pose's not measured, so the
+    # reason the page shows on hover is in the row too.
+    mm_ranks=[1, 2], strain=[{"pose": 1, "strain": None, "why": "x"},
+                             {"pose": 2, "strain": 12.0, "why": None}])
     for i, (seq, sc, gb) in enumerate(
         [("LLKWHY", -14.0, -25.0), ("LLKWHW", -13.0, -23.0),
          ("LLKWHF", -12.0, -21.0), ("LLKWHA", -11.0, -19.0)])]

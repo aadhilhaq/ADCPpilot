@@ -829,7 +829,7 @@ check('startswith("rescore:")' in _inspect.getsource(_wk.main),
 # not see them, and every run threw on opening. A syntax check passes that.
 _js = open(os.path.join(os.path.dirname(HERE), "adcp_dock", "static",
                         "app.js"), encoding="utf-8").read()
-for _name in ("let GBAVAIL", "const GBLABEL"):
+for _name in ("const GBLABEL",):
     _line = [l for l in _js.splitlines() if l.startswith(_name)]
     check(bool(_line), "%s is declared at the top level of app.js" % _name)
 # Peptide residues are matched by position: the residue map numbers the

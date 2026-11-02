@@ -1793,7 +1793,11 @@ _uionly = {"reccode", "pastetext", "issuenote", "issuemail", "showbox",
            "recfile",
            # The same for the peptide list. What it produces is the peptide
            # rows, and reuse restores those from the job's own peptides.
-           "pepfile"}
+           "pepfile",
+           # Add measures: its search box and its two Select all boxes choose
+           # what is added to finished runs, and are set afresh each time it
+           # opens; nothing about them belongs to a run's settings.
+           "msfind", "msmall", "msrall"}
 _ids = set(_re2.findall(
     r'<(?:input|select|textarea)[^>]*id=([A-Za-z_0-9]+)', _html)) - _uionly
 _a = appjs.find("const REUSE_FIELDS")

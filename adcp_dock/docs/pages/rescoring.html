@@ -87,9 +87,10 @@ across the two.</p>
 <p>Each engine writes its own columns, none is merged into another, and the table
 says which force field and solvent model produced each one. A run may carry all
 three, and they are read down a column rather than across a row.</p>
-<p>A finished run can be scored again with another engine from its own page:
-nothing is docked again, the same poses are scored, the new numbers appear beside
-the old ones, and the table stays ranked on the engine it already used.</p>
+<p>A finished run can be scored again with another engine through
+<a href="runs.html#add-measures">Add measures</a>: nothing is docked again, the
+same poses are scored, the new numbers appear beside the old ones, and the table
+stays ranked on the engine it already used.</p>
 <p>The OpenMM engine deliberately scores <code>sander</code>'s geometry rather
 than making its own, and declines to run where <code>sander</code> is absent.
 Letting it minimize further moves the energy by tens of kcal/mol, because the
@@ -176,3 +177,8 @@ minimized geometry: buried surface area, how much of the peptide is buried,
 typed contacts and clashes, and the per residue breakdown of the energy. Those
 are the interface columns in the results, and they are described in
 <a href="results.html">Reading the results</a>.</p>
+<p>Then it measures the <a href="results.html#peptide-strain">peptide strain</a>
+of the same poses: the peptide alone in its pose, against the same peptide
+relaxed on its own from it, in the same solvent model. It is reported beside the
+energy and never ranked on. <code>adcp-dock new --no-strain</code> leaves it out of
+a run.</p>

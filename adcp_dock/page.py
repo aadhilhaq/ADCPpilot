@@ -1189,6 +1189,119 @@ main{counter-reset:step}
   border-radius:4px}
 .aumore .why{margin-top:6px;line-height:1.6}
 
+/* ---- adding measures --------------------------------------------------
+   The Add measures dialog (#measuresdlg, app.js openMeasures) and the line over
+   a run's table that opens it (.msline). The approved mockup's layout in this
+   page's own tokens: the accent where the mockup had its teal, --warn for what
+   is missing and --good for what is done or ready. No text under 13 px. The
+   inks are mixed toward --fg where they sit on a tint, so small text keeps
+   4.5:1 in both themes. The page's own label, th and button rules are made
+   for the form, so the dialog states its own. */
+#measuresdlg{width:min(1060px,96vw);font-size:14px;line-height:1.5}
+#measuresdlg[open]{display:flex;flex-direction:column;max-height:92vh}
+.mshead{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:14px 18px 12px;border-bottom:1px solid var(--line)}
+.mshead h2{font-size:18px;margin:0;font-weight:650}
+#measuresdlg button.msx{border:0;background:none;color:color-mix(in srgb,var(--dim) 80%,var(--fg));font-size:22px;
+  line-height:1;padding:4px 9px;border-radius:8px;min-height:0}
+#measuresdlg button.msx:hover{background:var(--soft);color:var(--fg)}
+.mslead{display:block;margin:14px 18px 0;
+  padding:11px 14px;border-radius:10px;text-align:left;
+  background:color-mix(in srgb,var(--accent) 7%,var(--card));
+  border-left:4px solid var(--accent)}
+.mslead b{font-weight:650}
+.mslead .sub{display:block;color:color-mix(in srgb,var(--dim) 80%,var(--fg));font-size:13.5px;margin-top:2px}
+.mslead.ready{border-left-color:var(--good);
+  background:color-mix(in srgb,var(--good) 7%,var(--card))}
+#msbody{overflow:auto;min-height:0;flex:1 1 auto}
+#msbody[hidden],#msqueued[hidden]{display:none}
+.mscols{display:grid;grid-template-columns:minmax(250px,5fr) minmax(320px,8fr);
+  gap:20px;padding:16px 18px 4px;text-align:left}
+@media (max-width:780px){.mscols{grid-template-columns:minmax(0,1fr)}}
+.msgroup{display:flex;flex-direction:column;gap:8px;min-width:0}
+.msghead{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  flex-wrap:wrap;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.msghead h3{font-size:13px;margin:0;text-transform:uppercase;letter-spacing:.06em;
+  color:color-mix(in srgb,var(--dim) 80%,var(--fg));font-weight:650}
+#measuresdlg label.msall{display:inline-flex;align-items:center;gap:8px;margin:0;
+  font-size:14px;font-weight:600;color:var(--fg);cursor:pointer;user-select:none}
+#measuresdlg input[type=checkbox]{width:18px;height:18px;margin:0;flex:0 0 auto;
+  accent-color:var(--accent);cursor:pointer}
+#measuresdlg input[type=checkbox]:disabled{cursor:not-allowed}
+#measuresdlg label.msm{display:grid;grid-template-columns:auto 1fr auto;
+  gap:4px 10px;align-items:start;margin:0;padding:10px;font-size:14px;
+  color:var(--fg);border:1px solid var(--line);border-radius:10px;cursor:pointer}
+#measuresdlg label.msm:hover{background:var(--soft)}
+#measuresdlg label.msm.on{border-color:var(--accent);background:var(--accent2)}
+#measuresdlg label.msm.off{opacity:.62;cursor:default}
+.msm input{margin-top:2px}
+.msmname{font-weight:600}
+.msmwhat{grid-column:2 / 4;color:color-mix(in srgb,var(--dim) 80%,var(--fg));font-size:13.5px;line-height:1.45}
+.mscount{font-size:13px;white-space:nowrap;padding:1px 9px;border-radius:999px;
+  background:var(--soft);color:color-mix(in srgb,var(--dim) 80%,var(--fg));font-variant-numeric:tabular-nums}
+.mscount.need{background:color-mix(in srgb,var(--warn) 12%,var(--card));
+  color:color-mix(in srgb,var(--warn) 80%,var(--fg))}
+.mscount.done{background:color-mix(in srgb,var(--good) 12%,var(--card));
+  color:color-mix(in srgb,var(--good) 80%,var(--fg))}
+.mstools{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.msseg{display:inline-flex;border:1px solid var(--pill-line);border-radius:999px;
+  overflow:hidden}
+#measuresdlg .msseg button{border:0;border-radius:0;background:var(--card);
+  color:var(--fg);font-size:14px;padding:5px 14px;min-height:32px}
+#measuresdlg .msseg button+button{border-left:1px solid var(--pill-line)}
+#measuresdlg .msseg button[aria-pressed=true]{background:var(--accent);
+  color:var(--on-accent);font-weight:600}
+#measuresdlg input.msfind{flex:1 1 160px;min-width:140px;font:inherit;
+  font-size:14px;padding:6px 11px;border:1px solid var(--line);border-radius:9px;
+  background:var(--card);color:var(--fg)}
+.mstable{border:1px solid var(--line);border-radius:10px;overflow:auto;
+  max-height:330px}
+#msruns{border-collapse:collapse;width:100%;font-size:14px}
+#msruns th,#msruns td{padding:7px 10px;text-align:left;vertical-align:top;
+  border-bottom:1px solid var(--line)}
+#msruns th{position:sticky;top:0;z-index:1;background:var(--card);font-size:13px;
+  color:color-mix(in srgb,var(--dim) 80%,var(--fg));font-weight:600;text-transform:none;letter-spacing:0}
+#msruns th.msck{width:34px}
+#msruns tbody tr{cursor:pointer}
+#msruns tbody tr:hover td{background:var(--soft)}
+#msruns tbody tr.sel td{background:var(--accent2)}
+#msruns tbody tr.blocked{cursor:default;color:color-mix(in srgb,var(--dim) 80%,var(--fg))}
+#msruns .msnum{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+#msruns td.mswhen{white-space:nowrap}
+#msruns td.msnone{color:color-mix(in srgb,var(--dim) 80%,var(--fg));text-align:center;cursor:default}
+/* A run's folder name has no spaces: it breaks after its underscores (app.js
+   puts the break points there), and anywhere only when a part is still too
+   long. */
+.msrun{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;
+  overflow-wrap:anywhere}
+.mschip{display:inline-block;font-size:13px;padding:0 9px;border-radius:999px;
+  margin:1px 4px 1px 0;white-space:nowrap;color:color-mix(in srgb,var(--warn) 80%,var(--fg));
+  background:color-mix(in srgb,var(--warn) 12%,var(--card))}
+.mschip.has{color:color-mix(in srgb,var(--good) 80%,var(--fg));background:color-mix(in srgb,var(--good) 12%,var(--card))}
+.mschip.q{color:color-mix(in srgb,var(--dim) 80%,var(--fg));background:var(--soft);white-space:normal}
+.mstally{font-size:13px;color:color-mix(in srgb,var(--dim) 80%,var(--fg));font-variant-numeric:tabular-nums;
+  text-align:left}
+.msqueued{padding:10px 18px 4px;text-align:left;overflow:auto;min-height:0}
+.msqueued ul{margin:6px 0 0;padding-left:18px}
+.msqueued li{margin:5px 0}
+.msfoot{display:flex;justify-content:space-between;align-items:center;gap:12px;
+  flex-wrap:wrap;padding:12px 18px 16px;border-top:1px solid var(--line);
+  margin-top:12px}
+.msnote{font-size:13.5px;color:color-mix(in srgb,var(--dim) 80%,var(--fg));text-align:left}
+.msnote[hidden]{display:none}
+.msbtns{display:flex;gap:10px;margin-left:auto}
+.msbtns button[hidden]{display:none}
+/* Inside a run: the one line over its table that says what it lacks. */
+.msline{display:flex;gap:10px 14px;align-items:center;flex-wrap:wrap;
+  margin:10px 0 8px;padding:10px 14px;border-radius:10px;text-align:left;
+  font-size:14px;border-left:4px solid var(--warn);
+  background:color-mix(in srgb,var(--warn) 9%,var(--card))}
+.msline b{font-weight:650}
+.msgone{margin:6px 0;font-size:13px;color:var(--dim);text-align:left}
+@media (prefers-reduced-motion:no-preference){
+  #measuresdlg label.msm,#msruns tbody td{transition:background-color .12s,
+    border-color .12s}}
+
 /* ---- column widths -----------------------------------------------------
    Every table of runs, results and residues can have its columns resized
    (app.js, colResize): a grip on the right edge of each heading, dragged with
@@ -1809,6 +1922,10 @@ the queue for twice that and half an hour more, and at least two hours">Estimate
          at their folder. Without it the only runs visible were the ones this
          session happened to write. -->
     <button class=secondary id=runsbrowse>Browse&hellip;</button>
+    <!-- What finished runs lack of what a run has now (the peptide strain,
+         the interface measures, another MM-GBSA engine), added to as many
+         runs as are chosen, in one dialog (#measuresdlg). -->
+    <button class=secondary id=measuresopen>Add measures&hellip;</button>
     <span class=why id=runsroot></span>
   </div>
   <div id=runspanel role=tabpanel aria-labelledby=tab_runs>
@@ -1905,6 +2022,61 @@ larger of the two and takes a moment the first time.">
   <div id=diagwrap style="margin-top:14px"></div>
   <div id=residuebox style="margin-top:16px"></div>
 </div>
+<!-- Add measures: the measures ticked on the left, the runs to add them to on
+     the right, and one button. The line at the top says what to do next and,
+     once Add is pressed, what was queued. Real checkboxes, each with its label;
+     a Select all box is indeterminate while some of what it covers is chosen.
+     Esc closes it, as it closes any dialog. -->
+<dialog id=measuresdlg aria-labelledby=mstitle>
+  <div class=mshead>
+    <h2 id=mstitle>Add measures</h2>
+    <button type=button class=msx id=msclose aria-label=Close title=Close>&times;</button>
+  </div>
+  <div class=mslead id=mslead role=status aria-live=polite></div>
+  <div id=msbody>
+    <div class=mscols>
+      <div class=msgroup role=group aria-labelledby=msmtitle>
+        <div class=msghead>
+          <h3 id=msmtitle>Measures</h3>
+          <label class=msall><input type=checkbox id=msmall> Select all</label>
+        </div>
+        <div id=msmeasures class=msgroup></div>
+      </div>
+      <div class=msgroup role=group aria-labelledby=msrtitle>
+        <div class=msghead>
+          <h3 id=msrtitle>Runs</h3>
+          <label class=msall><input type=checkbox id=msrall>
+            <span id=msralllab>Select all</span></label>
+        </div>
+        <div class=mstools>
+          <div class=msseg role=group aria-label="Which runs to list">
+            <button type=button id=msfmissing aria-pressed=true>Missing something</button>
+            <button type=button id=msfall aria-pressed=false>Every run</button>
+          </div>
+          <input class=msfind id=msfind type=search placeholder="Find a run"
+                 aria-label="Find a run" autocomplete=off>
+        </div>
+        <div class=mstable>
+          <table id=msruns>
+            <thead><tr><th class=msck><span class=vh>Choose</span></th><th>Run</th>
+              <th>Created</th><th class=msnum>Poses</th><th>Adds</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class=mstally id=mstally></div>
+      </div>
+    </div>
+  </div>
+  <div class=msqueued id=msqueued hidden></div>
+  <div class=msfoot>
+    <span class=msnote id=msnote>Nothing already measured is changed.
+      Shift-click to choose a range of runs.</span>
+    <span class=msbtns>
+      <button type=button class=ghost id=mscancel>Cancel</button>
+      <button type=button class=primary id=msgo disabled>Add</button>
+    </span>
+  </div>
+</dialog>
 <dialog id=citedlg>
   <div class=dlg-h><b>How to cite</b>
     <span class=why id=citescope></span></div>

@@ -5,11 +5,9 @@
    By Aadhil Haq */
 'use strict';
 const T = new URLSearchParams(location.search).get('t') || '';
-// The MM-GBSA engines the server reported, filled in by the tools call and
-// read by the results view's rescore control and per engine columns. At the
-// top level on purpose: declared inside the tools callback, as they first
-// were, the results view could not see them and threw on every open.
-let GBAVAIL = [];
+// The MM-GBSA engines' names, read by the results view's per engine columns.
+// At the top level on purpose: declared inside the tools callback, as they
+// first were, the results view could not see them and threw on every open.
 const GBLABEL = {amber: 'AmberTools', openmm: 'OpenMM',
                  schrodinger: 'Prime'};
 const $ = i => document.getElementById(i);
@@ -772,7 +770,6 @@ function gbEngines(rows){
   }
   const have = {};
   rows.forEach(function(r){ have[r.name] = r; });
-  GBAVAIL = rows;
   let first = '';
   Array.prototype.forEach.call(sel.options, function(o){
     const r = have[o.value];
@@ -4189,9 +4186,16 @@ function stuckWhy(reason){
   return STUCK_WHY[reason] || (reason + ': this will not clear on its own');
 }
 let MONITOR = null;
+/* Each run's dot as the monitor last read it, so Add measures can leave out a
+   run whose jobs are still going without asking the scheduler again. */
+let MONDOTS = {};
 async function monitor(){
   const d = await api('/api/monitor');
-  if(d && d.runs) paintDots(d.runs);
+  if(d && d.runs){
+    MONDOTS = {};
+    d.runs.forEach(r => { MONDOTS[r.rundir] = r.dot; });
+    paintDots(d.runs);
+  }
   if(MONITOR) clearTimeout(MONITOR);
   // Only while something is live, and not too often: squeue on a busy login
   // node is not free.
@@ -4496,6 +4500,20 @@ const COMBWHY = {
   cluster: 'The share of the search\'s solutions in the top pose\'s cluster.',
   clash: 'Steric clashes. A penalty only: it can never raise a score.'};
 
+/* The peptide strain column's heading and what it is: the approved words,
+   the same as report.STRAIN_HEADING, STRAIN_HELP and STRAIN_HELP_PRIME, which
+   the run's report and results files use (tests/test_strain.py holds the two
+   copies equal). */
+const STRAIN_HEADING = 'Peptide strain';
+const STRAIN_HELP = 'What the peptide pays to hold its docked shape: its energy '
+  + 'in the pose, minus the same peptide relaxed on its own from that shape '
+  + '(kcal/mol, implicit solvent, the run\'s own GB model). Lower is easier. '
+  + 'It grows with length, because a free peptide folds onto itself in '
+  + 'implicit solvent, so compare peptides of similar length. It is not part '
+  + 'of the MM-GBSA ranking.';
+const STRAIN_HELP_PRIME = ' This run was scored by Schr\u00f6dinger Prime, so '
+  + 'this is Prime\'s own ligand strain.';
+
 /* Which order the table is shown in, per run, remembered for the session.
    A view, not a change to the run: results.tsv keeps the order the run was
    reported in whatever this is set to, and switching it writes nothing. */
@@ -4571,6 +4589,20 @@ function colgroups(rows, tn, mm, omm){
       {h: GBLABEL[e] + ' top' + tn, cls: 'c',
        t: 'The mean over the top ' + tn + ' poses from ' + GBLABEL[e] + '.',
        f: r => fmt(r['mmgbsa_' + e + '_top' + tn], 2)}]))});
+  // The peptide strain, right after the MM-GBSA columns, once any peptide has
+  // had it measured: the strain of the pose the row's other per pose numbers
+  // describe. A pose whose strain could not be measured shows no number, with
+  // the reason on hover, never a 0. A group of its own, with no heading over
+  // it: it is not part of the MM-GBSA, and not ranked on.
+  if(mm && rows.some(r => 'pep_strain' in r)) G.push({key: 'strain', label: '',
+    name: 'peptide strain', on: true, cols: [
+    {h: STRAIN_HEADING, cls: 'c',
+     t: STRAIN_HELP + (rows.some(r => r.pep_strain_engine === 'schrodinger')
+                       ? STRAIN_HELP_PRIME : ''),
+     f: r => (r.pep_strain != null ? fmt(r.pep_strain, 2)
+              : r.pep_strain_why ? '<span title="' + esc(r.pep_strain_why)
+                + '">-</span>' : '-')},
+  ]});
   if(any(rows, 'mm_vdw')) G.push({key: 'terms', label: 'MM-GBSA breakdown',
     on: true, cols: [
     {h: 'pose', cls: 'c', t: 'Which ADCP pose these parts, and every '
@@ -4734,7 +4766,7 @@ function resultsTable(rows, tn, mm, omm, res){
     ? '<div class=colpick>show: ' + opt.map(g => '<label><input '
         + 'type=checkbox data-col="' + esc(g.key) + '"'
         + (shown.indexOf(g) >= 0 ? ' checked' : '') + '> '
-        + esc(g.label || g.key) + '</label>').join('') + '</div>'
+        + esc(g.name || g.label || g.key) + '</label>').join('') + '</div>'
     : '';
   const cols = [];
   shown.forEach((g, gi) => g.cols.forEach((c, i) => cols.push(
@@ -4757,29 +4789,13 @@ function resultsTable(rows, tn, mm, omm, res){
       return '<td class="' + (c.cls || '') + (c.sep ? ' gsep' : '') + '">'
         + v + '</td>';
     }).join('') + '</tr>').join('');
-  const missing = (res && res.panel_missing) || 0;
-  const can = (res && res.panel_measurable) || 0;
   return pick + '<div class=rtable><table class=rt><thead>' + groupRow
     + headRow + '</thead><tbody>' + body + '</tbody></table></div>'
-    + (missing
-      ? '<div class=panelnote>' + missing + ' peptide(s) have no interface '
-        + 'columns, because this run was docked before they existed. '
-        + (can
-          ? '<button class=secondary id=panelgo>Measure them</button> '
-            + '<span class=why>Nothing is docked again: the cluster reads '
-            + 'the structures this run already saved, in about half a minute '
-            + 'per peptide, and the table fills in when it finishes.</span>'
-            + '<div class=why id=panelmsg style="margin-top:6px"></div>'
-          : '<span class=why>Their structure files are no longer on disk, so '
-            + 'only the MM-GBSA breakdown can be shown.</span>')
-        + '</div>'
-      : '')
     + (any(rows, 'bsa')
       ? '<div class=why style="margin-top:4px">The interface columns describe '
         + 'one pose per peptide, the one with the lowest MM-GBSA energy. Hover '
         + 'over a heading to see what it measures.</div>' : '')
-    + combinedControl(rows, res)
-    + rescoreControl(rows);
+    + combinedControl(rows, res);
 }
 
 /* Switch the table between the order the run was reported in and the
@@ -4818,31 +4834,6 @@ function combinedControl(rows, res){
     + 'this run was reported in either way.</div>'
     + '<div class=why id=combmsg style="margin-top:6px">'
     + (COMBMSG[RUN] || '') + '</div>'
-    + '</div>';
-}
-
-/* Score a finished run again with another MM-GBSA engine. Offered only for
-   engines that are installed and have not already scored this run, since
-   rescoring with one that has adds nothing. The run stays ranked on the
-   engine it was run with; the new numbers arrive as their own columns. */
-function rescoreControl(rows){
-  if(!rows.some(r => r.mmgbsa_n)) return '';
-  const done = ['amber', 'openmm', 'schrodinger']
-    .filter(e => rows.some(r => r['mmgbsa_' + e + '_n']));
-  const base = (rows.find(r => r.mmgbsa_engine) || {}).mmgbsa_engine;
-  if(base && done.indexOf(base) < 0) done.push(base);
-  const can = (GBAVAIL || []).filter(e => e.available
-                                          && done.indexOf(e.name) < 0);
-  if(!can.length) return '';
-  return '<div class=panelnote>Score this run with another engine: '
-    + '<select id=rescoreeng style="width:auto;margin:0 6px">'
-    + can.map(e => '<option value="' + esc(e.name) + '">'
-        + esc(GBLABEL[e.name] || e.label) + '</option>').join('')
-    + '</select><button class=secondary id=rescorego>Rescore</button> '
-    + '<span class=why>Nothing is docked again. The same poses are scored '
-    + 'with the other engine and appear beside the existing numbers; the '
-    + 'table stays ranked on ' + esc(GBLABEL[base] || 'the original engine')
-    + '.</span><div class=why id=rescoremsg style="margin-top:6px"></div>'
     + '</div>';
 }
 
@@ -5018,6 +5009,10 @@ async function openRun(dir){
           + '<span class=jid>' + esc(v.id) + '</span>'
           + '<span class=jst>' + esc(Object.keys(v.state || {}).join(', ')
               || 'checking') + '</span></div>').join('') + '</div>'
+      // What this run lacks of what a run has now, said once, over its table.
+      + measuresLine(d.measures, d.results, Object.values(d.jobs || {}).some(v =>
+          Object.keys(v.state || {}).some(s =>
+            TIDY_BUSY.includes(String(s).split(' ')[0].toUpperCase()))))
       + (rows.length ? resultsTable(rows, tn, mm, omm, d.results)
         : '<div class=why>no results yet</div>')
       + ((d.outstanding && d.outstanding.length)
@@ -5036,6 +5031,9 @@ async function openRun(dir){
       + (d.log_tail ? '<pre>' + esc(d.log_tail) + '</pre>' : '');
     const rp = $('rreport');
     if(rp) rp.onclick = () => window.open(reportHref(dir, true), '_blank', 'noopener');
+    const ma = $('msadd');
+    if(ma) ma.onclick = () => openMeasures({run: dir,
+                                            measures: ma.dataset.ms.split(' ')});
     const tb = $('rtidy');
     if(tb) tb.onclick = async () => {
       const undo = tb.dataset.undo === '1';
@@ -5069,23 +5067,6 @@ async function openRun(dir){
         if(tr.getAttribute('data-pep') === picked.pep) tr.classList.add('on');
       });
     }
-    const rg = $('rescorego');
-    if(rg) rg.onclick = async () => {
-      const engine = $('rescoreeng').value;
-      rg.disabled = true;
-      $('rescoremsg').textContent = 'submitting...';
-      const r = await api('/api/rescore', {rundir: dir, engine: engine});
-      if(r.error){
-        $('rescoremsg').innerHTML = '<span class=bad>' + esc(r.error)
-          + '</span>';
-        rg.disabled = false;
-        return;
-      }
-      $('rescoremsg').innerHTML = '<span class=good>Submitted.</span> The '
-        + esc(GBLABEL[engine] || engine) + ' columns appear here when it '
-        + 'finishes.';
-      show();
-    };
     const ct = $('combtoggle');
     if(ct) ct.onclick = () => {
       COMBVIEW[dir] = !COMBVIEW[dir];
@@ -5124,20 +5105,6 @@ async function openRun(dir){
       COMBVIEW[dir] = true;
       show();
     };
-    const pg = $('panelgo');
-    if(pg) pg.onclick = async () => {
-      pg.disabled = true;
-      $('panelmsg').textContent = 'submitting...';
-      const r = await api('/api/panel', {rundir: dir});
-      if(r.error){
-        $('panelmsg').innerHTML = '<span class=bad>' + esc(r.error) + '</span>';
-        pg.disabled = false;
-        return;
-      }
-      $('panelmsg').innerHTML = '<span class=good>Submitted.</span> The '
-        + 'interface columns appear here when it finishes.';
-      show();
-    };
     el.querySelectorAll('.colpick input[data-col]').forEach(cb => {
       cb.onchange = () => {
         let saved = {};
@@ -5170,6 +5137,432 @@ async function openRun(dir){
   await show();
   WATCH = setInterval(show, 15000);
 }
+
+/* ===================== adding measures to finished runs ============== */
+/* What a finished run lacks of what a run has now, added to many runs at once:
+   one dialog (#measuresdlg) in which the measures are ticked, then the runs,
+   and one button queues the jobs. Opened from the Runs card on every run the
+   page lists, or from the line over one run's table with that run and what it
+   lacks already ticked. It keeps the approved mockup's behavior: a line at the
+   top saying what to do next, tri-state Select all boxes, a filter and a search
+   over the runs, shift-click for a range, and what was queued once Add is
+   pressed. Nothing already measured is changed: the server adds only what each
+   run lacks (server.measures_submit).
+
+   The rules (what a run lacks, what Add would queue, what the two lines say)
+   are plain functions of the state and the server's answer, apart from the
+   page, so tests/test_measures.py runs them under Node. */
+
+/* The measures that share one short job; the rest are MM-GBSA engines, a job
+   each. */
+const MSLIGHT = ['strain', 'panel'];
+const MS = {list: null, m: new Set(), r: new Set(), filter: 'missing', find: '',
+            last: null, rows: [], busy: false, done: false};
+
+/* Whether a run lacks a measure it can have: not blocked, not had, and not one
+   it cannot have. */
+function msLacks(run, k){
+  return !run.blocked && (run.has || []).indexOf(k) < 0
+    && !(run.cannot || {})[k];
+}
+/* The ticked measures a run lacks: what Add would add to it. */
+function msAdds(S, run){
+  return Array.from(S.m).filter(k => msLacks(run, k));
+}
+function msSelectable(S, run){
+  return !run.blocked && msAdds(S, run).length > 0;
+}
+/* The runs listed: the ones missing a ticked measure, or every run, narrowed
+   by what is typed in Find a run. */
+function msShown(S, runs){
+  const find = S.find.trim().toLowerCase();
+  return runs.filter(r => (S.filter === 'all' || !S.m.size || msAdds(S, r).length)
+    && (!find || (r.name + ' ' + (r.label || '')).toLowerCase().indexOf(find) >= 0));
+}
+function msName(L, k){
+  const m = (L.measures || []).find(x => x.k === k);
+  return m ? m.name : k;
+}
+/* A measure in a chip: an engine by its own name. */
+function msShort(L, k){ return msName(L, k).replace(/^MM-GBSA by /, ''); }
+/* Inside a sentence: "peptide strain", but "MM-GBSA by OpenMM" as it is. */
+function msLower(name){
+  return /^MM-GBSA/.test(name) ? name : name.charAt(0).toLowerCase() + name.slice(1);
+}
+/* "a", "a and b", "a, b and c"; or with "or". */
+function msWords(words, join){
+  return words.length < 2 ? words.join('')
+    : words.slice(0, -1).join(', ') + ' ' + (join || 'and') + ' '
+      + words[words.length - 1];
+}
+function msCount(n, one, many){ return n + ' ' + (n === 1 ? one : (many || one + 's')); }
+
+/* What Add would queue: the runs, the jobs (one short job for the light
+   measures a run lacks, and one for each engine) and the poses they hold. */
+function msPlan(S, L){
+  const runs = L.runs.filter(r => S.r.has(r.rundir) && msAdds(S, r).length);
+  let jobs = 0, poses = 0;
+  runs.forEach(r => {
+    const a = msAdds(S, r);
+    jobs += (a.some(k => MSLIGHT.indexOf(k) >= 0) ? 1 : 0)
+      + a.filter(k => MSLIGHT.indexOf(k) < 0).length;
+    poses += r.poses || 0;
+  });
+  return {runs: runs, jobs: jobs, poses: poses};
+}
+
+/* The line at the top, in its three states: tick what to add, choose the
+   runs, ready. */
+function msLead(S, L){
+  const p = msPlan(S, L);
+  const ticked = msTicked(S, L);
+  if(!ticked.length)
+    return {ready: false, html: '<b>Tick what to add.</b><span class=sub>Each '
+      + 'measure says how many of your runs lack it.</span>'};
+  if(!p.runs.length){
+    const n = L.runs.filter(r => msSelectable(S, r)).length;
+    return {ready: false, html: '<b>Now choose the runs.</b><span class=sub>'
+      + n + ' of them lack ' + esc(msWords(ticked.map(k => msLower(msName(L, k)))))
+      + '. Select all takes every one listed.</span>'};
+  }
+  const heavy = ticked.some(k => MSLIGHT.indexOf(k) < 0);
+  return {ready: true, html: '<b>' + esc(msWords(ticked.map(k => msName(L, k))))
+    + ' for ' + msCount(p.runs.length, 'run') + ' (' + msCount(p.poses, 'pose')
+    + ').</b><span class=sub>' + msCount(p.jobs, 'job')
+    + (L.local ? ' on this computer, one run after another.'
+       : ' on CPU nodes, charged to your usual account.')
+    + (heavy ? ' An MM-GBSA engine takes about as long as the run’s own '
+       + 'MM-GBSA did.' : ' Short jobs.') + '</span>'};
+}
+
+/* The ticked measures in the dialog's own order, whatever order they were
+   ticked in. */
+function msTicked(S, L){
+  return (L.measures || []).map(m => m.k).filter(k => S.m.has(k));
+}
+
+/* The chips in a run's Adds column. */
+function msChips(S, L, run){
+  if(run.blocked) return '<span class="mschip q">' + esc(run.blocked) + '</span>';
+  if(!S.m.size) return '<span class="mschip q">tick a measure</span>';
+  const adds = msTicked(S, L).filter(k => msLacks(run, k));
+  let h = adds.map(k => '<span class=mschip>' + esc(msShort(L, k)) + '</span>').join('');
+  if(!adds.length && Array.from(S.m).some(k => (run.has || []).indexOf(k) >= 0))
+    h = '<span class="mschip has">has what you ticked</span>';
+  Object.keys(run.cannot || {}).forEach(k => {
+    if(S.m.has(k)) h += '<span class="mschip q">no ' + esc(msShort(L, k)) + ': '
+      + esc(run.cannot[k]) + '</span>';
+  });
+  return h;
+}
+
+/* After Add: what was queued for each run, or why it was not. */
+function msQueued(L, got){
+  const runs = got.runs || [];
+  const ok = runs.filter(r => r.queued && r.queued.length);
+  const bad = runs.filter(r => r.error);
+  const jobs = ok.reduce((n, r) => n + r.queued.length, 0);
+  const lead = ok.length
+    ? '<b>Queued ' + msCount(jobs, 'job') + ' for ' + msCount(ok.length, 'run')
+      + (bad.length ? '; ' + msCount(bad.length, 'run') + ' could not be' : '')
+      + '.</b><span class=sub>Each run’s table fills in when its jobs end. The '
+      + 'runs list shows how each is getting on, and you can close this now.</span>'
+    : '<b>Nothing was queued.</b><span class=sub>Each run below says why.</span>';
+  const items = runs.map(r => '<li><span class=msrun>' + esc(r.name) + '</span>: '
+    + (r.error ? 'not queued, ' + esc(r.error)
+       : r.queued.map(q => 'job ' + esc(q.id) + ', '
+           + esc(msWords(q.adds.map(k => msLower(msName(L, k)))))).join('; ')
+         + (r.report ? '; then its report, job ' + esc(r.report) : ''))
+    + '</li>');
+  return {ready: ok.length > 0, lead: lead,
+          body: '<ul>' + items.join('') + '</ul>'};
+}
+
+/* The line over one run's table: what the run lacks of what every run has
+   now, and one button that opens Add measures on it with those ticked. Only
+   the light measures: an engine is one more opinion, offered in Add measures
+   itself, and a line that asked for it would stand over every run. */
+function measuresLine(m, res, busy){
+  // While the run's jobs are queued or running, the jobs listed above it are
+  // what it has coming, and Add measures would refuse it.
+  if(!m || m.blocked || busy) return '';
+  const of = m.peptides || 0, miss = m.missing || {};
+  const want = MSLIGHT.filter(k => miss[k] && (m.offered || MSLIGHT).indexOf(k) >= 0);
+  const words = {strain: 'peptide strain', panel: 'interface measures'};
+  let out = '';
+  if(want.length){
+    const what = msWords(want.map(k => words[k]), 'or');
+    const head = want.every(k => miss[k] >= of) ? 'This run has no ' + what + '.'
+      : want.length === 1 ? miss[want[0]] + ' of this run’s ' + of
+        + ' scored peptides ' + (miss[want[0]] === 1 ? 'has' : 'have') + ' no '
+        + what + '.'
+      : 'Some of this run’s scored peptides have no ' + what + '.';
+    const it = want.length > 1 ? 'both' : want[0] === 'strain' ? 'it' : 'them';
+    out = '<div class=msline id=msline><span><b>' + esc(head) + '</b> One short '
+      + 'job on ' + (m.local ? 'this computer' : 'a CPU node') + ' adds ' + it
+      + '.</span><button class=secondary type=button id=msadd data-ms="'
+      + want.join(' ') + '">' + (it === 'it' ? 'Add it…' : 'Add them…')
+      + '</button></div>';
+  }
+  // Interface columns this run can no longer have: said quietly, so their
+  // empty cells are not read as an interface with nothing in it.
+  if((m.cannot || {}).panel && res && res.panel_missing)
+    out += '<div class=msgone>' + res.panel_missing
+      + ' peptide(s) have no interface columns, and the files their poses were '
+      + 'scored from are no longer on disk, so only the MM-GBSA breakdown can be '
+      + 'shown.</div>';
+  return out;
+}
+
+/* A run's date as the dialog shows it: "22 Sep", with the year when it is not
+   this one. */
+function msWhen(created){
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(created || ''));
+  if(!m) return '';
+  const mon = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep',
+               'Oct', 'Nov', 'Dec'][+m[2] - 1] || m[2];
+  return +m[3] + ' ' + mon + (+m[1] !== new Date().getFullYear() ? ' ' + m[1] : '');
+}
+/* A Select all box: ticked when every one it covers is, a dash when some are,
+   and off when it covers none. */
+function msTri(box, on, of){
+  box.checked = of > 0 && on === of;
+  box.indeterminate = on > 0 && on < of;
+  box.disabled = of === 0;
+}
+
+function msPaintMeasures(){
+  const L = MS.list;
+  $('msmeasures').innerHTML = L.measures.map(m => {
+    const need = L.runs.filter(r => msLacks(r, m.k)).length;
+    const live = L.runs.filter(r => !r.blocked);
+    const had = live.length && live.every(r => (r.has || []).indexOf(m.k) >= 0);
+    const on = MS.m.has(m.k);
+    return '<label class="msm' + (on ? ' on' : '') + (need ? '' : ' off') + '">'
+      + '<input type=checkbox data-k="' + esc(m.k) + '" data-key="m:' + esc(m.k)
+      + '"' + (on ? ' checked' : '') + (need ? '' : ' disabled')
+      + ' aria-describedby="msw-' + esc(m.k) + '">'
+      + '<span class=msmname>' + esc(m.name) + '</span>'
+      + '<span class="mscount' + (need ? ' need' : had ? ' done' : '') + '">'
+      + (need ? 'missing in ' + need : had ? 'every run has it' : 'nothing to add')
+      + '</span><span class=msmwhat id="msw-' + esc(m.k) + '">' + esc(m.what)
+      + '</span></label>';
+  }).join('');
+  const can = L.measures.filter(m => L.runs.some(r => msLacks(r, m.k)));
+  msTri($('msmall'), can.filter(m => MS.m.has(m.k)).length, can.length);
+}
+
+function msPaintRuns(){
+  const L = MS.list;
+  const rows = MS.rows = msShown(MS, L.runs);
+  $('msruns').tBodies[0].innerHTML = rows.map((run, i) => {
+    const ok = msSelectable(MS, run), on = MS.r.has(run.rundir);
+    return '<tr data-i=' + i + ' class="' + (on ? 'sel' : '') + (ok ? '' : ' blocked')
+      + '"><td><input type=checkbox data-key="r:' + esc(run.rundir) + '"'
+      + (on ? ' checked' : '') + (ok ? '' : ' disabled') + ' aria-label="Choose '
+      + esc(run.name) + '"></td><td class=msrun'
+      + (run.label && run.label !== run.name ? ' title="' + esc(run.label) + '"' : '')
+      + '>' + esc(run.name).replace(/_/g, '_<wbr>') + '</td><td class=mswhen>'
+      + esc(msWhen(run.created))
+      + '</td><td class=msnum>' + (run.poses || '-') + '</td><td>'
+      + msChips(MS, L, run) + '</td></tr>';
+  }).join('') || '<tr><td colspan=5 class=msnone>' + (L.runs.length
+    ? 'No run listed matches.' : 'There are no runs here yet.') + '</td></tr>';
+  const can = rows.filter(r => msSelectable(MS, r));
+  msTri($('msrall'), can.filter(r => MS.r.has(r.rundir)).length, can.length);
+  $('msralllab').textContent = can.length ? 'Select all ' + can.length + ' listed'
+    : 'Select all';
+  const hidden = L.runs.length - rows.length;
+  $('mstally').textContent = MS.r.size + ' of '
+    + L.runs.filter(r => msSelectable(MS, r)).length + ' runs chosen'
+    + (hidden ? ' · ' + hidden + ' not listed' : '');
+}
+
+function msPaintLead(){
+  const got = msLead(MS, MS.list), p = msPlan(MS, MS.list);
+  $('mslead').className = 'mslead' + (got.ready ? ' ready' : '');
+  $('mslead').innerHTML = got.html;
+  const go = $('msgo');
+  go.disabled = !p.runs.length || MS.busy;
+  go.textContent = p.runs.length ? 'Add to ' + msCount(p.runs.length, 'run') : 'Add';
+}
+
+/* Everything drawn again from the state. The control that had the focus is
+   drawn again too, so it is given the focus back: a person ticking with the
+   keyboard stays where they were. */
+function msPaint(){
+  if(!MS.list || MS.done) return;
+  const a = document.activeElement;
+  const key = a && a.dataset ? a.dataset.key : '';
+  msPaintMeasures(); msPaintRuns(); msPaintLead();
+  if(key){
+    const el = $('measuresdlg').querySelector('[data-key="' + cssEsc(key) + '"]');
+    if(el) el.focus();
+  }
+}
+/* A run no ticked measure can be added to is no longer chosen. */
+function msPrune(){
+  MS.list.runs.forEach(r => { if(!msSelectable(MS, r)) MS.r.delete(r.rundir); });
+}
+function msToggle(i, shift){
+  const rows = MS.rows, run = rows[i];
+  if(!run || !msSelectable(MS, run)) return;
+  if(shift && MS.last !== null && MS.last < rows.length){
+    const a = Math.min(MS.last, i), b = Math.max(MS.last, i);
+    const want = !MS.r.has(run.rundir);
+    rows.slice(a, b + 1).filter(r => msSelectable(MS, r))
+      .forEach(r => { if(want) MS.r.add(r.rundir); else MS.r.delete(r.rundir); });
+  } else if(MS.r.has(run.rundir)) MS.r.delete(run.rundir);
+  else MS.r.add(run.rundir);
+  MS.last = i;
+  msPaint();
+}
+
+/* Open the dialog: `opt.run` is a run to start with chosen, `opt.measures`
+   the measures to start with ticked (the light ones, when not given). */
+async function openMeasures(opt){
+  opt = opt || {};
+  const dlg = $('measuresdlg');
+  Object.assign(MS, {list: null, m: new Set(), r: new Set(), filter: 'missing',
+                     find: '', last: null, rows: [], busy: false, done: false});
+  $('msfind').value = '';
+  $('msfmissing').setAttribute('aria-pressed', 'true');
+  $('msfall').setAttribute('aria-pressed', 'false');
+  $('msbody').hidden = false;
+  $('msqueued').hidden = true;
+  $('msqueued').innerHTML = '';
+  $('mscancel').hidden = false;
+  $('msnote').hidden = false;
+  $('msmeasures').innerHTML = '';
+  $('msruns').tBodies[0].innerHTML = '';
+  $('mstally').textContent = '';
+  $('msgo').disabled = true;
+  $('msgo').textContent = 'Add';
+  $('mslead').className = 'mslead';
+  $('mslead').innerHTML = '<b>Reading your runs…</b>';
+  if(!dlg.open){ if(dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', ''); }
+  // The run the page has open is asked for by name: one opened from HOPE
+  // Labs may be outside the runs folder the list is read from.
+  const at = opt.run || RUN || '';
+  const L = await ask('/api/measures' + (at ? '?dir=' + encodeURIComponent(at) : ''));
+  if(!dlg.open) return;
+  if(L.error || !L.runs){
+    $('mslead').innerHTML = '<b>The runs could not be read.</b><span class=sub>'
+      + esc(L.error || 'the server did not say why') + '</span>';
+    return;
+  }
+  // A run whose jobs the page last saw queued or running would be refused;
+  // it is shown with the reason instead of offered.
+  L.runs.forEach(r => {
+    const dot = MONDOTS[r.rundir];
+    if(!r.blocked && (dot === 'running' || dot === 'queued'))
+      r.blocked = 'its jobs are still queued or running';
+  });
+  MS.list = L;
+  const can = L.measures.filter(m => L.runs.some(r => msLacks(r, m.k))).map(m => m.k);
+  (opt.measures || MSLIGHT).forEach(k => { if(can.indexOf(k) >= 0) MS.m.add(k); });
+  const mine = opt.run ? (L.runs.find(r => r.asked) || L.runs.find(r => r.rundir === opt.run))
+    : null;
+  if(mine && msSelectable(MS, mine)) MS.r.add(mine.rundir);
+  msPaint();
+  const first = $('msmeasures').querySelector('input:not(:disabled)')
+    || $('msmall');
+  if(first && !first.disabled) first.focus();
+}
+
+async function msSubmit(){
+  const dlg = $('measuresdlg');
+  if(MS.done){ dlg.close(); return; }
+  if(!MS.list || MS.busy) return;
+  const p = msPlan(MS, MS.list);
+  if(!p.runs.length) return;
+  MS.busy = true;
+  const go = $('msgo');
+  go.disabled = true;
+  go.textContent = 'Adding…';
+  const got = await ask('/api/measures', {runs: p.runs.map(r => r.rundir),
+                                          measures: msTicked(MS, MS.list)});
+  MS.busy = false;
+  if(got.error){
+    $('mslead').className = 'mslead';
+    $('mslead').innerHTML = '<b>Nothing was queued.</b><span class=sub>'
+      + esc(got.error) + '</span>';
+    go.disabled = false;
+    go.textContent = 'Add to ' + msCount(p.runs.length, 'run');
+    return;
+  }
+  const q = msQueued(MS.list, got);
+  MS.done = true;
+  $('mslead').className = 'mslead' + (q.ready ? ' ready' : '');
+  $('mslead').innerHTML = q.lead;
+  $('msbody').hidden = true;
+  $('msqueued').innerHTML = q.body;
+  $('msqueued').hidden = false;
+  $('mscancel').hidden = true;
+  $('msnote').hidden = true;
+  go.textContent = 'Done';
+  go.disabled = false;
+  go.focus();
+  // The runs list and the open run show the jobs just queued.
+  listRuns();
+  if(RUN) openRun(RUN);
+}
+
+(function wireMeasures(){
+  const dlg = $('measuresdlg');
+  if(!dlg) return;
+  $('measuresopen').onclick = () => openMeasures({});
+  $('msclose').onclick = () => dlg.close();
+  $('mscancel').onclick = () => dlg.close();
+  $('msgo').onclick = msSubmit;
+  dlg.addEventListener('close', () => { MS.list = null; });
+  $('msmeasures').addEventListener('change', e => {
+    const k = e.target && e.target.dataset ? e.target.dataset.k : '';
+    if(!k || !MS.list) return;
+    if(e.target.checked) MS.m.add(k); else MS.m.delete(k);
+    msPrune();
+    msPaint();
+  });
+  $('msmall').addEventListener('change', e => {
+    if(!MS.list) return;
+    MS.list.measures.filter(m => MS.list.runs.some(r => msLacks(r, m.k)))
+      .forEach(m => { if(e.target.checked) MS.m.add(m.k); else MS.m.delete(m.k); });
+    msPrune();
+    msPaint();
+  });
+  $('msrall').addEventListener('change', e => {
+    if(!MS.list) return;
+    msShown(MS, MS.list.runs).filter(r => msSelectable(MS, r))
+      .forEach(r => { if(e.target.checked) MS.r.add(r.rundir); else MS.r.delete(r.rundir); });
+    msPaint();
+  });
+  [['msfmissing', 'missing'], ['msfall', 'all']].forEach(([id, f]) => {
+    $(id).onclick = () => {
+      if(!MS.list) return;
+      MS.filter = f;
+      MS.last = null;
+      $('msfmissing').setAttribute('aria-pressed', String(f === 'missing'));
+      $('msfall').setAttribute('aria-pressed', String(f === 'all'));
+      msPaint();
+    };
+  });
+  $('msfind').addEventListener('input', e => {
+    if(!MS.list) return;
+    MS.find = e.target.value;
+    MS.last = null;
+    msPaint();
+  });
+  const body = $('msruns').tBodies[0];
+  // Shift-click chooses a range; it should not select the text between.
+  body.addEventListener('mousedown', e => { if(e.shiftKey) e.preventDefault(); });
+  body.addEventListener('click', e => {
+    const tr = e.target.closest ? e.target.closest('tr[data-i]') : null;
+    if(!tr || !MS.list) return;
+    // The box is drawn again from the state, so its own toggle is not kept.
+    if(e.target.tagName === 'INPUT') e.preventDefault();
+    msToggle(+tr.dataset.i, e.shiftKey);
+  });
+})();
 
 /* ===================== the 3D panel ================================== */
 /* The pose viewer.

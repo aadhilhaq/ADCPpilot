@@ -92,7 +92,7 @@ KEEP_TAILS = ("_mmpbsa.in", "_decomp.dat", "_min.out", "_com.parm7",
               "_rec.parm7", "_lig.parm7", "_min.rst7", "_com.rst7",
               "_scored.pdb", "_scored_on.txt", "_com_forleap.pdb",
               "_com_forleap.json", "_com_prepped.pdb", "_chains.json",
-              "_checks.json", "_com.log", "_mirror_leap.log")
+              "_checks.json", "_com.log", "_mirror_leap.log", "_strain.json")
 PACK_TAILS = (".leap", "_rec.pdb", "_lig.pdb", "_com.pdb", "_com.pqr",
               "_com_reduce.pdb", "_min.in", "_decomp.in", "_decomp_total.dat",
               "_mirror.leap", "_mirror.parm7", "_mirror.rst7",
@@ -611,10 +611,10 @@ check(not got.get("armed") and len(asked) == n,
 (slurm.submit, slurm.cancel, slurm.state, slurm.local_mode, slurm.available,
  tidy.live_jobs) = saved
 src = open(os.path.join(ROOT, "adcp_dock", "server.py")).read()
-check(src.count("self._arm(") == 3 and '"keep_files"' in open(
+check(src.count("self._arm(") == 4 and '"keep_files"' in open(
     os.path.join(ROOT, "adcp_dock", "job.py")).read(),
-      "a new run, a rescoring and a panel all queue the run's tidy, and the form's "
-      "Keep every file reaches the job")
+      "a new run, a rescoring, a panel and added measures all queue the run's tidy, "
+      "and the form's Keep every file reaches the job")
 check('"--keep-files"' in open(os.path.join(ROOT, "adcp_dock", "cli.py")).read()
       and jobmod.default(keep_files=True)["keep_files"] is True,
       "the command line takes --keep-files, as a flow's card sends it, and the job keeps it")

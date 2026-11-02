@@ -90,7 +90,8 @@ for step, main in MAIN.items():
 NEEDED = ["recfetch", "recload", "recbrowse", "recupload", "trgload", "trgbrowse",
           "sitecheck", "addpep", "pastepep", "pepfilebtn", "pasteadd", "autofill",
           "outbrowse", "submit", "adaptnow", "adaptdrop", "adaptopen", "adaptupdate",
-          "adaptread", "adaptback", "adaptfull", "runsbrowse", "pickeruse", "modsave",
+          "adaptread", "adaptback", "adaptfull", "runsbrowse", "measuresopen", "msgo",
+          "pickeruse", "modsave",
           "filedl", "foldercopy", "fbcopy", "fbmail", "fbissue"]
 for id_ in NEEDED:
     c = classes_of(id_)
@@ -98,20 +99,19 @@ for id_ in NEEDED:
           "%s, which someone needs, is %r rather than a primary or a secondary"
           % (id_, c))
 # And the ones the script draws: open a run, open it from Folders, view a
-# peptide, measure the panel, rescore, run the missing ones, try again.
+# peptide, add what a run lacks, run the missing ones, try again.
 for frag in ("'<button class=secondary data-open=\"'",
              "'<button class=secondary data-openrun=\"'",
              "'<button class=secondary data-view=\"'",
-             "'<button class=secondary id=panelgo>Measure them</button> '",
-             "'</select><button class=secondary id=rescorego>Rescore</button> '",
+             "'.</span><button class=secondary type=button id=msadd data-ms=\"'",
              "'<button class=secondary id=resume",
              "'<button class=secondary data-openrun=\"' + esc(d.path)",
              "'<button type=button class=\"secondary ld-retry hide\">Try again</button>'",
              "'<button type=button class=\"primary ld-retry hide\">Try again</button></div>'"):
     check(frag.strip("'") in appjs, "the script draws %s as something else" % frag)
 for frag in ('class="ghost sm" data-openrun', 'class=ghost data-open=',
-             'class="ghost sm" data-view=', 'class="ghost sm" id=panelgo',
-             'class="ghost sm" id=rescorego'):
+             'class="ghost sm" data-view=', 'class="ghost sm" id=msadd',
+             'class=ghost id=measuresopen'):
     check(frag not in appjs, "a needed action is still a ghost: %s" % frag)
 
 # --- a label is not a button ------------------------------------------------------------

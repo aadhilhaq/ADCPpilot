@@ -24,9 +24,20 @@ GB_LABELS = {"amber": "AmberTools", "openmm": "OpenMM",
              "schrodinger": "Prime"}
 
 
+def scored_ranks(r):
+    """The ADCP rank of each MM-GBSA value in a result, in its order: the
+    ranks it records, or, for a result written before ranks were recorded,
+    the values' own positions, which is what the tool assumed then."""
+    vals = [v for v in (r.get("mmgbsa") or []) if v is not None]
+    stored = r.get("mmgbsa_ranks") or []
+    return (list(stored) if len(stored) == len(vals)
+            else list(range(1, len(vals) + 1)))
+
+
 def summarise(peptide, modes, mm=None, top_n=TOP_N, name="", openmm=None,
               engine="", panel=None, clusters=None, mmgbsa_engine="",
-              mm_by_engine=None, mm_skipped=None, ring=None):
+              mm_by_engine=None, mm_skipped=None, ring=None, mm_ranks=None,
+              strain=None, strain_engine=""):
     """One row. `mm` is [dG] for the poses that were rescored, best-first.
 
     The name is carried from the result file rather than derived from the
@@ -35,6 +46,10 @@ def summarise(peptide, modes, mm=None, top_n=TOP_N, name="", openmm=None,
     peptide was docked ("none", "backbone" or "disulfide"; linear when not
     given), and the row names it as the page does: linear, head to tail or
     disulfide.
+
+    `strain` is the result file's [{"pose", "strain", "why"}], `mm_ranks` the
+    ADCP rank of each value in `mm` (scored_ranks), and `strain_engine` whose
+    strain it is ("schrodinger" for Prime's own).
     """
     scores = [m["score"] for m in modes or []]
     top = scores[:top_n]
@@ -108,12 +123,66 @@ def summarise(peptide, modes, mm=None, top_n=TOP_N, name="", openmm=None,
                                     / float(clusters["cluster_total"]), 3)
     if panel:
         row.update({c: panel.get(k) for c, k in PANEL_KEYS})
+    if isinstance(strain, list) and mm:
+        row.update(_strain_cells(mm, mm_ranks, strain, strain_engine))
     if mm_skipped and not row.get("mmgbsa_n"):
         # Why there is no MM-GBSA value: non-standard residues, or a ring
         # none of whose top poses is closed. Said per peptide, in the list
         # of unranked peptides, rather than as one sentence for all of them.
         row["mmgbsa_skipped"] = str(mm_skipped)
     return row
+
+
+def _strain_cells(mm, ranks, strain, engine=""):
+    """The row's peptide strain: the strain of the pose the row's per pose
+    numbers describe, the one with the lowest MM-GBSA energy among those
+    scored (the panel's rule, pipeline._panel_scored), and never another
+    pose's in its place. A pose whose strain could not be measured leaves
+    the cell empty, with the reason beside it, rather than 0.
+
+    Nothing here is ranked on: the strain is not in rank(), the combined
+    score or any z-score.
+    """
+    vals = [v for v in mm if v is not None]
+    if not vals:
+        return {}
+    ranks = list(ranks or [])
+    if len(ranks) != len(vals):
+        ranks = list(range(1, len(vals) + 1))
+    # The first of the lowest, as the panel takes it.
+    i = min(range(len(vals)), key=lambda k: vals[k])
+    pose = ranks[i]
+    got = next((s for s in strain if isinstance(s, dict)
+                and s.get("pose") == pose), None)
+    v = got.get("strain") if got else None
+    out = {"pep_strain": None if v is None else round(float(v), 2),
+           "pep_strain_pose": pose,
+           "pep_strain_engine": engine or "amber"}
+    if v is None:
+        out["pep_strain_why"] = ((got or {}).get("why")
+                                 or "the strain of this pose was not measured")
+    return out
+
+
+#: The column's heading, and what it is, as the page, the report and the docs
+#: say it. Approved words: change them in all three at once.
+STRAIN_HEADING = "Peptide strain"
+STRAIN_HELP = (
+    "What the peptide pays to hold its docked shape: its energy in the pose, "
+    "minus the same peptide relaxed on its own from that shape (kcal/mol, "
+    "implicit solvent, the run's own GB model). Lower is easier. It grows with "
+    "length, because a free peptide folds onto itself in implicit solvent, so "
+    "compare peptides of similar length. It is not part of the MM-GBSA "
+    "ranking.")
+STRAIN_HELP_PRIME = (" This run was scored by Schrödinger Prime, so this is "
+                     "Prime's own ligand strain.")
+
+
+def strain_help(rows=None, engine=None):
+    """STRAIN_HELP, with the sentence a Prime-scored run adds."""
+    prime = engine == "schrodinger" or any(
+        r.get("pep_strain_engine") == "schrodinger" for r in rows or [])
+    return STRAIN_HELP + (STRAIN_HELP_PRIME if prime else "")
 
 
 # The panel's columns, as (column, key in the per pose metrics). The energy
@@ -237,6 +306,9 @@ def table(rows, top_n=TOP_N, on_combined=False):
     mm = any(r.get("mmgbsa_n") for r in rows)
     omm = any(r.get("omm_n") for r in rows)
     rings = has_rings(rows)
+    # The peptide strain, right after the MM-GBSA columns, once any peptide
+    # has had it measured: an empty cell where it could not be, never 0.
+    strained = mm and any("pep_strain" in r for r in rows)
     head = ["#", "name", "peptide", "len", "poses", "ADCP best",
             "ADCP top%d" % top_n, "sd"]
     if rings:
@@ -245,6 +317,8 @@ def table(rows, top_n=TOP_N, on_combined=False):
     if mm:
         head += ["MM n", "MM best", "MM top%d" % top_n, "MM med", "sd",
                  "spread"]
+    if strained:
+        head += [STRAIN_HEADING]
     if omm:
         head += ["OpenMM best"]
     # The combined score sits at the end whether or not the table is ordered
@@ -266,6 +340,7 @@ def table(rows, top_n=TOP_N, on_combined=False):
     fmt = ("%-4s %-*s %-*s %4s" + ("  %-12s" if rings else "")
            + " %5s %10s %11s %6s"
            + ("  %5s %8s %10s %8s %6s %7s" if mm else "")
+           + ("  %14s" if strained else "")
            + ("  %11s" if omm else "")
            + ("  %8s" if comb else ""))
 
@@ -286,6 +361,8 @@ def table(rows, top_n=TOP_N, on_combined=False):
                      cell(r.get("mmgbsa_top%d" % top_n), 2),
                      cell(r.get("mmgbsa_median"), 2), cell(r.get("mmgbsa_sd"), 2),
                      cell(r.get("mmgbsa_spread"), 2)]
+        if strained:
+            vals += [cell(r.get("pep_strain"), 2)]
         if omm:
             vals += [("%.1f (pose %s)" % (r["omm_best"], r["omm_best_pose"]))
                      if r.get("omm_n") else "-"]
@@ -457,6 +534,10 @@ def write(rows, outdir, top_n=TOP_N, constants=None, on_combined=False,
                      "mmgbsa_%s_top%d" % (e, top_n)]
     if any(r.get("mmgbsa_engine") for r in rows):
         cols += ["mmgbsa_engine"]
+    # The peptide strain, right after the MM-GBSA columns, once any peptide
+    # has had it measured; an empty cell where it could not be, never 0.
+    if any("pep_strain" in r for r in rows):
+        cols += ["pep_strain"]
     if any(r.get("omm_n") for r in rows):
         cols += ["omm_n", "omm_best", "omm_best_pose"]
     if any(r.get("cluster_top") is not None for r in rows):

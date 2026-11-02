@@ -66,11 +66,14 @@ adcp-dock run runs/trial
 adcp-dock status runs/trial
 adcp-dock report runs/trial
 adcp-dock panel runs/trial      # only for a run docked before 0.1.17
+adcp-dock strain runs/trial     # only for a run rescored before the peptide strain
 ```
 
 `-r` takes a structure file or a PDB ID, `-s` the residues the docking box covers, `-p` a peptide (repeat it for more) or `-f` a peptide file. Running `adcp-dock run` again docks only the peptides that have no result yet.
 
-A run docked before version 0.1.17 has no interface panel in its results, because the panel is measured while each peptide is rescored. The run's page shows its MM-GBSA breakdown straight away, read from those files, and offers a **Measure them** button for the interface columns; `adcp-dock panel` does the same from the command line. Either one measures the panel from the files the MM-GBSA already left, submits that to Slurm, and rebuilds the report when it finishes. Nothing is docked or rescored again; the only new calculation is the per residue decomposition, which takes seconds per pose. A run whose intermediate files were deleted keeps its four energy terms and gets no interface columns, and the report says so.
+Every pose MM-GBSA scores also gets its **peptide strain**: what the peptide pays to hold its docked shape, its energy in the pose minus the same peptide relaxed on its own from that shape, in the run's own GB model (a run Prime scores shows Prime's own). It is reported beside the energy and never ranked on; `--no-strain` leaves it out of a run.
+
+A run docked before version 0.1.17 has no interface panel in its results, because the panel is measured while each peptide is rescored, and a run rescored before the strain existed has no strain. The run's page shows its MM-GBSA breakdown straight away, read from those files, and says in one line over its table what the run lacks; **Add measures**, on the Runs card, adds it to as many finished runs as are chosen, and so does another MM-GBSA engine. `adcp-dock panel` and `adcp-dock strain` do the same from the command line. Each measures from the files the MM-GBSA already left, submits that to Slurm, and rebuilds the report when it finishes. Nothing is docked or rescored again. A run whose intermediate files were deleted keeps its four energy terms and gets no interface columns, and the report says so.
 
 ## Peptides
 
