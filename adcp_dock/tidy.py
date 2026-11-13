@@ -3,8 +3,8 @@ one archive inside the run and removed, and Undo puts them back.
 
 By Aadhil Haq
 
-The scratch file systems count files as well as bytes (Grace: 250 000 per
-user). MM-GBSA leaves some 23 working files in every pose folder, and a run
+Scratch file systems often count files as well as bytes, with a few hundred
+thousand per user. MM-GBSA leaves some 23 working files in every pose folder, and a run
 made before keep_trajectories existed may still hold ADCP's working folder,
 hundreds of files per peptide. Each was read once, by the next program, and
 never again.

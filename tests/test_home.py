@@ -2,7 +2,7 @@
 
 By Aadhil Haq
 
-A cluster's home folder holds few files (10,000 on Grace), and three things
+A cluster's home folder often holds few files (10,000 is common), and three things
 here would otherwise fill it: the ADCP 1.1 suite's own Python, whose modules
 make ~/.adfrsuite, ~/.data/pybel and ~/.config as they load and know no
 other place; matplotlib's font list, in ~/.cache; and the CUDA driver's

@@ -289,8 +289,8 @@ def mmgbsa_minutes(poses, cores=0, workers=MM_WORKERS_DEFAULT, atoms=0):
 
 # The peptide strain of one scored pose: the peptide alone, one sander run of
 # 5000 conjugate gradient steps (_vendor/strain.py), single-threaded. 30 to 45
-# s a pose on Grace's compute nodes over the 120 poses the protocol was
-# settled on, 6 to 13 residues; booked at a minute.
+# s a pose on a cluster compute node, measured over 120 poses of 6 to 13
+# residues; booked at a minute.
 STRAIN_SECONDS = 60.0
 
 

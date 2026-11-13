@@ -44,8 +44,9 @@ TIMEOUT = 240
 MEMORY = 4 << 30
 #: The OpenBLAS threads prepare_receptor and AutoSite are given. The suite's
 #: OpenBLAS starts one per core and reserves memory for each, so under MEMORY
-#: prepare_receptor wrote no receptor from 32 cores up (measured on Grace:
-#: 16 threads work, 32 and 48 fail; reported on a 128-core workstation).
+#: prepare_receptor wrote no receptor from 32 cores up (measured on a cluster
+#: compute node: 16 threads work, 32 and 48 fail; also reported on a 128-core
+#: workstation).
 #: One thread finds the same pockets in the same time as four.
 BLAS_THREADS = 4
 #: Points drawn per pocket in the page's view; the run is given all of them.
