@@ -370,12 +370,13 @@ WORKING = "out"
 
 
 def dock_arguments(sequence, trg_name, replicas, steps, poses, cpus=0,
-                   helical=0, cyclic="none", keep=False):
+                   helical=0, cyclic="none", keep=False, seed=None):
     """runADCP.py's arguments for one peptide, before any OpenMM flags.
 
     -m is the number of poses ADCP writes (its default is 100). -k keeps the
     working folder with every replica's trajectory, which the caller packs
-    into one archive afterwards.
+    into one archive afterwards. -S seeds ADCP's random number generator;
+    without it ADCP draws its own seed and records it in its log.
     """
     seq_arg, start = start_arguments(sequence, helical)
     args = ["-T", trg_name, "-s", seq_arg, "-N", str(replicas),
@@ -386,6 +387,8 @@ def dock_arguments(sequence, trg_name, replicas, steps, poses, cpus=0,
         args += ["-k"]
     if cpus:
         args += ["-c", str(cpus)]
+    if seed is not None:
+        args += ["-S", str(int(seed))]
     if peptide.nonstandard(sequence):
         args += ["-L", "swiss"]
     return args
@@ -393,7 +396,7 @@ def dock_arguments(sequence, trg_name, replicas, steps, poses, cpus=0,
 
 def dock(sequence, trg, workdir, exe, key=None, replicas=100, steps=5_000_000,
          poses=10, cpus=0, minimize=0, omm_env="implicit", log=print,
-         helical=0, cyclic="none", keep=False):
+         helical=0, cyclic="none", keep=False, seed=None):
     """Run ADCP 1.1 for one peptide. Returns (modes, the peptide's docking
     folder)."""
     wd = os.path.join(workdir, key or sequence)
@@ -414,7 +417,7 @@ def dock(sequence, trg, workdir, exe, key=None, replicas=100, steps=5_000_000,
         trajectories.forget(wd)
         cmd = command(exe) + dock_arguments(
             sequence, os.path.basename(trg), replicas, steps, poses, cpus=cpus,
-            helical=helical, cyclic=cyclic, keep=keep)
+            helical=helical, cyclic=cyclic, keep=keep, seed=seed)
         ffset = openmm_set_for(exe, sequence) if minimize else ""
         if minimize and ffset is None:
             # ADCP stops the whole docking, not just the minimization, when

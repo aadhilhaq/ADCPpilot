@@ -321,7 +321,9 @@ for k, v in (("site_mode", "residues"), ("site_ligand", ""),
 old = {k: v for k, v in d.items()
        if k not in ("helical", "cyclic", "keep_trajectories")}
 o = pipeline.docking_options(old)
-check(o == {"helical": 0, "cyclic": "none", "keep": None},
+# "seed": None is what every run did before the setting was honoured: ADCP
+# draws its own seed. The old job file therefore still docks as it did.
+check(o == {"helical": 0, "cyclic": "none", "seed": None, "keep": None},
       "a job file from before the options does not dock as it did: %s" % o)
 rd = os.path.join(TMP, "cli_opts")
 for opt in ("--engine", "--agfr"):

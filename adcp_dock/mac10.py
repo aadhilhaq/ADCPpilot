@@ -303,7 +303,7 @@ def to_layout(wd, key, keep, log=print):
 
 
 def dock(sequence, trg, workdir, key=None, replicas=100, steps=5_000_000,
-         cpus=0, log=print, helical=0, cyclic="none", keep=False):
+         cpus=0, log=print, helical=0, cyclic="none", keep=False, seed=None):
     """Run ADFRsuite 1.0's adcp for one peptide, then put its folder into the
     1.1 layout. Returns (modes, the peptide's docking folder)."""
     from . import adcp11
@@ -330,6 +330,8 @@ def dock(sequence, trg, workdir, key=None, replicas=100, steps=5_000_000,
     cmd += adcp11.cyclic_flags(cyclic)
     if cpus:
         cmd += ["-c", str(cpus)]
+    if seed is not None:
+        cmd += ["-S", str(int(seed))]
     log("  adcp: %s" % " ".join(cmd[1:]))
     env = dict(os.environ)
     env.pop("OMP_NUM_THREADS", None)          # ADCP deadlocks if this is set

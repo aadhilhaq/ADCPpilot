@@ -44,9 +44,17 @@ def docking_options(j, seq=None):
     except (TypeError, ValueError):
         h = 0
     keep = j.get("keep_trajectories")
+    # ADCP's -S. None leaves ADCP to draw its own seed, which is what every
+    # run did before the setting was honoured; an integer makes the search
+    # repeatable for a given peptide, target and core count.
+    try:
+        seed = None if j.get("seed") in (None, "") else int(j.get("seed"))
+    except (TypeError, ValueError):
+        seed = None
     return {"helical": max(0, min(100, h)),
             "cyclic": (jobmod.ring_for(j, seq) if seq is not None
                        else str(j.get("cyclic") or "none")),
+            "seed": seed,
             "keep": None if keep is None else bool(keep)}
 
 
@@ -102,8 +110,10 @@ def describe_options(j, ring=None):
                 False: "trajectories not kept"}[o["keep"]]
     rings_txt = (peptide.CYCLIC_LABELS.get(ring, ring) if ring is not None
                  else describe_rings(j))
-    return "%s; %s; %d pose(s) per peptide; %s" % (
-        start_txt, rings_txt, int(j.get("poses", 10)), keep_txt)
+    seed_txt = ("seed %d (adcp -S %d)" % (o["seed"], o["seed"])
+                if o["seed"] is not None else "ADCP's own seed")
+    return "%s; %s; %d pose(s) per peptide; %s; %s" % (
+        start_txt, rings_txt, int(j.get("poses", 10)), keep_txt, seed_txt)
 
 
 def receptor_chains(j, atoms=None):
@@ -771,7 +781,7 @@ def stage_dock(rundir, index, j=None, log=print):
                                  replicas=int(j.get("replicas", 50)),
                                  steps=int(j.get("steps", 2_500_000)),
                                  cpus=cpus, log=log, helical=opts["helical"],
-                                 cyclic=opts["cyclic"],
+                                 cyclic=opts["cyclic"], seed=opts["seed"],
                                  keep=bool(opts["keep"]))
     else:
         modes, pdir = adcp11.dock(seq, trg, wd, exe, key=jobmod.key(seq),
@@ -781,7 +791,7 @@ def stage_dock(rundir, index, j=None, log=print):
                                   minimize=int(j.get("omm_minimize") or 0),
                                   omm_env=j.get("omm_env") or "implicit",
                                   log=log, helical=opts["helical"],
-                                  cyclic=opts["cyclic"],
+                                  cyclic=opts["cyclic"], seed=opts["seed"],
                                   keep=bool(opts["keep"]))
     # One archive per peptide, or nothing: hundreds of trajectory files per
     # peptide fill a cluster's file quota long before its byte quota.

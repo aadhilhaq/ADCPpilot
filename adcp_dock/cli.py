@@ -308,6 +308,11 @@ def main(argv=None):
                         "it once its last job has ended")
     n.add_argument("--replicas", type=int, default=50)
     n.add_argument("--steps", type=int, default=2_500_000)
+    n.add_argument("--seed", type=int, default=None,
+                   help="seed ADCP's random number generator (adcp -S), so "
+                        "that the same peptide, target and core count give "
+                        "the same search again. Left out, ADCP draws its own "
+                        "seed and records it in its log")
     n.add_argument("--mmgbsa", action="store_true")
     n.add_argument("--mmgbsa-poses", type=int, default=5)
     n.add_argument("--mmgbsa-model", choices=("obc2", "gbn2"), default="obc2",
@@ -609,7 +614,7 @@ def main(argv=None):
             adcp_engine=a.engine, omm_minimize=a.omm_minimize,
             omm_env=a.omm_env,
             chains=a.chain, ph=a.ph, minimise=a.minimise, poses=a.poses,
-            replicas=a.replicas, steps=a.steps, mmgbsa=a.mmgbsa,
+            replicas=a.replicas, steps=a.steps, seed=a.seed, mmgbsa=a.mmgbsa,
             mmgbsa_poses=a.mmgbsa_poses, mmgbsa_model=a.mmgbsa_model,
             mmgbsa_engine=a.mmgbsa_engine, mmgbsa_strain=a.mmgbsa_strain,
             top_n=a.top_n,
