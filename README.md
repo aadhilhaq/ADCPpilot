@@ -2,7 +2,7 @@
   <img src="brand/banner.png" alt="ADCPpilot" width="100%">
 </p>
 
-[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aadhilhaq/ADCP_docking/blob/main/notebooks/ADCP_docking_colab.ipynb)
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aadhilhaq/ADCPpilot/blob/main/notebooks/ADCPpilot_colab.ipynb)
 
 Try it in your browser with nothing to install: open the notebook and press **Start ADCPpilot**, which takes about a quarter of an hour the first time and then opens the interface inside the notebook.
 
@@ -33,8 +33,8 @@ On a Slurm cluster, connect with `ssh` to a login node (where you arrive; calcul
 
 ```bash
 cd $SCRATCH
-git clone https://github.com/aadhilhaq/ADCP_docking.git
-cd ADCP_docking
+git clone https://github.com/aadhilhaq/ADCPpilot.git
+cd ADCPpilot
 ./install.sh --check $SCRATCH/adcp    # a few seconds: what it found, what it would add, and whether there is room
 ./install.sh $SCRATCH/adcp            # about 7 to 10 minutes; if it stops, run the same line again
 source activate.sh
@@ -49,7 +49,7 @@ On your own computer:
 
 ```bash
 python3 -m venv ~/.adcp-pilot/venv
-~/.adcp-pilot/venv/bin/pip install "adcp-pilot[local] @ git+https://github.com/aadhilhaq/ADCP_docking"
+~/.adcp-pilot/venv/bin/pip install "adcp-pilot[local] @ git+https://github.com/aadhilhaq/ADCPpilot"
 ~/.adcp-pilot/venv/bin/adcp-pilot local
 ```
 
@@ -128,7 +128,7 @@ For this interface, use GitHub's **Cite this repository** button or [CITATION.cf
 
 ## Support
 
-Report problems through [GitHub Issues](https://github.com/aadhilhaq/ADCP_docking/issues) or **Send feedback** in the interface, with the version, the settings and the relevant log. To run the tests, see [CONTRIBUTING.md](CONTRIBUTING.md).
+Report problems through [GitHub Issues](https://github.com/aadhilhaq/ADCPpilot/issues) or **Send feedback** in the interface, with the version, the settings and the relevant log. To run the tests, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

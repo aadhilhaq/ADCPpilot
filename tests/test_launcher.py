@@ -30,7 +30,7 @@ def check(cond, why):
 
 
 # --- the command it runs on the far end -----------------------------------
-line = session.command("/scratch/x/ADCP_docking", runs="~/adcp_runs",
+line = session.command("/scratch/x/ADCPpilot", runs="~/adcp_runs",
                        tools_roots=["/opt/adcpsuite", "/opt/amber"])
 check("adcp_pilot.cli serve" in line, "the launcher does not start the server")
 check("--host 127.0.0.1" in line,
@@ -49,19 +49,19 @@ check("PYTHONPATH=" in line,
 # shlex.quote puts a path in single quotes, which is correct for a space but
 # stops the remote shell expanding a tilde, so cd fails on a directory that
 # exists.
-tilde = session.command("~/ADCP_docking", runs="~/adcp_runs")
-check("'~/ADCP_docking'" not in tilde,
+tilde = session.command("~/ADCPpilot", runs="~/adcp_runs")
+check("'~/ADCPpilot'" not in tilde,
       "the tool directory is still single-quoted with the tilde inside, so "
       "the remote shell cannot expand it and cd fails on a directory that "
       "exists: %s" % tilde[:120])
 check("'~/adcp_runs'" not in tilde,
       "the runs directory has the same problem: %s" % tilde[:120])
-check('"$HOME"/ADCP_docking' in tilde,
+check('"$HOME"/ADCPpilot' in tilde,
       "the tilde is not being turned into something the far end expands: %s"
       % tilde[:120])
 # the spelling of the separator is not the point: that it changes into the
 # checkout FIRST, and stops if it cannot, is.
-check(tilde.startswith('cd "$HOME"/ADCP_docking'),
+check(tilde.startswith('cd "$HOME"/ADCPpilot'),
       "the command does not start by changing into the checkout: %s"
       % tilde[:80])
 check("|| exit" in tilde.split(";")[0],
@@ -78,10 +78,10 @@ check("'/scratch/a b/runs'" in spacey,
       "a space in an absolute path is no longer quoted: %s" % spacey[:120])
 
 # an absolute path is untouched: no $HOME, no needless quoting games
-absolute = session.command("/shared/apps/ADCP_docking")
+absolute = session.command("/shared/apps/ADCPpilot")
 check("$HOME" not in absolute,
       "an absolute path was rewritten through $HOME: %s" % absolute[:120])
-check(absolute.startswith("cd /shared/apps/ADCP_docking"),
+check(absolute.startswith("cd /shared/apps/ADCPpilot"),
       "an absolute path is not used as given: %s" % absolute[:120])
 
 # --- the cluster's own python, not whatever python3 happens to be ----------
@@ -90,7 +90,7 @@ check(absolute.startswith("cd /shared/apps/ADCP_docking"),
 # example 3.6, which fails on `from __future__ import annotations`). The
 # command sources activate.sh and checks the version first, so an old Python
 # produces a sentence rather than a traceback.
-line2 = session.command("/shared/apps/ADCP_docking")
+line2 = session.command("/shared/apps/ADCPpilot")
 check("activate.sh" in line2,
       "the command does not source activate.sh, so it uses whatever python3 "
       "is on the login node's PATH, which may be too old to parse "
@@ -298,7 +298,7 @@ check(_named == ["Grace (TAMU)", "ACES (TAMU)", "Garibaldi (Scripps)"]
       "each named cluster brings its address, install and runs folder: %r" % _named)
 _g = _C.defaults_for("Garibaldi (Scripps)", "ksojitra")
 check(_g["host"] == "garibaldi.scripps.edu"
-      and _g["install"] == "/gpfs/group/sanner/ksojitra/ADCP_docking_v2"
+      and _g["install"] == "/gpfs/group/sanner/ksojitra/ADCPpilot_v2"
       and _g["runs"] == "/gpfs/group/sanner/ksojitra/adcp_runs_v2",
       "Garibaldi fills in the Sanner lab's address and folders: %r" % _g)
 check(_C.server_env("Garibaldi (Scripps)", "ksojitra") == {

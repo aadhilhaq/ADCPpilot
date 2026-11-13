@@ -36,7 +36,7 @@ prep = ["pdbfixer", "openmm", "biopython"]
 local = ["pdb2pqr", "pdbfixer", "openmm", "biopython"]
 
 [project.urls]
-Homepage = "https://github.com/aadhilhaq/ADCP_docking"
+Homepage = "https://github.com/aadhilhaq/ADCPpilot"
 
 [project.scripts]
 adcp-pilot = "adcp_pilot.cli:main"

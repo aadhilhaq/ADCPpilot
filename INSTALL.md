@@ -67,8 +67,8 @@ appears on the screen while you type the password; that is normal.
 
 ```bash
 cd $SCRATCH
-git clone https://github.com/aadhilhaq/ADCP_docking.git
-cd ADCP_docking
+git clone https://github.com/aadhilhaq/ADCPpilot.git
+cd ADCPpilot
 ```
 
 If `cd $SCRATCH` says *No such file or directory*, your cluster names the
@@ -174,7 +174,7 @@ it runs: log in again, `cd` to the checkout and run the same line.
 | `Run this with bash` or `do not source it` | type it exactly as shown: `./install.sh $SCRATCH/adcp` |
 
 If it stops in the same place twice, open an issue at
-<https://github.com/aadhilhaq/ADCP_docking/issues> with the last 30 lines of
+<https://github.com/aadhilhaq/ADCPpilot/issues> with the last 30 lines of
 the output.
 
 ### 1.3 Every time you use it
@@ -182,7 +182,7 @@ the output.
 Each new terminal starts without the tools on its path. Load them with:
 
 ```bash
-source /path/to/ADCP_docking/activate.sh
+source /path/to/ADCPpilot/activate.sh
 ```
 
 using the folder you cloned into (`pwd` inside it prints the full path).
@@ -266,7 +266,7 @@ docking as separate jobs:
 
 ```bash
 srun --pty -c 1 --mem=2G -t 12:00:00 bash      # add --account etc. if needed
-source /path/to/ADCP_docking/activate.sh
+source /path/to/ADCPpilot/activate.sh
 hostname                                       # the node, for the tunnel
 adcp-pilot serve --port 0
 ```
@@ -325,7 +325,7 @@ a failure and only the peptides with no result are docked again.
 On a login node, in the folder you cloned into (under a minute):
 
 ```bash
-cd /path/to/ADCP_docking
+cd /path/to/ADCPpilot
 git pull; ./update.sh
 ```
 
@@ -392,8 +392,8 @@ environment yourself. Everything stays inside the checkout, including the
 conda environment and the download caches; module names vary by site.
 
 ```bash
-git clone https://github.com/aadhilhaq/ADCP_docking.git
-cd ADCP_docking
+git clone https://github.com/aadhilhaq/ADCPpilot.git
+cd ADCPpilot
 export CONDA_PKGS_DIRS=$PWD/.conda_pkgs PIP_CACHE_DIR=$PWD/.pip_cache
 
 module load Anaconda3                  # or Miniforge, or your own conda
@@ -410,7 +410,7 @@ checking each Scripps package against a pinned SHA-256 ([section 4](#4-adcp-11))
 Then set the two variables yourself in each new terminal:
 
 ```bash
-export ADCPSUITE_HOME=/path/to/ADCP_docking/tools/docking/adcpsuite
+export ADCPSUITE_HOME=/path/to/ADCPpilot/tools/docking/adcpsuite
 export AMBERHOME=$CONDA_PREFIX          # only if you installed ambertools
 ```
 
@@ -424,7 +424,7 @@ The work runs on that machine, one step after another.
 
 ```bash
 python3 -m venv ~/.adcp-pilot/venv
-~/.adcp-pilot/venv/bin/pip install "adcp-pilot[local] @ git+https://github.com/aadhilhaq/ADCP_docking"
+~/.adcp-pilot/venv/bin/pip install "adcp-pilot[local] @ git+https://github.com/aadhilhaq/ADCPpilot"
 ~/.adcp-pilot/venv/bin/adcp-pilot local
 ```
 
@@ -473,7 +473,7 @@ merely has the Slurm client installed.
 
 ## 3. In Google Colab
 
-[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aadhilhaq/ADCP_docking/blob/main/notebooks/ADCP_docking_colab.ipynb)
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aadhilhaq/ADCPpilot/blob/main/notebooks/ADCPpilot_colab.ipynb)
 
 The notebook runs the same interface on a Google Colab machine. Nothing is installed on your own computer. There is one thing to press: ▶ on **Start ADCPpilot**. Colab never runs a notebook by itself, so that press is how it begins.
 
@@ -503,7 +503,7 @@ adcp-pilot install-adcp11 --dest /path/adcpsuite
 
 This follows Scripps' own installation script: it creates the environment with micromamba (downloaded if needed), installs OpenMM, Open Babel and PDBFixer from conda-forge, and fetches the Scripps packages from ccsb.scripps.edu, checking each against a pinned SHA-256. It takes a few minutes and 3 GB, and deletes the packages it downloaded once it is done. Scripps' own instructions are at <https://ccsb.scripps.edu/adcpv11/downloads/>.
 
-Without `--dest` it goes where `$ADCPSUITE_HOME` names, otherwise into the installation's own tools folder, or on a computer with neither into `~/.adcp-pilot/adcpsuite`. The interface finds the suite at `$ADCPSUITE_HOME`, which `activate.sh` sets; in a tools folder given with `--tools-root`; in `tools/docking/adcpsuite` inside the installation or beside it (a checkout in `/scratch/group/lab/ADCP_docking` finds `/scratch/group/lab/tools/docking/adcpsuite`); at `~/.adcp-pilot/adcpsuite`; or at `/content/adcpsuite` in Colab. Its `bin` folder is never put on `PATH`, since it holds the suite's own Python. `adcp-pilot check` names the suite it found and its version.
+Without `--dest` it goes where `$ADCPSUITE_HOME` names, otherwise into the installation's own tools folder, or on a computer with neither into `~/.adcp-pilot/adcpsuite`. The interface finds the suite at `$ADCPSUITE_HOME`, which `activate.sh` sets; in a tools folder given with `--tools-root`; in `tools/docking/adcpsuite` inside the installation or beside it (a checkout in `/scratch/group/lab/ADCPpilot` finds `/scratch/group/lab/tools/docking/adcpsuite`); at `~/.adcp-pilot/adcpsuite`; or at `/content/adcpsuite` in Colab. Its `bin` folder is never put on `PATH`, since it holds the suite's own Python. `adcp-pilot check` names the suite it found and its version.
 
 What it brings:
 
@@ -598,7 +598,7 @@ installed there.
   Windows is a folder: keep it together and run the `.exe` inside. macOS is
   an Apple silicon `.app`.
 * **Any machine with Python**: `pip install "adcp-pilot[launcher] @
-  git+https://github.com/aadhilhaq/ADCP_docking"`, then `adcp-pilot-launcher`.
+  git+https://github.com/aadhilhaq/ADCPpilot"`, then `adcp-pilot-launcher`.
 
 The bundles are not yet code-signed, so the first run shows a warning:
 Windows says *Windows protected your PC* (**More info → Run anyway**); macOS
@@ -613,7 +613,7 @@ Signing removes those prompts.
 | **Cluster** | a cluster it knows by name (**Grace** or **ACES** at Texas A&M, **Garibaldi** at Scripps Research), which fills in everything but your username; **Slurm cluster** for any other; **This computer** to run on the machine the launcher is on (on a Mac, with ADCP 1.0: [section 2](#2-on-your-own-computer)) |
 | **Address** | your cluster's login address, the one you use with `ssh`; filled in for a named cluster, and remembered |
 | **Username** | your cluster username |
-| **Tool directory** | the folder you cloned into on the cluster, for example `/scratch/you/ADCP_docking`; `pwd` inside it prints it |
+| **Tool directory** | the folder you cloned into on the cluster, for example `/scratch/you/ADCPpilot`; `pwd` inside it prints it |
 | **ADCP 1.1 suite / Amber roots** | leave blank: `activate.sh` in that folder names them |
 
 Then press connect. It asks for your password, and for your cluster's second
@@ -625,7 +625,7 @@ A named cluster also tells the page what its jobs need, where the cluster's
 own `activate.sh` has not: on **Garibaldi**, the Sanner lab's Slurm account
 (`sanner`) and `--partition=highcpu` are filled in on the page, and runs go to
 `/gpfs/group/sanner/<you>/adcp_runs_v2` when that folder's parent exists. Its
-tool directory is `/gpfs/group/sanner/<you>/ADCP_docking_v2`; change it once if
+tool directory is `/gpfs/group/sanner/<you>/ADCPpilot_v2`; change it once if
 yours is elsewhere. Off campus, connect to the Scripps VPN first.
 
 ---
@@ -636,7 +636,7 @@ For problems while installing, see [1.2, If it stops](#if-it-stops).
 
 | what you see | what it means |
 |---|---|
-| `adcp-pilot: command not found` | this terminal has not loaded the tools yet: `source /path/to/ADCP_docking/activate.sh` (1.3) |
+| `adcp-pilot: command not found` | this terminal has not loaded the tools yet: `source /path/to/ADCPpilot/activate.sh` (1.3) |
 | `N tool(s) missing` from `check` | something the install recorded is not reachable any more; run `./install.sh` again in the checkout, which finds it or says what to do |
 | `sbatch was not found` | Slurm is not available in this environment; load the required cluster environment or use `adcp-pilot local` on a workstation |
 | a Scripps package *does not match its pinned checksum* | the download differs from the pinned version, usually because it was cut short; it has been deleted, so run the install again |
@@ -653,7 +653,7 @@ For problems while installing, see [1.2, If it stops](#if-it-stops).
 On a cluster, delete the folder you gave `install.sh` and the checkout:
 
 ```bash
-rm -rf $SCRATCH/adcp $SCRATCH/ADCP_docking
+rm -rf $SCRATCH/adcp $SCRATCH/ADCPpilot
 ```
 
 If you pointed `install.sh` at an environment of your own (`ADCP_ENV`), the

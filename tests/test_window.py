@@ -216,7 +216,7 @@ check("SCHEMA" in dir(appmod),
       "before the site table existed goes on winning forever")
 check('cfg.get("schema") == SCHEMA' in src,
       "the saved settings are trusted without checking which version wrote "
-      "them, which is how the Tool directory stayed at ~/ADCP_docking on a "
+      "them, which is how the Tool directory stayed at ~/ADCPpilot on a "
       "cluster whose checkout is in a shared allocation")
 
 # --- where there is a display, build the real window ------------------

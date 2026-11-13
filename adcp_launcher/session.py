@@ -23,8 +23,8 @@ OLD_PYTHON_MARKER = "ADCP_PYTHON_TOO_OLD"
 
 #: Where the tool might be, when the person has not said. Tried in order.
 GUESSES = (
-    "~/ADCP_docking",
-    "$SCRATCH/ADCP_docking",
+    "~/ADCPpilot",
+    "$SCRATCH/ADCPpilot",
 )
 
 
@@ -181,7 +181,7 @@ def _why(buf, install):
     if "no module named 'adcp_pilot'" in low or "no module named adcp_pilot" in low:
         return ("the tool was not found at %s. Check the install path, or "
                 "clone it there:\n    git clone "
-                "https://github.com/aadhilhaq/ADCP_docking %s" % (install, install))
+                "https://github.com/aadhilhaq/ADCPpilot %s" % (install, install))
     if "no such file or directory" in low and "cd " in low:
         return "there is no directory %s on the cluster" % install
     if "address already in use" in low:

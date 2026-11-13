@@ -74,7 +74,7 @@ for k in ("ADAPT_HOME", "ADCP_HOME", "ADCPSUITE_HOME"):
 # nothing beside it is what "not installed" means here.
 from adcp_pilot import adcp11  # noqa: E402
 
-adcp11._HERE = adapt._HERE = os.path.join(tmp, "alone", "ADCP_docking")
+adcp11._HERE = adapt._HERE = os.path.join(tmp, "alone", "ADCPpilot")
 
 # --- which folder counts as ADapt -----------------------------------------
 home = fake_adapt(os.path.join(tmp, "adapt"))

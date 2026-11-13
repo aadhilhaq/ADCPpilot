@@ -22,7 +22,7 @@ def main(argv=None):
     # what it needs came along in the bundle, and that its imports resolve.
     if "--selftest" in argv:
         from . import session, tunnel, credit                  # noqa: F401
-        line = session.command("/x/ADCP_docking", runs="~/r")
+        line = session.command("/x/ADCPpilot", runs="~/r")
         assert "adcp_pilot.cli serve" in line, line
         assert "--host 127.0.0.1" in line, line
         assert tunnel.AUTH_PATIENCE >= 120, "the two-factor timeout was shortened"

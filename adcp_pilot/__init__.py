@@ -42,7 +42,7 @@ def acknowledgement(job=None):
     text = ((job or {}).get("acknowledgement")
             or os.environ.get("ADCP_ACKNOWLEDGEMENT", "")).strip()
     return text or GENERIC_ACK
-REPO = "https://github.com/aadhilhaq/ADCP_docking"
+REPO = "https://github.com/aadhilhaq/ADCPpilot"
 
 
 # The attribution sentence. engine_credit() adds the disclaimer.

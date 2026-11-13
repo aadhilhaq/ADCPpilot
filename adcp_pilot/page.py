@@ -2153,7 +2153,7 @@ larger of the two and takes a moment the first time.">
       <button class=secondary id=fbcopy>Copy details</button>
       <a class="btnlink secondary" id=fbmail target=_blank rel=noopener>Open email</a>
       <a class="btnlink secondary" id=fbissue target=_blank rel=noopener
-         href="https://github.com/aadhilhaq/ADCP_docking/issues/new">Open a GitHub issue</a>
+         href="https://github.com/aadhilhaq/ADCPpilot/issues/new">Open a GitHub issue</a>
       <button class=ghost id=fbclose>Close</button>
     </span>
   </div>

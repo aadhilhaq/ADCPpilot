@@ -37,7 +37,7 @@ SETUP = {
         "       sudo apt install -y python3-venv\n"
         "       python3 -m venv ~/.adcp-pilot/venv\n"
         "       ~/.adcp-pilot/venv/bin/pip install \"adcp-pilot[local] @ "
-        "git+https://github.com/aadhilhaq/ADCP_docking\"\n\n"
+        "git+https://github.com/aadhilhaq/ADCPpilot\"\n\n"
         "Then choose This computer again."),
     "darwin": (
         "On a Mac this docks with ADCP 1.0, from ADFRsuite 1.0, because the "
@@ -46,14 +46,14 @@ SETUP = {
         "  softwareupdate --install-rosetta      (Apple silicon only)\n"
         "  python3 -m venv ~/.adcp-pilot/venv\n"
         "  ~/.adcp-pilot/venv/bin/pip install \"adcp-pilot[local] @ "
-        "git+https://github.com/aadhilhaq/ADCP_docking\"\n\n"
+        "git+https://github.com/aadhilhaq/ADCPpilot\"\n\n"
         "Then choose This computer again. For ADCP 1.1, choose a cluster "
         "above, or use the Colab notebook."),
     "linux": (
         "Once, in a terminal:\n\n"
         "  python3 -m venv ~/.adcp-pilot/venv\n"
         "  ~/.adcp-pilot/venv/bin/pip install \"adcp-pilot[local] @ "
-        "git+https://github.com/aadhilhaq/ADCP_docking\"\n\n"
+        "git+https://github.com/aadhilhaq/ADCPpilot\"\n\n"
         "Then choose This computer again."),
 }
 

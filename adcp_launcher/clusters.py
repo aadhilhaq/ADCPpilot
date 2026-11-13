@@ -33,7 +33,7 @@ SITES = {
     "Grace (TAMU)": {
         "host": "grace.hprc.tamu.edu",
         "auth": "password",
-        "install": "~/ADCP_docking",
+        "install": "~/ADCPpilot",
         "runs": "/scratch/user/$USER/adcp_runs",
         "hint": "Your cluster username",
         "label": "Username",
@@ -44,7 +44,7 @@ SITES = {
     "ACES (TAMU)": {
         "host": "aces.hprc.tamu.edu",
         "auth": "password",
-        "install": "~/ADCP_docking",
+        "install": "~/ADCPpilot",
         "runs": "/scratch/user/$USER/adcp_runs",
         "hint": "Your cluster username",
         "label": "Username",
@@ -55,7 +55,7 @@ SITES = {
     "Garibaldi (Scripps)": {
         "host": "garibaldi.scripps.edu",
         "auth": "password",
-        "install": "/gpfs/group/sanner/$USER/ADCP_docking_v2",
+        "install": "/gpfs/group/sanner/$USER/ADCPpilot_v2",
         "runs": "/gpfs/group/sanner/$USER/adcp_runs_v2",
         "hint": "Your Scripps username",
         "label": "Username",
@@ -68,7 +68,7 @@ SITES = {
     OTHER: {
         "host": "",
         "auth": "password",
-        "install": "~/ADCP_docking",
+        "install": "~/ADCPpilot",
         # none: the server's own choice, $SCRATCH/adcp_runs where there is one
         "runs": "",
         "hint": "Whatever you log in with",
@@ -193,9 +193,9 @@ def parse_port(text):
 def remote_path(path):
     """A path for the far end's shell, with ~ still able to expand.
 
-    shlex.quote('~/ADCP_docking') gives '~/ADCP_docking': in single quotes,
+    shlex.quote('~/ADCPpilot') gives '~/ADCPpilot': in single quotes,
     which is exactly what stops the remote shell expanding the tilde. The
-    launcher then ran `cd '~/ADCP_docking'` and the cluster answered "No
+    launcher then ran `cd '~/ADCPpilot'` and the cluster answered "No
     such file or directory", naming a path that does exist. Quoting is still
     required for everything after it, because a path can contain a space.
     """

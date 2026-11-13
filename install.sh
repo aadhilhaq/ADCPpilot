@@ -135,7 +135,7 @@ on_error() {
     say "  If it stops in the same place again:"
     wrap "* \"Could not resolve host\", \"Connection timed out\" or a failed download: run it on a login node, since compute nodes usually have no internet."
     wrap "* \"Disk quota exceeded\" or \"No space left on device\": the folder has run out of room or of files. Your cluster's quota command (often showquota, or quota -s) shows how much you have; choose a folder with more room and run it again there."
-    wrap "* anything else: copy the last 30 lines of this output into an issue at https://github.com/aadhilhaq/ADCP_docking/issues"
+    wrap "* anything else: copy the last 30 lines of this output into an issue at https://github.com/aadhilhaq/ADCPpilot/issues"
   } >&2
   exit "$rc"
 }

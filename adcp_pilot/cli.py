@@ -106,7 +106,7 @@ def _local(a):
         raise SystemExit(
             "Missing: %s. Install everything this needs in one go:\n\n"
             "  pip install \"adcp-pilot[local] @ "
-            "git+https://github.com/aadhilhaq/ADCP_docking\"\n"
+            "git+https://github.com/aadhilhaq/ADCPpilot\"\n"
             % ", ".join(missing))
 
     if mac10.is_mac():

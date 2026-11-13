@@ -55,7 +55,7 @@ so a pose scored again is measured again, and a VERSION, so a change of
 protocol here measures every pose again rather than mixing two protocols in
 one column.
 
-The one copy is hope_core's. ADCP_docking carries the same bytes as
+The one copy is hope_core's. ADCPpilot carries the same bytes as
 adcp_pilot/_vendor/strain.py, which is the only reason the two tools' numbers
 can be compared.
 

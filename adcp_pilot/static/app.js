@@ -4114,7 +4114,7 @@ $('feedback').onclick = () => {
   $('fbmail').href = 'mailto:aadhil.haq@tamu.edu?cc=sfernando@tamu.edu'
     + '&subject=' + encodeURIComponent('ADCPpilot: feedback')
     + '&body=' + encodeURIComponent(body);
-  $('fbissue').href = 'https://github.com/aadhilhaq/ADCP_docking/issues/new?body='
+  $('fbissue').href = 'https://github.com/aadhilhaq/ADCPpilot/issues/new?body='
     + encodeURIComponent(body);
   $('fbdlg').showModal();
 };

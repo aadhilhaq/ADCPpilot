@@ -60,7 +60,7 @@ def write(path, text, mode=0o755):
 
 
 # --- a checkout: the scripts, and the package linked in -----------------------
-dep = os.path.join(tmp, "ADCP_docking")
+dep = os.path.join(tmp, "ADCPpilot")
 os.makedirs(os.path.join(dep, "scripts"))
 for f in ("install.sh", "update.sh"):
     shutil.copy(os.path.join(ROOT, f), dep)

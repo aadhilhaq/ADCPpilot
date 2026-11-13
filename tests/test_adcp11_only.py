@@ -142,13 +142,13 @@ try:
     shutil.rmtree(tmp, ignore_errors=True)
 
     # Found with nothing named: beside a checkout, as install.sh leaves it
-    # on a cluster (<folder>/ADCP_docking and <folder>/tools/docking/adcpsuite).
+    # on a cluster (<folder>/ADCPpilot and <folder>/tools/docking/adcpsuite).
     os.environ.pop("ADCPSUITE_HOME", None)
     side = tempfile.mkdtemp(prefix="adcp11only_side_")
     os.makedirs(os.path.join(side, "tools", "docking"))
     os.symlink(SUITE, os.path.join(side, "tools", "docking", "adcpsuite"))
-    os.makedirs(os.path.join(side, "ADCP_docking"))
-    os.environ["ADCP_HOME"] = os.path.join(side, "ADCP_docking")
+    os.makedirs(os.path.join(side, "ADCPpilot"))
+    os.environ["ADCP_HOME"] = os.path.join(side, "ADCPpilot")
     found = adcp11.find()
     check(found and os.path.realpath(adcp11.home_of(found)) == os.path.realpath(SUITE),
           "the suite beside the installation is not found with nothing named: %r"
@@ -166,7 +166,7 @@ env = {"PATH": "/usr/bin:/bin", "HOME": os.environ.get("HOME", "/tmp")}
 # A checkout on the lab's cluster sits beside tools/docking, whose suite and
 # ADapt are found where a test says there are none; a copy in a folder with
 # nothing beside it is what "not installed" means here.
-ALONE = os.path.join(tempfile.mkdtemp(prefix="adcp11only_alone_"), "ADCP_docking")
+ALONE = os.path.join(tempfile.mkdtemp(prefix="adcp11only_alone_"), "ADCPpilot")
 shutil.copytree(ROOT, ALONE, ignore=shutil.ignore_patterns(
     ".git", "tests", "build", "*.egg-info", "__pycache__", "notebooks", "tools",
     "activate.sh", "example_run", "_runs", "_work"))

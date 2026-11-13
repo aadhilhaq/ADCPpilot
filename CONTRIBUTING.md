@@ -2,7 +2,7 @@
 
 ## Reporting problems
 
-Open a [GitHub issue](https://github.com/aadhilhaq/ADCP_docking/issues) or use **Send feedback** in the interface. Include the version or commit, the operating system and cluster, the steps that reproduce the problem, the settings, and the relevant log (the job's `.out` file where there is one). For an installation problem, include the output of `adcp-pilot check`. Remove access tokens, passwords and confidential data first.
+Open a [GitHub issue](https://github.com/aadhilhaq/ADCPpilot/issues) or use **Send feedback** in the interface. Include the version or commit, the operating system and cluster, the steps that reproduce the problem, the settings, and the relevant log (the job's `.out` file where there is one). For an installation problem, include the output of `adcp-pilot check`. Remove access tokens, passwords and confidential data first.
 
 ## Running the tests
 

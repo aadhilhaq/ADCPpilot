@@ -263,7 +263,7 @@ check(tunnel.AUTH_PATIENCE >= 120,
       "LoginGraceTime allows" % tunnel.AUTH_PATIENCE)
 
 # --- the server is started, its URL read, and a port forwarded to it ------
-INSTALL = "/home/someone/ADCP_docking"
+INSTALL = "/home/someone/ADCPpilot"
 out = []
 s = session.start(t, INSTALL, runs="~/adcp_runs",
                   tools_roots=("/opt/adcpsuite", "/opt/amber"),

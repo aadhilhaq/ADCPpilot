@@ -20,7 +20,7 @@ import subprocess
 # a pilot is what this package provides, a way to fly a docking study from one
 # page. Everything that displays a name reads these three.
 NAME = "ADCPpilot"
-TAGLINE = "a product of the Scripps Research Institute and the GUI powered by HOPE Lab"
+TAGLINE = "ADCP by the Scripps Research Institute; the interface by HOPE Lab"
 LONG_NAME = "A graphical interface to AutoDock CrankPep, end to end on a cluster"
 
 LAB = "HOPE Lab"

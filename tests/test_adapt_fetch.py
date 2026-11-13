@@ -144,7 +144,7 @@ def publish(message, embeddable=True, extra="", force=False):
 
 c1 = publish("one")
 
-# --- a checkout of ADCP_docking, with a tools folder for the ADCP 1.1 suite --
+# --- a checkout of ADCPpilot, with a tools folder for the ADCP 1.1 suite --
 fakepy = os.path.join(tmp, "python")
 with open(fakepy, "w") as fh:
     fh.write("#!/bin/sh\nexit 0\n")
@@ -240,7 +240,7 @@ check(not leftovers(tools), "the clone left its temporary folder behind")
 # A checkout on the lab's cluster sits beside tools/docking, whose suite and
 # ADapt are found where a test says there are none; a copy in a folder with
 # nothing beside it is what "not installed" means here.
-alone = os.path.join(tempfile.mkdtemp(prefix="adapt_alone_"), "ADCP_docking")
+alone = os.path.join(tempfile.mkdtemp(prefix="adapt_alone_"), "ADCPpilot")
 shutil.copytree(os.path.join(ROOT, "adcp_pilot"), os.path.join(alone, "adcp_pilot"),
                 ignore=shutil.ignore_patterns("__pycache__", "example_run"))
 found = subprocess.run(
@@ -335,7 +335,7 @@ rc, out = update(dep3, upstream)
 check(rc == 0 and "not a git checkout" in adapt_line(out)
       and git(dep3, "rev-parse", "HEAD") == before_head
       and git(dep3, "status", "--porcelain") == "",
-      "an ADapt folder inside the ADCP_docking checkout was treated as a checkout: %s"
+      "an ADapt folder inside the ADCPpilot checkout was treated as a checkout: %s"
       % adapt_line(out))
 
 # --- no suite named in activate.sh: the one the interface finds -----------------

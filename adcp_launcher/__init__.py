@@ -36,7 +36,7 @@ ENGINE_CREDIT = ("A graphical interface to %s, a product of the %s. %s."
 HOW_TO_CITE = (
     "How to cite: ADCP (Zhang & Sanner 2019, "
     "doi:10.1093/bioinformatics/btz459) and this interface "
-    "(github.com/aadhilhaq/ADCP_docking). Every finished run downloads "
+    "(github.com/aadhilhaq/ADCPpilot). Every finished run downloads "
     "with HOW_TO_CITE.txt, CITATION.bib and CITATION.ris listing what "
     "that run actually used, with DOIs.")
 

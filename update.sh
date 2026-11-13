@@ -3,7 +3,7 @@
 #
 # By Aadhil Haq
 #
-#     cd /path/to/ADCP_docking && git pull; ./update.sh
+#     cd /path/to/ADCPpilot && git pull; ./update.sh
 #
 # The pull in front is not redundant: it is what brings in a newer copy of
 # THIS script. Running it afterwards is what applies whatever that copy does.
