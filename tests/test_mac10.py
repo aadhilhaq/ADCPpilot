@@ -2,8 +2,8 @@
 
 By Aadhil Haq
 
-On macOS, where the Scripps Research Institute builds no ADCP 1.1, `adcp-dock
-local` installs ADFRsuite 1.0 and docks with it (adcp_dock/mac10.py). No Mac
+On macOS, where the Scripps Research Institute builds no ADCP 1.1, `adcp-pilot
+local` installs ADFRsuite 1.0 and docks with it (adcp_pilot/mac10.py). No Mac
 is needed here: the system mac10 sees is set by hand, and ADFRsuite is a
 folder of stand-in programs that write what ADCP 1.0 writes. What is checked:
 
@@ -19,8 +19,8 @@ folder of stand-in programs that write what ADCP 1.0 writes. What is checked:
   * a whole dock task and its report, which say what the engine was and that
     the scores are not comparable with ADCP 1.1's;
   * the install: the macOS tarball, checked against its pinned SHA-256, and
-    refused on any other system; `adcp-dock local` choosing it on a Mac
-    only, and `adcp-dock check` naming it there and only there.
+    refused on any other system; `adcp-pilot local` choosing it on a Mac
+    only, and `adcp-pilot check` naming it there and only there.
 
 The real programs on a real Mac are tests/mac10_live.py's, which the manual
 mac10 workflow runs on GitHub's macOS runner.
@@ -43,7 +43,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock import (adcp11, adcp11_install, cli, job as jobmod,  # noqa: E402
+from adcp_pilot import (adcp11, adcp11_install, cli, job as jobmod,  # noqa: E402
                        mac10, pipeline, server, target, tools)
 
 fails, ran = [], 0
@@ -102,7 +102,7 @@ def make_suite(path):
 
 
 def check_output():
-    """What `adcp-dock check` prints."""
+    """What `adcp-pilot check` prints."""
     out = io.StringIO()
     with contextlib.redirect_stdout(out):
         try:
@@ -122,7 +122,7 @@ def as_system(name):
 
 
 # --- on Linux, nothing reaches ADCP 1.0 ------------------------------------------
-# ADFRsuite 1.0 installed, named in the variable `adcp-dock local` sets, and its
+# ADFRsuite 1.0 installed, named in the variable `adcp-pilot local` sets, and its
 # programs first on PATH: none of it is used, and every function that would
 # run it fails the check if it is reached.
 as_system("Linux")
@@ -181,7 +181,7 @@ try:
           "a run made on a Mac was docked on Linux (%r)" % stopped)
     said = check_output()
     check("ADFRsuite" not in said and "ADCP 1.0" not in said,
-          "adcp-dock check on Linux names ADFRsuite 1.0")
+          "adcp-pilot check on Linux names ADFRsuite 1.0")
     check(not reached, "on Linux these were reached: %s" % reached)
     try:
         _saved["install"](os.path.join(TMP, "never"))
@@ -242,7 +242,7 @@ check(cmd[0] == os.path.join(ADFR, "bin", "agfr") and cmd[-1] == "-ng"
 said = check_output()
 check("ADFRsuite 1.0" in said and mac10.NOTE in said and ADFR in said
       and "ADCP 1.1 suite" not in said,
-      "adcp-dock check on a Mac does not say it docks with ADFRsuite 1.0")
+      "adcp-pilot check on a Mac does not say it docks with ADFRsuite 1.0")
 check("ADCP 1.0 (macOS)" in "\n".join(pipeline.batch_notes(j, "dock")),
       "the dock script's notes do not name ADCP 1.0 (macOS)")
 
@@ -337,12 +337,12 @@ st = app.run_status(rd)
 check(st.get("engine_note") == mac10.NOTE, "the run's page is not told")
 check(app.tools().get("mac10", {}).get("engaged") is True,
       "the page is not told this Mac docks with ADCP 1.0")
-appjs = open(os.path.join(ROOT, "adcp_dock", "static", "app.js")).read()
+appjs = open(os.path.join(ROOT, "adcp_pilot", "static", "app.js")).read()
 check("d.engine_note" in appjs and "d.mac10.note" in appjs,
       "the page does not show the note")
 
 # --- a run docked with ADCP 1.0 before the move to 1.1, and converted since --------
-from adcp_dock import report as reportmod  # noqa: E402
+from adcp_pilot import report as reportmod  # noqa: E402
 
 converted = {"converted": {"date": "2026-10-18", "from": "ADCP 1.0"}}
 said = reportmod.engine_note([{"engine": "ADCP 1.0"}], converted)
@@ -391,7 +391,7 @@ finally:
 check(_build[1] == "ADFRsuite_x86_64Darwin_1.0.tar.gz" and len(_build[2]) == 64,
       "the macOS build is not the pinned Darwin tarball")
 
-# --- `adcp-dock local` installs it on a Mac, and only there ------------------------
+# --- `adcp-pilot local` installs it on a Mac, and only there ------------------------
 asked = []
 
 
@@ -400,7 +400,7 @@ def stop(dest=None, log=print):
     raise SystemExit("installed")
 
 
-# The Python modules `adcp-dock local` asks for first, stood in for where
+# The Python modules `adcp-pilot local` asks for first, stood in for where
 # this environment lacks one: what is checked comes after them.
 for mod in ("pdb2pqr", "openmm", "pdbfixer", "rdkit"):
     try:
@@ -419,7 +419,7 @@ try:
         except SystemExit as exc:
             said = str(exc)
     check(said == "installed" and asked == [mac10.DEFAULT],
-          "adcp-dock local on a Mac does not install ADFRsuite 1.0 into %s "
+          "adcp-pilot local on a Mac does not install ADFRsuite 1.0 into %s "
           "(%r, %s)" % (mac10.DEFAULT, said, asked))
     as_system("Linux")
     asked.clear()
@@ -443,7 +443,7 @@ try:
     finally:
         adcp11.find, adcp11.at, server.build = _find, _at, _build_srv
     check(said == "server" and not asked,
-          "adcp-dock local on Linux reached ADFRsuite 1.0 (%r, %s)" % (said, asked))
+          "adcp-pilot local on Linux reached ADFRsuite 1.0 (%r, %s)" % (said, asked))
 finally:
     mac10.install, cli.slurm.available = _install, _avail
     mac10._system = _real_system

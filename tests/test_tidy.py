@@ -46,9 +46,9 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
 try:
-    from adcp_dock import (bundle, example, pipeline, server, slurm,  # noqa: E402
+    from adcp_pilot import (bundle, example, pipeline, server, slurm,  # noqa: E402
                            tidy, worker)
-    from adcp_dock._vendor import adcp as adcpvendor, mmgbsa     # noqa: E402
+    from adcp_pilot._vendor import adcp as adcpvendor, mmgbsa     # noqa: E402
 except ImportError as exc:
     print("skip: the package cannot be imported here (%s)" % exc)
     sys.exit(77)
@@ -443,7 +443,7 @@ try:
     check(s.get("job") == "12345" and asked == [J(tidy.SCRIPT)],
           "the tidy was not submitted as a job of its own: %s" % s)
     text = open(J(tidy.SCRIPT)).read() if os.path.isfile(J(tidy.SCRIPT)) else ""
-    check("adcp_dock.worker" in text and text.rstrip().endswith(" tidy")
+    check("adcp_pilot.worker" in text and text.rstrip().endswith(" tidy")
           and "--mem=2G" in text and "--cpus-per-task=1" in text,
           "the tidy job's script is not a short single core job running the "
           "worker's tidy stage:\n%s" % text)
@@ -471,10 +471,10 @@ check(snapshot(run) == before, "the submission touched the run beyond its "
       "script and record")
 
 # ---- the page's route and payload ------------------------------------------------
-src = open(os.path.join(ROOT, "adcp_dock", "server.py")).read()
+src = open(os.path.join(ROOT, "adcp_pilot", "server.py")).read()
 check('u.path == "/api/tidy"' in src and "def tidy_run(self, rundir" in src,
       "the server does not route POST /api/tidy to App.tidy_run")
-appjs = open(os.path.join(ROOT, "adcp_dock", "static", "app.js")).read()
+appjs = open(os.path.join(ROOT, "adcp_pilot", "static", "app.js")).read()
 check("api('/api/tidy'" in appjs and "'Tidying…'" in appjs
       and ">Undo tidy</button>" in appjs and "Tidy</button>" in appjs,
       "the run's page has no Tidy and Undo tidy button wired to /api/tidy")
@@ -565,7 +565,7 @@ else:
           "states were not run")
 
 # ---- the run's own tidy, queued with it ------------------------------------
-from adcp_dock import job as jobmod  # noqa: E402
+from adcp_pilot import job as jobmod  # noqa: E402
 
 armrun = tempfile.mkdtemp(prefix="adcp_arm_")
 jobmod.save(armrun, jobmod.default())
@@ -610,12 +610,12 @@ check(not got.get("armed") and len(asked) == n,
       "nor on a computer with no scheduler, where Tidy is pressed by hand: %s" % got)
 (slurm.submit, slurm.cancel, slurm.state, slurm.local_mode, slurm.available,
  tidy.live_jobs) = saved
-src = open(os.path.join(ROOT, "adcp_dock", "server.py")).read()
+src = open(os.path.join(ROOT, "adcp_pilot", "server.py")).read()
 check(src.count("self._arm(") == 4 and '"keep_files"' in open(
-    os.path.join(ROOT, "adcp_dock", "job.py")).read(),
+    os.path.join(ROOT, "adcp_pilot", "job.py")).read(),
       "a new run, a rescoring, a panel and added measures all queue the run's tidy, "
       "and the form's Keep every file reaches the job")
-check('"--keep-files"' in open(os.path.join(ROOT, "adcp_dock", "cli.py")).read()
+check('"--keep-files"' in open(os.path.join(ROOT, "adcp_pilot", "cli.py")).read()
       and jobmod.default(keep_files=True)["keep_files"] is True,
       "the command line takes --keep-files, as a flow's card sends it, and the job keeps it")
 shutil.rmtree(armrun, ignore_errors=True)

@@ -26,7 +26,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock import page, runreport  # noqa: E402
+from adcp_pilot import page, runreport  # noqa: E402
 
 fails, ran = [], 0
 
@@ -38,12 +38,12 @@ def check(cond, why):
         fails.append(why)
 
 
-STATIC = os.path.join(ROOT, "adcp_dock", "static")
+STATIC = os.path.join(ROOT, "adcp_pilot", "static")
 NAMES = ("reportkit.js", "reportkit.css")
 mine = {}
 for n in NAMES:
     p = os.path.join(STATIC, n)
-    check(os.path.isfile(p), "adcp_dock/static/%s is missing" % n)
+    check(os.path.isfile(p), "adcp_pilot/static/%s is missing" % n)
     mine[n] = open(p, "rb").read() if os.path.isfile(p) else b""
 
 # --- the copies are one module ------------------------------------------------
@@ -65,7 +65,7 @@ else:
             for other in copies:
                 seen += 1
                 with open(other, "rb") as fh:
-                    check(fh.read() == mine[n], "adcp_dock/static/%s differs from %s; the copies are one "
+                    check(fh.read() == mine[n], "adcp_pilot/static/%s differs from %s; the copies are one "
                           "module" % (n, other))
     print("note  reportkit compared with %d copies" % seen)
 

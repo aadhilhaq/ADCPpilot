@@ -20,7 +20,7 @@ FEEDBACK_TO = os.environ.get("ADCP_FEEDBACK_TO") or "aadhil.haq@tamu.edu"
 
 #: Any cluster with Slurm, reached at the address the person types.
 OTHER = "Slurm cluster"
-#: No cluster at all: `adcp-dock local` on this machine (or in WSL).
+#: No cluster at all: `adcp-pilot local` on this machine (or in WSL).
 THIS = "This computer"
 
 SITES = {
@@ -175,7 +175,7 @@ def suggested_port(user):
     editable. Mixed with the tool's name so that the same person gets a
     different number from another tool's launcher.
     """
-    seed = (user or "adcp") + "|adcp-docking"
+    seed = (user or "adcp") + "|adcp-piloting"
     return PORT_BASE + (sum(ord(c) * (i + 1) for i, c in enumerate(seed))
                         % PORT_SPAN)
 

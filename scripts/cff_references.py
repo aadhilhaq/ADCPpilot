@@ -1,5 +1,5 @@
 """Rewrite the references section of CITATION.cff from the tool's own
-citation list (adcp_dock/cite.py), with full metadata from Crossref.
+citation list (adcp_pilot/cite.py), with full metadata from Crossref.
 
 By Aadhil Haq
 
@@ -17,7 +17,7 @@ import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
-from adcp_dock import cite  # noqa: E402
+from adcp_pilot import cite  # noqa: E402
 
 NOTES = {"adcp": "The docking engine. Scripps Research Institute.",
          "adfr": "AutoDockFR: agfr and prepare_receptor, from the ADCP 1.1 suite. Scripps Research Institute.",

@@ -26,7 +26,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock import server                                      # noqa: E402
+from adcp_pilot import server                                      # noqa: E402
 
 fails, ran = [], 0
 
@@ -325,14 +325,14 @@ check(app2.run_file(os.path.join(LINKED, "escape", "secret.txt"))[0] is None,
       "a linked runs folder sends a file through a link that leads out")
 
 # --- the page offers both views ----------------------------------------------------
-from adcp_dock import page                                         # noqa: E402
+from adcp_pilot import page                                         # noqa: E402
 html = page.render("TOKEN")
 for want in ('id=tab_runs', 'id=tab_folders', 'role=tablist',
              'id=folderspanel', 'id=runspanel', 'id=filedlg'):
     check(want in html, "the page has no %s" % want)
 check(">All runs<" in html and ">Folders<" in html,
       "the two tabs are not called All runs and Folders")
-appjs = open(os.path.join(ROOT, "adcp_dock", "static", "app.js")).read()
+appjs = open(os.path.join(ROOT, "adcp_pilot", "static", "app.js")).read()
 for want in ("/api/folder?path=", "/api/runfile?path=", "data-openrun",
              "function viewFile", "aria-selected"):
     check(want in appjs, "app.js has no %s" % want)

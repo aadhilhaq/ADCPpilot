@@ -41,8 +41,8 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
 try:
-    from adcp_dock import job as jobmod, page, pipeline, server, sizing, slurm, tidy  # noqa: E402
-    from adcp_dock._vendor import gbengines, strain as strainmod  # noqa: E402
+    from adcp_pilot import job as jobmod, page, pipeline, server, sizing, slurm, tidy  # noqa: E402
+    from adcp_pilot._vendor import gbengines, strain as strainmod  # noqa: E402
 except ImportError as exc:
     print("skip: the package cannot be imported here (%s)" % exc)
     sys.exit(77)
@@ -330,7 +330,7 @@ gbengines.OPENMM.available, gbengines.SCHRODINGER.available = real_avail
 
 # --- the page ----------------------------------------------------------------------
 html = page.render("TOKEN")
-appjs = open(os.path.join(ROOT, "adcp_dock", "static", "app.js"), encoding="utf-8").read()
+appjs = open(os.path.join(ROOT, "adcp_pilot", "static", "app.js"), encoding="utf-8").read()
 css = html[html.index("<style>"):html.index("</style>")]
 mcss = css[css.index("---- adding measures"):css.index("---- column widths")]
 dlg = html[html.index("<dialog id=measuresdlg"):html.index("</dialog>",

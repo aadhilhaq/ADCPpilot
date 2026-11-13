@@ -39,9 +39,9 @@ sys.path.insert(0, ROOT)
 
 import numpy as np                                            # noqa: E402
 
-from adcp_dock import job as jobmod, mmforms, pipeline, report  # noqa: E402
-from adcp_dock._vendor import amberfiles as af                # noqa: E402
-from adcp_dock._vendor import library, mmgbsa, poseviewer, prep  # noqa: E402
+from adcp_pilot import job as jobmod, mmforms, pipeline, report  # noqa: E402
+from adcp_pilot._vendor import amberfiles as af                # noqa: E402
+from adcp_pilot._vendor import library, mmgbsa, poseviewer, prep  # noqa: E402
 
 fails, ran = [], 0
 
@@ -119,7 +119,7 @@ check(mmforms.letters("ETF&SDLW&KLL") == "ETFSDLWKLL"
 check(jobmod.default().get(mmforms.JOB_KEY) is True,
       "a new run rescores D residues and closed rings")
 # The shipped example as a job file from before the setting: without the key.
-old_example = json.load(open(os.path.join(ROOT, "adcp_dock", "example_run",
+old_example = json.load(open(os.path.join(ROOT, "adcp_pilot", "example_run",
                                           "job.json")))
 old_example.pop(mmforms.JOB_KEY, None)
 check(not mmforms.enabled(old_example),
@@ -153,7 +153,7 @@ check(mmforms.engine_refusal("schrodinger", "&TNWY", "none")
 check(mmforms.BACKBONE_CLOSED == 2.5 and mmforms.DISULFIDE_CLOSED == 3.5,
       "the cutoffs are the ones the documentation states (%s, %s)"
       % (mmforms.BACKBONE_CLOSED, mmforms.DISULFIDE_CLOSED))
-docs = open(os.path.join(ROOT, "adcp_dock", "docs", "pages",
+docs = open(os.path.join(ROOT, "adcp_pilot", "docs", "pages",
                          "rescoring.html"), encoding="utf-8").read()
 check("2.5 &Aring;" in docs and "3.5 &Aring;" in docs,
       "and the rescoring page states both")
@@ -337,7 +337,7 @@ pipeline._stage_mmgbsa(run, dict(old_j, cyclic="none"), "&TNWYANLEKLLR", out,
                        pdir, 3, 1, {"cyclic": "none"}, log=logs.append)
 check(out.get("mmgbsa_skipped") == "non-standard or D residues",
       "an old run resumed still skips a D peptide (%s)" % out)
-ex = os.path.join(ROOT, "adcp_dock", "example_run")
+ex = os.path.join(ROOT, "adcp_pilot", "example_run")
 r_ex = json.load(open(os.path.join(ex, "results", "ETFSDLWKLLPEN.json")))
 t_ex = pipeline.energy_terms(ex, r_ex)
 check(t_ex.get("mm_total") is not None,

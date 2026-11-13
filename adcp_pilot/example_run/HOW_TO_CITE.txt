@@ -1,0 +1,66 @@
+HOW TO CITE
+
+This interface:
+  Aadhil Haq, Sandun Fernando (2026). ADCPpilot v0.1.20: a browser and command-line workflow for peptide docking with ADCP. HOPE Lab, Texas A&M University.
+
+ADCP is a product of the Scripps Research Institute and is not ours. It must be cited whatever else is:
+  https://ccsb.scripps.edu/adcp/
+
+Results published using this tool must cite the ADCP (Zhang and Sanner, 2019), AutoDockFR / AGFR (Ravindranath et al., 2015) and AutoSite (Ravindranath and Sanner, 2016) papers.
+
+For this run, from its job.json:
+  - the docking search itself
+      Zhang Y, Sanner MF. AutoDock CrankPep: combining folding and docking to predict protein-peptide complexes. Bioinformatics 35(24):5121-5127, 2019.
+      doi:10.1093/bioinformatics/btz459
+  - grid maps (agfr) and receptor preparation (prepare_receptor)
+      Ravindranath PA, Forli S, Goodsell DS, Olson AJ, Sanner MF. AutoDockFR: advances in protein-ligand docking with explicitly specified binding site flexibility. PLoS Comput Biol 11(12):e1004586, 2015.
+      doi:10.1371/journal.pcbi.1004586
+  - the affinity maps agfr computes with AutoGrid4
+      Morris GM, Huey R, Lindstrom W, Sanner MF, Belew RK, Goodsell DS, Olson AJ. AutoDock4 and AutoDockTools4: automated docking with selective receptor flexibility. J Comput Chem 30(16):2785-2791, 2009.
+      doi:10.1002/jcc.21256
+  - the translational points agfr computes for every grid target
+      Ravindranath PA, Sanner MF. AutoSite: an automated approach for pseudo-ligands prediction—from ligand-binding sites identification to predicting key ligand atoms. Bioinformatics 32(20):3142-3149, 2016.
+      doi:10.1093/bioinformatics/btw367
+  - the receptor's hydrogens: the histidine protons and the Asn, Gln and His flips
+      Word JM, Lovell SC, Richardson JS, Richardson DC. Asparagine and glutamine: using hydrogen atom contacts in the choice of side-chain amide orientation. J Mol Biol 285(4):1735-1747, 1999.
+      doi:10.1006/jmbi.1998.2401
+      (only if: receptor preparation with reduce (the default), a receptor from ADapt, or MM-GBSA in such a run)
+  - rebuilding missing side chains and atoms
+      Eastman P, et al. OpenMM 7: rapid development of high performance algorithms for molecular dynamics. PLoS Comput Biol 13(7):e1005659, 2017.  (PDBFixer is distributed with OpenMM.)
+      doi:10.1371/journal.pcbi.1005659
+      (only if: receptor preparation, or ADCP 1.1's minimization)
+  - the restrained energy minimisation
+      Eastman P, et al. OpenMM 7: rapid development of high performance algorithms for molecular dynamics. PLoS Comput Biol 13(7):e1005659, 2017.
+      doi:10.1371/journal.pcbi.1005659
+      (only if: the receptor's minimization, or ADCP 1.1's)
+  - tleap, sander and the force field used for MM-GBSA
+      Case DA, et al. AmberTools. J Chem Inf Model 63(20):6183-6191, 2023.
+      doi:10.1021/acs.jcim.3c01153
+      (only if: mmgbsa)
+  - the ff14SB protein force field of the receptor's minimization and of MM-GBSA
+      Maier JA, Martinez C, Kasavajhala K, Wickstrom L, Hauser KE, Simmerling C. ff14SB: improving the accuracy of protein side chain and backbone parameters from ff99SB. J Chem Theory Comput 11(8):3696-3713, 2015.
+      doi:10.1021/acs.jctc.5b00255
+      (only if: the receptor's minimization, or MM-GBSA)
+  - the MM-GBSA calculation itself
+      Miller BR III, McGee TD Jr, Swails JM, Homeyer N, Gohlke H, Roitberg AE. MMPBSA.py: an efficient program for end-state free energy calculations. J Chem Theory Comput 8(9):3314-3321, 2012.
+      doi:10.1021/ct300418h
+      (only if: mmgbsa)
+  - the generalised Born model itself (igb=5, GB-OBC II, 0.15 M salt)
+      Onufriev A, Bashford D, Case DA. Exploring protein native states and large-scale conformational changes with a modified generalized born model. Proteins 55(2):383-394, 2004.
+      doi:10.1002/prot.20033
+      (only if: mmgbsa)
+  - the GBn2 implicit solvent model
+      Nguyen H, Roe DR, Simmerling C. Improved generalized Born solvent model parameters for protein simulations. J Chem Theory Comput 9(4):2020-2034, 2013.
+      doi:10.1021/ct3010485
+      (only if: the receptor's minimization, ADCP 1.1's in implicit solvent, or MM-GBSA run with GBn2)
+  - the array arithmetic under the box and the poses
+      Harris CR, Millman KJ, van der Walt SJ, et al. Array programming with NumPy. Nature 585(7825):357-362, 2020.
+      doi:10.1038/s41586-020-2649-2
+  - the peptide topologies every pose is laid onto
+      RDKit: Open-source cheminformatics. https://www.rdkit.org
+      doi:10.5281/zenodo.591637
+
+ACKNOWLEDGEMENT
+  Acknowledge the computing facility that ran this work, if its policy requires it.
+
+PI: Dr. Sandun Fernando

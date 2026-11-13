@@ -50,8 +50,8 @@ try:
     from selenium.webdriver.common.by import By
     from selenium.webdriver.common.action_chains import ActionChains
     from selenium.webdriver.common.keys import Keys
-    from adcp_dock import job as jobmod, report, server, slurm
-    from adcp_dock._vendor import gbengines, strain as strainmod
+    from adcp_pilot import job as jobmod, report, server, slurm
+    from adcp_pilot._vendor import gbengines, strain as strainmod
 except ImportError as exc:
     print("skip: %s" % exc)
     sys.exit(77)

@@ -33,7 +33,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock._vendor import prepare  # noqa: E402
+from adcp_pilot._vendor import prepare  # noqa: E402
 
 FIXTURE = os.path.join(HERE, "data", "7a3r_loop_and_tail.pdb")
 fails, ran = [], 0

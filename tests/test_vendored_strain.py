@@ -1,8 +1,8 @@
-"""The peptide strain in adcp_dock/_vendor is hope_core's, byte for byte.
+"""The peptide strain in adcp_pilot/_vendor is hope_core's, byte for byte.
 
 By Aadhil Haq
 
-adcp_dock/_vendor/strain.py is the module HOPE-pipelines maintains as
+adcp_pilot/_vendor/strain.py is the module HOPE-pipelines maintains as
 hope_core/strain.py, carried here unchanged, which is the only reason the two
 tools' strain columns can be compared. Unlike the vendored preparation it
 keeps the master's own docstrings, so the two are compared as bytes: any
@@ -21,7 +21,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-MINE = os.path.join(ROOT, "adcp_dock", "_vendor", "strain.py")
+MINE = os.path.join(ROOT, "adcp_pilot", "_vendor", "strain.py")
 
 
 def checkouts():
@@ -41,7 +41,7 @@ places = checkouts()
 master = next((m for m in (os.path.join(c, "hope_core", "strain.py") for c in places)
                if os.path.isfile(m)), None)
 if not master:
-    print("skip  adcp_dock/_vendor/strain.py was compared with nothing: no "
+    print("skip  adcp_pilot/_vendor/strain.py was compared with nothing: no "
           "HOPE-pipelines checkout holding hope_core/strain.py is %s (looked at %s)"
           % ("where HOPE_PIPELINES_CHECKOUT says" if os.environ.get(
               "HOPE_PIPELINES_CHECKOUT", "").strip()
@@ -53,9 +53,9 @@ if mine != theirs:
     a, b = mine.splitlines(), theirs.splitlines()
     at = next((i for i, (x, y) in enumerate(zip(a, b)) if x != y), min(len(a), len(b)))
     print("test_vendored_strain FAILED")
-    print("  FAIL adcp_dock/_vendor/strain.py is not %s: they part at line %d "
+    print("  FAIL adcp_pilot/_vendor/strain.py is not %s: they part at line %d "
           "(%d lines here, %d there). Copy it again rather than edit it here"
           % (master, at + 1, len(a), len(b)))
     sys.exit(1)
-print("ok  adcp_dock/_vendor/strain.py is %s byte for byte, %d bytes"
+print("ok  adcp_pilot/_vendor/strain.py is %s byte for byte, %d bytes"
       % (master, len(mine)))

@@ -43,7 +43,7 @@ listed = set(st.get("packages") or [])
 data = st.get("package-data") or {}
 
 # --- every importable directory is listed ----------------------------------
-for top in ("adcp_dock", "adcp_launcher"):
+for top in ("adcp_pilot", "adcp_launcher"):
     for init in glob.glob(os.path.join(ROOT, top, "**", "__init__.py"),
                           recursive=True):
         rel = os.path.relpath(os.path.dirname(init), ROOT)
@@ -76,15 +76,15 @@ for pkg in listed:
 # SHA-256 before it is installed.
 import re as _re                                                # noqa: E402
 _sh = open(os.path.join(ROOT, "install.sh")).read()
-check("ccsb.scripps.edu" not in _sh and "adcp_dock.adcp11_install" in _sh,
+check("ccsb.scripps.edu" not in _sh and "adcp_pilot.adcp11_install" in _sh,
       "install.sh fetches from Scripps itself, or not through adcp11_install")
 sys.path.insert(0, ROOT)
-from adcp_dock import adcp11_install as _ai                     # noqa: E402
+from adcp_pilot import adcp11_install as _ai                     # noqa: E402
 check(len(_ai.WHEELS) >= 20
       and all(_re.fullmatch(r"[0-9a-f]{64}", v) for v in _ai.WHEELS.values()),
       "a Scripps package of the ADCP 1.1 suite is installed without a pinned "
       "SHA-256")
-check(not os.path.exists(os.path.join(ROOT, "adcp_dock", "adfr.py")),
+check(not os.path.exists(os.path.join(ROOT, "adcp_pilot", "adfr.py")),
       "the installer of the older suite is still in the package")
 
 # --- and a real wheel, where it can be built offline ------------------------
@@ -102,25 +102,25 @@ except Exception:                                               # noqa: BLE001
     built = None
 
 if built is not None:
-    for must in ("adcp_dock/__init__.py", "adcp_dock/_vendor/adcp.py",
-                 "adcp_dock/_vendor/prepare.py", "adcp_dock/adcp11_install.py",
+    for must in ("adcp_pilot/__init__.py", "adcp_pilot/_vendor/adcp.py",
+                 "adcp_pilot/_vendor/prepare.py", "adcp_pilot/adcp11_install.py",
                  # run by the suite's own Python for the surfaces
-                 "adcp_dock/msms_mslib.py",
-                 "adcp_dock/static/app.js", "adcp_dock/static/3Dmol-min.js",
+                 "adcp_pilot/msms_mslib.py",
+                 "adcp_pilot/static/app.js", "adcp_pilot/static/3Dmol-min.js",
                  # the lab's shared report module, which the report page loads
-                 "adcp_dock/static/reportkit.js", "adcp_dock/static/reportkit.css",
+                 "adcp_pilot/static/reportkit.js", "adcp_pilot/static/reportkit.css",
                  "adcp_launcher/__init__.py",
                  # the documentation served at /docs/
-                 "adcp_dock/docs.py", "adcp_dock/docskit.py",
-                 "adcp_dock/docs/pages/index.html", "adcp_dock/docs/img/interface.png",
+                 "adcp_pilot/docs.py", "adcp_pilot/docskit.py",
+                 "adcp_pilot/docs/pages/index.html", "adcp_pilot/docs/img/interface.png",
                  # the example run, at its deepest folder as well as its top
-                 "adcp_dock/example_run/job.json",
-                 "adcp_dock/example_run/docking/ETFSDLWKLLPEN/out_ranked_1.pdb",
-                 "adcp_dock/example_run/docking/ETFSDLWKLLPEN/modes.json",
-                 "adcp_dock/example_run/mmgbsa/ETFSDLWKLLPEN/pose1/"
+                 "adcp_pilot/example_run/job.json",
+                 "adcp_pilot/example_run/docking/ETFSDLWKLLPEN/out_ranked_1.pdb",
+                 "adcp_pilot/example_run/docking/ETFSDLWKLLPEN/modes.json",
+                 "adcp_pilot/example_run/mmgbsa/ETFSDLWKLLPEN/pose1/"
                  "ETFSDLWKLLPEN_mmgbsa.dat",
                  # which radii the example's energies were computed with
-                 "adcp_dock/example_run/mmgbsa/RADII"):
+                 "adcp_pilot/example_run/mmgbsa/RADII"):
         check(must in built, "the built wheel does not contain %s" % must)
 
 if fails:

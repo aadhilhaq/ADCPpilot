@@ -29,7 +29,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock import (adcp11, job as jobmod, pipeline, pockets,  # noqa: E402
+from adcp_pilot import (adcp11, job as jobmod, pipeline, pockets,  # noqa: E402
                        server, structure)
 
 fails, ran = [], 0
@@ -44,7 +44,7 @@ def check(cond, why):
 
 
 TMP = tempfile.mkdtemp(prefix="adcp_pockets_")
-EX = os.path.join(ROOT, "adcp_dock", "example_run", "receptor", "1YCR.pdb")
+EX = os.path.join(ROOT, "adcp_pilot", "example_run", "receptor", "1YCR.pdb")
 SITE = [("A", n) for n in (54, 58, 61, 62, 67, 72, 96, 99)]
 
 # --- the quick receptor -------------------------------------------------------
@@ -289,8 +289,8 @@ else:
     print("  (ADCP 1.1 suite not found; AutoSite itself was not run)")
 
 # --- the page ------------------------------------------------------------------------------
-appjs = open(os.path.join(ROOT, "adcp_dock", "static", "app.js")).read()
-page = open(os.path.join(ROOT, "adcp_dock", "page.py")).read()
+appjs = open(os.path.join(ROOT, "adcp_pilot", "static", "app.js")).read()
+page = open(os.path.join(ROOT, "adcp_pilot", "page.py")).read()
 for want, why in (("function webglOK()", "the page does not ask the browser for WebGL"),
                   ("viewerIn($('viewD')", "the site view is made without the check"),
                   ("viewerIn($('viewR')", "the pose view is made without the check"),
@@ -308,10 +308,10 @@ for want, why in (("id=pocketfind", "no Find pockets button"),
                   ("id=pocketscore", "no choice of how pockets are ranked"),
                   ("id=adaptnogl", "no place for ADapt's WebGL note")):
     check(want in page, why)
-docs = open(os.path.join(ROOT, "adcp_dock", "docs", "pages", "troubleshooting.html")).read()
+docs = open(os.path.join(ROOT, "adcp_pilot", "docs", "pages", "troubleshooting.html")).read()
 check('id="webgl"' in docs and "--use-angle=swiftshader --enable-unsafe-swiftshader" in docs,
       "the troubleshooting page has no WebGL section with the software rendering switches")
-site = open(os.path.join(ROOT, "adcp_dock", "docs", "pages", "site.html")).read()
+site = open(os.path.join(ROOT, "adcp_pilot", "docs", "pages", "site.html")).read()
 check('id="pockets"' in site and "lig.</b> column" in site,
       "the site page does not describe choosing pockets or ligands with ADapt")
 

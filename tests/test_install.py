@@ -17,7 +17,7 @@ nothing is downloaded. Against those:
   * one you cannot write to is left alone, with what is missing and what
     that turns off; one that lacks RDKit and cannot be given it is not used;
   * nothing is pip-installed into an environment install.sh did not build;
-    the adcp-dock command comes from the checkout instead;
+    the adcp-pilot command comes from the checkout instead;
   * activate.sh replaces PYTHONPATH, and there is no /opt/shared default;
   * install.sh and update.sh refuse to be sourced or run by sh;
   * update.sh reinstalls only into an environment that imports this checkout.
@@ -65,7 +65,7 @@ os.makedirs(os.path.join(dep, "scripts"))
 for f in ("install.sh", "update.sh"):
     shutil.copy(os.path.join(ROOT, f), dep)
 shutil.copy(os.path.join(ROOT, "scripts", "adapt_fetch.sh"), os.path.join(dep, "scripts"))
-os.symlink(os.path.join(ROOT, "adcp_dock"), os.path.join(dep, "adcp_dock"))
+os.symlink(os.path.join(ROOT, "adcp_pilot"), os.path.join(dep, "adcp_pilot"))
 
 # --- an ADCP 1.1 suite, so nothing is installed there ---------------------------
 tools = os.path.join(tmp, "tools", "docking")
@@ -240,9 +240,9 @@ check('export AMBERHOME="%s"' % os.path.join(dep, "tools", "amber") in act,
       "activate.sh does not point AMBERHOME at the wrappers:\n" + act)
 check('export PYTHONPATH="$ADCP_HOME"' in act and "${PYTHONPATH" not in act,
       "activate.sh adds to PYTHONPATH instead of replacing it:\n" + act)
-check(os.access(os.path.join(dep, "tools", "bin", "adcp-dock"), os.X_OK)
+check(os.access(os.path.join(dep, "tools", "bin", "adcp-pilot"), os.X_OK)
       and os.path.join(dep, "tools", "bin") in act,
-      "the adcp-dock command was not provided from the checkout:\n" + act)
+      "the adcp-pilot command was not provided from the checkout:\n" + act)
 check(os.listdir(home) == [], "install.sh wrote into the home directory: %r" % os.listdir(home))
 
 # Run again with the module unloaded: the wrappers are found and kept.
@@ -312,7 +312,7 @@ e4 = make_env("env_nordkit", ["numpy"])
 os.chmod(os.path.join(e4, "conda-meta"), 0o555)
 reset()
 rc, out = install(dict(base_env, ADCP_ENV=e4))
-check(rc == 1 and "which adcp-dock cannot run without" in out and "./install.sh" in out
+check(rc == 1 and "which adcp-pilot cannot run without" in out and "./install.sh" in out
       and "with a folder that has room" in out,
       "an environment without RDKit that cannot be given it was not set aside (exit %d):\n%s"
       % (rc, out[-1200:]))

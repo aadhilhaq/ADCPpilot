@@ -54,7 +54,7 @@ def command(install, runs="", python="", port=0, tools_roots=(), env=None,
     which the installation's own settings override.
     """
     where = clusters.remote_path(install)
-    bits = ["-m", "adcp_dock.cli", "serve",
+    bits = ["-m", "adcp_pilot.cli", "serve",
             "--host", "127.0.0.1", "--port", str(port)]
     quoted = [shlex.quote(b) for b in bits]
     if runs:
@@ -178,7 +178,7 @@ def _why(buf, install):
         return ("the tool is there but has not been installed: no "
                 "activate.sh in %s.\n    cd %s && ./install.sh "
                 "<shared-prefix>" % (install, install))
-    if "no module named 'adcp_dock'" in low or "no module named adcp_dock" in low:
+    if "no module named 'adcp_pilot'" in low or "no module named adcp_pilot" in low:
         return ("the tool was not found at %s. Check the install path, or "
                 "clone it there:\n    git clone "
                 "https://github.com/aadhilhaq/ADCP_docking %s" % (install, install))

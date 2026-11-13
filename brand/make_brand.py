@@ -129,7 +129,7 @@ def main():
     with open(os.path.join(HERE, "adcp_logo_128.png"), "rb") as fh:
         b64 = base64.b64encode(fh.read()).decode()
     print("wrote svg, 8 PNG sizes and adcp.ico in %s" % HERE)
-    print("128px base64 is %d chars; paste into adcp_dock/brand.py "
+    print("128px base64 is %d chars; paste into adcp_pilot/brand.py "
           "if it changed" % len(b64))
     with open(os.path.join(HERE, "_logo_128.b64"), "w") as fh:
         for i in range(0, len(b64), 76):

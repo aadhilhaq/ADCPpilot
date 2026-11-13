@@ -39,8 +39,8 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
 try:
-    from adcp_dock import cite, cli, job as jobmod, pipeline, report, sizing, worker  # noqa: E402
-    from adcp_dock._vendor import strain as strainmod  # noqa: E402
+    from adcp_pilot import cite, cli, job as jobmod, pipeline, report, sizing, worker  # noqa: E402
+    from adcp_pilot._vendor import strain as strainmod  # noqa: E402
 except ImportError as exc:
     print("skip: the package cannot be imported here (%s)" % exc)
     sys.exit(77)
@@ -105,7 +105,7 @@ check(report.STRAIN_HELP.startswith("What the peptide pays to hold its docked sh
       "the heading or the help is not the approved words")
 
 # The page carries the same words (app.js), word for word.
-appjs = open(os.path.join(ROOT, "adcp_dock", "static", "app.js"), encoding="utf-8").read()
+appjs = open(os.path.join(ROOT, "adcp_pilot", "static", "app.js"), encoding="utf-8").read()
 
 
 def js_string(name):
@@ -358,7 +358,7 @@ try:
           % pr["AAAAA"])
 
     # --- a new run ----------------------------------------------------------------
-    import adcp_dock.pipeline as P
+    import adcp_pilot.pipeline as P
     saved = (P._mm_inputs, P._rec_for_mmgbsa, P.mmgbsa.run, P.verify.mmgbsa_split,
              P._panel_scored)
     P._mm_inputs = lambda j, seq, pdir, n, log=print, ring=None: (["m1", "m2", "m3"],
@@ -418,14 +418,14 @@ def run_cli(*argv):
     return rc, buf.getvalue()
 
 
-REC = os.path.join(ROOT, "adcp_dock", "example_run", "receptor", "1YCR.pdb")
+REC = os.path.join(ROOT, "adcp_pilot", "example_run", "receptor", "1YCR.pdb")
 for flag, want in (([], True), (["--no-strain"], False)):
     rd = os.path.join(WORK, "cli_%s" % want)
     rc, said = run_cli("new", rd, "-r", REC, "--chain", "A", "-s", "A:54",
                        "-p", "p53: ETFSDLWKLLPEN", "--mmgbsa", *flag)
     check(os.path.isfile(jobmod.path_of(rd))
           and jobmod.load(rd).get("mmgbsa_strain") is want,
-          "adcp-dock new %s does not write mmgbsa_strain %s (rc %r): %s"
+          "adcp-pilot new %s does not write mmgbsa_strain %s (rc %r): %s"
           % (" ".join(flag), want, rc, said[-300:]))
 rc, said = run_cli("strain", "--help")
 check(rc == 0 and "--here" in said, "the command line has no strain subcommand: %s" % said)
@@ -488,7 +488,7 @@ check("for its strain" not in cite.as_text(dict(jobmod.default(mmgbsa=True),
       and "for its strain" not in cite.as_text(dict(jobmod.default(mmgbsa=True),
                                                     mmgbsa_engine="schrodinger")),
       "a run that did not relax the peptide with sander is told it did")
-from adcp_dock import runreport  # noqa: E402
+from adcp_pilot import runreport  # noqa: E402
 fake = type("R", (), {})()
 fake.rows = [{"pep_strain": 3.0, "pep_strain_engine": "amber"}]
 said = runreport.Report.strain_method(fake, lambda *k: " [4]")
@@ -503,7 +503,7 @@ check(runreport.Report.strain_method(fake, lambda *k: "") == "",
       "a run with no strain is given a methods sentence about it")
 
 # --- tidy keeps it ---------------------------------------------------------------
-from adcp_dock import tidy  # noqa: E402
+from adcp_pilot import tidy  # noqa: E402
 check(tidy.pose_kind("AAAAA_strain.json", "AAAAA", WORK) is None
       and "_strain.json" in tidy.__doc__,
       "the tidy would pack a pose's strain, or does not say it stays")

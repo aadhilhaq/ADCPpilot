@@ -1,12 +1,12 @@
 cff-version: 1.2.0
-title: "GUI to ADCP Docking"
+title: "ADCPpilot"
 message: >-
   If you use this software, please cite it and the docking engine it runs.
   ADCP (AutoDock CrankPep) and the ADCP 1.1 suite it comes in were developed
   by the Scripps Research Institute and are not part of this work; this package is a
   browser and command-line workflow that runs them. The full citation list
   for a run, including the preparation and rescoring tools it used, is
-  printed by `adcp-dock cite <run>`.
+  printed by `adcp-pilot cite <run>`.
 type: software
 authors:
   - given-names: Aadhil
@@ -17,7 +17,7 @@ authors:
     family-names: Fernando
     affiliation: "HOPE Lab, Texas A&M University"
     orcid: "https://orcid.org/0000-0002-7692-2170"
-version: "0.1.22"
+version: "0.1.23"
 license: "BSD-3-Clause"
 abstract: >-
   Browser and command-line workflow for peptide docking with AutoDock

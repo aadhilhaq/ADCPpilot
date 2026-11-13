@@ -24,7 +24,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock import job as jobmod, peptide, pipeline, slurm   # noqa: E402
+from adcp_pilot import job as jobmod, peptide, pipeline, slurm   # noqa: E402
 
 ENGINES = []
 fails, ran = [], 0
@@ -109,8 +109,8 @@ check(r[2] and ":" in r[2][-1].message,
 
 # --- the ADCP 1.1 suite installs on Linux x86-64 alone -------------------------
 # Scripps builds it for Linux only, and its packages carry Linux programs, so
-# a Mac is told so, and that `adcp-dock local` docks there with ADCP 1.0.
-from adcp_dock import adcp11_install as _ai                       # noqa: E402
+# a Mac is told so, and that `adcp-pilot local` docks there with ADCP 1.0.
+from adcp_pilot import adcp11_install as _ai                       # noqa: E402
 check(_ai.platform_problem("linux", "x86_64") is None,
       "Linux on x86-64 is refused for the ADCP 1.1 suite")
 _mac = _ai.platform_problem("darwin", "arm64") or ""
@@ -121,14 +121,14 @@ check(_ai.platform_problem("linux", "aarch64"),
       "Linux on ARM is offered a suite built for x86-64")
 
 # --- a real run, through the server -----------------------------------------
-from adcp_dock import tools as toolmod                          # noqa: E402
+from adcp_pilot import tools as toolmod                          # noqa: E402
 
 RECEPTOR = os.environ.get("ADCP_TEST_RECEPTOR",
                           os.path.join(ROOT, "examples", "receptor.pdb"))
 if not os.path.isfile(RECEPTOR):
     # examples/receptor.pdb is the user's own and ignored by git; the
     # package's example ships 1YCR, which is what this is written for.
-    RECEPTOR = os.path.join(ROOT, "adcp_dock", "example_run", "receptor",
+    RECEPTOR = os.path.join(ROOT, "adcp_pilot", "example_run", "receptor",
                             "1YCR.pdb")
 T = toolmod.discover()
 found = dict(T.report())
@@ -149,7 +149,7 @@ elif not (os.environ.get("SLURM_JOB_ID")
             "login node: set ADCP_ALLOW_REAL_RUN=1 on a workstation")
 
 if skip is None:
-    from adcp_dock import server
+    from adcp_pilot import server
     os.environ["ADCP_EXECUTOR"] = "local"
     runs = tempfile.mkdtemp(prefix="adcp-local-")
     httpd = server.build(host="127.0.0.1", port=0, runs=runs)

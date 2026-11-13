@@ -2,7 +2,7 @@
 # sequence names itself. Blank lines and lines starting with # are ignored,
 # and FASTA is accepted too.
 #
-#   adcp-dock new ~/runs/trial -r 1E8U -s A:41,A:45 -f examples/peptides.txt
+#   adcp-pilot new ~/runs/trial -r 1E8U -s A:41,A:45 -f examples/peptides.txt
 #
 # B, J, O, U, X and Z are refused: they are ambiguity codes or residues ADCP
 # cannot build. Sequences must have 5 to 30 residues, and the search cost

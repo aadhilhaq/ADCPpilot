@@ -3,23 +3,23 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "adcp-dock"
-version = "0.1.22"
+name = "adcp-pilot"
+version = "0.1.23"
 description = "Browser and command-line workflow for ADCP peptide docking"
 readme = "README.md"
 requires-python = ">=3.9"
 # This package's code is BSD 3-Clause; the wheel also carries Mol* (MIT) and
 # 3Dmol.js (BSD 3-Clause), whose license texts are listed with it.
 license = "BSD-3-Clause AND MIT"
-license-files = ["LICENSE", "adcp_dock/static/3Dmol.LICENSE.txt",
-                 "adcp_dock/static/3Dmol-min.js.LICENSE.txt",
-                 "adcp_dock/static/molstar.LICENSE.txt",
-                 "adcp_dock/static/molstar.js.LICENSE.txt"]
+license-files = ["LICENSE", "adcp_pilot/static/3Dmol.LICENSE.txt",
+                 "adcp_pilot/static/3Dmol-min.js.LICENSE.txt",
+                 "adcp_pilot/static/molstar.LICENSE.txt",
+                 "adcp_pilot/static/molstar.js.LICENSE.txt"]
 authors = [{name = "Aadhil Haq"}]
 maintainers = [{name = "Aadhil Haq"}]
 keywords = ["docking", "peptide", "ADCP", "MM-GBSA", "Slurm", "HPC"]
 # numpy and RDKit handle the receptor, the grid box and every pose. The other
-# tools are programs rather than packages; `adcp-dock check` lists them.
+# tools are programs rather than packages; `adcp-pilot check` lists them.
 # numpy has no upper bound, because numpy 1 has no build for Python 3.13.
 dependencies = ["numpy>=1.21", "rdkit>=2022.3"]
 
@@ -29,8 +29,8 @@ launcher = ["paramiko>=3.0"]
 # minimization, and Biopython reads mmCIF receptors. Without them the
 # preparation log says which steps were skipped.
 prep = ["pdbfixer", "openmm", "biopython"]
-# Everything needed to run on one machine with `adcp-dock local`, including
-# pdb2pqr for protonation. The ADCP 1.1 suite is not on PyPI; `adcp-dock
+# Everything needed to run on one machine with `adcp-pilot local`, including
+# pdb2pqr for protonation. The ADCP 1.1 suite is not on PyPI; `adcp-pilot
 # local` installs it with Scripps' own recipe on first use. AmberTools is not
 # on PyPI either, so MM-GBSA needs conda; docking works without it.
 local = ["pdb2pqr", "pdbfixer", "openmm", "biopython"]
@@ -39,18 +39,18 @@ local = ["pdb2pqr", "pdbfixer", "openmm", "biopython"]
 Homepage = "https://github.com/aadhilhaq/ADCP_docking"
 
 [project.scripts]
-adcp-dock = "adcp_dock.cli:main"
+adcp-pilot = "adcp_pilot.cli:main"
 
 [project.gui-scripts]
-adcp-dock-launcher = "adcp_launcher.entry:main"
+adcp-pilot-launcher = "adcp_launcher.entry:main"
 
 [tool.setuptools]
 # Every package, subpackages included. tests/test_packaging.py builds a
 # wheel and checks it against this list.
-packages = ["adcp_dock", "adcp_dock._vendor", "adcp_launcher"]
+packages = ["adcp_pilot", "adcp_pilot._vendor", "adcp_launcher"]
 
 [tool.setuptools.package-data]
-adcp_dock = ["static/*.js", "static/*.css", "static/*.txt", "static/*.json",
+adcp_pilot = ["static/*.js", "static/*.css", "static/*.txt", "static/*.json",
              # The documentation served at /docs/: its pages and its
              # pictures. The stylesheet is generated from the interface's own
              # colors, so there is no file to ship.

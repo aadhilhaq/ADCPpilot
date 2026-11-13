@@ -35,7 +35,7 @@ try:
     import paramiko
 except ImportError:
     print("paramiko is not installed; the launcher's connection tests are "
-          "skipped. pip install 'adcp-dock[launcher]'")
+          "skipped. pip install 'adcp-pilot[launcher]'")
     raise SystemExit(77)
 
 from adcp_launcher import session, tunnel                      # noqa: E402
@@ -271,7 +271,7 @@ s = session.start(t, INSTALL, runs="~/adcp_runs",
                   free_port=tunnel.free_port)
 check(srv.commands, "no command was run on the far end")
 cmd = srv.commands[0] if srv.commands else ""
-check("adcp_dock.cli serve" in cmd,
+check("adcp_pilot.cli serve" in cmd,
       "the launcher ran %r, which does not start the server" % cmd[:90])
 check("--host 127.0.0.1" in cmd,
       "the server would be started on a public interface; anyone on the "

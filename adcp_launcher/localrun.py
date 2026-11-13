@@ -5,12 +5,12 @@ By Aadhil Haq
 The launcher is a small SSH client; it does not carry the docking stack
 itself (RDKit, OpenMM and the ADCP 1.1 suite, or ADFRsuite 1.0 on a Mac, are
 far too large to bundle). So "This
-computer" starts `adcp-dock local` (installed separately, once) reads the
+computer" starts `adcp-pilot local` (installed separately, once) reads the
 address it prints, and opens it, exactly as the cluster path reads the
-address `adcp-dock serve` prints on a login node.
+address `adcp-pilot serve` prints on a login node.
 
-Where it looks, in order: `adcp-dock` on PATH, then the virtual environment
-INSTALL.md tells people to make (~/.adcp-dock/venv). A venv, not a plain
+Where it looks, in order: `adcp-pilot` on PATH, then the virtual environment
+INSTALL.md tells people to make (~/.adcp-pilot/venv). A venv, not a plain
 `pip install`, because current Ubuntu, WSL's default, and Homebrew's
 Python refuse to install into the system interpreter at all.
 
@@ -26,7 +26,7 @@ import subprocess
 import time
 
 URL = re.compile(r"http://127\.0\.0\.1:(\d+)/\?t=([A-Za-z0-9_\-]+)")
-VENV_BIN = "~/.adcp-dock/venv/bin/adcp-dock"
+VENV_BIN = "~/.adcp-pilot/venv/bin/adcp-pilot"
 ARGS = ["local", "--no-browser", "--port", "0"]
 
 SETUP = {
@@ -35,8 +35,8 @@ SETUP = {
         "  1. Install Ubuntu from the Microsoft Store and open it.\n"
         "  2. In Ubuntu:\n"
         "       sudo apt install -y python3-venv\n"
-        "       python3 -m venv ~/.adcp-dock/venv\n"
-        "       ~/.adcp-dock/venv/bin/pip install \"adcp-dock[local] @ "
+        "       python3 -m venv ~/.adcp-pilot/venv\n"
+        "       ~/.adcp-pilot/venv/bin/pip install \"adcp-pilot[local] @ "
         "git+https://github.com/aadhilhaq/ADCP_docking\"\n\n"
         "Then choose This computer again."),
     "darwin": (
@@ -44,15 +44,15 @@ SETUP = {
         "Scripps Research Institute builds no ADCP 1.1 for macOS; its scores "
         "are not comparable with ADCP 1.1 runs. Once, in Terminal:\n\n"
         "  softwareupdate --install-rosetta      (Apple silicon only)\n"
-        "  python3 -m venv ~/.adcp-dock/venv\n"
-        "  ~/.adcp-dock/venv/bin/pip install \"adcp-dock[local] @ "
+        "  python3 -m venv ~/.adcp-pilot/venv\n"
+        "  ~/.adcp-pilot/venv/bin/pip install \"adcp-pilot[local] @ "
         "git+https://github.com/aadhilhaq/ADCP_docking\"\n\n"
         "Then choose This computer again. For ADCP 1.1, choose a cluster "
         "above, or use the Colab notebook."),
     "linux": (
         "Once, in a terminal:\n\n"
-        "  python3 -m venv ~/.adcp-dock/venv\n"
-        "  ~/.adcp-dock/venv/bin/pip install \"adcp-dock[local] @ "
+        "  python3 -m venv ~/.adcp-pilot/venv\n"
+        "  ~/.adcp-pilot/venv/bin/pip install \"adcp-pilot[local] @ "
         "git+https://github.com/aadhilhaq/ADCP_docking\"\n\n"
         "Then choose This computer again."),
 }
@@ -63,7 +63,7 @@ def setup_text(system=None):
 
 
 def command(system=None, which=shutil.which, exists=os.path.isfile):
-    """The argv that starts `adcp-dock local` here, or None if it is not
+    """The argv that starts `adcp-pilot local` here, or None if it is not
     installed. `which` and `exists` are parameters so this can be tested on
     any machine for any other."""
     system = (system or platform.system()).lower()
@@ -72,11 +72,11 @@ def command(system=None, which=shutil.which, exists=os.path.isfile):
         if not wsl:
             return None
         # A login shell, so ~/.local/bin and a profile's PATH apply; then the
-        # documented venv if adcp-dock is not on PATH.
-        inner = ("exec \"$(command -v adcp-dock || echo %s)\" %s"
+        # documented venv if adcp-pilot is not on PATH.
+        inner = ("exec \"$(command -v adcp-pilot || echo %s)\" %s"
                  % (VENV_BIN, " ".join(ARGS)))
         return [wsl, "-e", "bash", "-lc", inner]
-    exe = which("adcp-dock")
+    exe = which("adcp-pilot")
     if not exe:
         venv = os.path.expanduser(VENV_BIN)
         exe = venv if exists(venv) else None
@@ -110,7 +110,7 @@ def start(on_output=None, timeout=1800, cmd=None, popen=subprocess.Popen):
     say = on_output or (lambda *a: None)
     cmd = cmd or command()
     if not cmd:
-        raise RuntimeError("adcp-dock is not installed on this computer.\n\n"
+        raise RuntimeError("adcp-pilot is not installed on this computer.\n\n"
                            + setup_text())
     try:
         proc = popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -119,7 +119,7 @@ def start(on_output=None, timeout=1800, cmd=None, popen=subprocess.Popen):
         # NOT A TRACEBACK. The command could not be started at all: on
         # Windows, typically wsl.exe present with no Linux installed in it.
         # That is a setup step, and the window should say which one.
-        raise RuntimeError("Could not start adcp-dock on this computer (%s)."
+        raise RuntimeError("Could not start adcp-pilot on this computer (%s)."
                            "\n\n%s" % (exc, setup_text()))
     # A reader thread, so the timeout can fire. Reading the pipe directly
     # blocks until a line arrives, and a child that prints nothing,
@@ -141,7 +141,7 @@ def start(on_output=None, timeout=1800, cmd=None, popen=subprocess.Popen):
         if left <= 0:
             proc.terminate()
             raise RuntimeError(
-                "adcp-dock local printed no address in %d minute(s). What it "
+                "adcp-pilot local printed no address in %d minute(s). What it "
                 "said last:\n\n%s" % (max(1, timeout // 60),
                                          "\n".join(tail) or "(nothing)"))
         try:
@@ -158,6 +158,6 @@ def start(on_output=None, timeout=1800, cmd=None, popen=subprocess.Popen):
         if m:
             return Local(proc, m.group(0))
     proc.wait()
-    raise RuntimeError("adcp-dock local stopped before it was ready (exit "
+    raise RuntimeError("adcp-pilot local stopped before it was ready (exit "
                        "%s). What it said last:\n\n%s"
                        % (proc.returncode, "\n".join(tail)))

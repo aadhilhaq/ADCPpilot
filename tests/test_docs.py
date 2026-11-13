@@ -23,7 +23,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock import docs, docskit, page, server  # noqa: E402
+from adcp_pilot import docs, docskit, page, server  # noqa: E402
 
 fails, ran = [], 0
 
@@ -105,7 +105,7 @@ check(docs.SITE.copyright.replace("&", "&amp;") in html,
       "the credit bar does not state the copyright")
 check('id=citebar' in html or 'id="citebar"' in html,
       "the bar's How to cite has no id for app.js to wire to the citation dialog")
-appjs = open(os.path.join(ROOT, "adcp_dock", "static", "app.js")).read()
+appjs = open(os.path.join(ROOT, "adcp_pilot", "static", "app.js")).read()
 check("$('citebar')" in appjs, "app.js no longer wires the bar's How to cite")
 check("$('helpdocs')" in appjs, "app.js no longer fills in the help box's docs link")
 
@@ -144,7 +144,7 @@ check(code == 200 and b"<h1>" in body,
 code, body, h = get("/docs/index.html")
 check(code == 200 and h.get("Content-Type", "").startswith("text/html"),
       "/docs/index.html is not served as HTML (%s %s)" % (code, h.get("Content-Type")))
-check(b"GUI to ADCP Docking" in body and b'href="style.css' in body,
+check(b"ADCPpilot" in body and b'href="style.css' in body,
       "the page served is not the documentation's layout")
 check(app.token.encode() not in body, "the docs carry the session token")
 code, body, h = get("/docs/style.css")
@@ -199,13 +199,13 @@ if _kits is None:
     print("note  ADCP_SIBLING_CHECKOUTS is not set, so docskit.py was not "
           "compared with other tools' copies")
 else:
-    mine = _kit_code(os.path.join(ROOT, "adcp_dock", "docskit.py"))
+    mine = _kit_code(os.path.join(ROOT, "adcp_pilot", "docskit.py"))
     for _where, _copies in sorted(_kits.items()):
         if not _copies:
             print("note  %s carries no docskit.py" % _where)
         for _other in _copies:
             check(mine == _kit_code(_other),
-                  "adcp_dock/docskit.py differs below the docstring from %s; "
+                  "adcp_pilot/docskit.py differs below the docstring from %s; "
                   "the copies are one module" % _other)
     print("note  docskit.py compared with %d copies"
           % sum(len(c) for c in _kits.values()))

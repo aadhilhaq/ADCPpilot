@@ -7,9 +7,9 @@
 # install a build environment, this runs on both runners and leaves each
 # build attached to the run for anyone to download.
 #
-# The cluster side needs none of this: `pip install -e .` gives `adcp-dock`,
-# and `pip install "adcp-dock[launcher]"` on a laptop gives
-# `adcp-dock-launcher`. This is for a launcher that can be double-clicked.
+# The cluster side needs none of this: `pip install -e .` gives `adcp-pilot`,
+# and `pip install "adcp-pilot[launcher]"` on a laptop gives
+# `adcp-pilot-launcher`. This is for a launcher that can be double-clicked.
 name: desktop launcher
 
 # Not on a push to main: the test suite needs the ADCP 1.1 suite and Amber, so it
@@ -321,5 +321,5 @@ jobs:
             gh release upload "$GITHUB_REF_NAME" assets/*.zip assets/SHA256SUMS.txt --clobber
           else
             gh release create "$GITHUB_REF_NAME" assets/*.zip assets/SHA256SUMS.txt \
-              --title "GUI to ADCP Docking ${GITHUB_REF_NAME}" --notes-file notes.md --verify-tag
+              --title "ADCPpilot ${GITHUB_REF_NAME}" --notes-file notes.md --verify-tag
           fi

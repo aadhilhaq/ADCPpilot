@@ -21,7 +21,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock import adapt  # noqa: E402
+from adcp_pilot import adapt  # noqa: E402
 
 import threading  # noqa: E402
 
@@ -72,7 +72,7 @@ for k in ("ADAPT_HOME", "ADCP_HOME", "ADCPSUITE_HOME"):
 # A checkout on the lab's cluster sits beside tools/docking, whose suite and
 # ADapt are found where a test says there are none; a copy in a folder with
 # nothing beside it is what "not installed" means here.
-from adcp_dock import adcp11  # noqa: E402
+from adcp_pilot import adcp11  # noqa: E402
 
 adcp11._HERE = adapt._HERE = os.path.join(tmp, "alone", "ADCP_docking")
 
@@ -145,7 +145,7 @@ except RuntimeError as exc:
           "the failure carries ADapt's own last words (%s)" % exc)
 
 # --- the interface: offered only when it can run ---------------------------
-from adcp_dock import server  # noqa: E402
+from adcp_pilot import server  # noqa: E402
 
 app = server.App(os.path.join(tmp, "runs"))
 st = app._adapt()
@@ -240,11 +240,11 @@ check(time.time() - t0_ < 15 and not th_.is_alive(),
 check(err_ and isinstance(err_[0], RuntimeError), "and the start reports that it did not come up")
 
 # --- the page offers it only when the server does --------------------------
-from adcp_dock import page  # noqa: E402
+from adcp_pilot import page  # noqa: E402
 
 html = page.PAGE if hasattr(page, "PAGE") else open(page.__file__).read()
 check("id=adaptrow" in html and "id=adaptopen" in html, "the Receptor card has an ADapt row and button")
-appjs = open(os.path.join(ROOT, "adcp_dock", "static", "app.js")).read()
+appjs = open(os.path.join(ROOT, "adcp_pilot", "static", "app.js")).read()
 check("d.adapt && d.adapt.available" in appjs, "the row is shown only when the server offers ADapt")
 check("api('/api/adapt'" in appjs, "the button asks the server to start it")
 check("Open in ADapt" in html and "id=adaptuse" in html and "id=adaptdrop" in html,
@@ -580,7 +580,7 @@ check(not r.get("found") and "changed since ADapt wrote it" in r.get("why", ""),
 open(os.path.join(SAVE, "1ycr_rec.pdbqt"), "w").write(PDBQT)
 
 # A run set up from the save records it, and its receptor is the _rec_H.pdb.
-from adcp_dock import job as jobmod  # noqa: E402
+from adcp_pilot import job as jobmod  # noqa: E402
 j = jobmod.default(adapt={"folder": SESSION, "session": "s1"}, protonation="propka")
 check(jobmod.take_adapt(j) == [] and j["receptor"] == got["pdb"]
       and j["adapt"]["save"] == 1 and j["adapt"]["pdbqt_md5"] == md5(PDBQT)
@@ -718,7 +718,7 @@ hang = os.path.join(tmp, "hangup.py")
 open(hang, "w").write("""
 import os, sys, threading
 sys.path.insert(0, %(root)r)
-from adcp_dock import adapt, adcp11, server
+from adcp_pilot import adapt, adcp11, server
 adcp11._HERE = adapt._HERE = %(alone)r
 built = server.build
 def build(*a, **k):

@@ -7,14 +7,14 @@ there, forwards a local port to it and opens a browser. Nothing about the
 tool has to be installed on the laptop except this launcher and paramiko.
 """
 
-__version__ = "0.1.22"
+__version__ = "0.1.23"
 # The same wording as the tool: ADCP and the suite it comes in belong to the
 # Scripps Research Institute, and this package launches a GUI that drives
 # them. The
-# launcher is installed on computers that may not have adcp_dock, so it
+# launcher is installed on computers that may not have adcp_pilot, so it
 # repeats these lines instead of importing them, and a test checks that the
 # two copies match.
-APP = "GUI to ADCP Docking"
+APP = "ADCPpilot"
 ENGINE = "ADCP"
 ENGINE_OWNER = "Scripps Research Institute"
 BLURB = ("Peptide docking tool to be run in an interactive manner for "
@@ -30,7 +30,7 @@ POWERED_BY = "Powered by HOPE Lab"
 ENGINE_CREDIT = ("A graphical interface to %s, a product of the %s. %s."
                  % (ENGINE, ENGINE_OWNER, POWERED_BY))
 
-#: What to put in a paper. The launcher cannot import adcp_dock, it is
+#: What to put in a paper. The launcher cannot import adcp_pilot, it is
 #: installed on laptops that have no copy of it, so it carries the
 #: short form and points at the tool for the full list with DOIs.
 HOW_TO_CITE = (

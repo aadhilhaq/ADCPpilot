@@ -100,12 +100,12 @@ fi
 
 # --- reinstall the package, not the environment -----------------------------
 # Only where install.sh installed it: an environment it built, which imports
-# adcp_dock from this checkout. That is a few files with --no-deps, and
+# adcp_pilot from this checkout. That is a few files with --no-deps, and
 # nothing else in the environment moves. An environment it did not build is
 # never written to; activate.sh puts this checkout first on PYTHONPATH there,
 # so the pull is already what runs. Never the system python3, whose pip would
 # fall back to installing into the home directory.
-say "the adcp-dock command"
+say "the adcp-pilot command"
 PY=""
 # shellcheck disable=SC1091
 [ -f "$HERE/activate.sh" ] && . "$HERE/activate.sh" >/dev/null 2>&1
@@ -118,7 +118,7 @@ if [ -z "$PY" ]; then
 else
   # Asked from /, so that the checkout itself is not what answers.
   AT=$(cd / && env -u PYTHONPATH -u PYTHONHOME "$PY" -c \
-       "import adcp_dock, os; print(os.path.dirname(os.path.dirname(os.path.abspath(adcp_dock.__file__))))" \
+       "import adcp_pilot, os; print(os.path.dirname(os.path.dirname(os.path.abspath(adcp_pilot.__file__))))" \
        2>/dev/null)
   if [ -n "$AT" ] && [ "$AT" -ef "$HERE" ]; then
     if env -u PYTHONPATH "$PY" -m pip install --quiet --no-deps --no-cache-dir \
@@ -182,7 +182,7 @@ if [ -f "$HERE/scripts/adapt_fetch.sh" ]; then
     note "the ADCP 1.1 suite: $SUITE"
   elif [ -n "$ADAPT_DIR" ]; then
     warn "The ADCP 1.1 suite is not installed, and nothing can dock without it. To add it, on a login node (ten minutes, 3 GB):"
-    note "  ${PY:-python3} -m adcp_dock.cli install-adcp11 --dest $(dirname "$ADAPT_DIR")/adcpsuite"
+    note "  ${PY:-python3} -m adcp_pilot.cli install-adcp11 --dest $(dirname "$ADAPT_DIR")/adcpsuite"
   else
     warn "The ADCP 1.1 suite is not installed, and nothing can dock without it. ./install.sh adds it."
   fi
@@ -196,14 +196,14 @@ fi
 # pull would then change files that nothing reads.
 if [ -n "$PY" ]; then
   say "what this install has"
-  WHERE=$("$PY" -c "import adcp_dock,os;print(os.path.dirname(os.path.abspath(adcp_dock.__file__)))" 2>/dev/null)
-  if [ "$WHERE" = "$HERE/adcp_dock" ]; then
-    note "adcp_dock $("$PY" -c 'import adcp_dock;print(adcp_dock.__version__)' 2>/dev/null), from this checkout"
+  WHERE=$("$PY" -c "import adcp_pilot,os;print(os.path.dirname(os.path.abspath(adcp_pilot.__file__)))" 2>/dev/null)
+  if [ "$WHERE" = "$HERE/adcp_pilot" ]; then
+    note "adcp_pilot $("$PY" -c 'import adcp_pilot;print(adcp_pilot.__version__)' 2>/dev/null), from this checkout"
   else
-    warn "python imports adcp_dock from ${WHERE:-nowhere}, not from this checkout."
+    warn "python imports adcp_pilot from ${WHERE:-nowhere}, not from this checkout."
     warn "Run ./install.sh again (no folder needed), which records this checkout in activate.sh."
   fi
-  "$PY" -m adcp_dock.cli check 2>&1 | sed 's/^/  /'
+  "$PY" -m adcp_pilot.cli check 2>&1 | sed 's/^/  /'
 fi
 
 # A running server keeps the code it started with: page.py is imported once,
@@ -225,7 +225,7 @@ cat <<MSG
 Nothing already running has any of this yet. The server holds the code it
 started with, in memory, until it is restarted:
 
-  Ctrl-C the 'adcp-dock serve' process and start it again, then hard-reload
+  Ctrl-C the 'adcp-pilot serve' process and start it again, then hard-reload
   the browser (Ctrl-Shift-R).
 
 MSG

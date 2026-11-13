@@ -4,7 +4,7 @@
 By Aadhil Haq
 
     python tools/docs_screenshots.py --python /path/to/env/bin/python \\
-        [--tools-root DIR] [--out adcp_dock/docs/img] [--work DIR]
+        [--tools-root DIR] [--out adcp_pilot/docs/img] [--work DIR]
 
 The pictures show the folders the run is in, so --work chooses them: the
 folder named there holds the receptor and an `adcp_runs` beside it, and its
@@ -40,12 +40,12 @@ import time
 import traceback
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-EXAMPLE = os.path.join(HERE, "adcp_dock", "example_run")
+EXAMPLE = os.path.join(HERE, "adcp_pilot", "example_run")
 
 #: Every picture the pages use. Reported as missing when a step did not
 #: produce it, so the docs and this script cannot drift apart silently.
 WANT = ["interface.png", "receptor-loaded.png", "site-residues.png",
-        "site-box.png", "site-other-chain.png", "site-ligand.png",
+        "site-box.png", "site-ligand.png",
         "site-maps.png", "peptides.png", "peptides-refused.png",
         "peptide-rings.png", "peptide-ring-refused.png",
         "peptide-options.png", "docking-settings.png", "help-box.png",
@@ -56,7 +56,7 @@ WANT = ["interface.png", "receptor-loaded.png", "site-residues.png",
 
 
 def start_server(python, runs, roots):
-    cmd = [python, "-u", "-m", "adcp_dock.cli", "serve", "--host", "127.0.0.1",
+    cmd = [python, "-u", "-m", "adcp_pilot.cli", "serve", "--host", "127.0.0.1",
            "--port", "0", "--runs", runs]
     for r in roots:
         cmd += ["--tools-root", r]
@@ -78,7 +78,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--python", required=True, help="the Python the interface runs in")
     ap.add_argument("--tools-root", action="append", default=[])
-    ap.add_argument("--out", default=os.path.join(HERE, "adcp_dock", "docs", "img"))
+    ap.add_argument("--out", default=os.path.join(HERE, "adcp_pilot", "docs", "img"))
     ap.add_argument("--work", default="",
                     help="the folder the receptor and the runs folder are "
                          "made in, whose path the pictures show. The default "
@@ -92,7 +92,7 @@ def main():
     temporary = not a.work
     os.makedirs(work, exist_ok=True)
     runs = os.path.join(work, "adcp_runs")
-    subprocess.run([a.python, "-m", "adcp_dock.cli", "example", "--runs", runs],
+    subprocess.run([a.python, "-m", "adcp_pilot.cli", "example", "--runs", runs],
                    cwd=HERE, check=True, stdout=subprocess.DEVNULL)
     receptor = os.path.join(work, "1YCR.pdb")
     shutil.copy(os.path.join(EXAMPLE, "receptor", "1YCR.pdb"), receptor)
@@ -251,16 +251,6 @@ def main():
                 pg.uncheck("#sitesurf")
                 pg.wait_for_timeout(1500)
             step("site surface", site_surface)
-
-            def other_chain():
-                pg.wait_for_selector("#otherchains:not(.hide)", timeout=30000)
-                pg.evaluate("document.getElementById('sitenote')"
-                            ".scrollIntoView({block: 'center'})")
-                pg.wait_for_timeout(400)
-                # The notice, with the box summary above it, so the picture
-                # says which box reached that chain.
-                shot_clip(["#sitenote", "#otherchains"], "site-other-chain.png")
-            step("other chain", other_chain)
 
             # the box around the crystal peptide instead, then back again
             def site_ligand():

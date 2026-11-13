@@ -18,7 +18,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock import peptide, server                          # noqa: E402
+from adcp_pilot import peptide, server                          # noqa: E402
 
 fails, ran = [], 0
 
@@ -174,7 +174,7 @@ PAGE_INPUTS = set(re.findall(
     r"""<(?:input|select|textarea)[^>]*\bid=['"]?([A-Za-z0-9_\-]+)""", html))
 
 # the contact lines are one per residue pair, not one per atom pair
-appjs = open(os.path.join(ROOT, "adcp_dock", "static", "app.js"),
+appjs = open(os.path.join(ROOT, "adcp_pilot", "static", "app.js"),
              encoding="utf-8").read()
 check("seenPair" in appjs,
       "contacts are not collapsed per residue pair; two residues touching at "
@@ -292,7 +292,7 @@ check("height:46px" in html,
 # A default partition name that does not exist on a cluster makes sbatch
 # refuse every job ("invalid partition specified"). A partition name is a
 # property of the machine; no one using this should have to know one.
-from adcp_dock import slurm as _sl                              # noqa: E402
+from adcp_pilot import slurm as _sl                              # noqa: E402
 
 check("id=partition" not in html,
       "the page still asks for a partition. It is a property of the "
@@ -332,7 +332,7 @@ for _t, _m in (("3-00:00:00", 4320), ("2:00:00", 120), ("30:00", 30),
           "%r parsed as %r, expected %r" % (_t, _sl._limit_minutes(_t), _m))
 
 # a job held on something that will never clear is not "queued"
-from adcp_dock.server import STUCK_REASONS                      # noqa: E402
+from adcp_pilot.server import STUCK_REASONS                      # noqa: E402
 
 check("PartitionTimeLimit" in STUCK_REASONS,
       "PartitionTimeLimit is treated as ordinary queueing, so a job that "
@@ -389,7 +389,7 @@ check("api('/api/runsroot', {path: want})" in appjs,
 # It said 15 minutes a task for a job that takes about 5, because it added
 # the MM-GBSA poses up as though they ran one after another when they run
 # several at a time.
-from adcp_dock import sizing as _sz                             # noqa: E402
+from adcp_pilot import sizing as _sz                             # noqa: E402
 
 #: The example run's three dockings with ADCP 1.1.21, from their own logs:
 #: (length, replicas, steps, cores, minutes, what).
@@ -536,7 +536,7 @@ check(_thr["total_minutes"] > _est["total_minutes"],
 # metal, a cofactor, a sugar). Everything here rounds up: an allocation is
 # usually charged for the time a job uses, so a generous booking costs
 # little, while a tight one loses the run and its queue time.
-from adcp_dock import sizing as _sz2                            # noqa: E402
+from adcp_pilot import sizing as _sz2                            # noqa: E402
 
 check(_sz2.prep_minutes() == _sz2.PREP_FLOOR_MINUTES,
       "with nothing known, preparation is not booked at the floor")
@@ -559,7 +559,7 @@ check(_sz2.prep_minutes(5884, 2, False, (30, 30, 30)) > 5.5,
       "the 5,884-atom receptor measured 5.4 min and would be booked less")
 
 # the estimate reads the receptor off the file rather than being told
-from adcp_dock.server import App as _App                        # noqa: E402
+from adcp_pilot.server import App as _App                        # noqa: E402
 
 if os.path.isfile(RECEPTOR):
     _n, _k = _App.receptor_cost(RECEPTOR)
@@ -680,44 +680,30 @@ check("error" in post("/api/mkdir", {"parent": "/no/such/place",
 check("id=pickernew" in html, "the picker has no way to make a folder")
 check("/api/mkdir" in appjs, "the button is not wired to anything")
 
-# --- the chains the box reaches are a CHOICE, not a log line --------------
-_site = post("/api/site", {"receptor": RECEPTOR, "chains": [],
-                           "hotspots": "A:41,A:45,A:78"}) \
-    if os.path.isfile(RECEPTOR) else {}
-if _site and "error" not in _site:
-    check("other_chains" in _site,
-          "the site endpoint does not say what else the box reaches, so "
-          "the choice about it cannot be an informed one")
-# Nothing ticked loads every chain, so no chain can be "other"; the site's
-# own chain is never "other" either. A chain that is loaded must never be
-# offered as one to add.
+# --- a chain left out of the receptor is not part of the box --------------
+#
+# The receptor is settled before the box is placed, so a chain the user did
+# not keep is not measured against the box and is never offered back (his
+# comments 237, 238 and 239). What went with that: the notice, the tick box,
+# the job file's box_chains, and the engine's second pass.
+for _gone, _why in (
+        ("other_chains", "the site endpoint still reports the chains the box reaches"),
+        ("box_chains", "the page still carries the chains-in-the-box choice")):
+    check(_gone not in html and _gone not in appjs, _why)
+check("box_chains" not in open(os.path.join(ROOT, "adcp_pilot", "job.py")).read(),
+      "the job file still records a choice the interface no longer offers")
 _POCKET = "A:54, A:58, A:61, A:62, A:67, A:72, A:93, A:96, A:99"
 if os.path.isfile(RECEPTOR):
-    _all = post("/api/site", {"receptor": RECEPTOR, "chains": [], "hotspots": _POCKET})
-    check("error" not in _all and _all.get("other_chains") == [],
-          "with no chain ticked (every chain loaded), the page still offers "
-          "chains to add: %r" % _all.get("other_chains"))
     _a = post("/api/site", {"receptor": RECEPTOR, "chains": ["A"], "hotspots": _POCKET})
-    _names = [c.get("chain") for c in (_a.get("other_chains") or [])]
-    check("A" not in _names,
-          "the site's own ticked chain is offered as another chain: %r" % _names)
-    check("B" in _names,
-          "with only chain A ticked, the peptide chain B in the pocket is not "
-          "reported: %r" % _names)
-check("id=box_chains" in html,
-      "there is no way to say whether the chains the box reaches should be "
-      "docked against")
-check("'include' : 'ignore'" in appjs,
-      "the choice is not sent in the vocabulary the loader speaks")
-check("box_chains" in open(os.path.join(ROOT, "adcp_dock", "job.py")).read(),
-      "the job file has nowhere to record the choice")
+    check("error" not in _a and "other_chains" not in _a,
+          "the site endpoint answers with chains outside the receptor: %r" % _a)
 
 # --- one hotspot parser, not two ------------------------------------------
 #
 # The page and the pipeline must read a site the same way, ranges such as
 # A:98-112 included.
-from adcp_dock import structure as _st                          # noqa: E402
-from adcp_dock._vendor import receptor as _vrec                 # noqa: E402
+from adcp_pilot import structure as _st                          # noqa: E402
+from adcp_pilot._vendor import receptor as _vrec                 # noqa: E402
 
 for _text in ("A:41, A:45", "A:98-112", "41,45,78", "A:98-100, B:5",
               "98-101", ""):
@@ -766,7 +752,7 @@ check("/static/3Dmol-min.js" in html,
 try:
     import esprima
     esprima.parseScript(
-        open(os.path.join(ROOT, "adcp_dock", "static", "app.js")).read())
+        open(os.path.join(ROOT, "adcp_pilot", "static", "app.js")).read())
 except ImportError:
     pass
 except Exception as exc:                                        # noqa: BLE001
@@ -782,7 +768,7 @@ except urllib.error.HTTPError as exc:
     check(exc.code in (403, 404), "path escape gave %d" % exc.code)
 
 # --- fetching, estimating, the picker and resume --------------------------
-from adcp_dock import sizing as EST, fetch as FETCH                # noqa: E402
+from adcp_pilot import sizing as EST, fetch as FETCH                # noqa: E402
 
 check(FETCH.looks_like_code("4CMM") and not FETCH.looks_like_code("CMM"),
       "the PDB id check accepts the wrong things")
@@ -845,7 +831,7 @@ check(set(peptide.NOT_RESIDUES) == set("BJOUXZ"),
 # with the number of its first residue. Where a loop was never modeled, the
 # numbers jump; those gaps are the chain breaks the preparation splits at, so
 # a user picking a site next to one should be able to see it.
-_js = open(os.path.join(ROOT, "adcp_dock", "static", "app.js")).read()
+_js = open(os.path.join(ROOT, "adcp_pilot", "static", "app.js")).read()
 check("r.resnum > prev.resnum + 1" in _js,
       "the sequence strip does not look for missing residues, so a gap is "
       "drawn as continuous sequence")
@@ -857,7 +843,7 @@ check("class=r data-k" in _js and _js.index("class=gap") < _js.index(
           "const sep = (k && k % 10 === 0)"),
       "the gap branch does not come before the residue branch, so a gap "
       "would be counted as a residue")
-check(".gap{" in open(os.path.join(ROOT, "adcp_dock", "page.py")).read(),
+check(".gap{" in open(os.path.join(ROOT, "adcp_pilot", "page.py")).read(),
       "the gap marker has no style, so it is indistinguishable from a residue")
 
 # A gap must not be clickable: there is no residue there to pick. The
@@ -878,7 +864,7 @@ check("querySelectorAll('.r')" in _js and "class=gap" in _js
 # moves when the run is repeated. And a title= attribute is not an
 # explanation: it appears on hover only, never on a touch screen, and holds
 # one line where these need a paragraph.
-from adcp_dock import helptext as _ht, page as _page            # noqa: E402
+from adcp_pilot import helptext as _ht, page as _page            # noqa: E402
 import json as _json                                             # noqa: E402
 
 _html = _page.render("token")
@@ -945,7 +931,7 @@ check(min(_v for _v, _l in _ht.REPLICA_CHOICES) >= 25,
 
 # The marker is 15px and stays 15px: ".row button" sets height:38px at
 # specificity (0,1,1), and a bare ".q" (0,1,0) would lose to it.
-_css = open(os.path.join(ROOT, "adcp_dock", "page.py")).read()
+_css = open(os.path.join(ROOT, "adcp_pilot", "page.py")).read()
 check("button.q" in _css and ".row button.q" in _css,
       "the help marker is styled as a bare .q, which loses to '.row button "
       "{height:38px}' and comes out as a 38px pill inside every form row")
@@ -1036,7 +1022,7 @@ check(_h2 and "box-shadow:inset" in _h2,
       "shadow the help and issue panels already carry")
 # One light value, and one dark value that the page uses twice: for the
 # system's dark setting and for the switch in the header.
-from adcp_dock import page as _pg                                  # noqa: E402
+from adcp_pilot import page as _pg                                  # noqa: E402
 for _tok in ("--ribbon", "--ribbonfg"):
     check(_bare.count(_tok + ":") == 3 and _pg.DARK_VARS.count(_tok + ":") == 1,
           "%s is defined %d times in the page and %d in DARK_VARS; every color "
@@ -1067,7 +1053,7 @@ check(".checks .chk:has(> button.q)" in _bare,
       "the checkbox labels are dragged block-level with the field labels, "
       "so the four checkboxes stack instead of sitting in one row")
 
-_js = open(os.path.join(ROOT, "adcp_dock", "static", "app.js")).read()
+_js = open(os.path.join(ROOT, "adcp_pilot", "static", "app.js")).read()
 check("addHelpMarkers" in _js, "nothing adds the markers to the page")
 check("label[for=" in _js and "closest('label')" in _js,
       "the markers are attached by one method only, so the checkboxes: "
@@ -1082,7 +1068,7 @@ check("+$('steps').value" in _js,
 # A finished run can be downloaded from the page, and a failed one can be
 # reported with its logs attached, since the person who can read the log is
 # often not the person running the tool.
-from adcp_dock import bundle as _bu                               # noqa: E402
+from adcp_pilot import bundle as _bu                               # noqa: E402
 import zipfile as _zip                                            # noqa: E402
 import io as _io                                                  # noqa: E402
 
@@ -1144,7 +1130,7 @@ try:
 finally:
     _bu.can_send = _saved
 
-_js = open(os.path.join(ROOT, "adcp_dock", "static", "app.js")).read()
+_js = open(os.path.join(ROOT, "adcp_pilot", "static", "app.js")).read()
 check("'/download?what=' + what" in _js,
       "the page builds no download URL")
 check("data-dl=" in _js,
@@ -1175,7 +1161,7 @@ check("reply_to" in _in.signature(_bu.send).parameters,
 #
 # Taking a run away is something you do TO a run, so it belongs beside the
 # run, not in a panel further down that you reach by opening it first.
-_js2 = open(os.path.join(ROOT, "adcp_dock", "static", "app.js")).read()
+_js2 = open(os.path.join(ROOT, "adcp_pilot", "static", "app.js")).read()
 _runs = _js2[_js2.index("$('runs').innerHTML"):
              _js2.index("d.runs.forEach(r => fillSizes")]
 for _need, _why in (
@@ -1371,7 +1357,7 @@ for _lb in ("color", "draw", "surface", "contacts", "figure", "view"):
 check("id=rdrag" in _html and "id=rdragoff" in _html,
       "the viewer has no move-labels control")
 check("/static/drag.js" in _html, "drag.js is not loaded")
-_drag = os.path.join(ROOT, "adcp_dock", "static", "drag.js")
+_drag = os.path.join(ROOT, "adcp_pilot", "static", "drag.js")
 check(os.path.isfile(_drag), "drag.js was not vendored")
 if os.path.isfile(_drag):
     _d = open(_drag).read()
@@ -1412,7 +1398,7 @@ check("sequence too long" in _js2,
 # file and cannot be substituted, so the page hands it the limit in a JSON
 # island the way it already hands over the help text, and these check that
 # path rather than either value.
-import adcp_dock.peptide as _pep                                  # noqa: E402
+import adcp_pilot.peptide as _pep                                  # noqa: E402
 check("MAXLEN = LIMITS.max_length" in _js2,
       "app.js carries its own length limit instead of taking the one the "
       "server enforces; the box will mark at a different length from the "
@@ -1439,7 +1425,7 @@ check(_pep.MIN_LENGTH == 5 and _pep.MAX_LENGTH == 30,
 # ADCP searches inside the box and nowhere else, so a box that cannot hold
 # the peptide returns a pose folded to fit, which scores and ranks like an
 # answer. The rule is measured from solved peptide complexes.
-from adcp_dock import sizing as _sz                               # noqa: E402
+from adcp_pilot import sizing as _sz                               # noqa: E402
 check(hasattr(_sz, "box_for_length") and hasattr(_sz, "box_warning"),
       "nothing predicts whether a peptide fits the box")
 _t, _safe = _sz.box_for_length(14)
@@ -1474,7 +1460,7 @@ check("Max box" in (_sz.box_warning(30, [30, 30, 30], 30) or ""),
 # It has to reach both the form and a run that never sees the form.
 check("box_warning" in appjs,
       "the estimate does not show it, so it appears only after submitting")
-_pl = open(os.path.join(ROOT, "adcp_dock", "pipeline.py")).read()
+_pl = open(os.path.join(ROOT, "adcp_pilot", "pipeline.py")).read()
 check("box_warning" in _pl,
       "a CLI or resumed run gets no warning; those never pass through the "
       "page's estimate")
@@ -1676,8 +1662,8 @@ for _h in _re2.findall(r'<p class=hint>(.*?)</p>', _html, _re2.S):
 # The mmCIF test in structure.read, the file browser filter and
 # /api/rawstructure's guard read one list; these checks make sure no second
 # list appears.
-from adcp_dock import structure as _st                           # noqa: E402
-_srv = open(os.path.join(ROOT, "adcp_dock", "server.py")).read()
+from adcp_pilot import structure as _st                           # noqa: E402
+_srv = open(os.path.join(ROOT, "adcp_pilot", "server.py")).read()
 check(_st.is_structure("x.cif") and _st.is_structure("X.MMCIF.GZ"),
       "mmCIF is not recognized, so a perfectly good receptor is refused "
       "for its file name")
@@ -1724,7 +1710,7 @@ check("except OSError" in _br,
 # The chain selector says "Chains to keep: none ticked means all", and the
 # run must read it the same way as the site preview does.
 import types as _types                                            # noqa: E402
-from adcp_dock._vendor import receptor as _R                      # noqa: E402
+from adcp_pilot._vendor import receptor as _R                      # noqa: E402
 _RC = os.environ.get("ADCP_TEST_RECEPTOR",
                      os.path.join(ROOT, "examples", "receptor.pdb"))
 if os.path.isfile(_RC):
@@ -1783,7 +1769,6 @@ _uionly = {"reccode", "pastetext", "issuenote", "issuemail", "showbox",
            # there is nothing about it a run could restore.
            "pickfind",
            "rccol", "rlcol", "rbcol", "rlabel", "rengine", "rposepick",
-           "box_chains",
            # the details shown in the feedback dialog, filled in when it opens
            "fbtext",
            # A file input is not a setting and cannot be one: no browser
@@ -1809,9 +1794,6 @@ check(not _missing,
       "these controls are settings but reuse does not restore them: %s. A "
       "run reloaded without them submits this session's values, not the "
       "ones that run used" % _missing)
-check("box_chains" in appjs and "=== 'include'" in appjs,
-      "box_chains is a string in the job file and a tick in the form; reuse "
-      "must convert it")
 check("Array.from(el.options).some" in appjs,
       "a dropdown is given a value it may have no option for; steps and "
       "replicas are fixed lists and would silently fall back to blank")
@@ -1822,13 +1804,13 @@ check("Array.from(el.options).some" in appjs,
 # Each result file carries the name typed beside the sequence, and it is the
 # only thing that tells two variants of one construct apart, so the results
 # table must show it.
-from adcp_dock import report as _rep                              # noqa: E402
+from adcp_pilot import report as _rep                              # noqa: E402
 _r = _rep.summarise("WHAAWHWHA", [{"score": -25.1}], [-41.2], name="HOPE9")
 check(_r.get("name") == "HOPE9",
       "the row drops the peptide's name, so only the sequence can be shown")
 check("name" in _rep.write.__doc__ or "name" in str(
           _re2.search(r'cols = \[(.*?)\]',
-                      open(os.path.join(ROOT, "adcp_dock", "report.py")).read(),
+                      open(os.path.join(ROOT, "adcp_pilot", "report.py")).read(),
                       _re2.S).group(1)),
       "the TSV has no name column, so the file people analyze cannot say "
       "which design a row is")
@@ -1893,7 +1875,7 @@ check(_pp[">alpha\nSWQWWWQPQRDCR"][0] == "alpha"
 # dock stage wrote the name beside each result. The job file still holds the
 # names, so the report falls back to it by sequence rather than printing a
 # column of dashes for peptides that were named all along.
-from adcp_dock import job as _J, pipeline as _pl                # noqa: E402
+from adcp_pilot import job as _J, pipeline as _pl                # noqa: E402
 import tempfile as _tf, json as _js, shutil as _sh              # noqa: E402
 
 _d = _tf.mkdtemp()
@@ -1931,7 +1913,7 @@ check(all(n for n, _sq in _J.peptide_list(
 # Many clusters refuse a job with no --account; some need a QOS, a partition,
 # a constraint. They become #SBATCH lines in a bash script, so anything that
 # could end the line or start a command is refused rather than escaped.
-from adcp_dock import slurm as _sl                              # noqa: E402
+from adcp_pilot import slurm as _sl                              # noqa: E402
 _ln, _bad = _sl.site_options("132xyz", "--qos=normal --partition=short")
 check(_ln.splitlines() == ["#SBATCH --account=132xyz", "#SBATCH --qos=normal",
                            "#SBATCH --partition=short"] and not _bad,
@@ -1949,7 +1931,7 @@ _jv = _J.default()
 _jv["sbatch_extra"] = "--qos=a;id"
 check(any("cannot" in x or "not an sbatch" in x for x in _J.validate(_jv)),
       "validate() does not report a bad site option before submitting")
-from adcp_dock import page as _pgs                               # noqa: E402
+from adcp_pilot import page as _pgs                               # noqa: E402
 _sh = _pgs.render(TOKEN)
 check('id=account' in _sh and 'id=sbatch_extra' in _sh,
       "the page has no place to give an account or other SLURM options")
@@ -1958,7 +1940,7 @@ check('id=account' in _sh and 'id=sbatch_extra' in _sh,
 # A run docked before names were written beside its results has a
 # results.json with none in it, and its report is never written again. The
 # page therefore fills names from the job file every time it reads results.
-from adcp_dock.server import fill_names                         # noqa: E402
+from adcp_pilot.server import fill_names                         # noqa: E402
 _jf = {"peptides": [{"name": "lead", "sequence": "SWQWWWQPQRDCR"},
                     {"name": "", "sequence": "DWVHPHEW"}]}
 _old = [{"peptide": "SWQWWWQPQRDCR"}, {"peptide": "DWVHPHEW"},
@@ -1969,12 +1951,12 @@ check(_new == {"SWQWWWQPQRDCR": "lead", "DWVHPHEW": "peptide_2",
       "an old run's results are not given their names on read: %r" % _new)
 check(fill_names(None, _jf) is None and fill_names([], _jf) == [],
       "fill_names mishandles a run with no results yet")
-_src = open(os.path.join(ROOT, "adcp_dock", "server.py")).read()
+_src = open(os.path.join(ROOT, "adcp_pilot", "server.py")).read()
 check("fill_names(results, j)" in _src,
       "run_status does not fill names, so the page still shows dashes")
 
 # --- the entry rows are numbered, not fitted with a handle that does nothing
-_appjs2 = open(os.path.join(ROOT, "adcp_dock", "static", "app.js")).read()
+_appjs2 = open(os.path.join(ROOT, "adcp_pilot", "static", "app.js")).read()
 check("drag to reorder" not in _appjs2,
       "the entry rows still advertise a drag that is not implemented")
 check("class=entnum" in _appjs2,
@@ -2021,7 +2003,7 @@ for _n in ("peptides.txt", "seqs.fasta"):
     check("error" not in ok, "%s was refused: %r" % (_n, ok))
 
 # And the page offers it, beside the cluster's own Browse.
-from adcp_dock import page as _pgmod                            # noqa: E402
+from adcp_pilot import page as _pgmod                            # noqa: E402
 _uh = _pgmod.render(TOKEN)
 check("id=recupload" in _uh and "id=recfile" in _uh,
       "the page has no control for a file on the user's own machine")
@@ -2032,7 +2014,7 @@ check('type=file' in _uh, "there is no file input for the browser to open")
 # The credit line and the citation list are what a screenshot and a methods
 # section carry away, and they name tools that are not part of this package.
 # They are tested here so the check runs wherever the suite runs.
-from adcp_dock import cite, page                                # noqa: E402
+from adcp_pilot import cite, page                                # noqa: E402
 
 html = page.render(TOKEN)
 check("id=citebtn" in html,
@@ -2062,7 +2044,7 @@ for fmt, fname in sorted(cite.FILENAMES.items()):
 # The facility acknowledgment: a generic reminder by default, the text in
 # ADCP_ACKNOWLEDGEMENT when a site sets it, and the run's recorded text for a
 # run. It never names one institution to every user.
-from adcp_dock import GENERIC_ACK, acknowledgement                # noqa: E402
+from adcp_pilot import GENERIC_ACK, acknowledgement                # noqa: E402
 _saved_ack = os.environ.pop("ADCP_ACKNOWLEDGEMENT", None)
 try:
     with urllib.request.urlopen(
@@ -2131,11 +2113,11 @@ check("SP  - 5121" in ris and "EP  - 5127" in ris,
 
 # The zip carries them: a citation file written into the run directory but
 # left out of the download would mislead the user into thinking they have it.
-from adcp_dock import bundle, pipeline                           # noqa: E402
+from adcp_pilot import bundle, pipeline                           # noqa: E402
 for _f in cite.FILENAMES.values():
     check(_f in bundle.RESULTS,
           "%s is written into the run but left out of the download" % _f)
-_src = open(os.path.join(ROOT, "adcp_dock", "pipeline.py")).read()
+_src = open(os.path.join(ROOT, "adcp_pilot", "pipeline.py")).read()
 check("FILENAMES" in _src,
       "pipeline.py names the citation files itself instead of using "
       "cite.FILENAMES, so they can drift from what the page serves")
@@ -2153,7 +2135,7 @@ except KeyError:
 # AmberTools the page must still read as ready to dock, with MM-GBSA shown as
 # unavailable, and a run that asks for MM-GBSA must be refused before it is
 # submitted rather than failing at its rescoring stage.
-from adcp_dock import tools as _toolmod                          # noqa: E402
+from adcp_pilot import tools as _toolmod                          # noqa: E402
 _real_discover = _toolmod.discover
 _toolmod.discover = lambda roots=(), env=True: _toolmod.Tools(
     {n: "/fake/" + n for n in _toolmod.REQUIRED}, roots)
@@ -2175,7 +2157,7 @@ try:
           "with the reason: %r" % _made)
 finally:
     _toolmod.discover = _real_discover
-_js = open(os.path.join(ROOT, "adcp_dock", "static", "app.js")).read()
+_js = open(os.path.join(ROOT, "adcp_pilot", "static", "app.js")).read()
 check("d.mmgbsa === false" in _js and "box.disabled = true" in _js,
       "the page does not disable MM-GBSA when AmberTools is absent")
 
@@ -2186,8 +2168,8 @@ check("d.mmgbsa === false" in _js and "box.disabled = true" in _js,
 # applied), and prepare_receptor writing the docking receptor from the chain
 # as read.
 import tempfile as _tf                                          # noqa: E402
-from adcp_dock import pipeline as _pl                           # noqa: E402
-import adcp_dock.job as _jobmod                                 # noqa: E402
+from adcp_pilot import pipeline as _pl                           # noqa: E402
+import adcp_pilot.job as _jobmod                                 # noqa: E402
 _rd = _tf.mkdtemp()
 os.makedirs(os.path.join(_rd, "receptor"))
 open(os.path.join(_rd, "receptor", "preparation.log"), "w").write(
@@ -2205,7 +2187,7 @@ _w = server.prep_warnings(_rd, {"minimise": True})
 check(any("written from the structure as read" in x for x in _w),
       "a receptor docked from the unprepared chain is not flagged: %r" % _w)
 check(_pl.FALLBACK_SIGN in open(os.path.join(
-          ROOT, "adcp_dock", "_vendor", "receptor.py")).read(),
+          ROOT, "adcp_pilot", "_vendor", "receptor.py")).read(),
       "prepare_pdbqt no longer logs the fallback message the pipeline looks "
       "for, so the page cannot flag it")
 
@@ -2241,7 +2223,7 @@ else:
     print("skip  the ion rule needs a receptor (ADCP_TEST_RECEPTOR)")
 
 # --- the README lists every paper the tool can ask a run to cite ------------
-from adcp_dock import cite as _cite                             # noqa: E402
+from adcp_pilot import cite as _cite                             # noqa: E402
 _readme = open(os.path.join(ROOT, "README.md"), encoding="utf-8").read()
 _gone = [doi for _k, _w, _d, _r, doi in _cite.REFERENCES
          if "https://doi.org/" + doi not in _readme]
@@ -2387,7 +2369,7 @@ check('id=poses value="10" min="1" max="100"' in html
 # wrong structure here is a wrong picture beside the user's choice.
 from rdkit import Chem as _Ch                                      # noqa: E402
 from rdkit.Chem import rdCIPLabeler as _cipl                       # noqa: E402
-from adcp_dock import depict as _dp                                # noqa: E402
+from adcp_pilot import depict as _dp                                # noqa: E402
 
 
 def _labels(mol):
@@ -2488,7 +2470,7 @@ check("chargeText(m.charge)" in appjs,
       "the options do not tell charge variants (SEP, SEP2) apart")
 
 # --- a run with non-standard residues cites where they come from ------------
-from adcp_dock import cite as _cite                                 # noqa: E402
+from adcp_pilot import cite as _cite                                 # noqa: E402
 _k = _cite.used_by({"peptides": [{"sequence": "GAF<KYN>AG"}], "omm_minimize": 1})
 check({"swisssidechain", "gaff"} <= _k,
       "a run with a non-standard residue, minimized, does not cite SwissSidechain and GAFF: %s" % sorted(_k))
@@ -2631,7 +2613,7 @@ for _id in ("ph", "minimise", "keep_hetatms", "fill_loops"):
 check("id=mmgbsa" in _dc, "MM-GBSA left the Docking and rescoring card")
 check(_re4.search(r"<input type=checkbox id=rebuild_sidechains checked>", _rc),
       "Rebuild missing side chains is not on by default")
-from adcp_dock import job as _J5, helptext as _H5, pipeline as _P5   # noqa: E402
+from adcp_pilot import job as _J5, helptext as _H5, pipeline as _P5   # noqa: E402
 import inspect as _in5                                              # noqa: E402
 check(_J5.default()["rebuild_sidechains"] is True,
       "a new run does not rebuild side chains by default")
@@ -2647,7 +2629,7 @@ check("rebuild_sidechains" in _H5.HELP and "targetfile" in _H5.HELP
       "the help text does not cover the side chain setting and the target file")
 
 # The preparation: off takes out what was modeled, and only that.
-from adcp_dock._vendor import prepare as _pp                        # noqa: E402
+from adcp_pilot._vendor import prepare as _pp                        # noqa: E402
 _k_on = _pp._prep_key(__file__, 7.4, "AMBER", "A", 0.0, False, False, False,
                       True, True, 10.0)
 check("sidechains" not in _k_on,

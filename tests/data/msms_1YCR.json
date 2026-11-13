@@ -1,5 +1,5 @@
 {
- "structure": "adcp_dock/example_run/receptor/1YCR.pdb, every atom",
+ "structure": "adcp_pilot/example_run/receptor/1YCR.pdb, every atom",
  "made_with": "the msms program, MSMS 2.6.1, given pdb_to_xyzr's radii from MolKit's table, as surface.compute gives them",
  "made_on": "2026-10-18",
  "probe": 1.5,

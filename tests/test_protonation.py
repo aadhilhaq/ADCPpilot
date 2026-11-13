@@ -29,9 +29,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock import cite, cli, job as jobmod, pipeline, sizing  # noqa: E402
-from adcp_dock import tools as toolmod  # noqa: E402
-from adcp_dock._vendor import mmgbsa, prepare  # noqa: E402
+from adcp_pilot import cite, cli, job as jobmod, pipeline, sizing  # noqa: E402
+from adcp_pilot import tools as toolmod  # noqa: E402
+from adcp_pilot._vendor import mmgbsa, prepare  # noqa: E402
 
 fails, ran = [], 0
 
@@ -45,7 +45,7 @@ def check(cond, why):
 
 TMP = tempfile.mkdtemp(prefix="adcp_protonation_")
 os.environ["HOME"] = TMP
-REC = os.path.join(ROOT, "adcp_dock", "example_run", "receptor", "1YCR.pdb")
+REC = os.path.join(ROOT, "adcp_pilot", "example_run", "receptor", "1YCR.pdb")
 # Where the tools are, for the checks that run them: ADCP_TEST_TOOLS, or else
 # ADCPSUITE_HOME. Without either those checks are skipped.
 ROOTS = [r for r in (os.environ.get("ADCP_TEST_TOOLS", ""),
@@ -64,7 +64,7 @@ check(jobmod.protonation_of({"protonation": "propka",
                              "adapt": {"folder": "/x"}}) == "reduce",
       "a receptor from ADapt was protonated by reduce there, whatever the box said")
 # The shipped example as a job file from before the choice: without the key.
-old_example = json.load(open(os.path.join(ROOT, "adcp_dock", "example_run", "job.json")))
+old_example = json.load(open(os.path.join(ROOT, "adcp_pilot", "example_run", "job.json")))
 old_example.pop("protonation", None)
 check(jobmod.protonation_of(old_example) == "propka",
       "the shipped example, as made before the choice, reads as PDB2PQR with PROPKA")
@@ -105,7 +105,7 @@ for flag, want in (([], "reduce"), (["--protonation", "propka", "--ph", "5.5"], 
                       "-p", "ETFSDLWKLLPEN", *flag)
     j = jobmod.load(rd)
     check(j.get("protonation") == want,
-          "adcp-dock new %s writes protonation %r (%r)" % (flag, want, j.get("protonation")))
+          "adcp-pilot new %s writes protonation %r (%r)" % (flag, want, j.get("protonation")))
 check(jobmod.load(os.path.join(TMP, "cli_propka"))["ph"] == 5.5, "--ph reaches the job")
 rc, out = run_cli("new", os.path.join(TMP, "cli_bad"), "-r", REC, "-s", "A:96",
                   "-p", "ETFSDLWKLLPEN", "--protonation", "maybe")

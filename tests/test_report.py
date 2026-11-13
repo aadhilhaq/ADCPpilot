@@ -40,7 +40,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock import example, mac10, page, runreport, server  # noqa: E402
+from adcp_pilot import example, mac10, page, runreport, server  # noqa: E402
 
 fails, ran = [], 0
 
@@ -184,7 +184,7 @@ if not d.get("error"):
     check("Settings" in heads and "The receptor's preparation log" in heads and "Software and provenance" in heads,
           "the appendix holds %s" % heads)
     soft = dict(next(a for a in d["appendix"] if a["heading"] == "Software and provenance")["blocks"][0]["rows"])
-    check("GUI to ADCP Docking" in soft.get("Written by", "") and "ADCP 1.1" in soft.get("Docking", "")
+    check("ADCPpilot" in soft.get("Written by", "") and "ADCP 1.1" in soft.get("Docking", "")
           and "AGFR 1.1" in soft.get("Maps", "") and "prepared and docked by this run" in soft.get("Provenance", ""),
           "the appendix does not say what wrote the run and what it ran: %s" % soft)
 
@@ -195,7 +195,7 @@ mine = runreport.classify(pdb or "")
 check(mine["chain"] == "Z" and len(mine["pairs"]) > 10, "the first pose has %d contacts" % len(mine["pairs"]))
 node = shutil.which("node") or "/sw/eb/sw/nodejs/20.13.1-GCCcore-13.3.0/bin/node"
 if os.path.isfile(node) and pdb:
-    appjs = open(os.path.join(ROOT, "adcp_dock", "static", "app.js")).read()
+    appjs = open(os.path.join(ROOT, "adcp_pilot", "static", "app.js")).read()
     consts = [L for L in appjs.splitlines() if re.match(r"const (HBOND_A|POLAR|BASIC|ACIDIC|RING|SPECIFIC)\b", L)]
     start = appjs.index("function classifyContacts(pdb, pep){")
     end = appjs.index("\n}\n", start) + 3
@@ -398,7 +398,7 @@ if not dv.get("error"):
           % summ[-200:])
 
 check("error" in app.report_doc(os.path.join(TMP, "no_such_run"), {}), "a folder that is no run has a report")
-from adcp_dock import job as _jobmod, __version__  # noqa: E402
+from adcp_pilot import job as _jobmod, __version__  # noqa: E402
 _wb = _jobmod.default(written_by={"version": "0.0.1"})["written_by"]
 check(_wb.get("version") == __version__ and _wb.get("app"), "a new job does not record the tool that wrote it: %s" % _wb)
 
@@ -458,7 +458,7 @@ except urllib.error.HTTPError as exc:
     check(exc.code == 403, "the report page without the token answered %d" % exc.code)
 pg = get("/report", raw=True, rundir=EX).decode()
 check("ReportKit.start(" in pg and TOKEN in pg, "the report page does not start reportkit with the token")
-check(get("/static/reportkit.js", raw=True, token=False) == open(os.path.join(ROOT, "adcp_dock", "static",
+check(get("/static/reportkit.js", raw=True, token=False) == open(os.path.join(ROOT, "adcp_pilot", "static",
                                                                            "reportkit.js"), "rb").read(),
       "the server does not serve reportkit.js as it is")
 doc = get("/api/report", rundir=EX, **{"opt.poses": "2"})
@@ -497,7 +497,7 @@ check("3Dmol" in get("/api/report", rundir=EX)["methods"], "the methods do not c
 check(post("/api/report", {}).get("error") == "no run given", "POST /api/report is no longer the problem report")
 
 # --- the page offers it ----------------------------------------------------------
-appjs = open(os.path.join(ROOT, "adcp_dock", "static", "app.js")).read()
+appjs = open(os.path.join(ROOT, "adcp_pilot", "static", "app.js")).read()
 check("reportLine(dir, rows)" in appjs and "Report (PDF)" in appjs and "/api/report/add" in appjs,
       "the run's page does not offer the report, or the viewer cannot add to it")
 check("id=raddrep" in page.render("tok"), "the viewer's bar has no add to report")

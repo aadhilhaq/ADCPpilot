@@ -25,11 +25,11 @@ VSVersionInfo(
         '040904B0',
         [StringStruct('CompanyName', 'HOPE Lab'),
          StringStruct('FileDescription',
-                      'GUI to ADCP Docking launcher'),
+                      'ADCPpilot launcher'),
          StringStruct('FileVersion', '1.0.0.0'),
          StringStruct('InternalName', 'ADCP-Docking-launcher'),
          StringStruct('OriginalFilename', 'ADCP-Docking-launcher.exe'),
-         StringStruct('ProductName', 'GUI to ADCP Docking'),
+         StringStruct('ProductName', 'ADCPpilot'),
          StringStruct('ProductVersion', '1.0.0.0')])
     ]),
     VarFileInfo([VarStruct('Translation', [1033, 1200])])

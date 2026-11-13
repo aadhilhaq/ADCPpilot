@@ -1,0 +1,184 @@
+<h1>Rescoring with MM-GBSA</h1>
+<p class="lead">A second, physics-based estimate of each pose, computed with
+AmberTools. It is what makes different peptides comparable, and it is the
+slowest part of a run.</p>
+
+<h2 id="what-it-does">What it does</h2>
+<p>ADCP's score is a docking score. It orders the poses of one peptide well, and
+it was tuned for that rather than for comparing constructs of different length
+and composition, which is usually what a screen is asking. MM-GBSA computes an
+interaction energy from a force field with an implicit solvent term instead, so
+agreement between the two is worth more than either alone.</p>
+<p>For each pose that is rescored:</p>
+<ol>
+<li>The complex is protonated with the peptide bound, at the run's pH.</li>
+<li><code>tleap</code> builds Amber topologies for the complex, the receptor and
+the peptide, with the ff14SB protein force field. The peptide is written as a
+chain of its own, B unless the receptor uses B and then the first letter it does
+not use, and a TER record ends the receptor, each of its chains and each piece of
+a chain broken by a gap, so nothing is bonded that is not bonded in the
+structure.</li>
+<li><code>sander</code> minimizes the complex with the receptor's heavy atoms
+restrained, up to 1,000 cycles.</li>
+<li><code>MMPBSA.py</code> computes the interaction energy and its four parts on
+that minimized geometry, with 0.15 M salt.</li>
+</ol>
+<p>It roughly doubles the length of a run. It needs AmberTools; without it the
+option is switched off and the page says why.</p>
+<div class="note"><b>It is a ranking aid, not a binding free energy.</b> One
+conformation, no ensemble average and no entropy term. It gives an ordering
+within one run against one receptor. It does not give a binding constant, and
+values from two different receptors are not comparable.</div>
+<p>Peptides with D residues, and rings whose pose is closed, are rescored and
+ranked with the rest: see <a href="#d-and-rings">D residues and rings</a>.
+Peptides with non-standard residues are not: the force field has no parameters
+for their side chains. Those rows have no MM-GBSA value, the table lists them as
+unranked with the reason, and ADCP 1.1's own OpenMM minimization is the number to
+use for them instead.</p>
+
+<figure>
+<img src="img/docking-settings.png" alt="The Docking and rescoring card, with its Rescoring part showing">
+<figcaption><b>The rescoring controls.</b> They are grayed out until <b>Rescore with
+MM-GBSA</b> is ticked, and the line under the solvation model and the engine states
+the force field, the solvent model and the radii the energies will be computed
+with.</figcaption>
+</figure>
+
+<h2 id="poses-to-rescore">Poses to rescore</h2>
+<p>MM-GBSA runs on this many of each peptide's poses, best first. The cost grows
+in proportion and it is the largest cost of the run.</p>
+<p>More than one is worth having. A single pose can be lucky, and the spread
+across poses is what shows whether the peptide has settled on one way of binding
+or is still choosing. The results table reports that spread, and for the three
+peptides in the example run it is 20.6, 16.2 and 15.5 kcal/mol across five poses
+each, which is as large as the differences between the peptides themselves. That
+is a property of the poses, not of the rescoring, and it is the single most
+important thing to know before quoting one of these numbers.</p>
+<p>The poses are rescored several at a time, as many as the task has cores up to
+eight, so the wall time is the number of waves rather than the number of
+poses.</p>
+
+<h2 id="averaging">Averaging the best few</h2>
+<p><b>Report the mean of the top</b> decides the headline number: the mean of
+that many best pose energies rather than the single best. The default is 5.</p>
+<p>A best score is the tail of a distribution the search drew many times, and it
+rewards the luckiest pose. The mean of the top few is steadier. Both are written
+out, since comparison with other work often needs the best as well, along with
+the median and the spread. Set it to 1 to report the best pose alone.</p>
+<p>The ranking uses the mean where MM-GBSA ran, and ADCP's own mean where it did
+not. The table says which, in the heading of the column it ranked on.</p>
+
+<h2 id="the-solvation-model">The solvation model</h2>
+<p>Two implicit solvent models are offered. <b>GB-OBC(II)</b> is the default and
+is what every earlier run used; <b>GBn2</b> is a newer model with its own atomic
+radii. Each is run with the radii it was fitted with, and the run records which,
+because an energy computed with one set of radii and labeled with the other is
+wrong in a way nothing downstream can detect.</p>
+<p>The two give different numbers. Compare peptides within one model, never
+across the two.</p>
+
+<h2 id="which-program">Which program computes it</h2>
+<table>
+<tr><th>Engine</th><th>What it computes</th><th>How to read it</th></tr>
+<tr><td><b>AmberTools</b></td><td>ff14SB with GB-OBC(II), through <code>sander</code> and <code>MMPBSA.py</code>. The default.</td><td>The reference. Every earlier number came from it.</td></tr>
+<tr><td><b>OpenMM</b></td><td>The same force field and the same solvent model, on the geometry <code>sander</code> minimized.</td><td>A check on the solver, not a second estimate. On the example run's fifteen poses it lands 2.0 to 3.3 kcal/mol below AmberTools, pose by pose, and leaves the order unchanged.</td></tr>
+<tr><td><b>Schrodinger Prime</b></td><td>OPLS with VSGB 2.0, a different force field and a different solvent model.</td><td>Its own scale entirely. Nothing calibrates it against the other two.</td></tr>
+</table>
+<p>Each engine writes its own columns, none is merged into another, and the table
+says which force field and solvent model produced each one. A run may carry all
+three, and they are read down a column rather than across a row.</p>
+<p>A finished run can be scored again with another engine through
+<a href="runs.html#add-measures">Add measures</a>: nothing is docked again, the
+same poses are scored, the new numbers appear beside the old ones, and the table
+stays ranked on the engine it already used.</p>
+<p>The OpenMM engine deliberately scores <code>sander</code>'s geometry rather
+than making its own, and declines to run where <code>sander</code> is absent.
+Letting it minimize further moves the energy by tens of kcal/mol, because the
+extra relaxation loosens the interface: the two energy models agree, and the
+minimization was the whole of the difference.</p>
+
+<h2 id="d-and-rings">D residues and rings</h2>
+<p><b>A D residue is built with the template of its L form, and the docked
+coordinates carry its handedness.</b> This is exact rather than an
+approximation, because ff14SB has no term that tells a residue from its mirror
+image. Every torsion term in it has a phase of 0 or 180 degrees, so it gives the
+same energy for an angle and for its negative, and it has no CMAP grid, the one
+protein term that would not. Bonds, angles, van der Waals, electrostatics and
+the solvation term depend only on distances and angles, which a mirror image
+keeps. It was checked directly: a D peptide and its exact mirror image as an L
+peptide have the same energy, term by term. After a minimization of 1,000 steps
+they still agree within 1 kcal/mol, because the minimizer's path from two
+mirrored starting points differs by rounding.</p>
+<p>The one thing the L template would get wrong is where <code>tleap</code>
+puts the atoms a docked pose does not carry, the hydrogens and the last
+residue's second oxygen, which it takes from the template's own geometry: on a D
+residue it puts the alpha hydrogen on the wrong side. So those atoms of each D
+residue are placed as the mirror image of where they go on its L form. ADCP 1.1
+builds a D threonine or a D isoleucine with only its alpha carbon inverted,
+which is the allo form, and the hydrogen on its beta carbon is then put on the
+open side of that carbon. After the minimization every stereocenter of the
+peptide is checked against the docked pose, and a pose in which any center
+changed its handedness is not scored.</p>
+<p><b>A ring is rescored only on the poses that close it.</b> ADCP's ring is a
+restraint its search pulls on rather than a bond, and a pose can leave the two
+ends apart. A pose counts as closed when the two atoms the closing bond joins
+are no further apart than this:</p>
+<table>
+<tr><th>Ring</th><th>The two atoms</th><th>Their bond</th><th>Closed within</th></tr>
+<tr><td>head to tail</td><td>the first residue's N and the last residue's C</td><td>1.33 &Aring;</td><td>2.5 &Aring;</td></tr>
+<tr><td>disulfide</td><td>the sulfurs of the two cysteines</td><td>2.04 &Aring;</td><td>3.5 &Aring;</td></tr>
+</table>
+<p>The two distances come from ring poses docked into MDM2, each of which was
+also built with its closing bond and minimized whatever its distance, to see
+what closing it does. A carbon and a nitrogen that are not bonded touch at
+about 3.25 &Aring;, so ends within 2.5 &Aring; are held together by ADCP's
+restraint rather than resting in contact, and the further apart they are, the
+more the minimization has to move an end residue to close the bond, which can
+turn its alpha carbon into its mirror image. The sulfurs of a disulfide fell in
+two groups with ADCP 1.1, 2.0 to 3.2 &Aring; or 3.9 &Aring; and more, nothing
+in between. Two sulfurs that are not bonded touch at about 3.6 &Aring;, so a
+pair closer than 3.5 &Aring; is held there by the ring, and 3.5 &Aring; is also
+where ADCP's own minimization adds the bond. ADCP's head to tail restraint holds
+the two end residues closer together than a peptide bond would, so the
+minimization opens the join out a little.</p>
+<p>A closed pose is built with its closing bond: a head to tail ring with no
+free amine and no carboxylate, and a disulfide between two CYX residues. The
+bond is checked after the minimization as well, and a pose whose bond the
+minimization did not bring to length is not scored. A pose that is not closed is
+not rescored, and the task log says so for that pose, for example
+<code>ring not closed in this pose: ends 4.31 &Aring; apart</code>. A ring is
+never scored as a linear chain.</p>
+<p>The poses considered are the same top poses as for every other peptide. A
+ring whose third pose is open is scored on its other closed poses, not on a pose
+further down the list, and the <b>MM n</b> column says how many poses its value
+is the mean of. A ring none of whose top poses is closed has no MM-GBSA value:
+it keeps its docking score and its interface panel, and the table lists it as
+unranked with the reason.</p>
+<p><b>They rank with the others.</b> D peptides and closed rings are scored with
+the same engine, force field, minimization and solvent model as linear peptides
+of L residues, so all of them are ranked together in one table.</p>
+<p><b>AmberTools and OpenMM score both</b>, from the same topology. Prime builds
+its own structure from a PDB file, and nothing has shown that it keeps a closing
+bond or a D center as they were docked, so it refuses these peptides and says
+why rather than score another molecule.</p>
+<p><b>ADCP 1.1's own minimized poses are not used.</b> Its OpenMM minimization
+does add a ring's closing bond, but with another force field, on a receptor it
+completes itself, and only in a run that asked for it. Taking those poses for
+rings while linear peptides start from their docked poses would score the two
+from different starting points, so every peptide is rescored from its docked
+pose.</p>
+<p><b>A run set up before this version</b> keeps skipping D residues and rings
+when it is resumed or rescored, so one run never ranks peptides scored under two
+rules. Start a new run to rescore them.</p>
+
+<h2 id="what-else-it-measures">What else it measures</h2>
+<p>While each pose is rescored, the run also measures the interface on the same
+minimized geometry: buried surface area, how much of the peptide is buried,
+typed contacts and clashes, and the per residue breakdown of the energy. Those
+are the interface columns in the results, and they are described in
+<a href="results.html">Reading the results</a>.</p>
+<p>Then it measures the <a href="results.html#peptide-strain">peptide strain</a>
+of the same poses: the peptide alone in its pose, against the same peptide
+relaxed on its own from it, in the same solvent model. It is reported beside the
+energy and never ranked on. <code>adcp-pilot new --no-strain</code> leaves it out of
+a run.</p>

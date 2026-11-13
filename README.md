@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="brand/banner.png" alt="GUI to ADCP Docking" width="100%">
+  <img src="brand/banner.png" alt="ADCPpilot" width="100%">
 </p>
 
 [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aadhilhaq/ADCP_docking/blob/main/notebooks/ADCP_docking_colab.ipynb)
 
-Try it in your browser with nothing to install: open the notebook and press **Start GUI to ADCP Docking**, which takes about a quarter of an hour the first time and then opens the interface inside the notebook.
+Try it in your browser with nothing to install: open the notebook and press **Start ADCPpilot**, which takes about a quarter of an hour the first time and then opens the interface inside the notebook.
 
-GUI to ADCP Docking is a browser interface and command line for peptide docking with [AutoDock CrankPep (ADCP)](https://ccsb.scripps.edu/adcp/). Give it a receptor structure and peptide sequences: it prepares the receptor, builds the grid maps, docks each peptide, can rescore the poses with MM-GBSA, and reports ranked results with the structures. The calculations run on a Slurm cluster, on your own computer, or in Google Colab.
+ADCPpilot is a browser interface and command line for peptide docking with [AutoDock CrankPep (ADCP)](https://ccsb.scripps.edu/adcp/). Give it a receptor structure and peptide sequences: it prepares the receptor, builds the grid maps, docks each peptide, can rescore the poses with MM-GBSA, and reports ranked results with the structures. The calculations run on a Slurm cluster, on your own computer, or in Google Colab.
 
 Developed by Aadhil Haq, HOPE Lab, under the supervision of Dr. Sandun Fernando. ADCP and the ADCP 1.1 suite it comes in are developed by the Scripps Research Institute; this project is independent of it.
 
@@ -38,42 +38,42 @@ cd ADCP_docking
 ./install.sh --check $SCRATCH/adcp    # a few seconds: what it found, what it would add, and whether there is room
 ./install.sh $SCRATCH/adcp            # about 7 to 10 minutes; if it stops, run the same line again
 source activate.sh
-adcp-dock check
+adcp-pilot check
 ```
 
 Nothing needs installing first. `install.sh` uses what the cluster already has (an AmberTools module once it is loaded, or an environment named with `ADCP_ENV`), adds only what is missing, builds the rest in the folder you give, and ends with a summary of what works. [INSTALL.md, 1.2](INSTALL.md#12-install) walks through each step for someone new to clusters, with what success looks like and what to do when it stops. To update later: `git pull; ./update.sh` in the checkout.
 
-`adcp-dock serve --port 0` then starts the page and prints its address. Open it from your own computer through an SSH tunnel ([INSTALL.md, 1.5](INSTALL.md#15-start-the-page)) or with the [desktop launcher](INSTALL.md#5-the-desktop-launcher), which does all of that for you.
+`adcp-pilot serve --port 0` then starts the page and prints its address. Open it from your own computer through an SSH tunnel ([INSTALL.md, 1.5](INSTALL.md#15-start-the-page)) or with the [desktop launcher](INSTALL.md#5-the-desktop-launcher), which does all of that for you.
 
 On your own computer:
 
 ```bash
-python3 -m venv ~/.adcp-dock/venv
-~/.adcp-dock/venv/bin/pip install "adcp-dock[local] @ git+https://github.com/aadhilhaq/ADCP_docking"
-~/.adcp-dock/venv/bin/adcp-dock local
+python3 -m venv ~/.adcp-pilot/venv
+~/.adcp-pilot/venv/bin/pip install "adcp-pilot[local] @ git+https://github.com/aadhilhaq/ADCP_docking"
+~/.adcp-pilot/venv/bin/adcp-pilot local
 ```
 
-Everything the docking needs comes from the ADCP 1.1 suite, which the Scripps Research Institute builds for Linux: `install.sh` installs it on a cluster, or uses one already there, and `adcp-dock local` installs it on first use ([INSTALL.md, section 4](INSTALL.md#4-adcp-11)). On top of it, ADapt, a separate tool by Michel Sanner that shows what a structure file holds and prepares the receptor the way AGFR does, opens inside the Receptor card on the structure loaded there. `install.sh` and `update.sh` fetch it beside the suite from its repository once that is public; until then they say so in one line and carry on ([INSTALL.md, ADapt](INSTALL.md#adapt-optional)).
+Everything the docking needs comes from the ADCP 1.1 suite, which the Scripps Research Institute builds for Linux: `install.sh` installs it on a cluster, or uses one already there, and `adcp-pilot local` installs it on first use ([INSTALL.md, section 4](INSTALL.md#4-adcp-11)). On top of it, ADapt, a separate tool by Michel Sanner that shows what a structure file holds and prepares the receptor the way AGFR does, opens inside the Receptor card on the structure loaded there. `install.sh` and `update.sh` fetch it beside the suite from its repository once that is public; until then they say so in one line and carry on ([INSTALL.md, ADapt](INSTALL.md#adapt-optional)).
 
-`adcp-dock example` adds a finished run, MDM2 with three peptides, to open before docking anything. The Colab notebook includes it.
+`adcp-pilot example` adds a finished run, MDM2 with three peptides, to open before docking anything. The Colab notebook includes it.
 
 ## Command line
 
 ```bash
-adcp-dock new runs/trial -r 1YCR --chain A \
+adcp-pilot new runs/trial -r 1YCR --chain A \
     -s A:54,A:62,A:67,A:96,A:99 -p "p53: ETFSDLWKLLP" --poses 10 --mmgbsa
-adcp-dock run runs/trial
-adcp-dock status runs/trial
-adcp-dock report runs/trial
-adcp-dock panel runs/trial      # only for a run docked before 0.1.17
-adcp-dock strain runs/trial     # only for a run rescored before the peptide strain
+adcp-pilot run runs/trial
+adcp-pilot status runs/trial
+adcp-pilot report runs/trial
+adcp-pilot panel runs/trial      # only for a run docked before 0.1.17
+adcp-pilot strain runs/trial     # only for a run rescored before the peptide strain
 ```
 
-`-r` takes a structure file or a PDB ID, `-s` the residues the docking box covers, `-p` a peptide (repeat it for more) or `-f` a peptide file. Running `adcp-dock run` again docks only the peptides that have no result yet.
+`-r` takes a structure file or a PDB ID, `-s` the residues the docking box covers, `-p` a peptide (repeat it for more) or `-f` a peptide file. Running `adcp-pilot run` again docks only the peptides that have no result yet.
 
 Every pose MM-GBSA scores also gets its **peptide strain**: what the peptide pays to hold its docked shape, its energy in the pose minus the same peptide relaxed on its own from that shape, in the run's own GB model (a run Prime scores shows Prime's own). It is reported beside the energy and never ranked on; `--no-strain` leaves it out of a run.
 
-A run docked before version 0.1.17 has no interface panel in its results, because the panel is measured while each peptide is rescored, and a run rescored before the strain existed has no strain. The run's page shows its MM-GBSA breakdown straight away, read from those files, and says in one line over its table what the run lacks; **Add measures**, on the Runs card, adds it to as many finished runs as are chosen, and so does another MM-GBSA engine. `adcp-dock panel` and `adcp-dock strain` do the same from the command line. Each measures from the files the MM-GBSA already left, submits that to Slurm, and rebuilds the report when it finishes. Nothing is docked or rescored again. A run whose intermediate files were deleted keeps its four energy terms and gets no interface columns, and the report says so.
+A run docked before version 0.1.17 has no interface panel in its results, because the panel is measured while each peptide is rescored, and a run rescored before the strain existed has no strain. The run's page shows its MM-GBSA breakdown straight away, read from those files, and says in one line over its table what the run lacks; **Add measures**, on the Runs card, adds it to as many finished runs as are chosen, and so does another MM-GBSA engine. `adcp-pilot panel` and `adcp-pilot strain` do the same from the command line. Each measures from the files the MM-GBSA already left, submits that to Slurm, and rebuilds the report when it finishes. Nothing is docked or rescored again. A run whose intermediate files were deleted keeps its four energy terms and gets no interface columns, and the report says so.
 
 ## Peptides
 
@@ -87,11 +87,11 @@ Each run writes `results.tsv`, `results.json` and `results.txt`, the ranked pose
 
 ## Requirements
 
-Linux on x86-64 (on Windows, WSL). Python 3.9 or newer with NumPy and RDKit, the ADCP 1.1 suite (installed by `install.sh`, by `adcp-dock install-adcp11`, or on the first `adcp-dock local`), and PDB2PQR (installed with the package). Optional: AmberTools for MM-GBSA; OpenMM and PDBFixer for receptor repair and minimization; Biopython for mmCIF files. `adcp-dock check` lists what it finds.
+Linux on x86-64 (on Windows, WSL). Python 3.9 or newer with NumPy and RDKit, the ADCP 1.1 suite (installed by `install.sh`, by `adcp-pilot install-adcp11`, or on the first `adcp-pilot local`), and PDB2PQR (installed with the package). Optional: AmberTools for MM-GBSA; OpenMM and PDBFixer for receptor repair and minimization; Biopython for mmCIF files. `adcp-pilot check` lists what it finds.
 
 ## Citation
 
-This interface drives other programs, and each has its own paper. Cite the ones your run used; `adcp-dock cite <run>` and the `HOW_TO_CITE.txt`, `CITATION.bib` and `CITATION.ris` files written into every run list exactly those. ADCP, AGFR and AutoSite are products of the Scripps Research Institute. The Amber developers ask for the AmberTools paper and the force field paper ([ambermd.org/CiteAmber.php](https://ambermd.org/CiteAmber.php)).
+This interface drives other programs, and each has its own paper. Cite the ones your run used; `adcp-pilot cite <run>` and the `HOW_TO_CITE.txt`, `CITATION.bib` and `CITATION.ris` files written into every run list exactly those. ADCP, AGFR and AutoSite are products of the Scripps Research Institute. The Amber developers ask for the AmberTools paper and the force field paper ([ambermd.org/CiteAmber.php](https://ambermd.org/CiteAmber.php)).
 
 | Tool | Cite for | Reference | DOI |
 |---|---|---|---|
@@ -119,9 +119,9 @@ This interface drives other programs, and each has its own paper. Cite the ones 
 | RDKit | every run | RDKit: Open-source cheminformatics. https://www.rdkit.org | [10.5281/zenodo.591637](https://doi.org/10.5281/zenodo.591637) |
 
 ```bash
-adcp-dock cite                 # all supported tools
-adcp-dock cite <run>           # tools recorded for one run
-adcp-dock cite --bibtex        # use --ris for EndNote or Zotero
+adcp-pilot cite                 # all supported tools
+adcp-pilot cite <run>           # tools recorded for one run
+adcp-pilot cite --bibtex        # use --ris for EndNote or Zotero
 ```
 
 For this interface, use GitHub's **Cite this repository** button or [CITATION.cff](CITATION.cff), and record the software version used.
@@ -135,8 +135,8 @@ Report problems through [GitHub Issues](https://github.com/aadhilhaq/ADCP_dockin
 | What | License | Text |
 |---|---|---|
 | This package: all code and documents in this repository, except the rows below | BSD 3-Clause | [LICENSE](LICENSE) |
-| 3Dmol.js, bundled structure viewer | BSD 3-Clause | `adcp_dock/static/3Dmol.LICENSE.txt` |
-| Mol*, bundled structure viewer | MIT | `adcp_dock/static/molstar.LICENSE.txt` |
+| 3Dmol.js, bundled structure viewer | BSD 3-Clause | `adcp_pilot/static/3Dmol.LICENSE.txt` |
+| Mol*, bundled structure viewer | MIT | `adcp_pilot/static/molstar.LICENSE.txt` |
 | Table of ADCP 1.1's non-standard residues (codes, structures) | Derived from ADCP 1.1's SwissSidechain library | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) |
 | ADCP and the rest of the ADCP 1.1 suite, AmberTools, PDB2PQR and the other programs it runs | Their own licenses; not included in this repository | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) |
 

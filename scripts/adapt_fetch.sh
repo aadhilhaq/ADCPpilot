@@ -6,7 +6,7 @@
 #
 # ADapt, by Michel Sanner, is its own repository. The interface finds it in a
 # folder named adapt beside the ADCP 1.1 suite, among other places
-# (adcp_dock/adapt.py), and these functions put it there and keep it current.
+# (adcp_pilot/adapt.py), and these functions put it there and keep it current.
 #
 # Every git command that reaches the repository is anonymous: it never
 # prompts, never runs an askpass program and never uses a stored credential.
@@ -46,7 +46,7 @@ adapt_git() {
       -c core.askPass= "$@"
 }
 
-# The checks adcp_dock/adapt.py makes: is_adapt() and embeddable().
+# The checks adcp_pilot/adapt.py makes: is_adapt() and embeddable().
 adapt_is() { [ -f "$1/bin/adapt" ] && [ -f "$1/adapt/__main__.py" ]; }
 adapt_embeds() { grep -q -e '--base-path' "$1/adapt/__main__.py" 2>/dev/null; }
 
@@ -121,7 +121,7 @@ adcp11_is() {
 # The ADCP 1.1 suite, where the interface finds it, in its order
 # (adcp11.candidates() without --tools-root): ADCPSUITE_HOME; inside and
 # beside the installation (ADCP_HOME) and this checkout, as the folder
-# itself, adcpsuite or tools/docking/adcpsuite; then the folder `adcp-dock
+# itself, adcpsuite or tools/docking/adcpsuite; then the folder `adcp-pilot
 # local` installs it in, and Colab's. The first that holds it, or nothing.
 adcp11_found() {  # $1 = the checkout this interface runs from (optional)
   local d h places=() homes=()
@@ -135,7 +135,7 @@ adcp11_found() {  # $1 = the checkout this interface runs from (optional)
     places+=("$(dirname "$h")" "$(dirname "$h")/adcpsuite" \
              "$(dirname "$h")/tools/docking/adcpsuite")
   done
-  places+=("$HOME/.adcp-dock/adcpsuite" /content/adcpsuite)
+  places+=("$HOME/.adcp-pilot/adcpsuite" /content/adcpsuite)
   for d in "${places[@]}"; do
     if adcp11_is "$d"; then printf '%s' "$(cd "$d" && pwd -P)"; return 0; fi
   done
@@ -155,7 +155,7 @@ adapt_found() {  # $1 = the checkout this interface runs from
     places+=("$h/tools/docking/adapt" "$h/tools/docking/ADapt" \
              "$(dirname "$h")/tools/docking/adapt" "$(dirname "$h")/tools/docking/ADapt")
   done
-  places+=("$(dirname "$1")/adapt" "$(dirname "$1")/ADapt" "$HOME/.adcp-dock/adapt")
+  places+=("$(dirname "$1")/adapt" "$(dirname "$1")/ADapt" "$HOME/.adcp-pilot/adapt")
   for d in "${places[@]}"; do
     adapt_is "$d" && { printf '%s' "$d"; return 0; }
   done

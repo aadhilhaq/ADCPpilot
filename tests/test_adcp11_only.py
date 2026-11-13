@@ -31,7 +31,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock import adcp11, slurm, surface, tools  # noqa: E402
+from adcp_pilot import adcp11, slurm, surface, tools  # noqa: E402
 
 fails, ran = [], 0
 
@@ -53,7 +53,7 @@ if not exe:
           "ADCPSUITE_HOME)")
     sys.exit(77)
 SUITE = adcp11.home_of(exe)
-EX = os.path.join(ROOT, "adcp_dock", "example_run", "receptor", "1YCR.pdb")
+EX = os.path.join(ROOT, "adcp_pilot", "example_run", "receptor", "1YCR.pdb")
 REF = json.load(open(os.path.join(HERE, "data", "msms_1YCR.json")))
 
 saved = dict(os.environ)
@@ -99,7 +99,7 @@ try:
                   for l in lines), "a job script puts the suite's python on PATH")
     # prepare_receptor, started as the receptor module starts it, with the
     # suite's own Python whatever is first on PATH.
-    from adcp_dock._vendor import receptor as rec
+    from adcp_pilot._vendor import receptor as rec
     tmp = tempfile.mkdtemp(prefix="adcp11only_")
     src = os.path.join(tmp, "recA.pdb")
     with open(EX) as fh, open(src, "w") as out:
@@ -199,7 +199,7 @@ check("exit 1" in src.split("The ADCP 1.1 suite did not install")[1][:600],
       "install.sh carries on when the ADCP 1.1 suite fails to install")
 check('echo "export ADCPSUITE_HOME=' in src and 'echo "export ADAPT_HOME=' in src,
       "activate.sh does not name the ADCP 1.1 suite and ADapt")
-appjs = open(os.path.join(ROOT, "adcp_dock", "static", "app.js")).read()
+appjs = open(os.path.join(ROOT, "adcp_pilot", "static", "app.js")).read()
 check("ADCP 1.1 is not installed here,</b>" in appjs
       and "so nothing can dock" in appjs,
       "the page does not say plainly when the ADCP 1.1 suite is missing")

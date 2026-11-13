@@ -7,7 +7,7 @@ itself; a stage that returns a plausible energy computed on the wrong
 molecules does not.
 
 The last section checks that the stages call the shared engine in
-adcp_dock/_vendor rather than local reimplementations, which would
+adcp_pilot/_vendor rather than local reimplementations, which would
 require the same fixes a second time.
 """
 import json
@@ -18,8 +18,8 @@ import zipfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 
-from adcp_dock import peptide, report, structure, target, verify   # noqa: E402
-from adcp_dock._vendor import mmgbsa, poseviewer                   # noqa: E402
+from adcp_pilot import peptide, report, structure, target, verify   # noqa: E402
+from adcp_pilot._vendor import mmgbsa, poseviewer                   # noqa: E402
 
 fails, ran = [], 0
 
@@ -144,7 +144,7 @@ check(size[0] == 30.0, "residues 80 A apart gave a %s box, not the ceiling"
 # The page draws structure.box_for; the run docks into receptor.box. One
 # rule for both: along each axis, the span plus padding, clamped.
 import types                                                    # noqa: E402
-from adcp_dock._vendor import receptor as vrec                   # noqa: E402
+from adcp_pilot._vendor import receptor as vrec                   # noqa: E402
 flat = [structure.Atom(name="CA", resname="ALA", chain="A", resnum=i,
                        x=x, y=y, z=z, element="C")
         for i, (x, y, z) in enumerate([(0.0, 0.0, 0.0), (10.0, 30.0, 2.0),
@@ -250,7 +250,7 @@ if tmpl is not None:
 # produce files, and would only be found out when its energies turned out to
 # be wrong. So the call sites are checked.
 import inspect                                                   # noqa: E402
-from adcp_dock import job as jobmod, pipeline                    # noqa: E402
+from adcp_pilot import job as jobmod, pipeline                    # noqa: E402
 
 prep_src = inspect.getsource(pipeline.stage_prepare)
 # The dock stage hands the rescoring to _stage_mmgbsa, which takes its poses
@@ -304,7 +304,7 @@ check("verify.mmgbsa_split(" in dock_src,
 
 # nothing in the package may shadow a vendored module with a local rewrite
 import os as _os                                                 # noqa: E402
-_pkg = _os.path.join(_os.path.dirname(HERE), "adcp_dock")
+_pkg = _os.path.join(_os.path.dirname(HERE), "adcp_pilot")
 _local = {f[:-3] for f in _os.listdir(_pkg) if f.endswith(".py")}
 _vend = {f[:-3] for f in _os.listdir(_os.path.join(_pkg, "_vendor"))
          if f.endswith(".py") and f != "__init__.py"}
@@ -320,8 +320,8 @@ check(not (_local & _vend),
 # quantity in dG = RT ln(Kd), and its magnitude follows the interface and the
 # receptor more than the affinity. The absence of that conversion is asserted
 # so that it is not added later.
-from adcp_dock import affinity                                   # noqa: E402
-from adcp_dock._vendor import mmgbsa as VMM                      # noqa: E402
+from adcp_pilot import affinity                                   # noqa: E402
+from adcp_pilot._vendor import mmgbsa as VMM                      # noqa: E402
 
 check(hasattr(VMM, "dg_for_kd"),
       "the ruler is gone; there is now no way to answer 'what score means "
@@ -368,7 +368,7 @@ check("Kd" not in _tbl and "entropy" not in _tbl,
 # first, `outstanding` counts both as finished once one has run, and the
 # table shows two rows from one calculation. That is not untidy, it is
 # wrong, and nothing downstream would say so.
-from adcp_dock import job as _job                               # noqa: E402
+from adcp_pilot import job as _job                               # noqa: E402
 
 _base = dict(_job.default(), receptor=__file__, hotspots="A:1", poses=5,
              mmgbsa=False)
@@ -417,10 +417,10 @@ check(not [p for p in _problems([{"name": "", "sequence": "AKSLW"}])
       "a blank name was treated as a duplicate")
 
 # --- the queue says which run each job belongs to -------------------------
-# Three rows called adcp_prep, adcp_dock and adcp_report tell a user with
+# Three rows called adcp_prep, adcp_pilot and adcp_report tell a user with
 # four runs queued nothing at all: not which receptor, not which peptides,
 # not which of their own runs is the one that is stuck.
-from adcp_dock import pipeline as _pl                            # noqa: E402
+from adcp_pilot import pipeline as _pl                            # noqa: E402
 
 check(_pl.job_name("/runs/DENV1_7A3R_screen", {}, "dock")
       == "DENV1_7A3R_screen-dock",
@@ -437,10 +437,12 @@ check(not _pl.job_name("/runs/a-very-long-run-name-indeed", {},
 check("--" not in _pl.job_name("/runs/r1", {"label": "PD-L1 alpha helix v2"},
                                "dock"),
       "the length cut left a separator against the stage suffix")
+# "adcp" is job_name's fallback and "dock" the stage: the two together are
+# not the package's name, and the rename to adcp-pilot does not touch them.
 check(_pl.job_name("/runs/   ", {"label": "   "}, "dock") == "adcp-dock",
       "a blank run name produces a nameless job rather than a fallback")
 _src = inspect.getsource(_pl)
-check('name="adcp_prep"' not in _src and 'name="adcp_dock"' not in _src,
+check('name="adcp_prep"' not in _src and 'name="adcp_pilot"' not in _src,
       "a stage still submits under the fixed name")
 
 # --- the preparation estimate is not six times the measurement ------------
@@ -449,7 +451,7 @@ check('name="adcp_prep"' not in _src and 'name="adcp_dock"' not in _src,
 # twice: 27-30 minutes shown against 4 min 36 s taken. An estimate no one
 # believes is not a safety margin. What protects a run from the wall is the
 # two-hour floor, not a padded stage.
-from adcp_dock import sizing as _sz                               # noqa: E402
+from adcp_pilot import sizing as _sz                               # noqa: E402
 
 # Measured with the ADCP 1.1 suite, the whole prepare stage, protonated by
 # reduce, maps with AutoSite 1.1 and no gradient. The four-minute floor and
@@ -571,8 +573,8 @@ check(sorted(_by_len) == [6, 9, 13] and _by_len[6] < _by_len[9] < _by_len[13],
 import shutil as _sh                                            # noqa: E402
 import tempfile as _tf                                          # noqa: E402
 import zipfile as _zf                                           # noqa: E402
-from adcp_dock import adcp11, agfr_target, job as _job, peptide as _pep  # noqa: E402
-from adcp_dock import report as _rep                            # noqa: E402
+from adcp_pilot import adcp11, agfr_target, job as _job, peptide as _pep  # noqa: E402
+from adcp_pilot import report as _rep                            # noqa: E402
 
 _s, _p = _pep.check("n<BHD>pis&dvd", library={"BHD"})
 check(not _p and len(_pep.residues(_s)) == 7,
@@ -640,7 +642,7 @@ if adcp11.find():
           "a run accepted a side chain the installed ADCP 1.1 does not have")
 
 # --- the Modifications dialog's list, and OpenMM parameter sets ------------
-_mods = json.load(open(os.path.join(os.path.dirname(HERE), "adcp_dock", "static",
+_mods = json.load(open(os.path.join(os.path.dirname(HERE), "adcp_pilot", "static",
                                     "modifications.json")))["modifications"]
 check(len(_mods) > 100 and all(m["parent"] in _pep.STANDARD and m["coarse"]
                                in _pep.STANDARD and m["code"] and m["name"]
@@ -660,14 +662,14 @@ if _exe:
 else:
     print("skip  ADCP 1.1 is not installed here; its parameter checks were skipped")
 
-# --- nothing in adcp_dock/ shadows a module of the engine -------------------
-# adcp_dock/_vendor holds the engine. A module of the same name directly in
-# adcp_dock/ is easily imported in its place, and replaces a stage silently.
-_vend = {f for f in os.listdir(os.path.join(os.path.dirname(HERE), "adcp_dock", "_vendor"))
+# --- nothing in adcp_pilot/ shadows a module of the engine -------------------
+# adcp_pilot/_vendor holds the engine. A module of the same name directly in
+# adcp_pilot/ is easily imported in its place, and replaces a stage silently.
+_vend = {f for f in os.listdir(os.path.join(os.path.dirname(HERE), "adcp_pilot", "_vendor"))
          if f.endswith(".py") and f != "__init__.py"}
-_top = {f for f in os.listdir(os.path.join(os.path.dirname(HERE), "adcp_dock"))
+_top = {f for f in os.listdir(os.path.join(os.path.dirname(HERE), "adcp_pilot"))
         if f.endswith(".py")}
-check(not (_vend & _top), "these modules exist both in adcp_dock/ and in _vendor/: %s"
+check(not (_vend & _top), "these modules exist both in adcp_pilot/ and in _vendor/: %s"
       % sorted(_vend & _top))
 
 # --- a failed OpenMM minimization keeps the docking --------------------------
@@ -741,8 +743,8 @@ check('out["mmgbsa_radii"]' in dock_src,
 # open: the poses were on disk only as ADCP's own out_ranked_*.pdb inside
 # each peptide's docking directory, with no receptor beside them.
 print("the pose viewer stage")
-from adcp_dock import pipeline as _pl                          # noqa: E402
-from adcp_dock import bundle as _bundle                        # noqa: E402
+from adcp_pilot import pipeline as _pl                          # noqa: E402
+from adcp_pilot import bundle as _bundle                        # noqa: E402
 import inspect as _inspect                                     # noqa: E402
 
 check(callable(getattr(_pl, "stage_poseviewer", None)),
@@ -784,7 +786,7 @@ print("listing the engines does not import OpenMM")
 # package answers the question without loading it.
 import subprocess as _sp3                                       # noqa: E402
 _code = ("import sys; sys.path.insert(0, %r); "
-         "from adcp_dock._vendor import gbengines as G; G.catalogue(); "
+         "from adcp_pilot._vendor import gbengines as G; G.catalogue(); "
          "print('openmm' in sys.modules)" % os.path.dirname(HERE))
 _out = _sp3.run([sys.executable, "-c", _code], capture_output=True,
                 text=True).stdout.split()
@@ -792,7 +794,7 @@ check(_out == ["False"],
       "listing the engines imported OpenMM (%s)" % _out)
 
 print("several MM-GBSA engines on one run")
-from adcp_dock import report as _rep                            # noqa: E402
+from adcp_pilot import report as _rep                            # noqa: E402
 _r = _rep.summarise("LLKWHY", [{"score": -14.0}], mm=[-25.0], name="P1",
                     engine="ADCP 1.1.21", mmgbsa_engine="amber",
                     mm_by_engine={"amber": [-25.0], "openmm": [-26.3]})
@@ -820,14 +822,14 @@ check('1 if eng.name == "schrodinger"' in _rs,
       "Prime rescores one pose at a time, so one column is one force field")
 check(callable(getattr(_pl, "submit_rescore", None)),
       "a rescoring can be sent to the queue")
-from adcp_dock import worker as _wk                              # noqa: E402
+from adcp_pilot import worker as _wk                              # noqa: E402
 check('startswith("rescore:")' in _inspect.getsource(_wk.main),
       "the worker runs a rescore stage")
 
 # The page's shared engine values must be at the top level of app.js. They
 # were first declared inside the tools callback, where the results view could
 # not see them, and every run threw on opening. A syntax check passes that.
-_js = open(os.path.join(os.path.dirname(HERE), "adcp_dock", "static",
+_js = open(os.path.join(os.path.dirname(HERE), "adcp_pilot", "static",
                         "app.js"), encoding="utf-8").read()
 for _name in ("const GBLABEL",):
     _line = [l for l in _js.splitlines() if l.startswith(_name)]

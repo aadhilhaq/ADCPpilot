@@ -1,4 +1,4 @@
-# Publish adcp-dock to PyPI, so that it installs with `pip install adcp-dock`.
+# Publish adcp-pilot to PyPI, so that it installs with `pip install adcp-pilot`.
 #
 # By Aadhil Haq
 #
@@ -13,7 +13,7 @@
 #
 # BEFORE THE FIRST RUN, on https://pypi.org, under Publishing:
 #
-#   PyPI project name   adcp-dock
+#   PyPI project name   adcp-pilot
 #   Owner               aadhilhaq
 #   Repository          ADCP_docking
 #   Workflow name       publish.yml

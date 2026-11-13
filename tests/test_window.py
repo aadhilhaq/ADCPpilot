@@ -17,7 +17,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock import brand                                     # noqa: E402
+from adcp_pilot import brand                                     # noqa: E402
 from adcp_launcher import clusters                              # noqa: E402
 
 fails, ran, skipped = [], 0, 0

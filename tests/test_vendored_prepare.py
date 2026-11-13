@@ -1,8 +1,8 @@
-"""The receptor preparation in adcp_dock/_vendor is hope_core's code.
+"""The receptor preparation in adcp_pilot/_vendor is hope_core's code.
 
 By Aadhil Haq
 
-adcp_dock/_vendor/prepare.py is the preparation HOPE-pipelines maintains as
+adcp_pilot/_vendor/prepare.py is the preparation HOPE-pipelines maintains as
 hope_core/prepare.py, carried here with this tool's own docstrings and
 comments. So the two are compared as code rather than as text: both are
 parsed, every docstring is left out (a parse holds no comments), and what is
@@ -25,7 +25,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-MINE = os.path.join(ROOT, "adcp_dock", "_vendor", "prepare.py")
+MINE = os.path.join(ROOT, "adcp_pilot", "_vendor", "prepare.py")
 
 fails, ran = [], 0
 
@@ -84,11 +84,11 @@ master = next((m for m in (os.path.join(c, "hope_core", "prepare.py")
                            for c in places) if os.path.isfile(m)), None)
 if not master:
     if os.environ.get("HOPE_PIPELINES_CHECKOUT", "").strip():
-        print("skip  adcp_dock/_vendor/prepare.py was compared with nothing: "
+        print("skip  adcp_pilot/_vendor/prepare.py was compared with nothing: "
               "%s, the checkout HOPE_PIPELINES_CHECKOUT names, holds no "
               "hope_core/prepare.py" % places[0])
     else:
-        print("skip  adcp_dock/_vendor/prepare.py was compared with nothing: "
+        print("skip  adcp_pilot/_vendor/prepare.py was compared with nothing: "
               "no HOPE-pipelines checkout holding hope_core/prepare.py is "
               "beside this one or beside a folder above it (looked at %s), "
               "and HOPE_PIPELINES_CHECKOUT, which names one elsewhere, is "
@@ -114,7 +114,7 @@ if ops:
             mine[i1][:2] + theirs[j1][:2])
     more = sum(max(b - a, d - c) for _t, a, b, c, d in ops) - 1
 check(not ops,
-      "adcp_dock/_vendor/prepare.py is not the code of %s: %s%s. Copy it "
+      "adcp_pilot/_vendor/prepare.py is not the code of %s: %s%s. Copy it "
       "again and put this tool's docstrings back, rather than edit it here"
       % (master, where,
          "; %d more top-level statement(s) differ after it" % more if more
@@ -126,5 +126,5 @@ if fails:
         print("  FAIL " + f)
     sys.exit(1)
 print("note  compared with %s, docstrings and comments left out" % master)
-print("ok  adcp_dock/_vendor/prepare.py is hope_core's code, all %d top-level "
+print("ok  adcp_pilot/_vendor/prepare.py is hope_core's code, all %d top-level "
       "statements" % len(mine))

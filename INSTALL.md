@@ -1,4 +1,4 @@
-# Installing GUI to ADCP Docking
+# Installing ADCPpilot
 
 This guide is written for someone who has used a terminal only a few times.
 Every command is in a box: copy it, paste it into the terminal, press Enter,
@@ -30,7 +30,7 @@ you arrive on a *login node*: a computer shared by everyone who is logged in,
 meant for small tasks such as copying files, downloading and submitting work.
 The calculations run on *compute nodes*, which you reach only through the
 scheduler, Slurm. Compute nodes usually cannot download anything, so the
-install runs on a login node. Docking never does: adcp-dock sends every
+install runs on a login node. Docking never does: adcp-pilot sends every
 calculation to Slurm for you.
 
 **What you need:**
@@ -136,7 +136,7 @@ off because of it, for example *MM-GBSA rescoring (needs AmberTools)*.
 
 ```bash
 source activate.sh
-adcp-dock check
+adcp-pilot check
 ```
 
 Every program should show a path, the Python packages a version, and the last
@@ -192,7 +192,7 @@ The desktop launcher sources it before it starts the server, and every job a
 run submits names the same programs itself, so a cluster that starts its jobs
 with a clean environment still finds them.
 
-`adcp-dock check` lists what it found without submitting anything. Run it
+`adcp-pilot check` lists what it found without submitting anything. Run it
 whenever something seems missing.
 
 ### 1.4 Tell it about your cluster's rules
@@ -210,7 +210,7 @@ Set the required scheduler options below the run name and output folder. Leave t
   `activate.sh`. Every run records it in its citation files.
 
 The account and the other options are added to every job a run submits. From the command line, use
-`--account` and `--sbatch-extra` on `adcp-dock new`. Write `--sbatch-extra`
+`--account` and `--sbatch-extra` on `adcp-pilot new`. Write `--sbatch-extra`
 with an `=`, as in `--sbatch-extra="--qos=normal --partition=short"`, so the
 argument parser reads the quoted text as its value. Options the tool sets
 itself (name, log file, cores, memory, time) cannot be overridden there, and
@@ -225,7 +225,7 @@ allows, or a partition that is down.
 On the login node, after `source activate.sh`:
 
 ```bash
-adcp-dock serve --port 0
+adcp-pilot serve --port 0
 ```
 
 `--port 0` lets the operating system pick a free port, which is what stops
@@ -233,7 +233,7 @@ two people on the same login node colliding. It prints the address, with a
 one-time token:
 
 ```
-GUI to ADCP Docking is at
+ADCPpilot is at
 
     http://127.0.0.1:41823/?t=Xq4v...
 ```
@@ -268,7 +268,7 @@ docking as separate jobs:
 srun --pty -c 1 --mem=2G -t 12:00:00 bash      # add --account etc. if needed
 source /path/to/ADCP_docking/activate.sh
 hostname                                       # the node, for the tunnel
-adcp-dock serve --port 0
+adcp-pilot serve --port 0
 ```
 
 Then tunnel through the login node to that compute node:
@@ -279,7 +279,7 @@ ssh -N -J you@login.your-cluster.edu -L 41823:127.0.0.1:41823 you@<node>
 
 `-J` works where the cluster lets you SSH to a node you have a job on. If
 yours has **Open OnDemand**, an interactive desktop session is the simplest
-route of all: run `adcp-dock serve` there and open the address in that
+route of all: run `adcp-pilot serve` there and open the address in that
 desktop's own browser.
 
 A server on a compute node usually has **no internet**, so fetching a PDB id
@@ -291,14 +291,14 @@ already on the cluster.
 The main workflow is also available from the command line:
 
 ```bash
-adcp-dock new $SCRATCH/adcp_runs/trial \
+adcp-pilot new $SCRATCH/adcp_runs/trial \
     -r 1YCR --chain A \
     -s A:54,A:62,A:67,A:96,A:99 \
     -f peptides.txt \
     --poses 10 --mmgbsa --cpus 48 --time 08:00:00
-adcp-dock run    $SCRATCH/adcp_runs/trial
-adcp-dock status $SCRATCH/adcp_runs/trial
-adcp-dock report $SCRATCH/adcp_runs/trial
+adcp-pilot run    $SCRATCH/adcp_runs/trial
+adcp-pilot status $SCRATCH/adcp_runs/trial
+adcp-pilot report $SCRATCH/adcp_runs/trial
 ```
 
 `-r` takes a path or a PDB id; `-s` names the residues the box covers; `-f`
@@ -331,7 +331,7 @@ git pull; ./update.sh
 
 `update.sh` moves the checkout to the newest version, brings ADapt up to date
 beside the ADCP 1.1 suite ([ADapt](#adapt-optional)), and ends with the same
-list as `adcp-dock check`. It never builds an environment; when the suite is
+list as `adcp-pilot check`. It never builds an environment; when the suite is
 missing it gives the command that adds it. An installation made before ADCP
 1.1 was the only engine still names an older suite in its `activate.sh`; run
 `./install.sh` once more, with no folder, and it writes `activate.sh` afresh,
@@ -358,7 +358,7 @@ what is missing.
   `ante-MMPBSA.py`) are there and `MMPBSA.py` runs. `install.sh` then writes
   small scripts in `tools/amber/bin` that carry the module's settings, so you
   do not need to load the module again later, and the module's Python
-  settings never reach adcp-dock's own Python. If the module is updated or
+  settings never reach adcp-pilot's own Python. If the module is updated or
   removed, run `./install.sh` again. The same goes for an AmberTools that is
   on your `PATH` or named by `AMBERHOME`.
 
@@ -376,8 +376,8 @@ what is missing.
   missing and what that turns off (for example OpenMM: the receptor's
   restrained minimization). If it lacks numpy, RDKit or PDB2PQR and cannot be
   given them, it is not used, and `install.sh` builds an environment in the
-  folder you give instead. The adcp-dock code is never installed into an
-  environment `install.sh` did not build; the `adcp-dock` command runs it
+  folder you give instead. The adcp-pilot code is never installed into an
+  environment `install.sh` did not build; the `adcp-pilot` command runs it
   from the checkout.
 
 * **For a whole group.** Run it once in a shared folder and have everyone use
@@ -402,7 +402,7 @@ conda create -p ./env -c conda-forge python=3.11 rdkit pdbfixer openmm \
 conda activate ./env
 pip install -e ".[local]"              # the package, and pdb2pqr
 
-adcp-dock install-adcp11 --dest tools/docking/adcpsuite
+adcp-pilot install-adcp11 --dest tools/docking/adcpsuite
 ```
 
 The last command installs the ADCP 1.1 suite with Scripps' own recipe,
@@ -423,18 +423,18 @@ through WSL**, on x86-64, or **macOS**, which docks with ADCP 1.0 (below).
 The work runs on that machine, one step after another.
 
 ```bash
-python3 -m venv ~/.adcp-dock/venv
-~/.adcp-dock/venv/bin/pip install "adcp-dock[local] @ git+https://github.com/aadhilhaq/ADCP_docking"
-~/.adcp-dock/venv/bin/adcp-dock local
+python3 -m venv ~/.adcp-pilot/venv
+~/.adcp-pilot/venv/bin/pip install "adcp-pilot[local] @ git+https://github.com/aadhilhaq/ADCP_docking"
+~/.adcp-pilot/venv/bin/adcp-pilot local
 ```
 
 Use a virtual environment to keep package dependencies separate from the system Python. On Ubuntu, `sudo apt install python3-venv` first if `venv` is missing.
 The desktop launcher's **This computer** option looks for it in exactly this
 place, so after these three lines you can start it from the launcher too.
 
-The first `adcp-dock local` installs the ADCP 1.1 suite with Scripps' own
+The first `adcp-pilot local` installs the ADCP 1.1 suite with Scripps' own
 recipe ([section 4](#4-adcp-11): a few minutes and about 3 GB) into
-`~/.adcp-dock/adcpsuite`, unless one is already installed where the interface
+`~/.adcp-pilot/adcpsuite`, unless one is already installed where the interface
 looks (on a Mac, ADFRsuite 1.0, as below), then opens the page in your browser. Subsequent launches reuse the
 installation. Runs are written to `~/adcp_runs`.
 
@@ -445,8 +445,8 @@ installation. Runs are written to `~/adcp_runs`.
   it prints in your usual Windows browser.
 * **macOS**: the Scripps Research Institute builds the ADCP 1.1 suite for
   Linux only ("ADCP v1.1 is currently only available for Linux"). On a Mac,
-  `adcp-dock local` therefore installs ADFRsuite 1.0 for macOS instead, into
-  `~/.adcp-dock/ADFRsuite`, checked against a pinned SHA-256, and docks with
+  `adcp-pilot local` therefore installs ADFRsuite 1.0 for macOS instead, into
+  `~/.adcp-pilot/ADFRsuite`, checked against a pinned SHA-256, and docks with
   its ADCP 1.0; its agfr (AutoSite 1.0), `prepare_receptor` and `reduce`
   prepare the receptor and build the maps. ADFRsuite is built for Intel, so
   on Apple silicon run `softwareupdate --install-rosetta` once first. Such a
@@ -462,10 +462,10 @@ installation. Runs are written to `~/adcp_runs`.
 **Review the search settings.** Local mode displays the available cores and starts with reduced search settings. These settings are useful for checking the workflow, but do not establish convergence or suitability for a research result. Set the sampling budget for your system and available resources.
 
 **MM-GBSA needs AmberTools**, which is not on pip:
-`conda install -c conda-forge ambertools`. Make sure the AmberTools programs are available to the environment that runs `adcp-dock local`, and confirm their paths with `adcp-dock check`. Docking works without it.
+`conda install -c conda-forge ambertools`. Make sure the AmberTools programs are available to the environment that runs `adcp-pilot local`, and confirm their paths with `adcp-pilot check`. Docking works without it.
 
-`adcp-dock local` refuses to run on a machine that has `sbatch`, because that
-is almost always a cluster login node. Use `adcp-dock serve` there; it sends
+`adcp-pilot local` refuses to run on a machine that has `sbatch`, because that
+is almost always a cluster login node. Use `adcp-pilot serve` there; it sends
 the work to Slurm. `--force` overrides the check on a workstation that
 merely has the Slurm client installed.
 
@@ -475,15 +475,15 @@ merely has the Slurm client installed.
 
 [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aadhilhaq/ADCP_docking/blob/main/notebooks/ADCP_docking_colab.ipynb)
 
-The notebook runs the same interface on a Google Colab machine. Nothing is installed on your own computer. There is one thing to press: ▶ on **Start GUI to ADCP Docking**. Colab never runs a notebook by itself, so that press is how it begins.
+The notebook runs the same interface on a Google Colab machine. Nothing is installed on your own computer. There is one thing to press: ▶ on **Start ADCPpilot**. Colab never runs a notebook by itself, so that press is how it begins.
 
-1. **Start GUI to ADCP Docking.** The first press installs what the session needs, then opens the interface inside the notebook, across the full width of the page. It installs the package, PDB2PQR, OpenMM and PDBFixer, then the ADCP 1.1 suite with Scripps' own recipe, each Scripps package checked against its pinned checksum ([section 4](#4-adcp-11)). With **add_MM_GBSA** ticked (the default), it also installs AmberTools from conda-forge into its own folder, using micromamba, for MM-GBSA rescoring. It takes about a quarter of an hour and ends with a single line such as *Installed in 14 min 10 s, with MM-GBSA; the interface is below*. **Open in a separate tab** shows the same interface in its own browser tab. The list of runs includes a finished example, MDM2 with three peptides docked and rescored with MM-GBSA, to open and explore before docking anything. Pressing ▶ again in the same session installs nothing and shows the interface again, with the runs it already has; it installs only what is not there yet, so a press after ticking **add_MM_GBSA** adds AmberTools and nothing else.
+1. **Start ADCPpilot.** The first press installs what the session needs, then opens the interface inside the notebook, across the full width of the page. It installs the package, PDB2PQR, OpenMM and PDBFixer, then the ADCP 1.1 suite with Scripps' own recipe, each Scripps package checked against its pinned checksum ([section 4](#4-adcp-11)). With **add_MM_GBSA** ticked (the default), it also installs AmberTools from conda-forge into its own folder, using micromamba, for MM-GBSA rescoring. It takes about a quarter of an hour and ends with a single line such as *Installed in 14 min 10 s, with MM-GBSA; the interface is below*. **Open in a separate tab** shows the same interface in its own browser tab. The list of runs includes a finished example, MDM2 with three peptides docked and rescored with MM-GBSA, to open and explore before docking anything. Pressing ▶ again in the same session installs nothing and shows the interface again, with the runs it already has; it installs only what is not there yet, so a press after ticking **add_MM_GBSA** adds AmberTools and nothing else.
 2. **Download a run.** Optional, and only once something has been docked. Finished runs can be downloaded from the interface; this step zips a run and downloads it instead.
 
 Things to know before you start:
 
 * The calculations run on the Colab machine, one step after another. The number of cores, the memory, and the session length depend on your Colab plan. The interface shows the cores it found and starts with small search settings.
-* Colab deletes the session's files when the session ends. Download the runs you want to keep. **Runtime → Disconnect and delete runtime** removes every run at once; the example returns the next time **Start GUI to ADCP Docking** runs.
+* Colab deletes the session's files when the session ends. Download the runs you want to keep. **Runtime → Disconnect and delete runtime** removes every run at once; the example returns the next time **Start ADCPpilot** runs.
 * Each person who opens the notebook gets a separate Colab machine, so nobody else sees your runs.
 * MM-GBSA rescoring needs AmberTools, which the first press installs when **add_MM_GBSA** is ticked. Without it, docking and the ADCP scores work normally and the interface disables the MM-GBSA option. On two cores MM-GBSA is slow: allow several minutes per pose.
 * Some components of the ADCP 1.1 suite are for non-commercial use only; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
@@ -494,16 +494,16 @@ Use the notebook to explore the workflow and inspect inputs. Reduced search sett
 
 ## 4. ADCP 1.1
 
-ADCP 1.1 is the current version of AutoDock CrankPep, and the one every run docks with. It docks non-standard and D amino acids, writes all-atom poses in one file, and can minimize and re-rank the top poses with OpenMM. The Scripps Research Institute distributes it as its own Python 3.7 environment, the ADCP 1.1 suite, for Linux on x86-64, and it is all the docking needs: its own `adcp`, `agfr` (with AutoSite and AutoGrid), `prepare_receptor` and `reduce`, and MSMS as the library mslib, which draws the surfaces. `install.sh` installs it, or uses one already there, and stops if that fails; `adcp-dock local` and the Colab notebook install it on first use. To install it by hand, on a login node or a workstation:
+ADCP 1.1 is the current version of AutoDock CrankPep, and the one every run docks with. It docks non-standard and D amino acids, writes all-atom poses in one file, and can minimize and re-rank the top poses with OpenMM. The Scripps Research Institute distributes it as its own Python 3.7 environment, the ADCP 1.1 suite, for Linux on x86-64, and it is all the docking needs: its own `adcp`, `agfr` (with AutoSite and AutoGrid), `prepare_receptor` and `reduce`, and MSMS as the library mslib, which draws the surfaces. `install.sh` installs it, or uses one already there, and stops if that fails; `adcp-pilot local` and the Colab notebook install it on first use. To install it by hand, on a login node or a workstation:
 
 ```bash
-adcp-dock install-adcp11                      # in the installation's tools folder
-adcp-dock install-adcp11 --dest /path/adcpsuite
+adcp-pilot install-adcp11                      # in the installation's tools folder
+adcp-pilot install-adcp11 --dest /path/adcpsuite
 ```
 
 This follows Scripps' own installation script: it creates the environment with micromamba (downloaded if needed), installs OpenMM, Open Babel and PDBFixer from conda-forge, and fetches the Scripps packages from ccsb.scripps.edu, checking each against a pinned SHA-256. It takes a few minutes and 3 GB, and deletes the packages it downloaded once it is done. Scripps' own instructions are at <https://ccsb.scripps.edu/adcpv11/downloads/>.
 
-Without `--dest` it goes where `$ADCPSUITE_HOME` names, otherwise into the installation's own tools folder, or on a computer with neither into `~/.adcp-dock/adcpsuite`. The interface finds the suite at `$ADCPSUITE_HOME`, which `activate.sh` sets; in a tools folder given with `--tools-root`; in `tools/docking/adcpsuite` inside the installation or beside it (a checkout in `/scratch/group/lab/ADCP_docking` finds `/scratch/group/lab/tools/docking/adcpsuite`); at `~/.adcp-dock/adcpsuite`; or at `/content/adcpsuite` in Colab. Its `bin` folder is never put on `PATH`, since it holds the suite's own Python. `adcp-dock check` names the suite it found and its version.
+Without `--dest` it goes where `$ADCPSUITE_HOME` names, otherwise into the installation's own tools folder, or on a computer with neither into `~/.adcp-pilot/adcpsuite`. The interface finds the suite at `$ADCPSUITE_HOME`, which `activate.sh` sets; in a tools folder given with `--tools-root`; in `tools/docking/adcpsuite` inside the installation or beside it (a checkout in `/scratch/group/lab/ADCP_docking` finds `/scratch/group/lab/tools/docking/adcpsuite`); at `~/.adcp-pilot/adcpsuite`; or at `/content/adcpsuite` in Colab. Its `bin` folder is never put on `PATH`, since it holds the suite's own Python. `adcp-pilot check` names the suite it found and its version.
 
 What it brings:
 
@@ -561,7 +561,7 @@ After moving ADapt forward, `update.sh` checks that the new version still has `b
 
 #### Where the interface finds it
 
-At `$ADAPT_HOME`, in a folder named `adapt` beside the ADCP 1.1 suite, in the installation's own `tools/docking` or the one beside it, beside this checkout or in a tools folder given with `--tools-root`, or at `~/.adcp-dock/adapt`. It needs ADapt from commit 6dae90b on, which takes `--base-path` and writes `_rec_H.pdb`. An older checkout is not offered, and the Receptor card says how to update it; `./update.sh` does.
+At `$ADAPT_HOME`, in a folder named `adapt` beside the ADCP 1.1 suite, in the installation's own `tools/docking` or the one beside it, beside this checkout or in a tools folder given with `--tools-root`, or at `~/.adcp-pilot/adapt`. It needs ADapt from commit 6dae90b on, which takes `--base-path` and writes `_rec_H.pdb`. An older checkout is not offered, and the Receptor card says how to update it; `./update.sh` does.
 
 #### In the page
 
@@ -570,7 +570,7 @@ When the interface finds ADapt and ADCP 1.1, ADapt opens by itself in a frame in
 * **Docking will use this page's preparation.** Until you change anything in ADapt, the structure is prepared as the Receptor card's settings say, exactly as without ADapt.
 * **Docking will use the receptor as set in ADapt.** From the first change there, an unticked chain or the waters taken out for example, ADapt decides what stays in the receptor: the assembly, hetero groups such as a catalytic zinc, metal charges, alternate locations and modified residues. The card's preparation settings are grayed out.
 
-You do not need ADapt's own save button. When you submit, the page asks ADapt to write the receptor as it is set there (its `api/save`, the call its *receptor PDBQT* button makes), and reads back what ADapt wrote in its session folder: the receptor PDBQT, its `_rec_H.pdb` and `session.json`. The PDBQT is docked as ADapt wrote it, and this package's preparation does not run. The run copies the three files into its `receptor` folder and records the session, the save and their checksums. *Use ADapt's receptor now* does the same at once, so the site can be checked on the receptor that will be docked, and *Use this page's preparation instead* goes back. *Open full screen* shows the same session in a tab of its own; on a phone the card offers *Open in ADapt*, which opens it in a tab. From the command line: `adcp-dock new RUN --adapt-session FOLDER [--adapt-save N] -s ...`. ADapt keeps its sessions in `adapt_sessions` inside the runs folder, and it stops when the interface stops. The built-in Docs page *A receptor prepared in ADapt* shows each step.
+You do not need ADapt's own save button. When you submit, the page asks ADapt to write the receptor as it is set there (its `api/save`, the call its *receptor PDBQT* button makes), and reads back what ADapt wrote in its session folder: the receptor PDBQT, its `_rec_H.pdb` and `session.json`. The PDBQT is docked as ADapt wrote it, and this package's preparation does not run. The run copies the three files into its `receptor` folder and records the session, the save and their checksums. *Use ADapt's receptor now* does the same at once, so the site can be checked on the receptor that will be docked, and *Use this page's preparation instead* goes back. *Open full screen* shows the same session in a tab of its own; on a phone the card offers *Open in ADapt*, which opens it in a tab. From the command line: `adcp-pilot new RUN --adapt-session FOLDER [--adapt-save N] -s ...`. ADapt keeps its sessions in `adapt_sessions` inside the runs folder, and it stops when the interface stops. The built-in Docs page *A receptor prepared in ADapt* shows each step.
 
 ADapt runs beside the interface on the same machine, started with `--base-path /adapt`, and the interface's server passes `/adapt/` to it unchanged, as ADapt's README describes, so it reaches your browser over the same connection as the interface. Nothing else needs forwarding, whether you use the desktop launcher or your own `ssh -L`. Its first start imports AGFR's libraries and can take a minute or two on a busy login node, so the interface starts it in the background as soon as the page opens, and the card says what it is waiting for. To run ADapt on its own: `ADCPSUITE=/path/to/adcpsuite ADAPT_OUTDIR=/path/to/folder adapt/bin/adapt serve`.
 
@@ -578,7 +578,7 @@ ADapt runs beside the interface on the same machine, started with `--base-path /
 
 The receptor is protonated by default with reduce, the program ADFR's own preparation and ADapt use, taken from the ADCP 1.1 suite's `bin` folder (`reduce` 3.23) and never from `PATH`, where AmberTools may have another. Checked against the protein structures in the PDB solved by neutron diffraction, where the hydrogens are placed from the data, reduce matched the deposited histidines more often than pdb2pqr (55% against 31% of 1,457 histidines) and turned fewer rings, and fewer Asn and Gln amides, the wrong way. What reduce does not do is pH: it never protonates an Asp or Glu and rarely puts hydrogens on both nitrogens of a histidine, whatever the pH. PDB2PQR with PROPKA at a chosen pH stays as the other choice (`--protonation propka --ph 5.5`), and a job file from before the choice keeps it, so old runs reproduce.
 
-The site view and the pose viewer draw molecular surfaces computed by MSMS, which the interface's server calls on request: MSMS's own library, mslib, in the ADCP 1.1 suite, run with the suite's Python by `adcp_dock/msms_mslib.py`. It draws the surface the msms program draws, the same points and triangles listed in another order. An msms program can be named with `MSMS_EXE` instead. MSMS is used where Scripps installed it and is not part of this package (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)). Without it the viewers draw their own surfaces. `adcp-dock check` lists which is used. On a Mac docking with ADCP 1.0, reduce and msms are ADFRsuite 1.0's ([section 2](#2-on-your-own-computer)).
+The site view and the pose viewer draw molecular surfaces computed by MSMS, which the interface's server calls on request: MSMS's own library, mslib, in the ADCP 1.1 suite, run with the suite's Python by `adcp_pilot/msms_mslib.py`. It draws the surface the msms program draws, the same points and triangles listed in another order. An msms program can be named with `MSMS_EXE` instead. MSMS is used where Scripps installed it and is not part of this package (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)). Without it the viewers draw their own surfaces. `adcp-pilot check` lists which is used. On a Mac docking with ADCP 1.0, reduce and msms are ADFRsuite 1.0's ([section 2](#2-on-your-own-computer)).
 
 ---
 
@@ -586,7 +586,7 @@ The site view and the pose viewer draw molecular surfaces computed by MSMS, whic
 
 The launcher does from your laptop what section 1.5 does by hand: it connects
 to the cluster over SSH (a second sign-in step included), starts
-`adcp-dock serve` on the login node, forwards a port and opens your browser.
+`adcp-pilot serve` on the login node, forwards a port and opens your browser.
 Closing it stops the server; runs already submitted keep going in Slurm.
 
 Install on the cluster first (section 1.2). The launcher only starts what is
@@ -597,8 +597,8 @@ installed there.
 * **Windows and macOS**: download from the repository's **Releases** page.
   Windows is a folder: keep it together and run the `.exe` inside. macOS is
   an Apple silicon `.app`.
-* **Any machine with Python**: `pip install "adcp-dock[launcher] @
-  git+https://github.com/aadhilhaq/ADCP_docking"`, then `adcp-dock-launcher`.
+* **Any machine with Python**: `pip install "adcp-pilot[launcher] @
+  git+https://github.com/aadhilhaq/ADCP_docking"`, then `adcp-pilot-launcher`.
 
 The bundles are not yet code-signed, so the first run shows a warning:
 Windows says *Windows protected your PC* (**More info → Run anyway**); macOS
@@ -636,14 +636,13 @@ For problems while installing, see [1.2, If it stops](#if-it-stops).
 
 | what you see | what it means |
 |---|---|
-| `adcp-dock: command not found` | this terminal has not loaded the tools yet: `source /path/to/ADCP_docking/activate.sh` (1.3) |
+| `adcp-pilot: command not found` | this terminal has not loaded the tools yet: `source /path/to/ADCP_docking/activate.sh` (1.3) |
 | `N tool(s) missing` from `check` | something the install recorded is not reachable any more; run `./install.sh` again in the checkout, which finds it or says what to do |
-| `sbatch was not found` | Slurm is not available in this environment; load the required cluster environment or use `adcp-dock local` on a workstation |
+| `sbatch was not found` | Slurm is not available in this environment; load the required cluster environment or use `adcp-pilot local` on a workstation |
 | a Scripps package *does not match its pinned checksum* | the download differs from the pinned version, usually because it was cut short; it has been deleted, so run the install again |
 | `the account on the job is not one you can use` | this cluster needs an **Account** (1.4) |
 | `the grid target is unusable` | the `.trg` was truncated or built from another structure. It is rebuilt once automatically; twice means agfr is failing, and its output is in the prepare log |
 | `tleap did not build topologies` | the preparation log names the residue. It is usually a HETATM kept by *keep heteroatoms*, or a gap that *rebuild missing loops* would close |
-| `the docking box also reaches chain(s) ...` | the box covers a chain that is not loaded. If it is the far wall of the groove, include it; if it is the partner your peptide should displace, leave it out |
 | `pose N discarded: the bonded terms did not cancel` | the energy decomposition failed a consistency check; inspect the chain selections, topology, and rescoring log |
 | the queue rejects the array | check the scheduler message for total array-size and concurrency limits; reduce the peptide list or adjust *Max tasks at once* as appropriate |
 
@@ -664,7 +663,7 @@ pip if you no longer want them.
 On your own computer (section 2):
 
 ```bash
-rm -rf ~/.adcp-dock
+rm -rf ~/.adcp-pilot
 ```
 
 Runs are kept wherever you wrote them (by default `$SCRATCH/adcp_runs` on a

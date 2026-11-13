@@ -15,7 +15,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock import credit as tool_credit, page               # noqa: E402
+from adcp_pilot import credit as tool_credit, page               # noqa: E402
 from adcp_launcher import credit as launcher_credit, entry      # noqa: E402
 from adcp_launcher import session, tunnel                       # noqa: E402
 
@@ -32,7 +32,7 @@ def check(cond, why):
 # --- the command it runs on the far end -----------------------------------
 line = session.command("/scratch/x/ADCP_docking", runs="~/adcp_runs",
                        tools_roots=["/opt/adcpsuite", "/opt/amber"])
-check("adcp_dock.cli serve" in line, "the launcher does not start the server")
+check("adcp_pilot.cli serve" in line, "the launcher does not start the server")
 check("--host 127.0.0.1" in line,
       "the server would be started on a public interface, not loopback")
 check("--port 0" in line,
@@ -109,10 +109,10 @@ def _before(text, first, second, why):
         check(text.index(first) < text.index(second), why)
 
 
-_before(line2, "activate.sh", "adcp_dock.cli",
+_before(line2, "activate.sh", "adcp_pilot.cli",
         "activate.sh is sourced after the tool is started, too late to "
         "choose the interpreter that runs it")
-_before(line2, "version_info", "adcp_dock.cli",
+_before(line2, "version_info", "adcp_pilot.cli",
         "the Python version is checked after the tool is started, so the "
         "SyntaxError happens first anyway")
 # The check program must be parseable by the old Python it is checking for.
@@ -160,7 +160,7 @@ check(session.URL.search("http://10.0.0.5:40515/?t=abc") is None,
       "a URL on some other host would be accepted as the tunnel's own")
 
 # --- what the server prints is what the launcher looks for ---------------
-src = open(os.path.join(ROOT, "adcp_dock", "server.py")).read()
+src = open(os.path.join(ROOT, "adcp_pilot", "server.py")).read()
 check('"http://%s:%d/?t=%s"' in src,
       "the server's URL format changed; the launcher's pattern would miss it")
 
@@ -237,7 +237,7 @@ check("__CREDIT__" not in rendered,
 
 # The page itself has to name the engine and its owner where a screenshot of
 # the header or footer will catch them, and say whose interface this is.
-from adcp_dock import engine_credit                             # noqa: E402
+from adcp_pilot import engine_credit                             # noqa: E402
 for want in ("Scripps Research Institute", "Powered by HOPE Lab",
              "ccsb.scripps.edu"):
     check(want in rendered, "the page does not say %r anywhere" % want)
@@ -247,7 +247,7 @@ check(engine_credit() in _text or
 check("__ENGINE_CREDIT__" not in rendered,
       "the engine-credit placeholder was left in the rendered page")
 # And citing it has to be reachable from the page, not only the README.
-check("adcp-dock cite" in rendered,
+check("adcp-pilot cite" in rendered,
       "the page never tells anyone how to cite this or what it ran")
 
 # --- the credit line reads in the right order -----------------------------
@@ -255,7 +255,7 @@ check("adcp-dock cite" in rendered,
 # The engine and its owner come first; "Powered by HOPE Lab" ahead of them
 # would read as though the lab were behind ADCP.
 import adcp_launcher as _L                                      # noqa: E402
-from adcp_dock import credit as _tool_credit                    # noqa: E402
+from adcp_pilot import credit as _tool_credit                    # noqa: E402
 _c = _L.credit()
 check(_c.index("graphical interface to ADCP") < _c.index("Powered by HOPE Lab"),
       "the credit line does not lead with the interface-to-ADCP sentence")
@@ -270,7 +270,7 @@ for _who in ("Aadhil Haq", "Sandun Fernando"):
           "%s is appended to the credit line instead of sitting in a "
           "header of its own" % _who)
 # The people are still named where they belong.
-from adcp_dock import page as _pg                               # noqa: E402
+from adcp_pilot import page as _pg                               # noqa: E402
 _r = _pg.render("tok")
 for _who in ("Aadhil Haq", "Sandun Fernando"):
     check(_who in _r, "the page does not name %s anywhere" % _who)
@@ -327,15 +327,15 @@ check("ADCP_ACKNOWLEDGEMENT" not in session.command("/x"),
 
 # --- one name, read from each of three files ---------------------------------
 #
-# The launcher's header reads adcp_dock/brand.py; the dialogs and the page
+# The launcher's header reads adcp_pilot/brand.py; the dialogs and the page
 # read APP; the launcher has its own APP because it installs on computers
-# with no copy of adcp_dock. All three must agree.
-from adcp_dock import brand as _brand, APP as _tool_app         # noqa: E402
+# with no copy of adcp_pilot. All three must agree.
+from adcp_pilot import brand as _brand, APP as _tool_app         # noqa: E402
 check(_brand.NAME == _tool_app == _L.APP,
-      "three names disagree: brand.NAME=%r adcp_dock.APP=%r launcher.APP=%r"
+      "three names disagree: brand.NAME=%r adcp_pilot.APP=%r launcher.APP=%r"
       % (_brand.NAME, _tool_app, _L.APP))
-check("ADCP" in _brand.NAME and "GUI" in _brand.NAME,
-      "the name no longer says this is a GUI to ADCP: %r" % _brand.NAME)
+check("ADCP" in _brand.NAME and "pilot" in _brand.NAME.lower(),
+      "the name is no longer ADCPpilot: %r" % _brand.NAME)
 check("Scripps Research Institute" in _brand.TAGLINE
       and "HOPE Lab" in _brand.TAGLINE,
       "the tagline does not name Scripps and HOPE Lab: %r" % _brand.TAGLINE)
@@ -382,21 +382,21 @@ check("Not affiliated with or endorsed by Scripps" in _foot,
 check(_sentence not in _foot,
       "the footer repeats the sentence the header already made")
 
-# --- "This computer": adcp-dock local, found, started, read and stopped -----
+# --- "This computer": adcp-pilot local, found, started, read and stopped -----
 from adcp_launcher import localrun, clusters as _cl               # noqa: E402
 import tempfile as _tf2, stat as _st2                            # noqa: E402
 
 check(_cl.sites()[-1] == _cl.THIS and _cl.SITES[_cl.THIS].get("local"),
       "This computer is not offered as a site, or not marked local")
 W = lambda found: (lambda n: found.get(n))                       # noqa: E731
-c = localrun.command("linux", which=W({"adcp-dock": "/x/adcp-dock"}))
-check(c == ["/x/adcp-dock", "local", "--no-browser", "--port", "0"],
-      "on Linux/macOS it does not run adcp-dock from PATH: %r" % c)
+c = localrun.command("linux", which=W({"adcp-pilot": "/x/adcp-pilot"}))
+check(c == ["/x/adcp-pilot", "local", "--no-browser", "--port", "0"],
+      "on Linux/macOS it does not run adcp-pilot from PATH: %r" % c)
 c = localrun.command("darwin", which=W({}), exists=lambda p: True)
-check(c and c[0].endswith(".adcp-dock/venv/bin/adcp-dock"),
+check(c and c[0].endswith(".adcp-pilot/venv/bin/adcp-pilot"),
       "it does not fall back to the documented venv: %r" % c)
 check(localrun.command("linux", which=W({}), exists=lambda p: False) is None,
-      "with adcp-dock nowhere, it still returned a command")
+      "with adcp-pilot nowhere, it still returned a command")
 c = localrun.command("windows", which=W({"wsl.exe": "C:/wsl.exe"}))
 check(c and c[:4] == ["C:/wsl.exe", "-e", "bash", "-lc"]
       and "local --no-browser --port 0" in c[4] and "venv" in c[4],
@@ -407,7 +407,7 @@ for _os in ("windows", "darwin", "linux"):
     check("venv" in localrun.setup_text(_os) and "pip install" in
           localrun.setup_text(_os), "no setup steps for %s" % _os)
 
-# The real adcp-dock, through a pipe. Python block-buffers stdout on a pipe,
+# The real adcp-pilot, through a pipe. Python block-buffers stdout on a pipe,
 # so a server that prints its address and then blocks must flush that line; a
 # shell stand-in would not buffer and would hide the problem. This runs
 # `serve`, which prints the address and blocks like `local` does, without
@@ -426,7 +426,7 @@ try:
     if not _full:
         raise StopIteration
     _real = localrun.start(on_output=_seen.append, timeout=60,
-                           cmd=[sys.executable, "-m", "adcp_dock.cli",
+                           cmd=[sys.executable, "-m", "adcp_pilot.cli",
                                 "serve", "--port", "0",
                                 "--runs", os.path.join(_d, "runs")])
     check(_real.url.startswith("http://127.0.0.1:") and "?t=" in _real.url,
@@ -456,7 +456,7 @@ check(_run.url == "http://127.0.0.1:43210/?t=AbC_d-9",
 check("installing the ADCP 1.1 suite..." in _seen,
       "what it printed while starting was not passed on to the window")
 _run.stop()
-check(_run.proc.poll() is not None, "stop() left adcp-dock local running")
+check(_run.proc.poll() is not None, "stop() left adcp-pilot local running")
 
 # A PYTHON stand-in, run by this interpreter: a #!/bin/sh script cannot be
 # executed on Windows at all, by which this check first failed there.
@@ -483,7 +483,7 @@ except OSError as _e:
 try:
     localrun.start(cmd=None) if localrun.command() is None else None
     check(localrun.command() is not None,
-          "no adcp-dock here, and start() did not refuse")
+          "no adcp-pilot here, and start() did not refuse")
 except RuntimeError as _e:
     check("pip install" in str(_e), "the refusal does not say how to install")
 

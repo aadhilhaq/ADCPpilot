@@ -25,7 +25,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock import adapt, adcp11, slurm  # noqa: E402
+from adcp_pilot import adapt, adcp11, slurm  # noqa: E402
 
 fails, ran = [], 0
 
@@ -110,7 +110,7 @@ try:
     for var in ("XDG_CACHE_HOME", "MPLCONFIGDIR", "CUDA_CACHE_PATH"):
         check(("export %s=%s" % (var, os.path.join(run, ".cache"))) in lines,
               "the job script does not put %s in the run folder" % var)
-    from adcp_dock import pipeline  # noqa: E402
+    from adcp_pilot import pipeline  # noqa: E402
     common = pipeline._scripts(run, {"partition": "short"})
     check(lines in common["env"], "the job scripts carry no cache lines")
     text = slurm.SINGLE.format(name="x", partition="", cpus=1, mem="1G",
@@ -122,7 +122,7 @@ try:
           "a rendered job script keeps matplotlib's cache in the home folder")
 
     # --- the installer -------------------------------------------------------
-    src = open(os.path.join(ROOT, "adcp_dock", "adcp11_install.py")).read()
+    src = open(os.path.join(ROOT, "adcp_pilot", "adcp11_install.py")).read()
     check("HOME=solver_home" in src,
           "the ADCP 1.1 installer runs micromamba with the real HOME, which "
           "records the environment in ~/.conda/environments.txt")

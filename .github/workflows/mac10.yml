@@ -3,7 +3,7 @@
 # By Aadhil Haq
 #
 # On macOS, where the Scripps Research Institute builds no ADCP 1.1,
-# `adcp-dock local` installs ADFRsuite 1.0 and docks with it (adcp_dock/mac10.py).
+# `adcp-pilot local` installs ADFRsuite 1.0 and docks with it (adcp_pilot/mac10.py).
 # The test suite proves that route with stand-ins (tests/test_mac10.py); this
 # runs the real programs on GitHub's macOS runner: the download and its
 # checksum, Scripps' installer, agfr over the example receptor, a few replicas
@@ -34,7 +34,7 @@ jobs:
             sudo softwareupdate --install-rosetta --agree-to-license
 
       - name: install
-        # Only what the docking route imports; the rest of `adcp-dock[local]`
+        # Only what the docking route imports; the rest of `adcp-pilot[local]`
         # is not needed for this.
         run: pip install "numpy<2"
 

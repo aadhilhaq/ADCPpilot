@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install GUI to ADCP Docking on a cluster, reusing whatever is already there.
+# Install ADCPpilot on a cluster, reusing whatever is already there.
 #
 # By Aadhil Haq
 #
@@ -12,7 +12,7 @@
 # is missing, and builds only what it cannot find.
 #
 # The docking itself comes from the ADCP 1.1 suite, installed with the
-# Scripps Research Institute's own recipe (adcp_dock/adcp11_install.py): its
+# Scripps Research Institute's own recipe (adcp_pilot/adcp11_install.py): its
 # adcp, agfr, prepare_receptor and reduce, and its MSMS library for the
 # surfaces. A suite already on the machine is used rather than installed
 # again. Beside it goes ADapt, Michel Sanner's tool for choosing what stays
@@ -159,7 +159,7 @@ name_of() {
 }
 what_for() {
   case "$1" in
-    numpy|rdkit) echo "everything: adcp-dock does not start without it" ;;
+    numpy|rdkit) echo "everything: adcp-pilot does not start without it" ;;
     pdb2pqr) echo "protonation with PROPKA at a chosen pH, and the fallback when reduce cannot run" ;;
     openmm) echo "the receptor's restrained minimization" ;;
     pdbfixer) echo "rebuilding missing atoms and side chains in the receptor" ;;
@@ -305,7 +305,7 @@ fi
 # is used only once it is complete and its MMPBSA.py runs here, and it is then
 # reached through small wrapper scripts that carry the settings the module
 # made (its PYTHONPATH and libraries), so it works later without the module
-# loaded, and those settings never reach adcp-dock's own Python.
+# loaded, and those settings never reach adcp-pilot's own Python.
 AMB_DIR=""; AMB_HOME=""; AMB_HOW=""; AMB_WHY=""; AMB_WRAPPED=0
 amber_external() {
   local d b ok cands=() limit=""
@@ -319,7 +319,7 @@ amber_external() {
     if [ "$ok" = 0 ]; then
       AMB_WHY="$d has only part of AmberTools (it needs ${AMBER_BINS[*]})"; continue
     fi
-    if grep -q "adcp-dock amber wrapper" "$d/tleap" 2>/dev/null; then
+    if grep -q "adcp-pilot amber wrapper" "$d/tleap" 2>/dev/null; then
       AMB_DIR="$d"; AMB_WRAPPED=1
       AMB_HOME=$(sed -n "s/^AMBERHOME='\(.*\)'\$/\1/p" "$d/tleap" | head -n 1 || true)
       AMB_HOW="the wrappers an earlier run wrote, for $AMB_HOME"
@@ -442,7 +442,7 @@ if [ -n "$found_env" ]; then
   for m in ${CANNOT[@]+"${CANNOT[@]}"}; do
     case " $env_req " in
       *" $m "*)
-        wrap "$found_env lacks $(name_of "$m"), which adcp-dock cannot run without, and this cannot add it there$([ "$env_writable" = 1 ] || echo ' (you cannot write to it)'). It is not used; a new environment is built instead."
+        wrap "$found_env lacks $(name_of "$m"), which adcp-pilot cannot run without, and this cannot add it there$([ "$env_writable" = 1 ] || echo ' (you cannot write to it)'). It is not used; a new environment is built instead."
         found_env=""; TOPUP=(); CANNOT=()
         [ "$AMBER_SRC" = env ] && AMBER_SRC=none
         break ;;
@@ -601,7 +601,7 @@ if [ "$need_env" = 1 ] && [ -z "$PREFIX" ]; then
   [ -n "${SCRATCH:-}" ] && example="$SCRATCH/adcp"
   cat >&2 <<MSG
 
-No Python environment with what adcp-dock needs was found, and no folder
+No Python environment with what adcp-pilot needs was found, and no folder
 was given to build one in. Run it again with a folder that has room:
 
     ./install.sh $example
@@ -791,7 +791,7 @@ if [ ${#TOPUP[@]} -gt 0 ]; then
     # shellcheck disable=SC2086
     cat >&2 <<MSG
 
-  $found_env still lacks $(names $env_req), and adcp-dock cannot run
+  $found_env still lacks $(names $env_req), and adcp-pilot cannot run
   without it. Either build an environment of its own, which leaves that
   one alone:
 
@@ -826,20 +826,20 @@ if [ "$need_env" = 1 ]; then
     solver create -y -p "$ENVDIR" -c conda-forge --override-channels "${SPECS[@]}"
   fi
   remove_own_cache "$ENVDIR"
-  echo "Built by install.sh in $HERE on $(date +%Y-%m-%d)" > "$ENVDIR/.adcp-dock-env"
+  echo "Built by install.sh in $HERE on $(date +%Y-%m-%d)" > "$ENVDIR/.adcp-pilot-env"
   found_env="$ENVDIR"
   env_inspect "$found_env"
   env_req=$E_REQ; env_opt=$E_OPT; env_amber=$E_AMBER; env_kind=$E_KIND; env_writable=$E_WRITABLE
   [ "$AMBER_SRC" = build ] && { [ "$env_amber" = 1 ] && AMBER_SRC=env || AMBER_SRC=none; }
   say "  built in $(mins "$T1")"
 fi
-[ -f "$found_env/.adcp-dock-env" ] && BUILT_HERE=1
+[ -f "$found_env/.adcp-pilot-env" ] && BUILT_HERE=1
 # One an earlier version of this script built carries no mark, but has this
 # checkout installed in it already. Asked from /, so that the checkout itself
 # is not what answers.
 if [ "$BUILT_HERE" = 0 ]; then
   at=$(cd / && py_clean "$found_env/bin/python" -c \
-       "import adcp_dock, os; print(os.path.dirname(os.path.dirname(os.path.abspath(adcp_dock.__file__))))" \
+       "import adcp_pilot, os; print(os.path.dirname(os.path.dirname(os.path.abspath(adcp_pilot.__file__))))" \
        2>/dev/null || true)
   [ -n "$at" ] && [ "$at" -ef "$HERE" ] && BUILT_HERE=1
 fi
@@ -861,10 +861,10 @@ write_amber_wrappers() {
     f="$new/$b"
     {
       echo '#!/bin/sh'
-      echo "# adcp-dock amber wrapper, written by install.sh on $(date +%Y-%m-%d)."
+      echo "# adcp-pilot amber wrapper, written by install.sh on $(date +%Y-%m-%d)."
       echo "# Runs $b from the AmberTools in $AMB_HOME with the settings it had"
       echo "# when install.sh found it (a cluster module makes them), so it works"
-      echo "# without that module loaded and they never reach adcp-dock's own"
+      echo "# without that module loaded and they never reach adcp-pilot's own"
       echo "# Python. Run ./install.sh again to write it afresh."
       echo "AMBERHOME=$(sq "$AMB_HOME")"
       echo "PATH=$(sq "$AMB_DIR:$PATH")"':"$PATH"'
@@ -942,7 +942,7 @@ write_activate() {
     if [ -n "${ADAPT_DIR:-}" ] && adapt_is "$ADAPT_DIR"; then
       echo "export ADAPT_HOME=\"$ADAPT_DIR\""
     fi
-    if [ -x "$HERE/tools/bin/adcp-dock" ]; then
+    if [ -x "$HERE/tools/bin/adcp-pilot" ]; then
       echo "export PATH=\"$HERE/tools/bin:\$PATH\""
     fi
     echo "# Replaced rather than added to: a module's Python packages on it"
@@ -956,19 +956,19 @@ write_activate "$found_env"
 say ""
 say "Wrote $ACT (the launcher reads this to find the right Python)"
 
-# --- this package, and the adcp-dock command -------------------------------------
+# --- this package, and the adcp-pilot command -------------------------------------
 # Into an environment this script built, with pip and --no-deps. One it did
 # not build is never written to for this: pip would point every user of a
 # shared environment at this checkout. The command then comes from a small
 # script in this checkout's tools folder, which runs the same thing.
-head_ "The adcp-dock command"
-STEP="installing adcp-dock"
+head_ "The adcp-pilot command"
+STEP="installing adcp-pilot"
 pip_ok=0
 if [ "$BUILT_HERE" = 1 ] && [ "$env_writable" = 1 ]; then
   if py_clean "$found_env/bin/python" -m pip install --quiet --no-deps --no-cache-dir \
        --disable-pip-version-check -e "$HERE"; then
     pip_ok=1
-    rm -f "$HERE/tools/bin/adcp-dock"
+    rm -f "$HERE/tools/bin/adcp-pilot"
     say "  installed into $found_env, which this script built"
   fi
 fi
@@ -976,15 +976,15 @@ if [ "$pip_ok" = 0 ]; then
   mkdir -p "$HERE/tools/bin"
   {
     echo '#!/bin/sh'
-    echo "# Written by install.sh: adcp-dock from this checkout, with the"
+    echo "# Written by install.sh: adcp-pilot from this checkout, with the"
     echo "# environment's Python. Run ./install.sh again to write it afresh."
     echo "PYTHONPATH=$(sq "$HERE"); export PYTHONPATH"
     echo "unset PYTHONHOME"
-    echo "exec $(sq "$found_env/bin/python3") -m adcp_dock.cli"' "$@"'
-  } > "$HERE/tools/bin/adcp-dock.part"
-  chmod 755 "$HERE/tools/bin/adcp-dock.part"
-  mv "$HERE/tools/bin/adcp-dock.part" "$HERE/tools/bin/adcp-dock"
-  wrap "$HERE/tools/bin/adcp-dock runs this checkout with $found_env/bin/python3. Nothing was written into that environment."
+    echo "exec $(sq "$found_env/bin/python3") -m adcp_pilot.cli"' "$@"'
+  } > "$HERE/tools/bin/adcp-pilot.part"
+  chmod 755 "$HERE/tools/bin/adcp-pilot.part"
+  mv "$HERE/tools/bin/adcp-pilot.part" "$HERE/tools/bin/adcp-pilot"
+  wrap "$HERE/tools/bin/adcp-pilot runs this checkout with $found_env/bin/python3. Nothing was written into that environment."
 fi
 
 # --- the ADCP 1.1 suite ----------------------------------------------------
@@ -1004,7 +1004,7 @@ if [ "$need_suite" = 1 ]; then
   mkdir -p "$TOOLS_AT/.adcpsuite_home"
   if HOME="$TOOLS_AT/.adcpsuite_home" ADCP_HOME="$HERE" \
      PATH="$TOOLS_DIR:$PATH" PYTHONPATH="$HERE" \
-     "$found_env/bin/python" -u -m adcp_dock.adcp11_install --dest "$SUITE_DEST" 2>&1 \
+     "$found_env/bin/python" -u -m adcp_pilot.adcp11_install --dest "$SUITE_DEST" 2>&1 \
      | sed 's/^/  /'; then :; fi
   rmdir "$TOOLS_AT/.adcpsuite_home" 2>/dev/null || true
   found_suite=""
@@ -1020,7 +1020,7 @@ if [ "$need_suite" = 1 ]; then
   here rather than leave an installation that cannot dock. Run this script
   again to retry (what is already here is kept), or just this step:
 
-      $found_env/bin/python -m adcp_dock.cli install-adcp11 --dest $SUITE_DEST
+      $found_env/bin/python -m adcp_pilot.cli install-adcp11 --dest $SUITE_DEST
 
 MSG
     exit 1
@@ -1059,7 +1059,7 @@ head_ "Checking"
 STEP="checking the install"
 # shellcheck disable=SC1090
 source "$ACT"
-py_clean PYTHONPATH="$HERE" "$found_env/bin/python" -m adcp_dock.cli check || true
+py_clean PYTHONPATH="$HERE" "$found_env/bin/python" -m adcp_pilot.cli check || true
 
 head_ "Summary"
 off=()
@@ -1096,9 +1096,9 @@ cat <<EOF
 Next, in this terminal or any new one:
 
     source $ACT
-    adcp-dock check                 lists what it found
-    adcp-dock serve --port 0        starts the page; INSTALL.md 1.5 says how to open it
+    adcp-pilot check                 lists what it found
+    adcp-pilot serve --port 0        starts the page; INSTALL.md 1.5 says how to open it
 
 Or open it from your own computer with the desktop launcher (INSTALL.md 5).
-Never dock on a login node: adcp-dock sends every calculation to Slurm.
+Never dock on a login node: adcp-pilot sends every calculation to Slurm.
 EOF

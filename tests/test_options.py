@@ -24,7 +24,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock import (adcp11, cli, job as jobmod, peptide, pipeline,  # noqa: E402
+from adcp_pilot import (adcp11, cli, job as jobmod, peptide, pipeline,  # noqa: E402
                        sizing, slurm, structure, target, trajectories)
 
 fails, ran = [], 0
@@ -55,7 +55,7 @@ if not os.path.isfile(REC):
     # examples/receptor.pdb is the user's own and ignored by git, so a fresh clone has none.
     # The package's own example ships MDM2 (chain A) with p53's peptide (chain B), a site in A
     # and a ligand in B, which is what these checks ask of a receptor.
-    REC = os.path.join(ROOT, "adcp_dock", "example_run", "receptor", "1YCR.pdb")
+    REC = os.path.join(ROOT, "adcp_pilot", "example_run", "receptor", "1YCR.pdb")
 # Where the ADCP 1.1 suite is, for the checks that need it: ADCP_TEST_TOOLS, or else
 # ADCPSUITE_HOME. Without either they are skipped.
 ROOTS = [r for r in (os.environ.get("ADCP_TEST_TOOLS", ""),
@@ -378,7 +378,7 @@ if j:
     check([os.path.realpath(x) for x in seen]
           == [os.path.realpath(os.path.join(TMP, "cli_opts"))]
           and all(os.path.isabs(x) for x in seen),
-          "adcp-dock run passed the run folder on as %s; the job scripts "
+          "adcp-pilot run passed the run folder on as %s; the job scripts "
           "need it absolute" % seen)
 script = os.path.join(TMP, "02_dock.sbatch")
 slurm.write_script(script, name="t", cpus=2, time="01:00:00", workdir=TMP,

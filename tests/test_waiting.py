@@ -31,7 +31,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock import adapt, page, server  # noqa: E402
+from adcp_pilot import adapt, page, server  # noqa: E402
 
 fails, ran = [], 0
 
@@ -44,7 +44,7 @@ def check(cond, why):
 
 
 html = page.render("TOKEN")
-appjs = open(os.path.join(ROOT, "adcp_dock", "static", "app.js")).read()
+appjs = open(os.path.join(ROOT, "adcp_pilot", "static", "app.js")).read()
 css = html[html.index("<style>"):html.index("</style>")]
 wcss = css[css.index("---- waiting"):css.index("---- ADapt's receptor, as a status card")]
 cardcss = css[css.index("---- ADapt's receptor, as a status card"):
@@ -389,7 +389,7 @@ check(adapt.answering(Up.url), "ADapt's answer is not counted")
 srv.shutdown()
 srv.server_close()
 check(not adapt.answering(Up.url, timeout=2), "no answer at all is counted as one")
-check("/api/adapt/status" in open(os.path.join(ROOT, "adcp_dock", "server.py")).read(),
+check("/api/adapt/status" in open(os.path.join(ROOT, "adcp_pilot", "server.py")).read(),
       "the page cannot ask how far the start has got")
 
 # --- the status card --------------------------------------------------------------------

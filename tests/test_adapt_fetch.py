@@ -241,11 +241,11 @@ check(not leftovers(tools), "the clone left its temporary folder behind")
 # ADapt are found where a test says there are none; a copy in a folder with
 # nothing beside it is what "not installed" means here.
 alone = os.path.join(tempfile.mkdtemp(prefix="adapt_alone_"), "ADCP_docking")
-shutil.copytree(os.path.join(ROOT, "adcp_dock"), os.path.join(alone, "adcp_dock"),
+shutil.copytree(os.path.join(ROOT, "adcp_pilot"), os.path.join(alone, "adcp_pilot"),
                 ignore=shutil.ignore_patterns("__pycache__", "example_run"))
 found = subprocess.run(
     [sys.executable, "-c", "import sys; sys.path.insert(0, sys.argv[1]); "
-     "from adcp_dock import adapt; print(adapt.find() or '')", alone],
+     "from adcp_pilot import adapt; print(adapt.find() or '')", alone],
     env=dict(base_env, ADCPSUITE_HOME=os.path.join(tools, "adcpsuite"), ADCP_HOME=dep),
     capture_output=True, text=True).stdout.strip()
 check(os.path.realpath(found) == os.path.realpath(adapt_dir),
@@ -357,7 +357,7 @@ check(("the ADCP 1.1 suite: %s" % os.path.realpath(suite)) in out,
       "update.sh does not report the ADCP 1.1 suite it has:\n" + out[-600:])
 exe = subprocess.run(
     [sys.executable, "-c", "import sys; sys.path.insert(0, sys.argv[1]); "
-     "from adcp_dock import adcp11; print(adcp11.find() or '')", ROOT],
+     "from adcp_pilot import adcp11; print(adcp11.find() or '')", ROOT],
     env=dict(base_env, ADCPSUITE_HOME=suite, ADCP_HOME=dep),
     capture_output=True, text=True).stdout.strip()
 check(os.path.realpath(exe) == os.path.realpath(os.path.join(suite, "bin", "adcp")),
@@ -465,7 +465,7 @@ def install(dep, tools, url, *args):
 
 dep4, tools4 = deployment("fresh")
 os.remove(os.path.join(dep4, "activate.sh"))
-os.symlink(os.path.join(ROOT, "adcp_dock"), os.path.join(dep4, "adcp_dock"))
+os.symlink(os.path.join(ROOT, "adcp_pilot"), os.path.join(dep4, "adcp_pilot"))
 adapt4 = os.path.join(tools4, "adapt")
 
 rc, out = install(dep4, tools4, upstream, "--check")

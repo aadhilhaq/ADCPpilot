@@ -24,7 +24,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock import page  # noqa: E402
+from adcp_pilot import page  # noqa: E402
 
 fails, ran = [], 0
 
@@ -37,7 +37,7 @@ def check(cond, why):
 
 
 html = page.render("TOKEN")
-appjs = open(os.path.join(ROOT, "adcp_dock", "static", "app.js")).read()
+appjs = open(os.path.join(ROOT, "adcp_pilot", "static", "app.js")).read()
 css = html[html.index("<style>"):html.index("</style>")]
 ccss = css[css.index("---- column widths"):css.index("---- a phone")]
 cols_js = appjs[appjs.index("/* ===================== column widths"):
@@ -174,7 +174,7 @@ else:
 
 # --- the docs say so ------------------------------------------------------------------
 for name in ("runs.html", "results.html"):
-    text = open(os.path.join(ROOT, "adcp_dock", "docs", "pages", name)).read()
+    text = open(os.path.join(ROOT, "adcp_pilot", "docs", "pages", name)).read()
     check("Reset column widths" in text and "resize" in text.lower(),
           "the %s page does not say the columns can be resized" % name)
 

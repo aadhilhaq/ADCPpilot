@@ -1,0 +1,93 @@
+<h1>Getting started</h1>
+<p class="lead">Start the server where the calculations will run, then open the
+address it prints in your own browser.</p>
+
+<h2 id="what-it-needs">What it needs</h2>
+<p>These programs do the work, and the page reports any that are missing before
+you can submit anything:</p>
+<table>
+<tr><th>Program</th><th>From</th><th>Needed for</th></tr>
+<tr><td><code>adcp</code>, <code>agfr</code>, <code>prepare_receptor</code>, <code>reduce</code></td><td>the ADCP 1.1 suite (Scripps Research)</td><td>the search, the grid maps, the PDBQT file and the receptor's hydrogens. Required; <code>install.sh</code> installs it (see <a href="tools.html#adcp-11">Tools</a>).</td></tr>
+<tr><td><code>pdb2pqr</code></td><td>pip or conda</td><td>protonating the receptor at your pH. Required.</td></tr>
+<tr><td><code>tleap</code>, <code>sander</code>, <code>MMPBSA.py</code>, <code>ante-MMPBSA.py</code></td><td>AmberTools (conda)</td><td>MM-GBSA rescoring only. Docking works without them.</td></tr>
+<tr><td><code>sbatch</code>, <code>squeue</code>, <code>sacct</code></td><td>Slurm</td><td>already there on a cluster.</td></tr>
+</table>
+<p>Python 3.9 or newer with NumPy and RDKit, and, for the receptor work,
+PDBFixer, OpenMM and Biopython. Without those three the preparation log says
+which steps it had to skip. Ask the installation what it can see:</p>
+<pre>adcp-pilot check</pre>
+<p>It lists each program and the path it was found at, and names the ones it
+could not find. Run it before a long session: a missing program found now
+costs a minute, and found later costs a queued job.</p>
+
+<h2 id="on-a-cluster">On a cluster</h2>
+<p>Installation is covered in <code>INSTALL.md</code> in the repository. Once
+it is installed, start the page on the login node:</p>
+<pre>adcp-pilot serve --port 0</pre>
+<p><code>--port 0</code> lets the machine pick a free port, so two people on
+the same login node do not collide. It prints an address with a token:</p>
+<pre>ADCPpilot is at
+
+    http://127.0.0.1:41823/?t=Xq4v...</pre>
+<p>The server listens on that machine only, and every request has to carry the
+token, so keep the address to yourself. Forward the port from your own
+computer and open the same address there:</p>
+<pre>ssh -N -L 41823:127.0.0.1:41823 you@login.your-cluster.edu</pre>
+<p>The desktop launcher does all of that for you: it signs in, starts the
+server, forwards the port and opens the browser. Closing it stops the
+server. For a cluster it knows by name (Grace and ACES at Texas A&amp;M,
+Garibaldi at Scripps Research) only your username is typed: the address, the
+folders and the Slurm account and partition its jobs need are filled in.</p>
+<div class="note"><b>The server submits jobs; it does not dock.</b> Starting it
+on a login node is light work: it reads files, checks what you typed and hands
+the rest to Slurm. If your site stops long-running processes on login nodes
+anyway, run it inside a small interactive job and tunnel to that node
+instead.</div>
+<p>A compute node usually has no route to the internet, so <b>Fetch from
+RCSB</b> fails there. Upload the structure, or browse to a copy already on the
+cluster.</p>
+
+<h2 id="on-one-machine">On one machine</h2>
+<p>On a Linux workstation or laptop, or on Windows through WSL, the same
+interface runs the work itself, one stage after another:</p>
+<pre>adcp-pilot local</pre>
+<p>The first run installs the ADCP 1.1 suite with Scripps' own recipe, checking
+each Scripps package against a pinned checksum, and opens the page in your
+browser. Scripps builds the suite for Linux only, so on a Mac the first run
+installs ADFRsuite 1.0 instead and docks with ADCP 1.0, whose scores are not
+comparable with ADCP 1.1's (<a href="tools.html#on-a-mac">On a Mac</a>). Runs are
+written to
+<code>~/adcp_runs</code>. The header says how many cores it found, and the
+search settings start smaller than the cluster defaults, because settings
+sized for a 48 core node take hours on four.</p>
+<p><code>adcp-pilot local</code> refuses to start on a machine that has
+<code>sbatch</code>, because that is almost always a cluster login node. Use
+<code>adcp-pilot serve</code> there.</p>
+<p>There is also a Colab notebook, which installs everything on a Google
+machine and shows the same interface inside the notebook. It is useful for
+looking around and for the example run; the cores and the session length
+depend on your Colab plan.</p>
+
+<h2 id="the-page-itself">The page itself</h2>
+<p>Everything happens on one page, from the top down: the receptor, the site,
+the peptides, the search and the resources, then the run's name and the
+button, then the list of runs. Nothing is sent anywhere until you press
+<b>Submit to the queue</b>.</p>
+<p>Five numbers across the top follow you through it: 1 Receptor, 2 Site,
+3 Peptides, 4 Docking and 5 Submit. Each fills green, with a tick, when the
+page's own checks say that step is done, and the card for the next step lights
+up while the ones after it stay gray. Click a number to go straight to its card.
+The gray is only a hint: a card can be used at any time, so a target file or an
+old run's settings can complete several steps at once.
+<a href="index.html#the-steps">How each step is decided</a>.</p>
+<p>Every setting has a <b>?</b> beside its label. It opens a panel that says
+what the setting does and what changes in the result if you move it, with a
+link to the section here that covers it at length. The panel is the same text
+wherever you meet it.</p>
+<p>Two things are worth doing before your first real run: open the example run
+and read its table, then dock one short peptide of your own with small
+settings to see the whole path work. <a href="first-run.html">Your first
+run</a> walks through both.</p>
+<div class="tip"><b>The build is printed at the bottom of the page.</b> If it
+is not the commit you just pulled, the server is still running the old code.
+Stop it, start it again, then reload.</div>

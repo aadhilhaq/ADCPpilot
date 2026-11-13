@@ -100,7 +100,7 @@ check(os.path.isfile(os.path.join(BRAND, "make_brand.py")),
 # started it carries a logo. Inlined as data URIs: no route to add, no second
 # file to ship, and no cache to go stale against the launcher's copy.
 sys.path.insert(0, ROOT)
-from adcp_dock import page as _page, brand as _brand              # noqa: E402
+from adcp_pilot import page as _page, brand as _brand              # noqa: E402
 import base64 as _b64                                            # noqa: E402
 import re as _re                                                 # noqa: E402
 
@@ -129,7 +129,7 @@ if _p:
 #
 # A 15px circle with a 10px "?", the same as the related pipelines use, so it
 # reads as something to press rather than as part of the label.
-_css = open(os.path.join(ROOT, "adcp_dock", "page.py")).read()
+_css = open(os.path.join(ROOT, "adcp_pilot", "page.py")).read()
 _q = _css[_css.index(".q{"):_css.index(".q:hover")]
 # No box at all. A <button> arrives with a user-agent border, background,
 # padding and minimum size, each of which overrides a declared size.

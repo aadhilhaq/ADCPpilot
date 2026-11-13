@@ -19,7 +19,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock import cli                                      # noqa: E402
+from adcp_pilot import cli                                      # noqa: E402
 
 fails, ran = [], 0
 
@@ -50,7 +50,7 @@ def run(*argv):
 #
 # A module the file imports at the top must never be imported again inside
 # main(), because that makes the name local to every branch of it.
-src = open(os.path.join(ROOT, "adcp_dock", "cli.py")).read()
+src = open(os.path.join(ROOT, "adcp_pilot", "cli.py")).read()
 body = src[src.index("def main("):]
 body = body[:re.search(r"\n(?=def |\Z)", body[1:]).start() + 1] \
     if re.search(r"\n(?=def )", body[1:]) else body
@@ -78,9 +78,9 @@ rd = os.path.join(tempfile.mkdtemp(), "trial")
 rc, out = run("new", rd, "-r", REC, "--chain", "A", "-s", "A:1,A:2",
               "-p", "p53: ETFSDLWKLLP", "-p", "RWGPGAW",
               "--account", "abc123", "--sbatch-extra=--qos=normal")
-check(not str(rc).startswith("CRASH"), "adcp-dock new crashed: %s" % rc)
+check(not str(rc).startswith("CRASH"), "adcp-pilot new crashed: %s" % rc)
 check(os.path.isfile(os.path.join(rd, "job.json")),
-      "adcp-dock new wrote no job.json: %s" % out[-300:])
+      "adcp-pilot new wrote no job.json: %s" % out[-300:])
 if os.path.isfile(os.path.join(rd, "job.json")):
     j = json.load(open(os.path.join(rd, "job.json")))
     names = [p.get("name") for p in j.get("peptides", [])]
@@ -96,7 +96,7 @@ for sub in (("status", rd), ("cite", "--rundir", rd), ("cite", "--bibtex"),
             ("cite", "--ris"), ("check",)):
     rc, out = run(*sub)
     check(not str(rc).startswith("CRASH"),
-          "adcp-dock %s crashed: %s" % (" ".join(sub[:1]), rc))
+          "adcp-pilot %s crashed: %s" % (" ".join(sub[:1]), rc))
 
 rc, out = run("new", os.path.join(tempfile.mkdtemp(), "bad"), "-r", REC,
               "-s", "A:1", "-p", "alpha SWQWWWQPQRDCR")
@@ -112,14 +112,14 @@ runs = tempfile.mkdtemp()
 rc, out = run("example", "--runs", runs)
 ex = os.path.join(runs, "example_MDM2")
 check(rc in (0, None) and os.path.isfile(os.path.join(ex, "job.json")),
-      "adcp-dock example did not install the example: %s %s" % (rc, out[-300:]))
+      "adcp-pilot example did not install the example: %s %s" % (rc, out[-300:]))
 if os.path.isfile(os.path.join(ex, "job.json")):
     for base, _dirs, names in os.walk(ex):
         for n in names:
             with open(os.path.join(base, n), "rb") as fh:
                 check(b"@RUN@" not in fh.read(),
                       "the example's %s still holds the placeholder" % n)
-    from adcp_dock import server
+    from adcp_pilot import server
     app = server.App(runs)
     mon = {r["rundir"]: r for r in app.monitor()["runs"]}
     check(ex in mon and mon[ex]["dot"] == "done",
@@ -151,11 +151,11 @@ if os.path.isfile(os.path.join(ex, "job.json")):
     open(os.path.join(ex, "mine.txt"), "w").write("kept")
     run("example", "--runs", runs)
     check(os.path.isfile(os.path.join(ex, "mine.txt")),
-          "a second adcp-dock example replaced the example already there")
+          "a second adcp-pilot example replaced the example already there")
     run("example", "--runs", runs, "--force")
     check(not os.path.isfile(os.path.join(ex, "mine.txt"))
           and os.path.isfile(os.path.join(ex, "job.json")),
-          "adcp-dock example --force did not replace the example")
+          "adcp-pilot example --force did not replace the example")
 
 # Where runs go: $ADCP_RUNS when it, or the folder it would go in, exists (the
 # launcher suggests one for a cluster it knows), else $SCRATCH, else home.

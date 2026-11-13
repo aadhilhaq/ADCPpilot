@@ -21,7 +21,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock import page  # noqa: E402
+from adcp_pilot import page  # noqa: E402
 
 fails, ran = [], 0
 
@@ -34,7 +34,7 @@ def check(cond, why):
 
 
 html = page.render("TOKEN")
-appjs = open(os.path.join(ROOT, "adcp_dock", "static", "app.js")).read()
+appjs = open(os.path.join(ROOT, "adcp_pilot", "static", "app.js")).read()
 css = html[html.index("<style>"):html.index("</style>")]
 
 

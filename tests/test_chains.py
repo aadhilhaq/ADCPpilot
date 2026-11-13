@@ -40,9 +40,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock import job as jobmod, pipeline                     # noqa: E402
-from adcp_dock._vendor import adcp, mmgbsa, poseviewer, prep      # noqa: E402
-from adcp_dock._vendor import receptor as recmod                  # noqa: E402
+from adcp_pilot import job as jobmod, pipeline                     # noqa: E402
+from adcp_pilot._vendor import adcp, mmgbsa, poseviewer, prep      # noqa: E402
+from adcp_pilot._vendor import receptor as recmod                  # noqa: E402
 
 fails, ran = [], 0
 
@@ -56,7 +56,7 @@ def check(cond, why):
 
 
 TMP = tempfile.mkdtemp(prefix="adcp_chains_")
-EX = os.path.join(ROOT, "adcp_dock", "example_run")
+EX = os.path.join(ROOT, "adcp_pilot", "example_run")
 REC = os.path.join(EX, "receptor", "1YCR.pdb")
 P53 = "ETFSDLWKLLPEN"
 POSE = adcp.read_pose(os.path.join(EX, "docking", P53), 1)
@@ -307,7 +307,7 @@ if prep.find_tool("pdb2pqr", "pdb2pqr30"):
 pose_d = dict(POSE, xyz=np.array(POSE["xyz"]) * np.array([-1.0, 1.0, 1.0]))
 molD = poseviewer.transplant("&" + "&".join(P53), pose_d, ph=7.4)
 if molD is not None:
-    from adcp_dock import mmforms
+    from adcp_pilot import mmforms
     mmforms.mark(molD, "&" + "&".join(P53), None)
     cases.append(("b_dpeptide", recB, molD, red_real))
 for tag, rec, m, protonation in cases:
@@ -333,7 +333,7 @@ for tag, rec, m, protonation in cases:
               % (tag, lc))
 
 # Both rings, built by tleap for a peptide beside a receptor on chain B.
-from adcp_dock._vendor import library                             # noqa: E402
+from adcp_pilot._vendor import library                             # noqa: E402
 from rdkit import Chem                                            # noqa: E402
 
 

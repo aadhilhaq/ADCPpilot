@@ -29,7 +29,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock import (adcp11, cli, job as jobmod, mmforms, peptide,  # noqa: E402
+from adcp_pilot import (adcp11, cli, job as jobmod, mmforms, peptide,  # noqa: E402
                        pipeline, report, server, sizing)
 
 fails, ran = [], 0
@@ -56,7 +56,7 @@ def run_cli(*argv):
 
 
 TMP = tempfile.mkdtemp(prefix="adcp_rings_")
-REC = os.path.join(ROOT, "adcp_dock", "example_run", "receptor", "1YCR.pdb")
+REC = os.path.join(ROOT, "adcp_pilot", "example_run", "receptor", "1YCR.pdb")
 P53, PMI, ONE_C = "ETFSDLWKLLPEN", "TSFAEYWNLLS", "RFMDYWEGLC"
 SS = "CTSFAEYWNLLC"
 
@@ -517,7 +517,7 @@ jc = json.load(open(jf)) if os.path.isfile(jf) else {}
 check(jobmod.rings(jc) == ["backbone", "none", "disulfide"]
       and jc.get("cyclic") == "none"
       and "cyclic" not in jc["peptides"][1],
-      "adcp-dock new -f did not keep the file's rings with --cyclic the "
+      "adcp-pilot new -f did not keep the file's rings with --cyclic the "
       "default (rc %r): %s" % (rc, jc.get("peptides")))
 rd = os.path.join(TMP, "cli_rings_ss")
 rc, said = run_cli("new", rd, "-r", REC, "--chain", "A", "-s", "A:54",
@@ -540,7 +540,7 @@ check(rc not in (0, None) and "'lariat'" in said
       % (rc, said[-300:]))
 
 # --- a job file from before peptides had rings of their own ----------------
-ex = os.path.join(ROOT, "adcp_dock", "example_run")
+ex = os.path.join(ROOT, "adcp_pilot", "example_run")
 # The shipped example as a job file from before rings: without the run's
 # ring, and with no peptide carrying one.
 old_job = json.load(open(os.path.join(ex, "job.json")))
@@ -582,7 +582,7 @@ check([r.get("ring") for r in rows] == ["head to tail"] * len(rows),
       "every row: %s" % [r.get("ring") for r in rows])
 
 # --- the page's script -------------------------------------------------------
-appjs = open(os.path.join(ROOT, "adcp_dock", "static", "app.js")).read()
+appjs = open(os.path.join(ROOT, "adcp_pilot", "static", "app.js")).read()
 for want, why in (("class=pr", "a row has no ring of its own to choose"),
                   ("['', 'as the run']", "a row's ring does not default to the run's"),
                   ("cyclic: p.cyclic || ''", "a reused run, a paste or an "

@@ -6,11 +6,11 @@ Run by the mac10 workflow (.github/workflows/mac10.yml), by hand, on a macOS
 runner, and nowhere else: on any other system it stops with 77, a skip. It
 is not in tests/run_all.sh, whose tests need no Mac.
 
-    python3 tests/mac10_live.py [folder]      (default ~/.adcp-dock/ADFRsuite)
+    python3 tests/mac10_live.py [folder]      (default ~/.adcp-pilot/ADFRsuite)
 
 What it does, on the Mac it runs on:
 
-  * installs ADFRsuite 1.0 for macOS as `adcp-dock local` does (mac10.install),
+  * installs ADFRsuite 1.0 for macOS as `adcp-pilot local` does (mac10.install),
     the tarball checked against its pinned SHA-256;
   * builds grid maps over the example receptor with its agfr (AutoSite 1.0,
     no receptor gradient), and checks the target as a run does;
@@ -29,7 +29,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock import mac10, surface, target, tools  # noqa: E402
+from adcp_pilot import mac10, surface, target, tools  # noqa: E402
 
 if not mac10.is_mac():
     print("skip: this checks ADCP 1.0 on a Mac, and this is %s"
@@ -49,9 +49,9 @@ for name in ("adcp", "agfr", "prepare_receptor"):
 print("reduce:", tools.suite_program("reduce"))
 
 work = tempfile.mkdtemp(prefix="adcp_mac10_live_")
-rec = os.path.join(ROOT, "adcp_dock", "example_run", "receptor",
+rec = os.path.join(ROOT, "adcp_pilot", "example_run", "receptor",
                    "receptor.pdbqt")
-site = json.load(open(os.path.join(ROOT, "adcp_dock", "example_run",
+site = json.load(open(os.path.join(ROOT, "adcp_pilot", "example_run",
                                    "job.json")))["site"]
 t0 = time.time()
 trg = target.build(rec, site["centre"], [26.0, 26.0, 26.0],

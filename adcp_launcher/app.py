@@ -24,18 +24,18 @@ from . import clusters
 from . import session as sessionmod, tunnel
 
 try:
-    from adcp_dock import brand
+    from adcp_pilot import brand
 except ImportError:                                            # noqa: BLE001
     brand = None
 
 # This launcher's own settings file, not shared with any sibling launcher:
 # several may be open at once, and one settings file between them would have
 # each overwriting the others' cluster and username.
-CONFIG = os.path.join(os.path.expanduser("~"), ".adcp_docking_launcher.json")
+CONFIG = os.path.join(os.path.expanduser("~"), ".adcp_piloting_launcher.json")
 
 
 #: The banner's palette; the same four as the README banner, the page and
-#: the icon. Duplicated from adcp_dock.brand because the window must still
+#: the icon. Duplicated from adcp_pilot.brand because the window must still
 #: draw if that import fails.
 BANNER = dict(deep="#113f4a", deeper="#0b2e37", teal="#1a8a8a",
               warm="#d67a3a", paper="#f7f9f9", muted="#9fc4c4",
@@ -245,7 +245,7 @@ class App:
         root.minsize(680, 560)
         pad = dict(padx=10, pady=5)
 
-        # The mark travels in adcp_dock.brand as bytes, so a bundled
+        # The mark travels in adcp_pilot.brand as bytes, so a bundled
         # launcher carries it without brand/ having to travel alongside. A
         # missing icon is never fatal: the window opening without one is far
         # better than a launcher that will not open because it cannot draw
@@ -592,7 +592,7 @@ class App:
                          ).start()
 
     def work_here(self):
-        """This computer: start `adcp-dock local`, read its address, open it."""
+        """This computer: start `adcp-pilot local`, read its address, open it."""
         from . import localrun
         try:
             self.say("Starting on this computer...")

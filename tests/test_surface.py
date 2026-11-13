@@ -24,7 +24,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock import server, structure, surface, tools as toolmod  # noqa: E402
+from adcp_pilot import server, structure, surface, tools as toolmod  # noqa: E402
 
 fails, ran = [], 0
 
@@ -38,7 +38,7 @@ def check(cond, why):
 
 TMP = tempfile.mkdtemp(prefix="adcp_surface_")
 os.environ["HOME"] = TMP
-REC = os.path.join(ROOT, "adcp_dock", "example_run", "receptor", "1YCR.pdb")
+REC = os.path.join(ROOT, "adcp_pilot", "example_run", "receptor", "1YCR.pdb")
 # Where the tools are, for the checks that run them: ADCP_TEST_TOOLS, or else
 # ADCPSUITE_HOME. Without either those checks are skipped.
 ROOTS = [r for r in (os.environ.get("ADCP_TEST_TOOLS", ""),
@@ -242,8 +242,8 @@ check(got.get("source") == "fallback" and "no such run" in got.get("why", ""),
       "a run that is not there is a fallback (%s)" % got)
 
 # --- the page draws the mesh, and its own surface when there is none ------------
-appjs = open(os.path.join(ROOT, "adcp_dock", "static", "app.js")).read()
-page = open(os.path.join(ROOT, "adcp_dock", "page.py")).read()
+appjs = open(os.path.join(ROOT, "adcp_pilot", "static", "app.js")).read()
+page = open(os.path.join(ROOT, "adcp_pilot", "page.py")).read()
 check("viewer.addCustom(spec)" in appjs, "the page draws MSMS's triangles as a mesh")
 check(appjs.count("$3Dmol.SurfaceType.VDW") >= 2,
       "the site view and the pose viewer both fall back to 3Dmol's own surface")
@@ -262,7 +262,7 @@ check("let RSURF = 2" in appjs and 'class="pill on" id=rsurf' in page,
 # nothing to compare with, and the note says so.
 import glob  # noqa: E402
 
-MINE = os.path.join(ROOT, "adcp_dock", "surface.py")
+MINE = os.path.join(ROOT, "adcp_pilot", "surface.py")
 with open(MINE, "rb") as fh:
     mine = fh.read()
 _raw = os.environ.get("ADCP_SIBLING_CHECKOUTS", "")
@@ -281,7 +281,7 @@ else:
         for other in _copies:
             _seen += 1
             with open(other, "rb") as fh:
-                check(fh.read() == mine, "adcp_dock/surface.py differs from %s; "
+                check(fh.read() == mine, "adcp_pilot/surface.py differs from %s; "
                       "the copies are one module" % other)
     print("note  surface.py compared with %d copies" % _seen)
 

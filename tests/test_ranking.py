@@ -25,7 +25,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock import report                                  # noqa: E402
+from adcp_pilot import report                                  # noqa: E402
 
 FAIL = []
 
@@ -166,7 +166,7 @@ if not REAL or not os.path.isdir(REAL):
     raise SystemExit(77)
 
 import shutil                                                   # noqa: E402
-from adcp_dock import server                                    # noqa: E402
+from adcp_pilot import server                                    # noqa: E402
 
 with tempfile.TemporaryDirectory() as tmp:
     # Only what the action reads. A whole run folder is the mmgbsa tree as

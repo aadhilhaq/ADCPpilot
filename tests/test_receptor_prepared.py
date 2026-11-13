@@ -27,9 +27,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock import cite, cli, job as jobmod, pipeline, prepared, server  # noqa: E402
-from adcp_dock import tools as toolmod  # noqa: E402
-from adcp_dock._vendor import mmgbsa, prepare, receptor  # noqa: E402
+from adcp_pilot import cite, cli, job as jobmod, pipeline, prepared, server  # noqa: E402
+from adcp_pilot import tools as toolmod  # noqa: E402
+from adcp_pilot._vendor import mmgbsa, prepare, receptor  # noqa: E402
 
 fails, ran = [], 0
 
@@ -44,7 +44,7 @@ def check(cond, why):
 TMP = tempfile.mkdtemp(prefix="adcp_rprep_")
 os.environ["HOME"] = TMP
 PREPARED = os.path.join(HERE, "data", "1ycr_A_prepared.pdb")
-CRYSTAL = os.path.join(ROOT, "adcp_dock", "example_run", "receptor", "1YCR.pdb")
+CRYSTAL = os.path.join(ROOT, "adcp_pilot", "example_run", "receptor", "1YCR.pdb")
 SITE = "A:54,A:58,A:62,A:67,A:72,A:93,A:96,A:99"
 ROOTS = [r for r in (os.environ.get("ADCP_TEST_TOOLS", ""),
                      os.environ.get("ADCPSUITE_HOME", ""))

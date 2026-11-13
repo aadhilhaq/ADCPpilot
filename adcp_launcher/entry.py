@@ -23,7 +23,7 @@ def main(argv=None):
     if "--selftest" in argv:
         from . import session, tunnel, credit                  # noqa: F401
         line = session.command("/x/ADCP_docking", runs="~/r")
-        assert "adcp_dock.cli serve" in line, line
+        assert "adcp_pilot.cli serve" in line, line
         assert "--host 127.0.0.1" in line, line
         assert tunnel.AUTH_PATIENCE >= 120, "the two-factor timeout was shortened"
         assert session.URL.search("http://127.0.0.1:8123/?t=abcDEF_-"), \

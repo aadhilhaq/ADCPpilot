@@ -1,0 +1,216 @@
+<h1>The peptides</h1>
+<p class="lead">One peptide per row, or a whole list pasted or uploaded at once.
+Each row is checked as you type, and the run cannot start while anything in the
+list is wrong.</p>
+
+<figure>
+<img src="img/peptides.png" alt="The Peptides card with three named peptides, each numbered by residue">
+<figcaption><b>Three peptides, pasted as a list.</b> Each row carries the entry
+number, the name, the peptide's ring, the sequence with its residues numbered,
+and the residue count. The &#8942; menu on a row duplicates it, deletes it, or
+opens the non-standard residue chooser.</figcaption>
+</figure>
+
+<h2 id="what-adcp-accepts">What ADCP accepts</h2>
+<p>Sequences of <b>5 to 30 residues</b>, in one-letter code, from the twenty
+standard amino acids.</p>
+<p>B, J, O, U, X and Z are refused: B and Z are the ambiguity codes, J is
+leucine or isoleucine, X is unspecified, O is pyrrolysine and U is
+selenocysteine. ADCP builds peptides from a rotamer library keyed on the twenty,
+and none of these has a rotamer it can build.</p>
+<p>The lower limit is real: with three or four residues every replica fails. The
+upper limit is set by the box rather than by the search, since a 30-mer needs
+about 48 &Aring; of box against a 60 &Aring; maximum. Above roughly 20 residues
+the cost estimate, not the limit, is the number to read before you submit.</p>
+<p>With ADCP 1.1 installed you can also use non-standard and D amino acids. That
+has a page of its own: <a href="case-modified.html">Modified and D amino
+acids</a>.</p>
+
+<h2 id="formats">Pasting a list</h2>
+<p><b>Paste a list</b> opens a box that reads several forms, one peptide per
+line:</p>
+<pre>ETFSDLWKLLPEN                  named by its own sequence
+p53: ETFSDLWKLLPEN             named p53
+&gt;p53                           FASTA, named p53
+ETFSDLWKLLPEN
+TSFAEYWNLLS,PMI                two columns, either way round
+p53,ETFSDLWKLLPEN,head to tail a third column: the peptide's own ring
+sequence,name,ring             a header row, if you want to be sure</pre>
+<p>A two column row split by a tab, a comma or a semicolon works in either
+order: the field that reads as a sequence is taken as the sequence. Where both
+could be read as sequences, which ordinary words can be, the capitalization
+decides, and a header row settles it for the whole list. Lines starting with
+<code>#</code> are ignored. Blank lines separate FASTA records.</p>
+<p>A third column is the peptide's ring: <code>linear</code> (or
+<code>none</code>), <code>head to tail</code> (or <code>backbone</code>, or
+<code>cyclic</code>), or <code>disulfide</code>, in any case and with dashes or
+not. An empty cell docks the peptide as the run is set. A row with no name may
+put the ring second, <code>ETFSDLWKLLPEN,head to tail</code>. A header row names
+the columns in any order, with <code>ring</code> or <code>cyclic</code> for the
+ring, and a spreadsheet saved as CSV with one is read as it is. A ring that is
+none of these is never guessed at: the row says what it was given and what the
+choices are, and nothing from the list is added until it is fixed. See
+<a href="#cyclic">a chain or a ring</a>.</p>
+<p><b>Upload a list</b> does the same with a <code>.txt</code>,
+<code>.csv</code>, <code>.fasta</code>, <code>.fa</code> or <code>.seq</code>
+file. It is read in your browser and sent through the same parser, so it works
+even when the cluster cannot see your file.</p>
+<p>Spaces inside a sequence are joined, because sequences are often printed in
+blocks of ten: <code>ETFSDLWKLL PENNVLSPLP</code> is one peptide.</p>
+<p><b>Add these</b> puts a pasted list in whole, and only when every line is
+clean. What happens otherwise is <a href="#what-is-refused">below</a>.</p>
+
+<h2 id="what-is-refused">What is refused, and why</h2>
+<figure>
+<img src="img/peptides-refused.png" alt="The Peptides card after a refused paste: a red message beside the buttons names both lines and their problems, and the paste box below still holds them">
+<figcaption><b>A paste that added nothing.</b> Two lines went in: a name written
+with a space before its sequence, and a three residue peptide. The message line
+beside the buttons says in red that nothing was added, then gives each line's name
+or first letters and its problem. The paste box keeps the text, ready to be
+corrected, and the three peptides already in the list are untouched.</figcaption>
+</figure>
+<p>A pasted list goes in whole or not at all. Every line is read on the server
+before anything is added. If any line has a problem, nothing is added, the text
+stays in the box, and the message line says <b>nothing added</b>, then each bad
+line's name or first letters and what is wrong with it. Fix the lines and press
+<b>Add these</b> again. When every line is clean, all of them are added, the box
+closes, and the message line says how many went in.</p>
+<p>Rows already in the list are checked on the server as you type, and their
+reason is written under the sequence. The same messages appear in both places:</p>
+<table>
+<tr><th>What you see</th><th>What it means</th></tr>
+<tr><td>is not one</td><td>that character is not a one-letter amino acid code</td></tr>
+<tr><td>cannot be built as a residue</td><td>one of B, J, O, U, X, Z, which have no rotamer ADCP can build</td></tr>
+<tr><td>ADCP needs at least 5 residues</td><td>the sequence is too short to build</td></tr>
+<tr><td>the limit is 30</td><td>longer peptides can be docked by raising the limit, but the cost climbs steeply with length</td></tr>
+<tr><td>looks like a name followed by a sequence</td><td>a pasted line is a word, a space and then a sequence; name it with a colon or FASTA</td></tr>
+<tr><td>Both columns read as sequences</td><td>a two column row where either field could be the sequence; add a header row to say which is which</td></tr>
+<tr><td>A disulfide ring needs two cysteines</td><td>this peptide is to be docked as a ring through a disulfide, by its own Ring or the run's, and has fewer than two C; see <a href="#cyclic">below</a></td></tr>
+<tr><td>which is not one of the choices</td><td>a ring column gave something other than linear, head to tail or disulfide, or a word for one of them; leave the cell empty to dock the peptide as the run is set</td></tr>
+</table>
+<div class="note"><b>Name a peptide with a colon, not a space.</b> Spaces inside a
+line are joined, so <code>alpha SWQWWWQPQRDCR</code> reads as one 18 residue
+peptide, <code>ALPHASWQWWWQPQRDCR</code>, and every letter of it is a residue. The
+page recognizes the shape, a word and then a sequence, and refuses the paste with
+that reason instead of adding the longer peptide. Write
+<code>alpha: SWQWWWQPQRDCR</code>, or use FASTA. <code>adcp-pilot new</code> refuses
+such a line in the same way. An uploaded list is different: it is added whole, the
+message says how many of its rows have something to check, and a line like that
+among them becomes the longer peptide, so check the residue count under each
+row.</div>
+<p>The same sequence twice is refused, because both rows would share one working
+directory and one result file. That holds for one sequence with two different
+rings as well: to compare a peptide as a chain and as a ring, dock the second in
+a run of its own. Two peptides with the same name are refused for the same
+reason.</p>
+
+<h2 id="cyclic">A chain or a ring</h2>
+<figure>
+<img src="img/peptide-rings.png" alt="The Peptides card with four peptides: p53 with its Ring set to head to tail, PMI and 12/1 left as the run, and ss_PMI, with a cysteine at each end, set to disulfide. Under the list the run docks each peptide as a linear chain, and the line beside it says the rows differ and which rows are docked which way">
+<figcaption><b>One run, three kinds of peptide.</b> p53 is closed head to tail,
+ss_PMI through a disulfide between its two cysteines, and PMI and 12/1 are left
+<b>as the run</b>, which docks them as linear chains. The line under the list
+names the rows by their numbers and says how each will be docked.</figcaption>
+</figure>
+<p>A peptide is docked as one of three things:</p>
+<table>
+<tr><th>Ring</th><th>What ADCP does</th></tr>
+<tr><td><b>linear</b></td><td>the peptide's two ends are free, as every run before rings could be chosen was docked</td></tr>
+<tr><td><b>head to tail</b></td><td>the first residue's nitrogen is drawn to the last residue's carbon (ADCP's <code>-cyc</code>)</td></tr>
+<tr><td><b>disulfide</b></td><td>two cysteines' sulfurs are drawn together (ADCP's <code>-cys</code>)</td></tr>
+</table>
+<p><b>The run docks each peptide as</b>, under the list, is the run's choice, and
+every row's <b>Ring</b> starts at <b>as the run</b>, which follows it. Set a row's
+Ring to linear, head to tail or disulfide and that peptide is docked that way
+whatever the run's choice is, so one run can hold linear peptides and rings of
+both kinds. The line beside the run's choice says what will happen: when every
+row is docked the same way it says so, and when the rows differ it names which
+rows, by the numbers down the side of the list, are docked which way.</p>
+<p>Each peptide keeps its own ring from start to finish. Its docking task gives
+ADCP <code>-cyc</code> or <code>-cys</code> for that peptide alone, and the task's
+log begins with the ADCP command it ran. MM-GBSA closes that peptide's ring and
+no other. The estimate prices each peptide's search with its own ring and sizes
+the walltime for the slowest of them, which can be a shorter peptide closed head
+to tail. Whenever any peptide in a run was docked as a ring, the results table,
+<code>results.tsv</code> and <code>results.txt</code> carry a <b>ring</b> column
+that says how each one was docked.</p>
+<p>A peptide list carries rings in its third column, as <a href="#formats">above</a>,
+and a row whose ring cell is empty is docked as the run is set. On the command
+line, <code>--cyclic</code> is the run's choice and the ring column of the file
+given with <code>-f</code> sets each peptide's own. A run made before peptides
+could have rings of their own docks every peptide with the run's choice, as it
+always did.</p>
+<figure>
+<img src="img/peptide-ring-refused.png" alt="A peptide row for 12/1, RFMDYWEGL, with its Ring set to disulfide: the Ring choice and the sequence are outlined, and the message under the sequence says a disulfide ring needs two cysteines and this peptide has none">
+<figcaption><b>A ring the peptide cannot close.</b> 12/1 has no cysteine, so it
+cannot be closed through a disulfide. The row says so, its Ring is outlined, and
+the run cannot be submitted until the Ring or the sequence is changed.</figcaption>
+</figure>
+<p>A ring through a disulfide needs at least two cysteines, <code>C</code> or
+the D form <code>&amp;C</code>, in each peptide docked that way. One with fewer is
+refused as you type, in the row's message, and the run cannot be submitted; the
+command line refuses it the same way, naming the peptide. ADCP itself does not
+check: given a peptide with one cysteine or none, it docks it as a linear chain
+and reports poses with no warning, so a run would describe as a ring a peptide
+that was never closed. A non-standard residue built on the cysteine model, such
+as <code>C&lt;HCS&gt;</code>, does not count, because ADCP's disulfide joins the
+atoms named SG and its sulfur is named otherwise.</p>
+<p>Both rings are restraints ADCP's search pulls on rather than bonds the
+peptide starts with. In short test runs on MDM2 the head to tail ring held the
+two ends 0.4 to 4.0 &Aring; apart in every pose, against 13.7 to 37.9 &Aring; for
+the linear peptide, with standard, D and non-standard residues alike. The
+disulfide was less dependable: with a cysteine added at each end of the p53
+peptide, the two sulfurs of the top pose were 14.8, 8.3 and 2.8 &Aring; apart in
+three runs, and most poses were not closed. Check the poses you use. A ring also makes
+the search longer: each replica took about one and a half times as long head to
+tail, and the walltime estimate allows for it.</p>
+<div class="note"><b>A ring is rescored with MM-GBSA on the poses that close
+it.</b> The rescoring builds the ring's closing bond, but only on a pose whose two
+ends already meet: within 2.5 &Aring; for a head to tail ring and 3.5 &Aring; for a
+disulfide. A pose that is not closed is not rescored and the task log says so, and a
+peptide with no closed pose among its top poses keeps its docking score and its
+interface panel and is listed as unranked. See
+<a href="rescoring.html#d-and-rings">D residues and rings</a>. ADCP 1.1's OpenMM
+minimization, in the Docking card, is a separate option: it adds the ring's closing
+bond too, and for a disulfide only where the two sulfurs are within 3.5 &Aring; of
+each other.</div>
+
+<h2 id="helical">Helical starts</h2>
+<figure>
+<img src="img/peptide-options.png" alt="The row under the peptide list: the run docks each peptide as a linear chain, the share of replicas that start helical, 25, and a line saying 12 of 50 replicas start as a helix, the rest as a coil">
+<figcaption><b>How the peptides are built and started.</b> The run's ring, which
+every row left as the run takes, and the share of replicas that start as a helix.
+The line beside them works out, for the replicas chosen below, how many start as
+a helix.</figcaption>
+</figure>
+<p>Each replica of ADCP's search starts the peptide in a shape: a helix or a
+coil. <b>Replicas that start helical</b> is the share that start as a helix,
+25% by default (ADCP's <code>-p</code>). ADCP numbers its replicas and starts
+the first N &times; p / 100 of them, rounded down, as a helix and the rest as a
+coil: at 25% with 50 replicas, replicas 1 to 12. In the MDM2 runs the first
+frames of replicas 1 to 12 were helical and those of 13 to 50 were not.</p>
+<p>ADCP reads the starting shape from the case of the sequence's letters, upper
+case for helix and lower case for coil, and <code>-p</code> rewrites the case
+replica by replica, so how a sequence is typed makes no difference. The library
+names of non-standard residues, in angle brackets, are passed as written. At 0
+every replica starts as a coil, which is how every run before this setting was
+docked, and at 100 every replica starts as a helix. ADCP's <code>-p</code> does
+nothing at 0 or at 100, so those two are given to ADCP as an all lower case or
+all upper case sequence instead.</p>
+<p>The search is as long either way; only where it starts changes. A peptide
+that binds as a helix, as p53 does on MDM2, is found from a helical start that a
+coil would have to fold into first.</p>
+
+<h2 id="naming-and-cost">Names, and what the list costs</h2>
+<p>A name is worth giving. It is what appears in the results table and in the
+pose viewer, and it is what tells two variants of one construct apart. Without
+one, a pasted peptide is named by its own first letters, and a row you left
+unnamed becomes peptide_1, peptide_2, and so on.</p>
+<p>On a cluster each peptide becomes its own Slurm array task, so twenty
+peptides are twenty tasks that queue and run independently, and one failing does
+not lose the others. The run can be resumed, and only the peptides with no
+result are docked again.</p>
+<div class="tip"><b>Length drives the cost more than the list does.</b> The
+search effort should scale with the peptide, so a list of 20-mers is not twice a
+list of 10-mers but rather more. The estimate under the resources row works this
+out from your longest peptide.</div>

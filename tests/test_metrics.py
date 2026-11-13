@@ -21,8 +21,8 @@ sys.path.insert(0, ROOT)
 
 import numpy as np                                            # noqa: E402
 
-from adcp_dock import report                                  # noqa: E402
-from adcp_dock._vendor import metrics as M                    # noqa: E402
+from adcp_pilot import report                                  # noqa: E402
+from adcp_pilot._vendor import metrics as M                    # noqa: E402
 
 fails = []
 skips = []
@@ -444,7 +444,7 @@ check("the printed table has the panel block", "Interface and sequence" in txt)
 # the documentation; results.txt carries the numbers only.
 check("and leaves the note on how site dG adds up to the documentation",
       "not exactly" not in txt and "per residue breakdown" not in txt)
-_res = open(os.path.join(ROOT, "adcp_dock", "docs", "pages",
+_res = open(os.path.join(ROOT, "adcp_pilot", "docs", "pages",
                          "results.html")).read()
 check("the documentation says the breakdown does not sum exactly",
       "does not sum to the reported energy" in _res and "site dG" in _res)
@@ -468,7 +468,7 @@ print("one engine per number, and it is named")
 # molecule while writing into the same table, and amber14-all.xml is how that
 # would happen.
 for _mod in ("metrics.py", "mmgbsa.py"):
-    _src = open(os.path.join(ROOT, "adcp_dock", "_vendor", _mod),
+    _src = open(os.path.join(ROOT, "adcp_pilot", "_vendor", _mod),
                 encoding="utf-8").read().lower()
     check("%s loads none of OpenMM's own force fields" % _mod,
           "amber14" not in _src and "app.forcefield(" not in _src
@@ -476,13 +476,13 @@ for _mod in ("metrics.py", "mmgbsa.py"):
           "every engine must read the topology tleap built")
 # metrics.py is a different matter: it reads energies, it does not compute
 # them, so it has no business touching any engine.
-_msrc = open(os.path.join(ROOT, "adcp_dock", "_vendor", "metrics.py"),
+_msrc = open(os.path.join(ROOT, "adcp_pilot", "_vendor", "metrics.py"),
              encoding="utf-8").read().lower()
 check("metrics.py runs no MM-GBSA engine of its own",
       "import openmm" not in _msrc and "from openmm" not in _msrc)
 
-from adcp_dock._vendor import gbengines as _gb                  # noqa: E402
-from adcp_dock._vendor import mmgbsa as _mmg                    # noqa: E402
+from adcp_pilot._vendor import gbengines as _gb                  # noqa: E402
+from adcp_pilot._vendor import mmgbsa as _mmg                    # noqa: E402
 _cols = [_gb.ENGINES[n].column for n in _gb.ORDER]
 check("each engine writes its own column", len(_cols) == len(set(_cols)),
       str(_cols))
@@ -511,7 +511,7 @@ for _a in _gb.ORDER:
                   not _gb.comparable(_a, _b))
 
 print("the solvation model, a choice inside AmberTools")
-from adcp_dock._vendor import mmgbsa as _mm                     # noqa: E402
+from adcp_pilot._vendor import mmgbsa as _mm                     # noqa: E402
 check("OBC(II) is the default", _mm.DEFAULT_MODEL == "obc2")
 check("OBC(II) is igb 5 with mbondi2",
       (_mm.MODELS["obc2"]["igb"], _mm.MODELS["obc2"]["radii"]) == (5, "mbondi2"))
@@ -535,13 +535,13 @@ _pin = os.path.join(_new, "x_mmpbsa.in")
 open(_pin, "w").write("&gb\n   igb=8, saltcon=0.150,\n/\n")
 check("a decomposition uses the igb its pose was scored with",
       M.igb_of(_pin) == 8 and "igb={igb}" in M.DECOMP_IN)
-from adcp_dock import job as _job                               # noqa: E402
+from adcp_pilot import job as _job                               # noqa: E402
 check("a run's settings default to OBC(II)",
       _job.default()["mmgbsa_model"] == "obc2")
 check("and refuse a model that is not offered",
       any("obc2" in x for x in _job.validate(dict(_job.default(),
                                                    mmgbsa_model="gbn9"))))
-from adcp_dock import cite as _cite                             # noqa: E402
+from adcp_pilot import cite as _cite                             # noqa: E402
 # Receptor minimization off, so GBn2 can only be cited because the MM-GBSA
 # used it: the receptor's own minimization is GBn2 too and would hide a miss.
 _k = _cite.used_by(dict(_job.default(), mmgbsa=True, mmgbsa_model="gbn2",
@@ -557,7 +557,7 @@ _k = _cite.used_by(dict(_job.default(), mmgbsa=True, minimise=False,
 check("an OBC(II) run cites OBC(II)'s paper", "gbmodel" in _k)
 # And the run says so in its own output, naming OpenMM only for the stages it
 # actually used.
-from adcp_dock import pipeline as _pl                          # noqa: E402
+from adcp_pilot import pipeline as _pl                          # noqa: E402
 _c = _pl._constants({"ph": 7.4})
 check("the constants say the energies are AmberTools",
       "AmberTools" in _c["mmgbsa"] and "tleap" in _c["mmgbsa"]
@@ -580,10 +580,10 @@ print("a run docked before the panel existed can be brought up to date")
 check("there is a stage for it", callable(getattr(_pl, "stage_panel", None)))
 check("and a way to submit that stage",
       callable(getattr(_pl, "submit_panel", None)))
-_wk = open(os.path.join(ROOT, "adcp_dock", "worker.py"),
+_wk = open(os.path.join(ROOT, "adcp_pilot", "worker.py"),
            encoding="utf-8").read()
 check("the worker knows the stage", '"panel"' in _wk)
-_cli = open(os.path.join(ROOT, "adcp_dock", "cli.py"), encoding="utf-8").read()
+_cli = open(os.path.join(ROOT, "adcp_pilot", "cli.py"), encoding="utf-8").read()
 check("and the command line offers it", '"panel"' in _cli)
 # It must dock nothing: no docking or rescoring call in the stage.
 _ps = _pl.stage_panel.__doc__ or ""
@@ -607,7 +607,7 @@ print("the web page shows an old run's MM-GBSA breakdown without being asked")
 # An old run's results.json has no terms and its result files no panel, but
 # every pose's MMPBSA.py output is on disk and already holds the four terms.
 # The server reads them when it shows the run: text only, no compute.
-from adcp_dock import server as _srv                           # noqa: E402
+from adcp_pilot import server as _srv                           # noqa: E402
 _old = tempfile.mkdtemp()
 os.makedirs(os.path.join(_old, "results"))
 os.makedirs(os.path.join(_old, "mmgbsa", "LLKWHY", "pose1"))
@@ -638,17 +638,17 @@ check("reading them wrote nothing into the run",
       "mm_vdw" not in open(os.path.join(_old, "results.json")).read())
 check("the page can ask the server to measure them",
       "panel_run" in dir(_srv.App) if hasattr(_srv, "App") else
-      "def panel_run" in open(os.path.join(ROOT, "adcp_dock", "server.py"),
+      "def panel_run" in open(os.path.join(ROOT, "adcp_pilot", "server.py"),
                               encoding="utf-8").read())
 check("through an endpoint of its own",
-      '"/api/panel"' in open(os.path.join(ROOT, "adcp_dock", "server.py"),
+      '"/api/panel"' in open(os.path.join(ROOT, "adcp_pilot", "server.py"),
                              encoding="utf-8").read())
 
 print("a run shows its cluster populations from its docking folder")
 # Runs docked before 0.1.17 parsed ADCP's cluster sizes and threw them away,
 # but the mode table each docking folder keeps (modes.json, from ADCP's own
 # summary) still holds them.
-_ex = os.path.join(ROOT, "adcp_dock", "example_run")
+_ex = os.path.join(ROOT, "adcp_pilot", "example_run")
 _cc = _pl.cluster_counts(_ex, {"peptide": "RFMDYWEGL"})
 check("the example run's mode table gives its top cluster", _cc.get("cluster_top") == 13,
       "%s" % _cc)
@@ -662,7 +662,7 @@ print("the web table reads only fields the report writes")
 # spec has to be a field report.summarise actually emits, or the column shows
 # a dash on every row and nobody notices. There is no browser on a cluster
 # node to check the rendering, so this checks the contract instead.
-_js = open(os.path.join(ROOT, "adcp_dock", "static", "app.js"),
+_js = open(os.path.join(ROOT, "adcp_pilot", "static", "app.js"),
            encoding="utf-8").read()
 _spec = _js[_js.index("function colgroups("):_js.index("function colsOn(")]
 import re as _re                                              # noqa: E402
@@ -767,7 +767,7 @@ else:
 # of the check that needs only that runs everywhere.
 print("the example run's own MM-GBSA output")
 import glob as _glob                                          # noqa: E402
-_ex = sorted(_glob.glob(os.path.join(ROOT, "adcp_dock", "example_run",
+_ex = sorted(_glob.glob(os.path.join(ROOT, "adcp_pilot", "example_run",
                                      "mmgbsa", "*", "pose*", "*_mmgbsa.dat")))
 check("the example run carries MM-GBSA output", len(_ex) > 0)
 _open = [d for d in _ex

@@ -16,7 +16,7 @@ sys.path.insert(0, HERE)
 from make_brand import DEEP, TEAL, WARM, PAPER, draw            # noqa: E402
 # The name and tagline come from the package, not a second copy here.
 sys.path.insert(0, os.path.dirname(HERE))
-from adcp_dock.brand import NAME as BRAND_NAME, TAGLINE as BRAND_TAGLINE  # noqa: E402,E501
+from adcp_pilot.brand import NAME as BRAND_NAME, TAGLINE as BRAND_TAGLINE  # noqa: E402,E501
 
 MUTED = "#9fc4c4"
 

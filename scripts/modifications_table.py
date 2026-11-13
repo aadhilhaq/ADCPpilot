@@ -1,4 +1,4 @@
-"""Build adcp_dock/static/modifications.json, the list the Modifications
+"""Build adcp_pilot/static/modifications.json, the list the Modifications
 dialog offers, from an ADCP 1.1 installation.
 
 By Aadhil Haq
@@ -655,7 +655,7 @@ def main(adcpsuite, opsin_jar=None):
             "parent": r["parent"], "coarse": r["coarse"], "d": r["d"], "charge": r["charge"],
             "smiles": r["smiles"]} for r in rows]
     out.sort(key=lambda x: (x["parent"], x["name"].lower(), x["code"]))
-    dest = os.path.join(ROOT, "adcp_dock", "static", "modifications.json")
+    dest = os.path.join(ROOT, "adcp_pilot", "static", "modifications.json")
     json.dump({"source": "ADCP 1.1 Swiss side-chain library and OpenMM templates; "
                          "names from the RCSB Chemical Component Dictionary and PubChem",
                "modifications": out}, open(dest, "w"), indent=1)

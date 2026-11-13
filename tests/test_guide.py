@@ -28,8 +28,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from adcp_dock import page, pipeline, server, sizing, slurm, structure  # noqa: E402
-from adcp_dock import job as jobmod                               # noqa: E402
+from adcp_pilot import page, pipeline, server, sizing, slurm, structure  # noqa: E402
+from adcp_pilot import job as jobmod                               # noqa: E402
 
 fails, ran = [], 0
 
@@ -42,7 +42,7 @@ def check(cond, why):
 
 
 html = page.render("TOKEN")
-appjs = open(os.path.join(ROOT, "adcp_dock", "static", "app.js")).read()
+appjs = open(os.path.join(ROOT, "adcp_pilot", "static", "app.js")).read()
 css = html[html.index("<style>"):html.index("</style>")]
 STEPS = ["receptor", "site", "peptides", "docking", "submit"]
 LABELS = ["Receptor", "Site", "Peptides", "Docking", "Submit"]
@@ -192,7 +192,7 @@ if not os.path.isfile(REC):
     # examples/receptor.pdb is the user's own and ignored by git, so a fresh clone has none.
     # The package's own example ships MDM2 (chain A) with p53's peptide (chain B), a site in A
     # and a ligand in B, which is what these checks ask of a receptor.
-    REC = os.path.join(ROOT, "adcp_dock", "example_run", "receptor", "1YCR.pdb")
+    REC = os.path.join(ROOT, "adcp_pilot", "example_run", "receptor", "1YCR.pdb")
 atoms = structure.read(REC)
 _c, size, note = structure.box_for(
     [a for a in atoms if a.chain == "A"],
@@ -210,7 +210,7 @@ check(note.startswith("%d ligand atoms" % len(lig)) and "Å" in note
 check("'; box '" in appjs and "d.size.map(x => x.toFixed(1)).join(' × ')"
       in appjs, "the page no longer states the box after the site line")
 # The prepare log still states the ligand box, beside the line.
-_pl = open(os.path.join(ROOT, "adcp_dock", "pipeline.py")).read()
+_pl = open(os.path.join(ROOT, "adcp_pilot", "pipeline.py")).read()
 check('site["ligand_note"]) + tuple(size)' in _pl,
       "the prepare log lost the ligand box's size")
 
