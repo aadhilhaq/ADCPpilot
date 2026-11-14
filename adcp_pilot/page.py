@@ -2182,7 +2182,7 @@ larger of the two and takes a moment the first time.">
   </div>
 </dialog>
 
-<!-- The footer carries the disclaimer; the credit sentence is in the header,
+<!-- The footer says who wrote what; the credit sentence is in the header,
      so it is not repeated here. -->
 <footer><span class=why>__DISCLAIMER__</span>
   <br><span class=why>How to cite this tool and everything it runs:

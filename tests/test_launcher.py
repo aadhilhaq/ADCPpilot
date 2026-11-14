@@ -242,8 +242,8 @@ for want in ("Scripps Research Institute", "Powered by HOPE Lab",
              "ccsb.scripps.edu"):
     check(want in rendered, "the page does not say %r anywhere" % want)
 check(engine_credit() in _text or
-      (tool_credit() in _text and "Not affiliated" in _text),
-      "the page does not carry the engine credit and its disclaimer")
+      (tool_credit() in _text and "the HOPE Lab's" in _text),
+      "the page does not carry the engine credit and the line on who wrote what")
 check("__ENGINE_CREDIT__" not in rendered,
       "the engine-credit placeholder was left in the rendered page")
 # And citing it has to be reachable from the page, not only the README.
@@ -377,8 +377,11 @@ check(_t2.count(_sentence) == 1,
       "the credit sentence appears %d times on the page; it belongs in the "
       "header and nowhere else" % _t2.count(_sentence))
 _foot = _r[_r.index("<footer"):]
-check("Not affiliated with or endorsed by Scripps" in _foot,
-      "the footer dropped the Scripps disclaimer")
+check("Scripps Research Institute" in _foot and "HOPE Lab" in _foot,
+      "the footer dropped the line saying who wrote what")
+check("Not affiliated" not in _r and "not endorsed" not in _r.lower(),
+      "the page denies an affiliation with Scripps that now exists: ADCP's "
+      "author is a co-author of this work")
 check(_sentence not in _foot,
       "the footer repeats the sentence the header already made")
 

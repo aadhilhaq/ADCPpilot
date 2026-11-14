@@ -45,7 +45,7 @@ def acknowledgement(job=None):
 REPO = "https://github.com/aadhilhaq/ADCPpilot"
 
 
-# The attribution sentence. engine_credit() adds the disclaimer.
+# The attribution sentence. engine_credit() adds the line below it.
 ENGINE_CREDIT = ("A graphical interface to %s, a product of the %s. %s."
                  % (ENGINE, ENGINE_OWNER, POWERED_BY))
 
@@ -56,11 +56,14 @@ def credit(sep=" · "):
     return ENGINE_CREDIT
 
 
-# The disclaimer carried by the page footer.
-DISCLAIMER = "Not affiliated with or endorsed by Scripps."
+# Carried by the page footer. It states who wrote what. It used to deny any
+# affiliation with Scripps, which stopped being true once M. F. Sanner, who
+# wrote ADCP, became a co-author of this work.
+DISCLAIMER = ("ADCP, AGFR, AutoSite and ADapt are the Scripps Research "
+              "Institute's; this page is the HOPE Lab's.")
 
 
 def engine_credit():
-    """The attribution sentence and disclaimer, for wherever the tool is shown or published.
+    """The attribution sentence, for wherever the tool is shown or published.
     """
     return ENGINE_CREDIT + " " + DISCLAIMER
