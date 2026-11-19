@@ -214,11 +214,6 @@ def main(argv=None):
     n.add_argument("--autosite", choices=("1.1", "1.0"), default="1.1",
                    help="which AutoSite places the translation points and "
                         "finds the pockets (1.1 by default)")
-    n.add_argument("--receptor-gradient", action="store_true",
-                   help="add the receptor gradient to the maps (AGFR's -g). "
-                        "Off by default: it replaces the values inside the "
-                        "receptor with a slope toward its surface, costs "
-                        "time, and ADCP's authors found it did not help")
     n.add_argument("--target-file", default="",
                    help="a .trg target made elsewhere (for example in AGFRGUI): "
                         "its receptor, maps and box are used, and -r and -s "
@@ -622,7 +617,7 @@ def main(argv=None):
             rebuild_sidechains=a.rebuild_sidechains,
             site_mode=a.site_mode, site_ligand=a.site_ligand,
             site_pocket=a.site_pocket, agfr=a.agfr, autosite=a.autosite,
-            receptor_gradient=a.receptor_gradient, cyclic=a.cyclic,
+            cyclic=a.cyclic,
             helical=a.helical, keep_trajectories=a.keep_trajectories,
             keep_files=bool(a.keep_files),
             protonation=a.protonation,

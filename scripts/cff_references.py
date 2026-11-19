@@ -19,6 +19,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 from adcp_pilot import cite  # noqa: E402
 
+#: key -> the year its citation prints, where Crossref has only an online
+#: date in the year before. Checked against cite.py by tests/test_api.py.
+YEARS = {"swisssidechain": 2013}
+
 NOTES = {"adcp": "The docking engine. Scripps Research Institute.",
          "adfr": "AutoDockFR: agfr and prepare_receptor, from the ADCP 1.1 suite. Scripps Research Institute.",
          "autogrid": "AutoGrid4, which agfr uses to compute the affinity maps.",
@@ -111,7 +115,12 @@ for key, when, did, ref, doi in cite.REFERENCES:
     # went online in December.
     when = (m.get("published-print") or (m.get("journal-issue") or {}).get("published-print")
             or m["issued"])
-    out.append("    year: %d" % when["date-parts"][0][0])
+    # A few records carry no print date at all, only the online one, so Crossref
+    # cannot give the issue year: the NAR database issues go online in October
+    # and are printed in January. tests/test_api.py checks the year here against
+    # the year the citation prints, so without these the two disagree.
+    year = YEARS.get(key, when["date-parts"][0][0])
+    out.append("    year: %d" % year)
     out.append(doi_line(m["DOI"].lower()))
     notes = NOTES.get(key, did)
     if key == "pdbfixer":

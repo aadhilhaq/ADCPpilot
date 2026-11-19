@@ -45,7 +45,7 @@ html = page.render("TOKEN")
 appjs = open(os.path.join(ROOT, "adcp_pilot", "static", "app.js")).read()
 css = html[html.index("<style>"):html.index("</style>")]
 STEPS = ["receptor", "site", "peptides", "docking", "submit"]
-LABELS = ["Receptor", "Site", "Peptides", "Docking", "Submit"]
+LABELS = ["Receptor", "Site", "Peptides", "Docking Setup", "Dock"]
 
 # --- the strip and the cards agree --------------------------------------------
 nav = re.search(r"<nav class=guide id=guide[^>]*>(.*?)</nav>", html, re.S)
@@ -72,18 +72,18 @@ check([c[0] for c in cards] == STEPS and [c[1] for c in cards] == STEPS,
 check(html.index("id=guide") < html.index("id=step-receptor"),
       "the strip is not above the cards")
 for k, label in zip(STEPS, ["Receptor", "Site", "Peptides",
-                            "Docking and rescoring", "Submit"]):
+                            "Docking Setup", "Dock"]):
     i = html.find("id=step-%s " % k)
     check(i >= 0 and html.find("<h2>%s</h2>" % label, i) == html.find("<h2>", i),
           "the %s card's heading is not %r" % (k, label))
-# The submit button is in the Submit card, the search in the Docking card.
+# The submit button is in the Submit card, the search in the Docking Setup card.
 _sub = html[html.index("id=step-submit"):html.index("<h2>Runs</h2>")]
 for want in ("id=submit", "id=label", "id=outdir", "id=account"):
     check(want in _sub, "%s is not in the Submit card" % want)
 _dock = html[html.index("id=step-docking"):html.index("id=step-submit")]
 for want in ("id=poses", "id=replicas", "id=mmgbsa", "id=walltime",
              "id=autofill", "id=estnote"):
-    check(want in _dock, "%s is not in the Docking card" % want)
+    check(want in _dock, "%s is not in the Docking Setup card" % want)
 
 # --- gray is a cue, never a lock ------------------------------------------------
 for rule in re.findall(r"\.card\.step-later[^{]*\{[^}]*\}", css):

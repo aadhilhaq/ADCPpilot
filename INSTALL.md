@@ -528,19 +528,19 @@ ADapt, by Michel Sanner, shows what a PDB file holds before you dock into it: ea
 
 #### How it is fetched
 
-`install.sh` and `update.sh` fetch it from <https://github.com/michelsanner/adapt> into a folder named `adapt` beside the ADCP 1.1 suite, where the interface looks for it. They fetch it anonymously: git runs so that it never asks for a username or password and never uses a saved credential, so the same thing happens for everyone, on every cluster.
+`install.sh` and `update.sh` fetch it from <https://github.com/sannerlab/adapt> into a folder named `adapt` beside the ADCP 1.1 suite, where the interface looks for it. They fetch it anonymously: git runs so that it never asks for a username or password and never uses a saved credential, so the same thing happens for everyone, on every cluster.
 
 * **While the repository is private**, as it is today, the fetch fails at once and the script says so in one line, then carries on:
 
   ```
-  ADapt: not installed: https://github.com/michelsanner/adapt.git is not public yet. ADCP docking works without it; ./update.sh fetches it once it is public, or fetch it by hand with access (INSTALL.md, ADapt)
+  ADapt: not installed: https://github.com/sannerlab/adapt.git is not public yet. ADCP docking works without it; ./update.sh fetches it once it is public, or fetch it by hand with access (INSTALL.md, ADapt)
   ```
 
-  Where ADapt is already installed, the line is instead `ADapt: 1005e87, kept as it is: https://github.com/michelsanner/adapt.git is not public yet`. If you have access now, clone it yourself beside the suite, over whichever address your access works with (ssh as here, or https with a token):
+  Where ADapt is already installed, the line is instead `ADapt: 1005e87, kept as it is: https://github.com/sannerlab/adapt.git is not public yet`. If you have access now, clone it yourself beside the suite, over whichever address your access works with (ssh as here, or https with a token):
 
   ```bash
   source activate.sh
-  git clone git@github.com:michelsanner/adapt.git "$(dirname "$ADCPSUITE_HOME")/adapt"
+  git clone git@github.com:sannerlab/adapt.git "$(dirname "$ADCPSUITE_HOME")/adapt"
   ```
 
   `update.sh` never uses that address afterwards: it fetches from the public one.

@@ -71,6 +71,25 @@ references:
     doi: "10.1371/journal.pcbi.1004586"
     notes: "AutoDockFR: agfr and prepare_receptor, from the ADCP 1.1 suite. Scripps Research Institute."
   - type: article
+    title: "AutoGridFR: Improvements on AutoDock Affinity Maps and Associated Software Tools"
+    authors:
+      - family-names: "Zhang"
+        given-names: "Yuqi"
+      - family-names: "Forli"
+        given-names: "Stefano"
+      - family-names: "Omelchenko"
+        given-names: "Anna"
+      - family-names: "Sanner"
+        given-names: "Michel F."
+    journal: "Journal of Computational Chemistry"
+    volume: "40"
+    issue: "32"
+    start: "2882"
+    end: "2886"
+    year: 2019
+    doi: "10.1002/jcc.26054"
+    notes: "the affinity maps and the grid target agfr writes"
+  - type: article
     title: "AutoDock4 and AutoDockTools4: Automated docking with selective receptor flexibility"
     authors:
       - family-names: "Morris"

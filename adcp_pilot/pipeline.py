@@ -617,6 +617,14 @@ def _prepare_from_target(rundir, j, log=print):
         % j["target_file"])
     trg, prepared, pdbqt, centre, size = agfr_target.import_target(
         j["target_file"], rundir, log=log)
+    # The archive is structurally sound by here; this asks the other
+    # question, whether its maps cover the atom types these peptides need.
+    # A target built in AGFRGUI for one ligand can be missing a type, and
+    # ADCP would stop at that point in every array task instead.
+    _why = target.check(trg, sequences=[q for _n, q in jobmod.peptide_list(j)])
+    if _why:
+        raise SystemExit("the target file %s cannot dock these peptides: %s"
+                         % (os.path.basename(j["target_file"]), _why))
     j["site"] = {"centre": [float(v) for v in centre],
                  "size": [float(v) for v in size], "hotspots": [],
                  "chains": [], "outside_box": [],
@@ -709,7 +717,7 @@ def stage_dock(rundir, index, j=None, log=print):
     trg = j.get("target") or os.path.join(rundir, "target", "receptor.trg")
     if not os.path.isfile(trg):
         raise SystemExit("no grid target at %s; run the prepare stage" % trg)
-    why = target.check(trg)
+    why = target.check(trg, sequences=[q for _n, q in peps])
     if why:
         raise SystemExit("the grid target is unusable (%s). Docking into it "
                          "would produce scores against empty maps." % why)

@@ -310,7 +310,7 @@ textarea{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;min-height:76
 .row button,.row .fixedval{height:38px;box-sizing:border-box}
 .row button{display:inline-flex;align-items:center;justify-content:center}
 .row .stepper button{height:38px}
-/* ---- the Docking and rescoring card: four parts on a grid -------------
+/* ---- the Docking Setup card: four parts on a grid -------------
    Search, Engine, Rescoring and Resources, each under a small heading in the
    style of the Receptor card's groups, with a hairline between parts rather
    than a panel round each, which inside a card would read as a second card.
@@ -1411,11 +1411,11 @@ __STALE__
     <li data-step=docking><button type=button data-goto=docking><span
       class=gnum aria-hidden=true><span class=gn>4</span><svg class=gtick
       viewBox="0 0 24 24"><path d="M9.5 16.6 4.9 12l-1.6 1.6 6.2 6.2L21 8.3l-1.6-1.6z"/></svg></span><span
-      class=glab>Docking</span><span class="vh gstate"></span></button></li>
+      class=glab>Docking Setup</span><span class="vh gstate"></span></button></li>
     <li data-step=submit><button type=button data-goto=submit><span
       class=gnum aria-hidden=true><span class=gn>5</span><svg class=gtick
       viewBox="0 0 24 24"><path d="M9.5 16.6 4.9 12l-1.6 1.6 6.2 6.2L21 8.3l-1.6-1.6z"/></svg></span><span
-      class=glab>Submit</span><span class="vh gstate"></span></button></li>
+      class=glab>Dock</span><span class="vh gstate"></span></button></li>
   </ol>
 </nav>
 
@@ -1637,8 +1637,6 @@ __STALE__
           <option value="1.1" selected>1.1</option>
           <option value="1.0">1.0</option>
         </select></label>
-      <label class=chk><input type=checkbox id=receptor_gradient>
-        <span>Add the receptor gradient</span></label>
     </div>
     <div class=why id=mapsnote></div>
   </div>
@@ -1749,7 +1747,7 @@ __STALE__
 </div>
 
 <div class=card id=step-docking data-step=docking>
-  <h2>Docking and rescoring</h2>
+  <h2>Docking Setup</h2>
   <!-- Four parts, each under a small heading: the search, the engine, the
        rescoring and the resources. The fields of a part sit on one grid (CSS
        at .dpart), and a caption sits under the field it describes, in that
@@ -1859,7 +1857,7 @@ the queue for twice that and half an hour more, and at least two hours">Estimate
      cluster's own options, and the button. A card of its own, so the guide's
      fifth step has a card to light. -->
 <div class=card id=step-submit data-step=submit>
-  <h2>Submit</h2>
+  <h2>Dock</h2>
   <p class=hint>Name the run, choose where it is written, and send it to the
     queue.</p>
   <!-- Where the run goes: the output folder and the run name are the last

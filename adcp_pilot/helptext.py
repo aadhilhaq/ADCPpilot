@@ -125,16 +125,6 @@ HELP = {
         "It changes where the search starts, not the maps. On the MDM2 "
         "example the two placed 246 and 380 points, and on a short search "
         "that can change which pose comes out best."),
-    "receptor_gradient": (
-        "The receptor gradient",
-        "Inside the receptor no atom can be, and the maps hold very high "
-        "values there. The gradient replaces them with values that slope "
-        "toward the receptor's surface, so a peptide atom caught inside is "
-        "pushed out (AGFR's -g). Where a peptide atom can actually sit the "
-        "maps are unchanged.\n\n"
-        "It is off unless you tick it: the ADCP authors found it expensive "
-        "and of no real help to the search. On the MDM2 example it added 23 "
-        "to 53 seconds to the maps."),
     "pad": (
         "Padding around what marks the site",
         "How far the box extends beyond the residues, the ligand or the "

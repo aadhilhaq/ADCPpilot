@@ -1002,6 +1002,10 @@ async function adaptOpenFor(src, session){
   $('adaptfull').classList.remove('hide');
   adaptWaitHanded(ADAPTF);
   if(adaptInline()) adaptFrame();
+  // ADapt is the preparation wherever it runs, so it takes the receptor as
+  // soon as it has opened on this structure rather than waiting for an edit.
+  // leaveAdapt() still hands it back to the page's own preparation.
+  if(ADAPTMODE !== 'adapt'){ ADAPTMODE = 'adapt'; adaptApplied(); }
   ADAPT_TIMER = setInterval(() => { if(!document.hidden) adaptPoll(); }, 3000);
   await adaptPoll();
   return ADAPTF;
@@ -2918,20 +2922,15 @@ $('keep_hetatms').addEventListener('change', () => {
 });
 
 /* ===================== the grid maps ================================ */
-/* Which AutoSite places the translation points, and whether the receptor
-   gradient is added, said in one line under the two. */
+/* Which AutoSite places the translation points, said in one line under it. */
 function mapsNote(){
   const el = $('mapsnote');
   if(!el) return;
   el.textContent = 'AGFR ' + (MAC10 ? '1.0' : '1.1')
     + ' builds the maps; AutoSite '
-    + $('autosite').value + ' places the points the search starts from'
-    + ($('receptor_gradient').checked
-       ? '; the receptor gradient is added, which takes longer.'
-       : '; no receptor gradient.');
+    + $('autosite').value + ' places the points the search starts from.';
 }
-['autosite', 'receptor_gradient'].forEach(id =>
-  $(id).addEventListener('change', mapsNote));
+['autosite'].forEach(id => $(id).addEventListener('change', mapsNote));
 
 /* ===================== peptide options ============================== */
 /* How many replicas start as a helix, worked out the way ADCP does it:
@@ -3720,7 +3719,6 @@ $('autofill').onclick = async () => {
     // What the options cost: the maps, a pocket found by AutoSite, a ring,
     // helical starts, more poses and kept trajectories.
     autosite: $('autosite').value,
-    receptor_gradient: $('receptor_gradient').checked,
     site_mode: siteMode(), box_max: +$('bmax').value,
     cyclic: $('cyclic').value, helical: +$('helical').value,
     poses: +$('poses').value,
@@ -3961,7 +3959,6 @@ $('submit').onclick = async () => {
     pocket_score: $('pocketscore').value,
     site_pocket: $('site_pocket').value,
     autosite: $('autosite').value,
-    receptor_gradient: $('receptor_gradient').checked,
     cyclic: $('cyclic').value, helical: +$('helical').value,
     keep_trajectories: $('keep_trajectories').checked,
     keep_files: $('keep_files').checked,
@@ -4302,14 +4299,13 @@ const REUSE_FIELDS = {
 const REUSE_TICKS = {minimise:'minimise', keep_hetatms:'keep_hetatms',
                      rebuild_sidechains:'rebuild_sidechains',
                      fill_loops:'fill_loops', mmgbsa:'mmgbsa',
-                     receptor_gradient:'receptor_gradient',
                      keep_trajectories:'keep_trajectories', keep_files:'keep_files'};
 /* What a tick means when the run's job file does not mention it: a run made
    before the setting existed did what it describes, which is not always what
    the default does now. Without this the tick would keep whatever this
    session last left it at. Runs made before the maps could be chosen had the
    receptor gradient on, and their maps are built again with it. */
-const REUSE_TICK_DEFAULTS = {rebuild_sidechains: true, receptor_gradient: true,
+const REUSE_TICK_DEFAULTS = {rebuild_sidechains: true,
                              keep_trajectories: false, keep_files: false};
 /* The same for the other settings: those runs built the box around residues
    with AutoSite 1.0, docked linear peptides, and started every replica as a

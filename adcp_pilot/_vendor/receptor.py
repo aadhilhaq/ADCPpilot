@@ -413,65 +413,6 @@ def box(rec: Receptor, cfg) -> tuple[np.ndarray, np.ndarray]:
     return center, size
 
 
-def chains_in_box(path: str, center, size, exclude=(), margin: float = 0.0,
-                  min_atoms: int = 0):
-    """Chains with heavy atoms inside the docking box -> {chain: n_atoms}.
-
-    `min_atoms` drops chains that only graze the box: a rectangular box can clip
-    a residue or two of a chain far from the site, which is not the same as a
-    chain that forms part of the site.
-
-    A box built around the hotspots of a multi-chain structure often reaches
-    into a neighboring chain, because an interface groove has two sides.
-    Docking into that groove with only one side loaded places the peptide
-    against a hole: it scores well because half the wall is missing, and the
-    rescoring measures the same missing wall.
-
-    Reads the whole file rather than the loaded Receptor, because the point is
-    to find chains that were not loaded.
-    """
-    lo = np.asarray(center) - np.asarray(size) / 2.0 - margin
-    hi = np.asarray(center) + np.asarray(size) / 2.0 + margin
-    found = {}
-    ext = os.path.splitext(str(path))[1].lower()
-    if ext in (".cif", ".mmcif"):
-        from Bio.PDB.MMCIFParser import MMCIFParser
-        st = MMCIFParser(QUIET=True).get_structure("r", path)
-        model = next(iter(st))
-        for ch in model:
-            if ch.id in exclude:
-                continue
-            n = 0
-            for res in ch:
-                for at in res:
-                    if is_hydrogen(at.get_name(), at.element or ""):
-                        continue
-                    xyz = np.asarray(at.get_coord(), float)
-                    if np.all(xyz >= lo) and np.all(xyz <= hi):
-                        n += 1
-            if n >= max(1, min_atoms):
-                found[ch.id] = n
-        return found
-    for l in open(path, errors="replace"):
-        if l.startswith("ENDMDL"):
-            break
-        if not l.startswith("ATOM"):
-            continue
-        c = "_" if l[21] == " " else l[21]
-        if c in exclude:
-            continue
-        if l[16] not in (" ", "A"):
-            continue
-        if is_hydrogen(l[12:16].strip(), l[76:78].strip()):
-            continue
-        try:
-            xyz = np.array([float(l[30:38]), float(l[38:46]), float(l[46:54])])
-        except ValueError:
-            continue
-        if np.all(xyz >= lo) and np.all(xyz <= hi):
-            found[c] = found.get(c, 0) + 1
-    return {c: n for c, n in found.items() if n >= max(1, min_atoms)}
-
 
 def load_for_box(cfg, log=print):
     """Load the receptor and build the search box from its hotspots.

@@ -23,13 +23,19 @@ REFERENCES = [
      "docking to predict protein-peptide complexes. Bioinformatics "
      "35(24):5121-5127, 2019.",
      "10.1093/bioinformatics/btz459"),
-    ("adfr", "always", "grid maps (agfr) and receptor preparation "
-     "(prepare_receptor)",
+    ("adfr", "always", "receptor preparation (prepare_receptor) and the "
+     "AutoDockFR suite agfr belongs to",
      "Ravindranath PA, Forli S, Goodsell DS, Olson AJ, Sanner MF. "
      "AutoDockFR: advances in protein-ligand docking with explicitly "
      "specified binding site flexibility. PLoS Comput Biol 11(12):e1004586, "
      "2015.",
      "10.1371/journal.pcbi.1004586"),
+    # agfr itself: the program that writes the .trg target ADCP docks into.
+    ("agfr", "always", "the affinity maps and the grid target agfr writes",
+     "Zhang Y, Forli S, Omelchenko A, Sanner MF. AutoGridFR: improvements "
+     "on AutoDock affinity maps and associated software tools. J Comput "
+     "Chem 40(32):2882-2886, 2019.",
+     "10.1002/jcc.26054"),
     # agfr computes the affinity maps with AutoGrid4 (ADFR/utils/MakeGrids.py).
     ("autogrid", "always", "the affinity maps agfr computes with AutoGrid4",
      "Morris GM, Huey R, Lindstrom W, Sanner MF, Belew RK, Goodsell DS, "
@@ -184,6 +190,14 @@ BIB = {
               "explicitly specified binding site flexibility",
         journal="PLoS Computational Biology", year=2015,
         volume="11", number="12", pages="e1004586"),
+    "agfr": dict(
+        bibkey="Zhang2019agfr",
+        author="Zhang, Yuqi and Forli, Stefano and Omelchenko, Anna and "
+               "Sanner, Michel F.",
+        title="AutoGridFR: improvements on AutoDock affinity maps and "
+              "associated software tools",
+        journal="Journal of Computational Chemistry", year=2019,
+        volume="40", number="32", pages="2882--2886"),
     "autosite": dict(
         bibkey="Ravindranath2016",
         author="Ravindranath, Pradeep Anand and Sanner, Michel F.",
@@ -345,8 +359,8 @@ BIB = {
 # here only by its key and by the name it is known by; the reference itself is
 # the entry above, so the page's header and the citation list cannot name
 # different papers.
-MUST_CITE = (("adcp", ENGINE), ("adfr", "AutoDockFR / AGFR"),
-             ("autosite", "AutoSite"))
+MUST_CITE = (("adcp", ENGINE), ("agfr", "AGFR"),
+             ("adfr", "AutoDockFR"), ("autosite", "AutoSite"))
 
 
 def _authors_short(author):

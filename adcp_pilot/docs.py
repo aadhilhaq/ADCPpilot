@@ -63,7 +63,6 @@ HELP_LINKS = {
     "site_ligand": "site.html#ligand",
     "site_pocket": "site.html#pocket",
     "autosite": "site.html#autosite",
-    "receptor_gradient": "site.html#gradient",
     "cyclic": "peptides.html#cyclic",
     "helical": "peptides.html#helical",
     "keep_trajectories": "docking.html#trajectories",

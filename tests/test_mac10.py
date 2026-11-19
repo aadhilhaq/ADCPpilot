@@ -169,7 +169,7 @@ try:
     open(os.path.join(rd, "target", "receptor.trg"), "w").write("t")
     jobmod.save(rd, dict(jmac, target=os.path.join(rd, "target", "receptor.trg")))
     _check = pipeline.target.check
-    pipeline.target.check = lambda trg: None
+    pipeline.target.check = lambda trg, *a, **k: None
     try:
         pipeline.stage_dock(rd, 0, log=lambda *a: None)
         stopped = ""
@@ -309,7 +309,7 @@ trg2 = os.path.join(rd, "target", "receptor.trg")
 open(trg2, "w").write("a target")
 jobmod.save(rd, dict(j, target=trg2, mmgbsa=False))
 _check = pipeline.target.check
-pipeline.target.check = lambda trg: None
+pipeline.target.check = lambda trg, *a, **k: None
 try:
     lines = []
     pipeline.stage_dock(rd, 0, log=lines.append)

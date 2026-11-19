@@ -116,12 +116,11 @@ def default(**kw):
         # always matches the one it replaces.
         "agfr": "1.1",
         "autosite": "1.1",
+        # Kept so a job file written before the setting was withdrawn still
+        # rebuilds the maps it was built with; the interface no longer
+        # offers it, because AGFR's own help calls it expensive and of no
+        # real help to the search.
         "receptor_gradient": False,
-        # A box built around an interface groove reaches into the
-        # chain on the far side. Including it means docking against a
-        # complete wall; omitting it means docking against a gap.
-        # Which is correct depends on whether that chain is part of
-        # the site or the partner being displaced.
         # peptides
         # [{name, sequence}], and "cyclic" on a peptide docked as its own
         # ring rather than as the run's (ring_of). A peptide without it, as
@@ -552,7 +551,13 @@ def validate(j):
     trg = str(j.get("target_file") or "").strip()
     if trg:
         from . import target as _t
-        why = _t.check(trg) if os.path.isfile(trg) else "does not exist"
+        # The peptides are checked against the target's maps here, before
+        # anything is queued: a target built in AGFRGUI for one ligand can
+        # lack an atom type these peptides need, and ADCP would stop on it
+        # in every array task instead.
+        seqs = [q for _n, q in peptide_list(j)]
+        why = (_t.check(trg, sequences=seqs) if os.path.isfile(trg)
+               else "does not exist")
         if why:
             out.append("The target file %s is unusable: %s" % (trg, why))
     else:

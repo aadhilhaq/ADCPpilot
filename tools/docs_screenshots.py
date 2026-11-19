@@ -191,8 +191,13 @@ def main():
                 pg.wait_for_function(
                     "() => /atoms/.test(document.getElementById('recinfo').textContent)",
                     timeout=120000)
-                for ch in (job.get("chains") or []):
-                    pg.check('#chainbox .chk[data-ch="%s"]' % ch)
+                # The chain ticks belong to this page's own preparation.
+                # Where ADapt is installed it takes the receptor as soon as it
+                # opens and decides the chains itself, so the ticks are
+                # disabled and there is nothing to set here.
+                if not pg.evaluate("typeof adaptOn === 'function' && adaptOn()"):
+                    for ch in (job.get("chains") or []):
+                        pg.check('#chainbox .chk[data-ch="%s"]' % ch)
                 # ADapt starting on it, where ADapt is installed: the loading
                 # card in the space its frame will fill, taken while one step
                 # is ticked and the next is under way. A start already warm
@@ -507,8 +512,11 @@ def main():
                     ".contentDocument; return !!d && d.querySelectorAll('#tree li').length > 0"
                     " && !!d.querySelector('#viewer canvas'); }"
                     " catch(e){ return false; } }", timeout=330000)
+                # ADapt takes the receptor as soon as it has opened, so the
+                # card says so from the start; it no longer passes through a
+                # "this page's preparation" state first.
                 pg.wait_for_function(
-                    "() => /this page.s preparation/.test("
+                    "() => /as set in ADapt/.test("
                     "document.getElementById('adaptsays').textContent)", timeout=60000)
                 pg.wait_for_timeout(5000)
                 shot(pg.locator("#adaptsec"), "adapt-inline.png")
@@ -535,6 +543,8 @@ def main():
                     "x => /protein/.test(x.querySelector('.lab').textContent));"
                     " (cat || li).querySelector('input.cb[data-col=rec]').dataset.shot = 'B'; }")
                 frame.locator('input.cb[data-shot="B"]').click()
+                # Already ADapt's receptor; this waits for the edit to reach
+                # the card rather than for a change of owner.
                 pg.wait_for_function(
                     "() => /as set in ADapt/.test("
                     "document.getElementById('adaptsays').textContent)", timeout=60000)

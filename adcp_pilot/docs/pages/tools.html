@@ -40,7 +40,7 @@ conda-forge, and fetches the Scripps packages, checking each against a pinned
 checksum. It takes about ten minutes and 3 GB. The suite is all the docking needs:
 its own <code>adcp</code>, <code>agfr</code>, <code>prepare_receptor</code> and
 <code>reduce</code>, and MSMS as its library, mslib, for the surfaces. Without it
-nothing can dock, and the Docking card says so plainly.</p>
+nothing can dock, and the Docking Setup card says so plainly.</p>
 <p>Its AGFR builds the grid maps, with AutoSite 1.1 or 1.0, adds the receptor
 gradient only when asked, and can place the box around an AutoSite pocket; see
 <a href="site.html#maps">the grid maps</a>.</p>
@@ -48,7 +48,7 @@ gradient only when asked, and can place the box around an AutoSite pocket; see
 <code>activate.sh</code> sets; in a tools folder given with
 <code>--tools-root</code>; in <code>tools/docking/adcpsuite</code> inside the
 installation or beside it; at <code>~/.adcp-pilot/adcpsuite</code>; or at
-<code>/content/adcpsuite</code> in Colab. <b>Docking engine</b> in the Docking card
+<code>/content/adcpsuite</code> in Colab. <b>Docking engine</b> in the Docking Setup card
 shows its version. What it lets you dock is in
 <a href="case-modified.html">Modified and D amino acids</a>.</p>
 <p>Scripps builds the suite for Linux only; a Mac docks with ADCP 1.0 instead
@@ -89,14 +89,14 @@ metals.</figcaption>
 <p>ADapt, by Michel Sanner, is a separate program, not part of this package. It runs
 on the ADCP 1.1 environment above. On a cluster, <code>install.sh</code> and
 <code>update.sh</code> fetch it from its repository,
-<code>https://github.com/michelsanner/adapt</code>, into a folder named
+<code>https://github.com/sannerlab/adapt</code>, into a folder named
 <code>adapt</code> beside the ADCP 1.1 suite, and <code>update.sh</code> keeps it up to date.
 They fetch it anonymously, never asking for a password, so while the repository is
 private they say so in one line and carry on, and the first update after it becomes
 public brings it in. An update that would leave an ADapt this interface cannot embed
 is undone, and a checkout with local changes or on another branch is left as it is.
 With access to the repository now, clone it beside the suite yourself:</p>
-<pre>git clone git@github.com:michelsanner/adapt.git "$(dirname "$ADCPSUITE_HOME")/adapt"</pre>
+<pre>git clone git@github.com:sannerlab/adapt.git "$(dirname "$ADCPSUITE_HOME")/adapt"</pre>
 <p>When the interface finds both ADapt and ADCP 1.1, ADapt opens by
 itself in a frame in the Receptor card on each structure loaded there; <b>Open
 full screen</b> shows the same session in a tab of its own, and on a phone a

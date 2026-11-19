@@ -255,13 +255,15 @@ with <b>Try again</b>. Docking does not need ADapt: without it, this page
 prepares the receptor itself.</p>
 <p>The line above the frame always says which receptor will be docked.</p>
 <ul>
-<li><b>Docking will use this page&rsquo;s preparation.</b> Until you change
-anything in ADapt, the run prepares the structure as the settings above say,
-exactly as it would without ADapt.</li>
-<li><b>Docking will use the receptor as set in ADapt.</b> From the first change
-in ADapt, an unticked chain or the waters taken out for example, the line says
-so and names the assembly and the last changes. The preparation settings and
-the chain ticks are grayed out, because ADapt and AGFR decide them now.</li>
+<li><b>Docking will use the receptor as set in ADapt.</b> Where ADapt is
+installed it prepares the receptor, so the line says this as soon as ADapt has
+opened on the structure, and it names the assembly and the last changes. The
+preparation settings and the chain ticks above are grayed out, because ADapt
+and AGFR decide them now.</li>
+<li><b>Docking will use this page&rsquo;s preparation.</b> Press <b>use this
+page&rsquo;s preparation</b> to hand the receptor back, and the run prepares
+the structure as the settings above say. That is also what happens wherever
+ADapt cannot run, on macOS, in Colab, or in an installation without it.</li>
 </ul>
 <figure>
 <img src="img/receptor-adapt.png" alt="The Receptor card after the waters were unticked in ADapt: the line above the frame says docking will use the receptor as set in ADapt, the preparation settings are grayed out, and the receptor ADapt wrote is described below">

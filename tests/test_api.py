@@ -1507,7 +1507,7 @@ for _id in ("steps", "replicas"):
 
 # nothing inside the row is taller than the rest, or every other label rides
 # up to meet it: the row is bottom-aligned
-_i = _html.index("<h2>Docking and rescoring</h2>")
+_i = _html.index("<h2>Docking Setup</h2>")
 _card = _html[_i:_html.index("Name this run")]
 # Three fields since the preparation pH moved to the Receptor card.
 _row = _card[_card.index("<div class=row>"):
@@ -2600,7 +2600,7 @@ check(".pdbqt" not in (post("/api/upload", {"name": "n.docx", "text": "x"})
 
 # --- receptor preparation, in the Receptor card -----------------------------
 _rc = html[html.index("<h2>Receptor</h2>"):html.index("<h2>Site</h2>")]
-_dc = html[html.index("<h2>Docking and rescoring</h2>"):html.index("<h2>Runs</h2>")]
+_dc = html[html.index("<h2>Docking Setup</h2>"):html.index("<h2>Runs</h2>")]
 _order = [_rc.find("id=" + i) for i in ("chainbox", "keep_hetatms",
                                         "rebuild_sidechains", "fill_loops")] \
     + [_rc.find("id=ph "), _rc.find("id=minimise")]
@@ -2609,8 +2609,8 @@ check(all(x >= 0 for x in _order) and _order == sorted(_order),
       "chains, in the order they are applied: %r" % _order)
 for _id in ("ph", "minimise", "keep_hetatms", "fill_loops"):
     check("id=%s " % _id not in _dc and "id=%s>" % _id not in _dc,
-          "%s is still in the Docking and rescoring card" % _id)
-check("id=mmgbsa" in _dc, "MM-GBSA left the Docking and rescoring card")
+          "%s is still in the Docking Setup card" % _id)
+check("id=mmgbsa" in _dc, "MM-GBSA left the Docking Setup card")
 check(_re4.search(r"<input type=checkbox id=rebuild_sidechains checked>", _rc),
       "Rebuild missing side chains is not on by default")
 from adcp_pilot import job as _J5, helptext as _H5, pipeline as _P5   # noqa: E402

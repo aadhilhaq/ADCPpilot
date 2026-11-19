@@ -13,8 +13,8 @@ BibTeX or RIS.</figcaption>
 
 <h2 id="the-button">The button, and what it is scoped to</h2>
 <p>The header says in one line which papers every published result must cite,
-whatever else the run used: ADCP, AutoDockFR (whose <code>agfr</code> builds the
-grid maps) and AutoSite. The line is built from the same list as the dialog, so
+whatever else the run used: ADCP, AGFR (which builds the affinity maps and
+the grid target), AutoDockFR and AutoSite. The line is built from the same list as the dialog, so
 the two cannot disagree, and its <b>How to cite</b> link opens the dialog.</p>
 <p><b>How to cite</b> is in the header and again at the bottom of the page. Opened
 from the header it lists every program the tool can use. Opened from a finished run
@@ -47,7 +47,8 @@ adcp-pilot cite --bibtex        or --ris</pre>
 <table>
 <tr><th>Program</th><th>What it did</th></tr>
 <tr><td><b>ADCP</b></td><td>the docking search itself. Zhang and Sanner, Bioinformatics 2019.</td></tr>
-<tr><td><b>AutoDockFR</b></td><td>the grid maps (the ADCP 1.1 suite's <code>agfr</code>) and the receptor PDBQT (its <code>prepare_receptor</code>). Ravindranath et al., PLoS Comput Biol 2015.</td></tr>
+<tr><td><b>AGFR</b></td><td>the affinity maps and the grid target the ADCP 1.1 suite's <code>agfr</code> writes. Zhang et al., J Comput Chem 2019.</td></tr>
+<tr><td><b>AutoDockFR</b></td><td>the receptor PDBQT (the suite's <code>prepare_receptor</code>), and the AutoDockFR suite <code>agfr</code> belongs to. Ravindranath et al., PLoS Comput Biol 2015.</td></tr>
 <tr><td><b>AutoGrid4</b></td><td>the affinity maps <code>agfr</code> computes. Morris et al., J Comput Chem 2009.</td></tr>
 <tr><td><b>AutoSite</b></td><td>the translational points <code>agfr</code> places on every target. Ravindranath and Sanner, Bioinformatics 2016.</td></tr>
 <tr><td><b>reduce</b></td><td>the receptor's hydrogens, by default, and in a receptor from ADapt. Word et al., J Mol Biol 1999.</td></tr>
@@ -60,7 +61,7 @@ adcp-pilot cite --bibtex        or --ris</pre>
 <tr><td><b>MSMS</b></td><td>a figure with a surface from the viewers. Sanner et al., Biopolymers 1996.</td></tr>
 </table>
 <p>ADCP, AGFR and AutoSite are products of the Scripps Research Institute, and
-this package is an interface to them rather than a part of them. Cite ADCP, AutoDockFR
+this package is an interface to them rather than a part of them. Cite ADCP, AGFR, AutoDockFR
 and AutoSite whatever else you cite. The Amber developers ask for the AmberTools paper together with the force
 field paper.</p>
 

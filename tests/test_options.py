@@ -334,13 +334,13 @@ for opt in ("--engine", "--agfr"):
           "%s 1.0 was accepted (rc %r)" % (opt, rc))
 rc, out = run_cli("new", rd, "-r", REC, "--site-mode", "ligand",
                   "--site-ligand", "B", "--agfr", "auto", "--autosite", "1.0",
-                  "--receptor-gradient", "--cyclic", "backbone",
+                  "--cyclic", "backbone",
                   "--helical", "40", "--keep-trajectories", "--poses", "50",
                   "--engine", "auto", "-p", "p53: ETFSDLWKLLPEN")
 jf = os.path.join(rd, "job.json")
 j = json.load(open(jf)) if os.path.isfile(jf) else {}
 for k, v in (("site_mode", "ligand"), ("site_ligand", "B"), ("agfr", "auto"),
-             ("autosite", "1.0"), ("receptor_gradient", True),
+             ("autosite", "1.0"),
              ("cyclic", "backbone"), ("helical", 40),
              ("keep_trajectories", True), ("poses", 50)):
     check(j.get(k) == v, "--%s did not reach job.json: %r"
@@ -357,7 +357,7 @@ check(j2 == j, "job.json did not read back as it was written")
 notes = "\n".join(pipeline.batch_notes(j, "prepare")
                   + pipeline.batch_notes(j, "dock")) if j else ""
 for want in ("around the ligand B", "AGFR 1.1", "AutoSite 1.0", "ADCP 1.1",
-             "receptor gradient on", "40% of replicas start as a helix",
+             "40% of replicas start as a helix",
              "adcp -p 40", "backbone cyclic", "50 pose(s)",
              "trajectories kept"):
     check(want in notes, "the batch scripts do not say %r:\n%s"

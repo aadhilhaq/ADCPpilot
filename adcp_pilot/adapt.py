@@ -13,7 +13,7 @@ is started here as its own program with that environment named. Nothing of it
 is imported or shipped with this package; it is found where it was installed.
 install.sh and update.sh fetch it from
 
-    https://github.com/michelsanner/adapt
+    https://github.com/sannerlab/adapt
 
 into a folder named adapt beside the ADCP 1.1 suite, anonymously, once that
 repository is public (scripts/adapt_fetch.sh). It is also found at
@@ -38,7 +38,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-REPO = "https://github.com/michelsanner/adapt"
+REPO = "https://github.com/sannerlab/adapt"
 # The port ADapt listens on. Zero means the operating system picks a free one,
 # which is right on a shared login node. Anyone reaching this interface through
 # an ssh tunnel wants the same port every time instead, since the tunnel names

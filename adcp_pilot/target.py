@@ -35,6 +35,62 @@ import zipfile
 
 MIN_MAPS = 20
 
+#: The AutoDock atom types a peptide needs a map for, by one-letter code.
+#: Every residue carries the backbone set; the entries below add what its
+#: side chain brings. agfr writes a map per type and ADCP loads one map for
+#: each type its peptide uses, so a target built for another ligand, with
+#: agfr's -m ligand or a hand-picked list in AGFRGUI, can be missing one.
+#: ADCP then stops with "Missing gridmap file" after the job has queued,
+#: which is what this check is here to prevent.
+BACKBONE_TYPES = frozenset(("C", "N", "OA", "HD"))
+SIDE_CHAIN_TYPES = {
+    "A": frozenset(), "G": frozenset(), "P": frozenset(),
+    "I": frozenset(), "L": frozenset(), "V": frozenset(),
+    "R": frozenset(("N",)), "K": frozenset(("N",)),
+    "N": frozenset(("N", "OA")), "Q": frozenset(("N", "OA")),
+    "D": frozenset(("OA",)), "E": frozenset(("OA",)),
+    "S": frozenset(("OA",)), "T": frozenset(("OA",)),
+    "C": frozenset(("SA",)), "M": frozenset(("SA",)),
+    "H": frozenset(("A", "N", "NA")),
+    "F": frozenset(("A",)), "Y": frozenset(("A", "OA")),
+    "W": frozenset(("A", "N")),
+}
+
+
+def types_needed(sequences):
+    """The AutoDock types the maps must cover for these peptides, and the
+    non-canonical side chains whose types cannot be told from the sequence.
+
+    Returns (types, unknown). A side chain in angle brackets comes from
+    ADCP's rotamer library and can carry a type no canonical residue does,
+    so it is reported rather than guessed at.
+    """
+    types, unknown = set(), []
+    for seq in sequences or ():
+        rest = str(seq or "")
+        while rest:
+            m = re.match(r"&?([A-Za-z])(?:<([^>]*)>)?", rest)
+            if not m:
+                rest = rest[1:]
+                continue
+            code = m.group(1).upper()
+            if m.group(2):
+                unknown.append(m.group(2))
+            types |= BACKBONE_TYPES
+            types |= SIDE_CHAIN_TYPES.get(code, frozenset())
+            rest = rest[m.end():]
+    return types, sorted(set(unknown))
+
+
+def types_in(names):
+    """The atom types a target's map filenames carry."""
+    got = set()
+    for n in names:
+        m = re.search(r"rigidReceptor\.([A-Za-z]{1,2})\.map$", n)
+        if m:
+            got.add(m.group(1))
+    return got
+
 #: Which agfr builds the maps: the ADCP 1.1 suite's. "auto", which new runs
 #: said before, means it too.
 AGFR_CHOICES = ("1.1", "auto")
@@ -53,8 +109,13 @@ class TargetError(Exception):
     pass
 
 
-def check(trg, receptor_pdbqt=None):
-    """None if the target is usable, else a sentence saying what is wrong."""
+def check(trg, receptor_pdbqt=None, sequences=None):
+    """None if the target is usable, else a sentence saying what is wrong.
+
+    With `sequences`, the maps are also checked against the atom types those
+    peptides need, so a target that cannot dock them is refused here rather
+    than by ADCP after the job has queued.
+    """
     if not os.path.isfile(trg):
         return "does not exist"
     if not zipfile.is_zipfile(trg):
@@ -85,6 +146,14 @@ def check(trg, receptor_pdbqt=None):
     if prefix != stem:
         return ("the folder inside the archive is %r but the target is named "
                 "%r; ADCP looks for the second and finds nothing" % (prefix, stem))
+    if sequences:
+        want, unknown = types_needed(sequences)
+        missing = sorted(want - types_in(names))
+        if missing:
+            return ("no grid map for the atom type(s) %s, which these peptides "
+                    "need; this target was built for a different ligand. Build "
+                    "the maps again over the same box with every atom type"
+                    % ", ".join(missing))
     return None
 
 

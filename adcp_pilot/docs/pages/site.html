@@ -221,7 +221,7 @@ surface instead, and a line under the view says why.</p>
 
 <h2 id="maps">The grid maps</h2>
 <figure>
-<img src="img/site-maps.png" alt="The Grid maps panel of the Site card: AutoSite 1.1; the receptor gradient unticked; and a line saying how the maps will be built">
+<img src="img/site-maps.png" alt="The Grid maps panel of the Site card: AutoSite 1.1, and a line saying how the maps will be built">
 <figcaption><b>How the box is filled.</b> The line under the two settings says
 which AutoSite places the points the search starts from, and whether the gradient
 is added.</figcaption>
@@ -250,14 +250,3 @@ it. It is the default here. It changes where the search starts, not the maps: on
 the MDM2 example the maps were identical either way, and AutoSite 1.0 placed 380
 points where 1.1 placed 246.</p>
 
-<h2 id="gradient">The receptor gradient</h2>
-<p>Inside the receptor no atom can be, and the maps hold very high values there.
-The gradient replaces them with values that slope toward the receptor's surface,
-so a peptide atom caught inside is pushed out rather than stuck. Where a peptide
-atom can actually sit the maps are unchanged: on the MDM2 example they were the
-same to the last digit with and without it.</p>
-<p>It is off unless you tick <b>Add the receptor gradient</b>, because the ADCP
-authors found it expensive and of no real help to the search. Every run made
-before this choice has it. On the MDM2 example it added 23 to 53 seconds to the
-maps, which took 14 to 16 seconds without it. The walltime estimate prices it
-either way.</p>

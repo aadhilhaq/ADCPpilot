@@ -28,7 +28,7 @@
 #     ADAPT_REPO_BRANCH   the branch followed, master by default
 #     ADAPT_GIT_SECONDS   how long one fetch may take, 300 by default
 
-ADAPT_URL="${ADAPT_REPO_URL:-https://github.com/michelsanner/adapt.git}"
+ADAPT_URL="${ADAPT_REPO_URL:-https://github.com/sannerlab/adapt.git}"
 ADAPT_BRANCH="${ADAPT_REPO_BRANCH:-master}"
 ADAPT_LINE=""
 ADAPT_STATE=""

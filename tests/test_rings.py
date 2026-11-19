@@ -235,7 +235,7 @@ def make_run(name, j):
 
 
 _check, _engine = pipeline.target.check, jobmod.resolve_engine
-pipeline.target.check = lambda trg: None
+pipeline.target.check = lambda trg, *a, **k: None
 try:
     jobmod.resolve_engine = lambda jj: ("1.1", EXE11)
     rd = make_run("dock11", dict(j, replicas=8, steps=1000, poses=5, cpus=2,
